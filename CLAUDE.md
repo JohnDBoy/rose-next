@@ -1488,6 +1488,7 @@ Our `data/` is a translated iROSE dump with gaps; the reference dumps in `C:\Use
   client twins) now carries the attack target across a position skill and the SA_RESTORE branch
   puts it back; `ProcCMD_ATTACK` still checks it is there and alive. A new member on `CObjAI` is a
   class-layout change: clean-rebuild `sho_gameserver` and `client`.
+- `scripts/fix-diamond-gem-effects.py` — **socketed Diamonds showed no glow** (2026-10-12). A gem's glow is `GEMITEM_ATTACK_EFFECT` (LIST_JEMITEM col 21), a LIST_EFFECT row whose `EFFECT_POINT` cols 2-5 name FILE_EFFECT rows; the families sit on a five-step ladder (Garnet 1-3 … Pink Opal 36-38, retail Diamond 31-33) but our Diamond rows carry tsuki's pointer, 74-76, and those rows were blank here: tsuki's newer `_JEMITEM_DIAMOND02/12/22.eft` set came across as files (shared with Pink Opal) but not as table rows. Writes LIST_EFFECT 74-76 and FILE_EFFECT 1188-1190 in place through `import-monster-skills.py`'s `Plan`; cell-level undo in `build/diamond-gem-effects/`. Also from that session: **a weapon with no dummy points drops the gem glow silently** (`CreateGemmingEffect` checks `WEAPON_GEMMING_POSITION` = dummy 2 against the count) — the Vengeance Staff is such a weapon; `import-glb-weapon.py` now writes the three retail anchors (trail tip, trail low, gem) on every custom weapon.
 - `scripts/repackage-subweapons.py` — re-files the Jrose "shields" (LIST_SUBWPN 306-334) that are not shields. **The retail table already has the classes**: col 4 is 261 Shield, 262 Support Tool (the Book of Standards → Magic Pearl caster ladder, rows 61-82, INT-gated, +Max MP/+MP regen) and 263 Dolls (renamed "Charm" in `STR_ITEMTYPE.STL`). Class 261 does exactly four things in code: the tooltip's DEF/RES line (now printed for any sub-weapon with non-zero DEF/RES — the server sums every slot regardless of class, so a tool's RES was invisible), the Soldier/Knight *Shield Barrier* / *Endure* requirement, 40% of incoming durability wear, and a shield passive no skill grants. Attach point is the ZSC dummy, never the class. Four real shields remain, one per tier (Garm 210, Golden Angel 220, Ancient Davion 230, Righteous Shield NEO 240), sized at 12-13% of the armour set's DEF; the mirrors are 262 (INT gate = the old STR value), the rest 263 with a DEX (avoid/crit) or STR (max HP/hit) flavour. **Every 230/240 import had cloned the Davion template's +150 DEF option** — stripped, Davion included. Drops: the `OFF_*` lists in `add-karkia-drops.py` (re-applied with `--rewrite`; its `--restore` is a whole-file ITEM_DROP copy, never use it after Oro/Shibuya ran) and `add-oro-drops.py`; Huzam's tab is pinned in `stock-muris-shops.py`. Cell-level sidecar, `--dry-run`/`--verify`/`--restore`.
 
 Note `src/pipeline/src/pack.rs` walks the data tree filtering only *hidden* entries plus the `ignore <glob>` lines of the manifest `scripts/pack.ps1` writes. That exclude list (`$excludes`, 2026-10-04) keeps development files out of the `.vfs`: the map editor that runs from `data/` (exe/pdb/ini/log, dll, `Content\`, `ESTB\`), every `*.json` sidecar, `*.md`/`*.py`/`*.tmp`, and a stray retail `AGIT01\TEMP`. Globs are case-sensitive with forward slashes, `*` crosses folders, and a pattern cannot contain a space. A `.bak` is not excluded: `pack.ps1` refuses to bake while one exists — move it to `build/`. A new kind of tool file under `data/` belongs in `$excludes`.
@@ -1547,7 +1548,29 @@ metallic / roughness maps are dropped. The icon is the `add-item-icon.py` path (
 the Meshy screenshot keyed and rotated over the median stock icon frame); its `ITEM1.TSI.bak-icons`
 lands in `data/` and must be moved to `build/` before a bake. Backups and a manifest go to
 `build/glb-weapons/<id>/`. Software-render the written ZMS beside a stock mesh before baking: that
-is what proved the orientation here, not the game.
+is what proved the orientation here, not the game. **Every custom weapon gets the three retail
+anchor dummies** (trail tip, trail low, gem point = index 2, LIST_WEAPON col 43): a weapon without
+them silently shows no socketed-gem glow (`CObjAVT::CreateGemmingEffect` bounds-checks the index) --
+the Vengeance Staff template has none.
+
+**Moving pieces on a custom weapon** (2026-10-12, validated in game: LIST_WEAPON 1470 "Celestial
+Frost Scepter (Spin)"): a piece of the model becomes a rigid mesh inside its own `.EFT`, turned by
+a generated node-rotation `.ZMO` (loop count 0) and attached by a `POINT_EFFECT_ORIENTED` dummy
+on the weapon object -- the Jrose animated backs' mechanism, never used on a weapon in retail.
+Three selections: `--spin INDEX:SECONDS[:circular]` (a detached shell; the dry run prints the
+shell table), `--spin-above Z:SECONDS --collar CM` (plane cut with clipped triangles plus a band
+hiding a non-round seam) and `--spin-frame Z:SECONDS --keep-hue LO-HI --keep-radius R --sleeve
+R:Z0:Z1` (whole faces by texel hue + radius above Z, islands cleaned: the frame turns around a
+still crystal, the sleeve hides the fused stem). Traps: effect meshes must be **ZMS pool 1** or
+`zz_morpher` asserts `get_dynamic()`; `CEffect::IsFinish` asked only the *morpher* (a rigid piece
+has no morph) -- it now counts a running node animation, and an older exe deletes these effects
+on sight; `CObjCHAR::New_EFFECT` never created model dummy effects for weapon parts (now it does,
+after the item-table effects; retail weapon dummies carry no effect, so nothing else changes);
+Meshy welds touching parts into one shell, so what can move is decided by the geometry, not the
+wish. Cost per visible copy: +1 draw call per piece, nothing per frame. Known gaps: the pieces
+are drawn unlit and take no refine glow; `CJustModelAVT` (character select, Alt+click preview)
+creates no part effects, so the puppets show the weapon without its moving pieces, as they already
+omit the Phoenix Wings' particles; the bone-effect budget registers them but tiers only particles.
 
 **Jrose's particle-only back items have no model** — a 4-vertex placeholder mesh, the look
 being an effect placed by its item tables (`LIST_BACK` col 51 → `LIST_WEAPONEFFECT`: col 2

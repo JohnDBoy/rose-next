@@ -780,6 +780,14 @@ CEffect::IsFinish(void) {
     for (int iC = 0; iC < m_pEffectDATA->m_iMeshAniCNT; iC++) {
         if (::getAnimatableState(m_pMeshEffect[iC].GetMORPHER()))
             return false;
+        // A rigid mesh turned by its node animation (a custom weapon's spinning
+        // piece, import-glb-weapon.py --spin) has no morph motion, so its
+        // morpher is never "playing"; the node animation is what keeps it
+        // alive. Every retail animated mesh morphs, which is why only the
+        // morpher was ever asked.
+        if (m_pEffectDATA->m_pMeshAni[iC].m_bUseAniFile
+            && ::getAnimatableState(m_pMeshEffect[iC].GetANIMATABLE()))
+            return false;
     }
 
     return true;

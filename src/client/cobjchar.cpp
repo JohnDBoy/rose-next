@@ -1701,6 +1701,13 @@ CObjCHAR::New_EFFECT(short nPartIdx, short nItemNo, bool bLinkNODE) {
                 this->Add_EFFECT(pCharPART, nPartIdx, nP, EffectHASH, bLinkNODE);
         }
     }
+
+    // A weapon's own dummy points may carry an effect too (a spinning piece of
+    // a custom weapon, import-glb-weapon.py --spin). Retail weapon dummies are
+    // trail and gem anchors with no effect key, so this changes nothing for
+    // them; a point that does name an effect takes that slot over from the
+    // item-table effect above (Add_EFFECT replaces an occupied slot).
+    this->New_ModelDummyEFFECT(pCharPART, nPartIdx, bLinkNODE);
 }
 
 //--------------------------------------------------------------------------------

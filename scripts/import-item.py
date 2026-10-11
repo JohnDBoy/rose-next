@@ -550,6 +550,9 @@ def zsc_build_append(ours_path, src_zsc, src_obj_idx, source=None, copy_effects=
               % (src_path.decode("ascii", "replace") if src_path else "index %d" % list_idx,
                  os.path.basename(ours_path), len(ours.effects)))
     for src_path, eff_type, props in extra_dummies:
+        if src_path is None:                  # a plain anchor (trail / gem point), no effect
+            kept.append((struct.pack("<hh", -1, eff_type), props))
+            continue
         if norm(src_path) in our_eft_idx:
             idx = our_eft_idx[norm(src_path)]
         else:
