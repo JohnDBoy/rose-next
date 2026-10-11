@@ -165,6 +165,19 @@ namespace Map_Editor.Forms.Controls
                             int brushCount = 0;
                             List<int> brushIDs = new List<int>();
 
+                            int uniqueBrushCount = 0;
+
+                            for (int i = 0; i < FileManager.TileSet.Brushes.Length; i++)
+                            {
+                                if (!brushIDs.Contains(FileManager.TileSet.Brushes[i].MinimumBrush))
+                                {
+                                    brushIDs.Add(FileManager.TileSet.Brushes[i].MinimumBrush);
+                                    uniqueBrushCount++;
+                                }
+                            }
+
+                            brushIDs.Clear();
+
                             for (int i = 0; i < FileManager.TileSet.Brushes.Length; i++)
                             {
                                 if (brushIDs.Contains(FileManager.TileSet.Brushes[i].MinimumBrush))
@@ -211,13 +224,13 @@ namespace Map_Editor.Forms.Controls
 
                                 id++;
 
-                                if (id == (FileManager.TileSet.Brushes.Length / 5))
+                                if (id == (uniqueBrushCount / 5))
                                     Output.WriteLine(Output.MessageType.Normal, "- 20%...");
-                                else if (id == (FileManager.TileSet.Brushes.Length / 5) * 2)
+                                else if (id == (uniqueBrushCount / 5) * 2)
                                     Output.WriteLine(Output.MessageType.Normal, "- 40%...");
-                                else if (id == (FileManager.TileSet.Brushes.Length / 5) * 3)
+                                else if (id == (uniqueBrushCount / 5) * 3)
                                     Output.WriteLine(Output.MessageType.Normal, "- 60%...");
-                                else if (id == (FileManager.TileSet.Brushes.Length / 5) * 4)
+                                else if (id == (uniqueBrushCount / 5) * 4)
                                     Output.WriteLine(Output.MessageType.Normal, "- 80%...");
                             }
                         }
@@ -226,14 +239,17 @@ namespace Map_Editor.Forms.Controls
                     File.Delete("PreviewImage.bmp");
 
                     Output.WriteLine(Output.MessageType.Normal, "- 100%...");
-                    Output.WriteLine(Output.MessageType.Event, string.Format("Created {0} Images in {1} Second(s)", FileManager.TileSet.Brushes.Length, (DateTime.Now - loadStart).TotalSeconds));
+                    Output.WriteLine(Output.MessageType.Event, string.Format("Created {0} Images in {1} Second(s)", brushImages.Count, (DateTime.Now - loadStart).TotalSeconds));
                 }
 
                 GeneratingImages = false;
 
                 brushWindow.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (DispatcherOperationCallback)delegate
                 {
-                    brushWindow.SelectTile(0);
+                    if (brushImages.Count > 0)
+                        brushWindow.SelectTile(0);
+                    else
+                        Output.WriteLine(Output.MessageType.Error, "The tile set has no brushes, nothing to select");
 
                     return null;
 

@@ -318,7 +318,7 @@ namespace Map_Editor.Forms.Controls
                 SnapsToDevicePixels = true,
                 Cursor = Cursors.Hand,
                 Tag = index,
-                ToolTip = string.Format("ID: {0}", FileManager.ZON.Tiles[index].ID2),
+                ToolTip = string.Format("Tile {0} (top texture {1})", index, FileManager.ZON.Tiles[index].ID2),
                 Child = new Image()
                 {
                     Margin = new Thickness(0),
@@ -430,9 +430,9 @@ namespace Map_Editor.Forms.Controls
 
             findObject.GoToClicked += new Search.GoTo(delegate(int value)
             {
-                if (value < FileManager.ZON.Tiles.Count)
+                if (value >= 0 && value < FileManager.ZON.Tiles.Count)
                 {
-                    if (MessageBox.Show("Tile found, do you wish to select it?", "Select Tile", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                    if (MessageBox.Show(string.Format("Tile index {0} found, do you wish to select it?", value), "Select Tile Index", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
                     {
                         SelectTile(value);
 

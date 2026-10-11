@@ -30,7 +30,7 @@
                     <RadioButton Margin="10,37,0,0" Name="Square" HorizontalAlignment="Left" Width="120" IsChecked="True" Height="16" VerticalAlignment="Top" Checked="Square_Checked">Square</RadioButton>
                     <RadioButton Height="16" HorizontalAlignment="Left" Margin="10,59,0,0" Name="Circle" VerticalAlignment="Top" Width="120" Checked="Circle_Checked">Circle</RadioButton>
                     <Separator Height="4" Margin="9,84,8,0" Name="separator1" VerticalAlignment="Top" />
-                    <Slider Height="22" Margin="94,94,6,0" Name="InnerRadius" VerticalAlignment="Top" ValueChanged="InnerRadius_ValueChanged" Maximum="20" Minimum="1" SmallChange="1" Value="0" />
+                    <Slider Height="22" Margin="94,94,6,0" Name="InnerRadius" VerticalAlignment="Top" ValueChanged="InnerRadius_ValueChanged" Maximum="20" Minimum="1" SmallChange="1" Value="3" />
                     <Label Height="28" Margin="6,92,0,0" Name="label1" VerticalAlignment="Top" HorizontalAlignment="Left" Width="84" HorizontalContentAlignment="Right">Inner Radius</Label>
                     <Slider Height="22" Margin="94,122,6,0" Name="OutterRadius" VerticalAlignment="Top" ValueChanged="OutterRadius_ValueChanged" Maximum="20" Minimum="1" SmallChange="1" Value="1" />
                     <Label Height="28" HorizontalAlignment="Left" HorizontalContentAlignment="Right" Margin="6,120,0,0" Name="label2" VerticalAlignment="Top" Width="84">Outter Radius</Label>

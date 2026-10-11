@@ -89,6 +89,9 @@ namespace Map_Editor.Engine.Tools
         /// <value><c>true</c> if [mouse down]; otherwise, <c>false</c>.</value>
         private bool mouseDown { get; set; }
 
+        /// <summary>Left button last frame, so a click is a press and not a held button.</summary>
+        private bool leftWasDown;
+
         #endregion
 
         #endregion
@@ -171,6 +174,10 @@ namespace Map_Editor.Engine.Tools
         /// <returns></returns>
         public int Select(int index)
         {
+            // Select used to add these handlers on every call and never remove
+            // them, so each selection ran every earlier selection's handlers too.
+            Unsubscribe();
+
             ToolManager.Cursor.Position = MapManager.Animation.WorldObjects[index].Entry.Position;
 
             ToolManager.Cursor.PositionChanged += new EventHandler(Cursor_PositionChanged);
@@ -188,6 +195,15 @@ namespace Map_Editor.Engine.Tools
             ToolManager.Position.Update();
 
             return ((AnimationTool)App.Form.ToolHost.Content).Select(index);
+        }
+
+        private void Unsubscribe()
+        {
+            ToolManager.Cursor.PositionChanged -= new EventHandler(Cursor_PositionChanged);
+            ToolManager.Cursor.Cancelled -= new EventHandler(Cursor_Cancelled);
+            ToolManager.Cursor.Finished -= new EventHandler(Cursor_Finished);
+            ToolManager.Position.MouseReleased -= new EventHandler(Translate_MouseReleased);
+            ToolManager.Position.PositionChanged -= new EventHandler(Translate_PositionChanged);
         }
 
         /// <summary>
@@ -234,6 +250,7 @@ namespace Map_Editor.Engine.Tools
             ToolManager.Position.BoundingBox = new BoundingBox();
             ToolManager.Position.Position = Vector3.Zero;
 
+            Unsubscribe();
             SelectedObject = -1;
         }
 
@@ -383,16 +400,19 @@ namespace Map_Editor.Engine.Tools
         public void Update(GameTime gameTime)
         {
             KeyboardState keyboardState = Keyboard.GetState();
-
-            if (SelectedObject >= 0)
-            {
-                if (keyboardState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Delete))
-                    Remove(false);
-            }
-
             MouseState mouseState = Mouse.GetState();
 
-            if (!mouseState.Intersects(device.Viewport))
+            bool inViewport = mouseState.Intersects(device.Viewport);
+            bool leftDown = mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed;
+            bool leftPressed = leftDown && !leftWasDown && inViewport;
+            leftWasDown = leftDown;
+
+            // The keyboard is polled, not routed, so Delete is only honoured while
+            // the mouse is over the map: typing in a panel field must not delete.
+            if (SelectedObject >= 0 && inViewport && keyboardState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Delete))
+                Remove(false);
+
+            if (!inViewport)
                 return;
 
             if (model >= 0)
@@ -492,7 +512,7 @@ namespace Map_Editor.Engine.Tools
 
             for (int i = 0; i < mouseSelections.Count; i++)
             {
-                float distance = Vector3.Distance(CameraManager.Position, worldObjects[i].BoundingBox.GetCenter());
+                float distance = Vector3.Distance(CameraManager.Position, worldObjects[mouseSelections[i]].BoundingBox.GetCenter());
 
                 if (distance > currentDistance)
                     continue;
@@ -501,7 +521,7 @@ namespace Map_Editor.Engine.Tools
                 currentDistance = distance;
             }
 
-            if (mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed && closestObject != SelectedObject)
+            if (leftPressed && closestObject != SelectedObject)
                 SelectedObject = Select(closestObject);
             else
                 HoveredObject = closestObject;

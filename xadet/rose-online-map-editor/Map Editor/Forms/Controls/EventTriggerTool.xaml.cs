@@ -118,6 +118,10 @@ namespace Map_Editor.Forms.Controls
             }
 
             DrawBoundingBoxes.IsChecked = ConfigurationManager.GetValue<bool>("EventTriggers", "DrawBoundingBoxes");
+
+            Rotation.RotationChanged += Rotation_RotationChanged;
+            Rotation.RotationCommitted += Rotation_RotationCommitted;
+            Rotation.SetEnabled(false);
         }
 
         /// <summary>
@@ -156,10 +160,8 @@ namespace Map_Editor.Forms.Controls
 
             SelectModel(ifoEntry.ObjectID);
 
-            Vector3 eularVector = ifoEntry.Rotation.ToEular();
-            RotationYaw.Value = eularVector.X;
-            RotationRoll.Value = eularVector.Y;
-            RotationPitch.Value = eularVector.Z;
+            Rotation.SetRotation(ifoEntry.Rotation);
+            Rotation.SetEnabled(true);
 
             Properties.SelectedObject = new EventTriggerProperty()
             {
@@ -207,9 +209,8 @@ namespace Map_Editor.Forms.Controls
 
             Properties.SelectedObject = null;
 
-            RotationYaw.Value = 0.0f;
-            RotationPitch.Value = 0.0f;
-            RotationRoll.Value = 0.0f;
+            Rotation.SetRotation(Quaternion.Identity);
+            Rotation.SetEnabled(false);
 
             selectedObject = -1;
         }
@@ -716,36 +717,30 @@ namespace Map_Editor.Forms.Controls
             ifoEntry.LUATrigger = objectValues.LUATrigger;
 
             MapManager.EventTriggers.Tool.ChangeWorld(objectValues.Position, objectValues.Rotation, objectValues.Scale);
+            Rotation.SetRotation(objectValues.Rotation);
         }
 
-        /// <summary>
-        /// Handles the ValueChanged event of the Rotation control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.RoutedPropertyChangedEventArgs&lt;System.Double&gt;"/> instance containing the event data.</param>
-        private void Rotation_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        #region Rotation events
+
+        private void Rotation_RotationChanged(Quaternion rotation)
         {
-            if (!Remove.IsEnabled)
+            if (selectedObject < 0)
                 return;
 
-            IFO.BaseIFO ifoEntry = MapManager.EventTriggers.WorldObjects[selectedObject].Entry;
-
-            MapManager.EventTriggers.Tool.ChangeWorld(ifoEntry.Position, Quaternion.CreateFromYawPitchRoll((float)RotationRoll.Value, (float)RotationYaw.Value, (float)RotationPitch.Value), ifoEntry.Scale);
+            IFO.EventTrigger ifoEntry = MapManager.EventTriggers.WorldObjects[selectedObject].Entry;
+            MapManager.EventTriggers.Tool.ChangeWorld(ifoEntry.Position, rotation, ifoEntry.Scale);
         }
 
-        /// <summary>
-        /// Handles the PreviewMouseUp event of the RotationRoll control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.Input.MouseButtonEventArgs"/> instance containing the event data.</param>
-        private void Rotation_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+        private void Rotation_RotationCommitted(Quaternion rotation)
         {
-            if (Properties.SelectedObject == null)
+            if (selectedObject < 0 || Properties.SelectedObject == null)
                 return;
 
             EventTriggerProperty objectValues = (EventTriggerProperty)Properties.SelectedObject;
-
             IFO.EventTrigger ifoEntry = MapManager.EventTriggers.WorldObjects[selectedObject].Entry;
+
+            if (objectValues.Rotation == rotation)
+                return;
 
             UndoManager.AddCommand(new Engine.Commands.EventTriggers.ValueChanged()
             {
@@ -766,18 +761,19 @@ namespace Map_Editor.Forms.Controls
                     Description = ifoEntry.Description,
                     EventID = ifoEntry.EventID,
                     Position = ifoEntry.Position,
-                    Rotation = ifoEntry.Rotation,
+                    Rotation = rotation,
                     Scale = ifoEntry.Scale,
                     QSDTrigger = ifoEntry.QSDTrigger,
                     LUATrigger = ifoEntry.LUATrigger
                 }
             });
 
-            if (((EventTriggerProperty)Properties.SelectedObject).Rotation != ifoEntry.Rotation)
-            {
-                ((EventTriggerProperty)Properties.SelectedObject).Rotation = ifoEntry.Rotation;
-                Properties.Refresh();
-            }
+            MapManager.EventTriggers.Tool.ChangeWorld(ifoEntry.Position, rotation, ifoEntry.Scale);
+
+            objectValues.Rotation = rotation;
+            Properties.Refresh();
         }
+
+        #endregion
     }
 }

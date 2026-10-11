@@ -564,12 +564,81 @@ namespace Map_Editor.Forms.Controls
 
                 App.Form.PreviewPanel.Hide();
 
+                Engine.Commands.Monsters.ValueChanged.ObjectValue oldValue = new Engine.Commands.Monsters.ValueChanged.ObjectValue()
+                {
+                    Description = MapManager.Monsters.WorldObjects[selectedObject].Entry.Description,
+                    EventID = MapManager.Monsters.WorldObjects[selectedObject].Entry.EventID,
+                    Position = MapManager.Monsters.WorldObjects[selectedObject].Entry.Position,
+                    Name = MapManager.Monsters.WorldObjects[selectedObject].Entry.Name,
+                    Interval = MapManager.Monsters.WorldObjects[selectedObject].Entry.Interval,
+                    Limit = MapManager.Monsters.WorldObjects[selectedObject].Entry.Limit,
+                    Range = MapManager.Monsters.WorldObjects[selectedObject].Entry.Range,
+                    TacticPoints = MapManager.Monsters.WorldObjects[selectedObject].Entry.TacticPoints,
+                    Basic = new List<IFO.MonsterSpawn.Monster>(),
+                    Tactic = new List<IFO.MonsterSpawn.Monster>()
+                };
+
+                Engine.Commands.Monsters.ValueChanged.ObjectValue newValue = new Engine.Commands.Monsters.ValueChanged.ObjectValue()
+                {
+                    Description = MapManager.Monsters.WorldObjects[selectedObject].Entry.Description,
+                    EventID = MapManager.Monsters.WorldObjects[selectedObject].Entry.EventID,
+                    Position = MapManager.Monsters.WorldObjects[selectedObject].Entry.Position,
+                    Name = MapManager.Monsters.WorldObjects[selectedObject].Entry.Name,
+                    Interval = MapManager.Monsters.WorldObjects[selectedObject].Entry.Interval,
+                    Limit = MapManager.Monsters.WorldObjects[selectedObject].Entry.Limit,
+                    Range = MapManager.Monsters.WorldObjects[selectedObject].Entry.Range,
+                    TacticPoints = MapManager.Monsters.WorldObjects[selectedObject].Entry.TacticPoints,
+                    Basic = new List<IFO.MonsterSpawn.Monster>(),
+                    Tactic = new List<IFO.MonsterSpawn.Monster>()
+                };
+
+                for (int i = 0; i < MapManager.Monsters.WorldObjects[selectedObject].Entry.Basic.Count; i++)
+                {
+                    oldValue.Basic.Add(new IFO.MonsterSpawn.Monster()
+                    {
+                        ID = MapManager.Monsters.WorldObjects[selectedObject].Entry.Basic[i].ID,
+                        Count = MapManager.Monsters.WorldObjects[selectedObject].Entry.Basic[i].Count,
+                        Description = MapManager.Monsters.WorldObjects[selectedObject].Entry.Basic[i].Description
+                    });
+
+                    newValue.Basic.Add(new IFO.MonsterSpawn.Monster()
+                    {
+                        ID = MapManager.Monsters.WorldObjects[selectedObject].Entry.Basic[i].ID,
+                        Count = MapManager.Monsters.WorldObjects[selectedObject].Entry.Basic[i].Count,
+                        Description = MapManager.Monsters.WorldObjects[selectedObject].Entry.Basic[i].Description
+                    });
+                }
+
+                for (int i = 0; i < MapManager.Monsters.WorldObjects[selectedObject].Entry.Tactic.Count; i++)
+                {
+                    oldValue.Tactic.Add(new IFO.MonsterSpawn.Monster()
+                    {
+                        ID = MapManager.Monsters.WorldObjects[selectedObject].Entry.Tactic[i].ID,
+                        Count = MapManager.Monsters.WorldObjects[selectedObject].Entry.Tactic[i].Count,
+                        Description = MapManager.Monsters.WorldObjects[selectedObject].Entry.Tactic[i].Description
+                    });
+
+                    newValue.Tactic.Add(new IFO.MonsterSpawn.Monster()
+                    {
+                        ID = MapManager.Monsters.WorldObjects[selectedObject].Entry.Tactic[i].ID,
+                        Count = MapManager.Monsters.WorldObjects[selectedObject].Entry.Tactic[i].Count,
+                        Description = MapManager.Monsters.WorldObjects[selectedObject].Entry.Tactic[i].Description
+                    });
+                }
+
                 switch (monsterType)
                 {
                     case MonsterType.Basic:
                         {
                             addedIndex = MapManager.Monsters.WorldObjects[selectedObject].Entry.Basic.Count;
                             MapManager.Monsters.WorldObjects[selectedObject].Entry.Basic.Add(new IFO.MonsterSpawn.Monster()
+                            {
+                                Description = "Untitled",
+                                ID = monsterID,
+                                Count = 1
+                            });
+
+                            newValue.Basic.Add(new IFO.MonsterSpawn.Monster()
                             {
                                 Description = "Untitled",
                                 ID = monsterID,
@@ -586,9 +655,24 @@ namespace Map_Editor.Forms.Controls
                                 ID = monsterID,
                                 Count = 1
                             });
+
+                            newValue.Tactic.Add(new IFO.MonsterSpawn.Monster()
+                            {
+                                Description = "Untitled",
+                                ID = monsterID,
+                                Count = 1
+                            });
                         }
                         break;
                 }
+
+                UndoManager.AddCommand(new Engine.Commands.Monsters.ValueChanged()
+                {
+                    ObjectID = selectedObject,
+                    Object = MapManager.Monsters.WorldObjects[selectedObject],
+                    OldValue = oldValue,
+                    NewValue = newValue
+                });
 
                 LoadMonsters();
 
@@ -930,6 +1014,8 @@ namespace Map_Editor.Forms.Controls
             });
 
             LoadMonsters();
+
+            MapManager.Monsters.Add(selectedObject, MapManager.Monsters.WorldObjects[selectedObject].Entry, true);
         }
 
         #endregion

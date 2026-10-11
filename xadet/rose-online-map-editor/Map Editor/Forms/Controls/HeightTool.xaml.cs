@@ -32,6 +32,13 @@ namespace Map_Editor.Forms.Controls
         /// <param name="e">The <see cref="System.Windows.RoutedPropertyChangedEventArgs&lt;System.Double&gt;"/> instance containing the event data.</param>
         private void InnerRadius_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
+            if (OutterRadius == null)
+                return;
+
+            // Inner must not exceed outer: push the outer slider up (its handler writes it to the tool).
+            if (InnerRadius.Value > OutterRadius.Value)
+                OutterRadius.Value = InnerRadius.Value;
+
             MapManager.Heightmaps.HeightTool.InnerRadius = (int)InnerRadius.Value;
         }
 
@@ -42,6 +49,13 @@ namespace Map_Editor.Forms.Controls
         /// <param name="e">The <see cref="System.Windows.RoutedPropertyChangedEventArgs&lt;System.Double&gt;"/> instance containing the event data.</param>
         private void OutterRadius_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
+            if (InnerRadius == null)
+                return;
+
+            // Outer must not drop below inner: push the inner slider down (its handler writes it to the tool).
+            if (OutterRadius.Value < InnerRadius.Value)
+                InnerRadius.Value = OutterRadius.Value;
+
             MapManager.Heightmaps.HeightTool.OutterRadius = (int)OutterRadius.Value;
         }
 

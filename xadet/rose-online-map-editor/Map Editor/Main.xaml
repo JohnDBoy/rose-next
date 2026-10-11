@@ -208,10 +208,10 @@
                         <GradientStop Offset="1.0" Color="#bdc7d8" />
                     </LinearGradientBrush>
                 </ToolBar.Background>
-                <ToggleButton Width="24" Height="24" Name="NoManipulation" ToolTip="None" Click="Manipulation_Click" IsEnabled="False">
+                <ToggleButton Width="24" Height="24" Name="NoManipulation" ToolTip="No manipulation: click selects only" Click="Manipulation_Click" IsEnabled="False">
                     <Image Width="16" Height="16" Source="Resources\Icons\Cursor.png" />
                 </ToggleButton>
-                <ToggleButton Width="24" Height="24" Name="CursorManipulation" ToolTip="None" Click="Manipulation_Click" IsEnabled="False">
+                <ToggleButton Width="24" Height="24" Name="CursorManipulation" ToolTip="Cursor: move the selected object to where you click (Escape cancels)" Click="Manipulation_Click" IsEnabled="False">
                     <Image Width="16" Height="16" Source="Resources\Icons\CursorManipulation.png" />
                 </ToggleButton>
                 <ToggleButton Width="24" Height="24" Name="PositionManipulation" ToolTip="Position" Click="Manipulation_Click" IsEnabled="False">

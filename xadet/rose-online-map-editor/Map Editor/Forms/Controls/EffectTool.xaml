@@ -2,6 +2,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:wf="clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"
+    xmlns:local="clr-namespace:Map_Editor.Forms.Controls"
     MinHeight="602" Width="300">
     <StackPanel Grid.Column="1">
         <Expander Header="Tool" Margin="10" IsExpanded="True" Name="ToolExpander">
@@ -27,14 +28,7 @@
             </Grid>
         </Expander>
         <Expander Header="Rotate" Margin="10,0,10,10" IsExpanded="True">
-            <Grid Height="114" Background="White">
-                <Slider Height="22" Margin="55,17,17,0" VerticalAlignment="Top" Minimum="-3.1415926535897932384626433832795028841968" Maximum="3.1415926535897932384626433832795028841968" Name="RotationYaw" ValueChanged="Rotation_ValueChanged" PreviewMouseUp="Rotation_PreviewMouseUp" />
-                <Label Margin="13,13,0,0" HorizontalAlignment="Left" Width="36" Height="28" VerticalAlignment="Top">Yaw</Label>
-                <Slider Margin="55,47,17,45" Minimum="-3.1415926535897932384626433832795028841968" Maximum="3.1415926535897932384626433832795028841968" Name="RotationPitch" ValueChanged="Rotation_ValueChanged" PreviewMouseUp="Rotation_PreviewMouseUp" />
-                <Label HorizontalAlignment="Left" Margin="13,43,0,43" Width="36">Pitch</Label>
-                <Slider Height="22" Margin="55,0,17,16" VerticalAlignment="Bottom" Minimum="-3.1415926535897932384626433832795028841968" Maximum="3.1415926535897932384626433832795028841968" Name="RotationRoll" ValueChanged="Rotation_ValueChanged" PreviewMouseUp="Rotation_PreviewMouseUp" />
-                <Label Height="28" HorizontalAlignment="Left" Margin="13,0,0,13" VerticalAlignment="Bottom" Width="36">Roll</Label>
-            </Grid>
+            <local:RotationEditor x:Name="Rotation" />
         </Expander>
         <Expander Header="Properties" Margin="10,0,10,10" IsExpanded="False" Name="PropertiesExpander">
             <Grid Height="250" Background="White">

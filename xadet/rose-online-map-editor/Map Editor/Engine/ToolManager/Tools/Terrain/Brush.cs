@@ -39,6 +39,12 @@ namespace Map_Editor.Engine.Tools
         /// <value>The hovered tile.</value>
         public Tiles.Tile? HoveredTile { get; set; }
 
+        /// <summary>
+        /// The tiles changed by the stroke in progress, keyed by cell: one undo
+        /// command per stroke, pushed when the button comes up.
+        /// </summary>
+        private Dictionary<int, Commands.Brush.Placement.Tile> stroke;
+
         #endregion
 
         /// <summary>
@@ -57,6 +63,10 @@ namespace Map_Editor.Engine.Tools
         public void Update(GameTime gameTime)
         {
             MouseState mouseState = Mouse.GetState();
+
+            // A stroke ends when the button comes up, wherever the mouse is.
+            if (mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Released)
+                EndStroke();
 
             Cursor.Current = ((HoveredTile = MapManager.Heightmaps.PickTile()) == null) ? Cursors.Default : Cursors.Hand;
 
@@ -83,13 +93,57 @@ namespace Map_Editor.Engine.Tools
             PutAdjacentTile(x + 1, y + 1, brush, 8, modifiedTiles);
             PutCurrentTile(x, y, index, brush, 15, modifiedTiles);
 
-            if (modifiedTiles.Count > 0)
+            // This frame's changes merge into the stroke's command.
+            for (int i = 0; i < modifiedTiles.Count; i++)
+                RecordTile(modifiedTiles[i]);
+        }
+
+        /// <summary>
+        /// Merges one changed tile into the stroke in progress: a cell keeps the
+        /// old values first seen and takes the latest new ones.
+        /// </summary>
+        /// <param name="tile">The tile.</param>
+        private void RecordTile(Commands.Brush.Placement.Tile tile)
+        {
+            if (stroke == null)
+                stroke = new Dictionary<int, Commands.Brush.Placement.Tile>();
+
+            int key = ((tile.Y * 100 + tile.X) * 16 + tile.TileY) * 16 + tile.TileX;
+
+            Commands.Brush.Placement.Tile seen;
+
+            if (stroke.TryGetValue(key, out seen))
             {
+                seen.NewID = tile.NewID;
+                seen.NewBrush = tile.NewBrush;
+                seen.NewTileSet = tile.NewTileSet;
+                seen.NewTileIndex = tile.NewTileIndex;
+                stroke[key] = seen;
+            }
+            else
+                stroke.Add(key, tile);
+        }
+
+        /// <summary>
+        /// Pushes the stroke in progress as one undo command.
+        /// </summary>
+        private void EndStroke()
+        {
+            if (stroke == null)
+                return;
+
+            if (stroke.Count > 0)
+            {
+                Commands.Brush.Placement.Tile[] tiles = new Commands.Brush.Placement.Tile[stroke.Count];
+                stroke.Values.CopyTo(tiles, 0);
+
                 UndoManager.AddCommand(new Commands.Brush.Placement()
                 {
-                    Tiles = modifiedTiles.ToArray()
+                    Tiles = tiles
                 });
             }
+
+            stroke = null;
         }
 
         /// <summary>

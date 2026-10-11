@@ -133,7 +133,11 @@ namespace Map_Editor.Engine.Types
 
             KeyboardState keyboardState = Keyboard.GetState();
 
-            if (keyboardState.IsKeyDown(Keys.W))
+            // Ctrl+S saves, Ctrl+A/W/D are shortcuts too: a held Control must not
+            // also walk the camera.
+            bool control = keyboardState.IsKeyDown(Keys.LeftControl) || keyboardState.IsKeyDown(Keys.RightControl);
+
+            if (!control && keyboardState.IsKeyDown(Keys.W))
             {
                 movement += new Vector3(0, 0, -CAMERA_SPEED);
 
@@ -141,7 +145,7 @@ namespace Map_Editor.Engine.Types
                     movement += new Vector3(0, 0, -CAMERA_SPEED);
             }
 
-            if (keyboardState.IsKeyDown(Keys.S))
+            if (!control && keyboardState.IsKeyDown(Keys.S))
             {
                 movement += new Vector3(0, 0, CAMERA_SPEED);
 
@@ -149,7 +153,7 @@ namespace Map_Editor.Engine.Types
                     movement += new Vector3(0, 0, CAMERA_SPEED);
             }
 
-            if (keyboardState.IsKeyDown(Keys.A))
+            if (!control && keyboardState.IsKeyDown(Keys.A))
             {
                 movement += new Vector3(-CAMERA_SPEED, 0, 0);
 
@@ -157,7 +161,7 @@ namespace Map_Editor.Engine.Types
                     movement += new Vector3(-CAMERA_SPEED, 0, 0);
             }
 
-            if (keyboardState.IsKeyDown(Keys.D))
+            if (!control && keyboardState.IsKeyDown(Keys.D))
             {
                 movement += new Vector3(CAMERA_SPEED, 0, 0);
 
@@ -165,7 +169,7 @@ namespace Map_Editor.Engine.Types
                     movement += new Vector3(CAMERA_SPEED, 0, 0);
             }
 
-            if (keyboardState.IsKeyDown(Keys.W) || keyboardState.IsKeyDown(Keys.A) || keyboardState.IsKeyDown(Keys.S) || keyboardState.IsKeyDown(Keys.D))
+            if (!control && (keyboardState.IsKeyDown(Keys.W) || keyboardState.IsKeyDown(Keys.A) || keyboardState.IsKeyDown(Keys.S) || keyboardState.IsKeyDown(Keys.D)))
             {
                 redeclare = true;
 

@@ -35,6 +35,12 @@ namespace Map_Editor.Forms.Controls
         /// <value>The value changed.</value>
         private Engine.Commands.Interfaces.ICommand valueChanged { get; set; }
 
+        /// <summary>
+        /// Gets or sets the Z value at the last commit (undo command).
+        /// </summary>
+        /// <value>The committed Z.</value>
+        private float committedZ { get; set; }
+
         #endregion
 
         /// <summary>
@@ -71,6 +77,7 @@ namespace Map_Editor.Forms.Controls
             Y2.Value = MathHelper.Clamp(waterBlock.Maximum.Y - blockPosition.Y, 0.0f, 160.0f);
 
             Z.Text = waterBlock.Minimum.Z.ToString();
+            committedZ = waterBlock.Minimum.Z;
 
             Remove.IsEnabled = true;
 
@@ -156,13 +163,13 @@ namespace Map_Editor.Forms.Controls
 
             if (float.TryParse(Z.Text, out zValue))
             {
-                ZChanged();
-
                 Size_ValueChanged(null, null);
+
+                ZChanged(zValue);
             }
             else
             {
-                Z.Text = MapManager.Water.WorldObjects[selectedObject].Entry.Maximum.Z.ToString();
+                Z.Text = committedZ.ToString();
 
                 MessageBox.Show("Invalid float value", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -214,6 +221,7 @@ namespace Map_Editor.Forms.Controls
 
         /// <summary>
         /// Handles the TextChanged event of the Z control.
+        /// Only updates the live preview; the undo command is recorded on commit (LostFocus / Enter).
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
@@ -225,39 +233,24 @@ namespace Map_Editor.Forms.Controls
             float zValue;
 
             if (float.TryParse(Z.Text, out zValue))
-            {
-                ZChanged();
-
                 Size_ValueChanged(null, null);
-            }
         }
 
         /// <summary>
-        /// Z changed event.
+        /// Z commit: records one undo command when the value differs from the last committed one.
+        /// The entry already holds the new Z (live preview), so the old value is rebuilt from committedZ.
         /// </summary>
-        private void ZChanged()
+        /// <param name="zValue">The committed Z value.</param>
+        private void ZChanged(float zValue)
         {
-            string[] position = (MapManager.Water.WorldObjects[selectedObject].Entry.Parent.FileName).Remove(5, 4).Split('_');
-            Vector2 block = new Vector2(Convert.ToInt32(position[1]), Convert.ToInt32(position[0]));
-
-            Vector2 blockPosition = new Vector2(block.Y * 160.0f, 10400.0f - ((block.X + 1) * 160.0f));
-
-            Vector3 minimum = new Vector3()
-            {
-                X = blockPosition.X + (float)X1.Value,
-                Y = blockPosition.Y + (float)Y1.Value,
-                Z = Convert.ToSingle(Z.Text)
-            };
-
-            Vector3 maximum = new Vector3()
-            {
-                X = blockPosition.X + (float)X2.Value,
-                Y = blockPosition.Y + (float)Y2.Value,
-                Z = Convert.ToSingle(Z.Text)
-            };
-
-            if (minimum == MapManager.Water.WorldObjects[selectedObject].Entry.Minimum && maximum == MapManager.Water.WorldObjects[selectedObject].Entry.Maximum)
+            if (zValue == committedZ)
                 return;
+
+            Vector3 oldMinimum = MapManager.Water.WorldObjects[selectedObject].Entry.Minimum;
+            Vector3 oldMaximum = MapManager.Water.WorldObjects[selectedObject].Entry.Maximum;
+
+            oldMinimum.Z = committedZ;
+            oldMaximum.Z = committedZ;
 
             UndoManager.AddCommand(new Engine.Commands.Water.ValueChanged()
             {
@@ -265,15 +258,17 @@ namespace Map_Editor.Forms.Controls
                 Object = MapManager.Water.WorldObjects[selectedObject],
                 OldValue = new Engine.Commands.Water.ValueChanged.ObjectValue()
                 {
-                    Minimum = MapManager.Water.WorldObjects[selectedObject].Entry.Minimum,
-                    Maximum = MapManager.Water.WorldObjects[selectedObject].Entry.Maximum
+                    Minimum = oldMinimum,
+                    Maximum = oldMaximum
                 },
                 NewValue = new Engine.Commands.Water.ValueChanged.ObjectValue()
                 {
-                    Minimum = minimum,
-                    Maximum = maximum
+                    Minimum = MapManager.Water.WorldObjects[selectedObject].Entry.Minimum,
+                    Maximum = MapManager.Water.WorldObjects[selectedObject].Entry.Maximum
                 }
             });
+
+            committedZ = zValue;
         }
 
         /// <summary>

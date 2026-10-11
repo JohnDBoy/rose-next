@@ -88,6 +88,12 @@ namespace Map_Editor.Engine.Tools
         /// <value>The tool mode.</value>
         public TileToolType ToolMode { get; set; }
 
+        /// <summary>
+        /// The tiles changed by the stroke in progress, keyed by cell: one undo
+        /// command per stroke, pushed when the button comes up.
+        /// </summary>
+        private Dictionary<int, Commands.Tiles.Placement.Tile> stroke;
+
         #endregion
 
         /// <summary>
@@ -107,10 +113,14 @@ namespace Map_Editor.Engine.Tools
         /// <param name="gameTime">The game time.</param>
         public void Update(GameTime gameTime)
         {
+            MouseState mouseState = Mouse.GetState();
+
+            // A stroke ends when the button comes up, wherever the mouse is.
+            if (mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Released)
+                EndStroke();
+
             if (ToolMode == TileToolType.None)
                 return;
-
-            MouseState mouseState = Mouse.GetState();
 
             Cursor.Current = ((HoveredTile = MapManager.Heightmaps.PickTile()) == null) ? Cursors.Default : Cursors.Hand;
 
@@ -127,9 +137,6 @@ namespace Map_Editor.Engine.Tools
                     break;
                 case TileToolType.Modify:
                     {
-                        List<Commands.Tiles.Placement.Tile> modifiedTiles = new List<Commands.Tiles.Placement.Tile>();
-                        int previousEdit = 0;
-
                         int gridSize = 1;
 
                         switch (((TileTool)App.Form.ToolHost.Content).MultipleSelection.SelectedIndex)
@@ -183,13 +190,9 @@ namespace Map_Editor.Engine.Tools
                                     }
 
                                     if (MapManager.Heightmaps.Blocks[fileY, fileX] == null)
-                                    {
-                                        previousEdit++;
-
                                         continue;
-                                    }
 
-                                    modifiedTiles.Add(new Commands.Tiles.Placement.Tile()
+                                    RecordTile(new Commands.Tiles.Placement.Tile()
                                     {
                                         X = fileX,
                                         Y = fileY,
@@ -199,16 +202,13 @@ namespace Map_Editor.Engine.Tools
                                         NewID = ((TileTool)App.Form.ToolHost.Content).Tile
                                     });
 
-                                    if (MapManager.Heightmaps.Blocks[fileY, fileX].TileFile.Tiles[tileY, tileX].TileID == ((TileTool)App.Form.ToolHost.Content).Tile)
-                                        previousEdit++;
-
                                     MapManager.Heightmaps.Blocks[fileY, fileX].ChangeTile(tileX, tileY, ((TileTool)App.Form.ToolHost.Content).Tile);                               
                                 }
                             }
                         }
                         else
                         {
-                            modifiedTiles.Add(new Commands.Tiles.Placement.Tile()
+                            RecordTile(new Commands.Tiles.Placement.Tile()
                             {
                                 X = HoveredTile.Value.X,
                                 Y = HoveredTile.Value.Y,
@@ -218,22 +218,56 @@ namespace Map_Editor.Engine.Tools
                                 NewID = ((TileTool)App.Form.ToolHost.Content).Tile
                             });
 
-                            if (modifiedTiles[0].NewID == modifiedTiles[0].OldID)
-                                previousEdit++;
-
                             MapManager.Heightmaps.Blocks[HoveredTile.Value.Y, HoveredTile.Value.X].ChangeTile(HoveredTile.Value.TileX, HoveredTile.Value.TileY, ((TileTool)App.Form.ToolHost.Content).Tile);
-                        }
-
-                        if (previousEdit < gridSize * gridSize)
-                        {
-                            UndoManager.AddCommand(new Commands.Tiles.Placement()
-                            {
-                                Tiles = modifiedTiles.ToArray()
-                            });
                         }
                     }
                     break;
             }
+        }
+
+        /// <summary>
+        /// Merges one changed tile into the stroke in progress: a cell keeps the
+        /// old value first seen and takes the latest new one.
+        /// </summary>
+        /// <param name="tile">The tile.</param>
+        private void RecordTile(Commands.Tiles.Placement.Tile tile)
+        {
+            if (stroke == null)
+                stroke = new Dictionary<int, Commands.Tiles.Placement.Tile>();
+
+            int key = ((tile.Y * 100 + tile.X) * 16 + tile.TileY) * 16 + tile.TileX;
+
+            Commands.Tiles.Placement.Tile seen;
+
+            if (stroke.TryGetValue(key, out seen))
+            {
+                seen.NewID = tile.NewID;
+                stroke[key] = seen;
+            }
+            else if (tile.NewID != tile.OldID)
+                stroke.Add(key, tile);
+        }
+
+        /// <summary>
+        /// Pushes the stroke in progress as one undo command.
+        /// </summary>
+        private void EndStroke()
+        {
+            if (stroke == null)
+                return;
+
+            if (stroke.Count > 0)
+            {
+                Commands.Tiles.Placement.Tile[] tiles = new Commands.Tiles.Placement.Tile[stroke.Count];
+                stroke.Values.CopyTo(tiles, 0);
+
+                UndoManager.AddCommand(new Commands.Tiles.Placement()
+                {
+                    Tiles = tiles
+                });
+            }
+
+            stroke = null;
         }
     }
 }

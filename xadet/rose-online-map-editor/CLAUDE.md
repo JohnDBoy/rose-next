@@ -189,6 +189,24 @@ by hand in the GUI; the headless tests below pass.
   about Z, built and decomposed through XNA's row-vector matrices; the self-test
   proves the round trip). The old sliders mapped yaw and roll to each other's
   handler. The property grid still shows the raw quaternion.
+- **Survey bug sweep (2026-10-11), applied to every tool and panel**: Delete is
+  honoured only with the mouse over the map; selection is edge-triggered on the
+  press; the closest-hit loop indexes `worldObjects[mouseSelections[i]]`; each
+  tool's `Select()` unsubscribes its gizmo handlers first; W/A/S/D ignore the
+  camera while Control is held (Ctrl+S used to walk backwards); the window's
+  Ctrl+Z/Y/X/C/V skip a focused text field; a tile or brush stroke is one undo
+  command (merged per cell while the button is down, pushed on release) instead of
+  one per frame, which used to fill the 100-slot stack in a drag; all six
+  remaining panels use `RotationEditor` (the old sliders mapped yaw and roll to
+  each other and recorded an undo entry on every mouse-up); Animation's thumbnail
+  cache check was off by one (regenerated every open) and its Find validated
+  against the decoration table; the Tile tooltip showed the top-texture id while
+  Find took the tile index; an empty brush palette crashed `SelectTile(0)`; the
+  NPC name search started at row 0 for a list that starts at 1; a monster "add"
+  recorded no undo and "clone" never refreshed the scene; the water Z field
+  recorded an undo per keystroke; the Height inner radius started at 0 with a
+  minimum of 1 and could exceed the outer. Regression: `tests/Run-MovementTests.ps1`
+  (tile/brush undo, tools) and `tests/Run-ObjectBrowserTests.ps1`.
 - `tests/Run-ObjectBrowserTests.ps1` builds the editor, then against the real
   data: catalogue and search, a foreign crane appended into Junon Polis' table
   and saved to `build/object-browser-tests/` and read back by both readers with

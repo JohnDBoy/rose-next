@@ -113,6 +113,8 @@ namespace Map_Editor.Forms.Controls
             App.Form.QuickPaste.IsEnabled = false;
 
             Properties.SelectedObject = null;
+
+            selectedObject = -1;
         }
 
         #region Button Events

@@ -1302,21 +1302,25 @@ namespace Map_Editor
         /// <param name="e">The <see cref="T:System.Windows.Input.KeyEventArgs"/> that contains the event data.</param>
         protected override void OnKeyUp(KeyEventArgs e)
         {
+            // A text field owns its own undo and clipboard: Ctrl+Z/Y/X/C/V typed
+            // into one must not reach the map. Ctrl+O and Ctrl+S work anywhere.
+            bool typing = Keyboard.FocusedElement is System.Windows.Forms.Integration.WindowsFormsHost || Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase;
+
             if (e.Key == Key.F11 || (e.Key == Key.Escape && FullScreen))
                 ToggleFullScreen();
             else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.O && Open.IsEnabled)
                 Open_Click(null, null);
             else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.S && Save.IsEnabled)
                 Save_Click(null, null);
-            else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Z && Undo.IsEnabled)
+            else if (!typing && Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Z && Undo.IsEnabled)
                 Undo_Click(null, null);
-            else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Y && Redo.IsEnabled)
+            else if (!typing && Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Y && Redo.IsEnabled)
                 Redo_Click(null, null);
-            else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.X && Cut.IsEnabled)
+            else if (!typing && Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.X && Cut.IsEnabled)
                 Cut_Click(null, null);
-            else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.C && Copy.IsEnabled)
+            else if (!typing && Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.C && Copy.IsEnabled)
                 Copy_Click(null, null);
-            else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.V && Paste.IsEnabled)
+            else if (!typing && Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.V && Paste.IsEnabled)
                 Paste_Click(null, null);
 
             base.OnKeyUp(e);

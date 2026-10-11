@@ -139,7 +139,8 @@ namespace Map_Editor.Forms.Controls.NPC
 
                 value = value.ToLower();
 
-                for (int i = 0; i < FileManager.STBs["LIST_NPC"].Cells.Count; i++)
+                // Rows start at 1 to match PopulateList(): list item n is LIST_NPC row n + 1.
+                for (int i = 1; i < FileManager.STBs["LIST_NPC"].Cells.Count; i++)
                 {
                     string npcName = FileManager.STLs["LIST_NPC_S"].Search(FileManager.STBs["LIST_NPC"].Cells[i][41]);
 
@@ -164,6 +165,9 @@ namespace Map_Editor.Forms.Controls.NPC
                 }
 
                 int npcID = Convert.ToInt32(value.Substring(1, endOfID - 1));
+
+                if (npcID < 1 || npcID > NPCList.Items.Count)
+                    return;
 
                 NPCList.SelectedIndex = npcID - 1;
                 NPCList.ScrollIntoView(NPCList.Items[npcID - 1]);

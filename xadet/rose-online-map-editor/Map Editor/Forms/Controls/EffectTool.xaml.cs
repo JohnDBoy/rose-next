@@ -48,6 +48,10 @@ namespace Map_Editor.Forms.Controls
         public EffectTool()
         {
             InitializeComponent();
+
+            Rotation.RotationChanged += Rotation_RotationChanged;
+            Rotation.RotationCommitted += Rotation_RotationCommitted;
+            Rotation.SetEnabled(false);
         }
 
         /// <summary>
@@ -66,10 +70,8 @@ namespace Map_Editor.Forms.Controls
 
             IFO.Effect effect = MapManager.Effects.WorldObjects[selectedObject].Entry;
 
-            Vector3 eularVector = effect.Rotation.ToEular();
-            RotationYaw.Value = eularVector.X;
-            RotationRoll.Value = eularVector.Y;
-            RotationPitch.Value = eularVector.Z;
+            Rotation.SetRotation(effect.Rotation);
+            Rotation.SetEnabled(true);
 
             Properties.SelectedObject = new EffectProperty()
             {
@@ -116,9 +118,8 @@ namespace Map_Editor.Forms.Controls
 
             Properties.SelectedObject = null;
 
-            RotationYaw.Value = 0.0f;
-            RotationPitch.Value = 0.0f;
-            RotationRoll.Value = 0.0f;
+            Rotation.SetRotation(Quaternion.Identity);
+            Rotation.SetEnabled(false);
 
             selectedObject = -1;
         }
@@ -226,35 +227,31 @@ namespace Map_Editor.Forms.Controls
             ifoEntry.Path = objectValues.Path;
 
             MapManager.Effects.Tool.ChangeWorld(objectValues.Position);
+            Rotation.SetRotation(objectValues.Rotation);
         }
 
-        /// <summary>
-        /// Handles the ValueChanged event of the Rotation control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.RoutedPropertyChangedEventArgs&lt;System.Double&gt;"/> instance containing the event data.</param>
-        private void Rotation_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        #region Rotation events
+
+        private void Rotation_RotationChanged(Quaternion rotation)
         {
-            if (!Remove.IsEnabled)
+            if (selectedObject < 0)
                 return;
 
             IFO.Effect ifoEntry = MapManager.Effects.WorldObjects[selectedObject].Entry;
-            ifoEntry.Rotation = Quaternion.CreateFromYawPitchRoll((float)RotationRoll.Value, (float)RotationYaw.Value, (float)RotationPitch.Value);
+            ifoEntry.Rotation = rotation;
+            MapManager.Effects.Tool.ChangeWorld(ifoEntry.Position);
         }
 
-        /// <summary>
-        /// Handles the PreviewMouseUp event of the RotationRoll control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.Input.MouseButtonEventArgs"/> instance containing the event data.</param>
-        private void Rotation_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+        private void Rotation_RotationCommitted(Quaternion rotation)
         {
-            if (Properties.SelectedObject == null)
+            if (selectedObject < 0 || Properties.SelectedObject == null)
                 return;
 
             EffectProperty objectValues = (EffectProperty)Properties.SelectedObject;
-
             IFO.Effect ifoEntry = MapManager.Effects.WorldObjects[selectedObject].Entry;
+
+            if (objectValues.Rotation == rotation)
+                return;
 
             UndoManager.AddCommand(new Engine.Commands.Effects.ValueChanged()
             {
@@ -274,17 +271,19 @@ namespace Map_Editor.Forms.Controls
                     Description = ifoEntry.Description,
                     EventID = ifoEntry.EventID,
                     Position = ifoEntry.Position,
-                    Rotation = ifoEntry.Rotation,
+                    Rotation = rotation,
                     Scale = ifoEntry.Scale,
                     Path = ifoEntry.Path
                 }
             });
 
-            if (((EffectProperty)Properties.SelectedObject).Rotation != ifoEntry.Rotation)
-            {
-                ((EffectProperty)Properties.SelectedObject).Rotation = ifoEntry.Rotation;
-                Properties.Refresh();
-            }
+            ifoEntry.Rotation = rotation;
+            MapManager.Effects.Tool.ChangeWorld(ifoEntry.Position);
+
+            objectValues.Rotation = rotation;
+            Properties.Refresh();
         }
+
+        #endregion
     }
 }
