@@ -134,6 +134,12 @@ pub fn pack(matches: &ArgMatches) -> Result<(), PipelineError> {
     let mut vfs = create_vfs(&vfs_name_for(vfs_index))?;
     let mut cur_offset: u64 = 0;
     let mut input_data: Vec<u8> = Vec::new();
+    // Counted, not printed: one "Packing file" line per file was 38,655 lines, and
+    // pack.ps1 collects stdout through Start-Process's redirect pipe, which
+    // PowerShell reads line by line -- ~140 s of a 153 s bake for a packer that
+    // runs in 14 s (2026-10-11). Ignored and copied files are rare and still named.
+    let mut packed_files: u64 = 0;
+    let mut packed_bytes: u64 = 0;
 
     // Completed archives, pushed into the index once the walk finishes.
     let mut finished_metadata: Vec<VfsMetadata> = Vec::new();
@@ -194,8 +200,6 @@ pub fn pack(matches: &ArgMatches) -> Result<(), PipelineError> {
                 }
                 continue;
             }
-
-            println!("Packing file {}", input_path.display());
 
             let mut input_file = match fs::File::open(&input_path) {
                 Ok(f) => f,
@@ -279,9 +283,16 @@ pub fn pack(matches: &ArgMatches) -> Result<(), PipelineError> {
 
             vfs_metadata.files.push(vfs_file_metadata);
             cur_offset += input_size as u64;
+            packed_files += 1;
+            packed_bytes += input_size as u64;
         }
     }
     vfs.flush()?;
+    println!(
+        "Packed {} files, {} MB",
+        packed_files,
+        packed_bytes / 1_048_576
+    );
     let output_idx_path = output_dir.join(DEFAULT_IDX_NAME);
 
     println!("Saving vfs index file {}", output_idx_path.display());

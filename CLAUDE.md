@@ -1503,11 +1503,14 @@ Three things had to change together, and each failed differently:
 - `vfseek`'s clamps must be **signed 64-bit**. In 32-bit unsigned, `lStartOff + offset` with a negative offset wraps and the underflow guard silently fails.
 
 **Bake with `scripts/pack.ps1`** (`data/` -> `Exes/`). A full bake of the 2.5 GB tree
-took ~7 min until 2026-10-11 because `pack.rs` recompiled its two glob sets *inside* the
-file loop (77,000 compilations for 38,655 files); they are built once now and the
-archive is written through an 8 MB buffer with arithmetic offsets (no seek per file),
-which brought it to ~2.5 min with byte-identical output. The verify and the stray-file
-walk cost 3 s together. It now runs `verify-vfs.py` itself and fails the bake if the archive is unaddressable, and it prefers `bin/release/pipeline.exe` over the copy in `Exes/`. That default matters: `Exes/pipeline.exe` had gone **four months stale** (2026-04-06, against a rollover added 2026-08-17), so every bake ran a packer built before the size guard existed — which is the entire reason `rose.vfs` sailed past the split threshold with no `rose_2.vfs` while the code looked correct. Checking the timestamp of `bin/release/pipeline.exe` says nothing about what actually packed the archive.
+took ~7 min until 2026-10-11; it takes **14 s** now, byte-identical output. Two causes,
+neither of them I/O: `pack.rs` recompiled its two glob sets *inside* the file loop
+(77,000 compilations for 38,655 files -- ~4.5 min), and it printed one line per file
+while `pack.ps1` collects stdout through `Start-Process -RedirectStandardOutput`, which
+PowerShell drains line by line (~140 s for a packer that ran in 14 s). The glob sets are
+built once, the archive goes through an 8 MB buffer with arithmetic offsets, and the
+packer prints a count instead of a line per file. The verify and the stray-file walk
+cost 3 s together. Before blaming disk speed on any bulk tool here, check what it prints. It now runs `verify-vfs.py` itself and fails the bake if the archive is unaddressable, and it prefers `bin/release/pipeline.exe` over the copy in `Exes/`. That default matters: `Exes/pipeline.exe` had gone **four months stale** (2026-04-06, against a rollover added 2026-08-17), so every bake ran a packer built before the size guard existed — which is the entire reason `rose.vfs` sailed past the split threshold with no `rose_2.vfs` while the code looked correct. Checking the timestamp of `bin/release/pipeline.exe` says nothing about what actually packed the archive.
 
 Verify manually with `scripts/verify-vfs.py <game-dir>` after any bulk bake — it re-derives everything from the bytes on disk, so a packer bug cannot hide from it. `scripts/make-oversize-vfs.py` builds a sparse >2 GB archive with a deterministic payload and `vfs_buffer_tests.exe --bigtest <dir>` reads it back through the real triggervfs in **both** modes, checking content it re-derives from the file name — an independent oracle, not a comparison of two paths that share the bug.
 
