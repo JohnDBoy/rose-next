@@ -52,6 +52,7 @@ CObjAI::CObjAI(): stats({}) {
     m_nToDoSkillIDX = 0;
     m_nActiveSkillIDX = 0;
     m_nDoingSkillIDX = 0;
+    m_iRestoreTargetIDX = 0;
 
     m_iWaitLoopCnt = 0;
 }
@@ -168,12 +169,21 @@ CObjAI::Do_SKILL(int iServerTarget, CObjCHAR* pTarget) {
                         default:
                             m_wCommand = m_wBeforeCMD;
                     }
+                    // A position skill (Luna Stone, Ice Bang) cleared the target it was
+                    // cast over; restoring CMD_ATTACK without one made ProcCMD_ATTACK
+                    // stop the character. ProcCMD_ATTACK still checks the target is
+                    // there and alive before the first swing.
+                    if (CMD_ATTACK == m_wCommand && 0 == this->Get_TargetIDX()
+                        && m_iRestoreTargetIDX) {
+                        this->Set_TargetIDX(m_iRestoreTargetIDX);
+                    }
                     break;
 
                 default: // 무조건 stop으로...
                     m_wCommand = CMD_STOP;
                     m_wState = CS_NEXT_STOP2;
             }
+            m_iRestoreTargetIDX = 0;
             this->Del_ActiveSKILL();
             return 1;
             /*
@@ -541,6 +551,10 @@ CObjAI::SetCMD_Skill2POS(tPOINTF& PosGOTO, short nSkillIDX) {
     }
 
     m_nToDoSkillIDX = nSkillIDX;
+
+    // A position skill lands on a spot and drops the target, but the SA_RESTORE
+    // action mode will put CMD_ATTACK back and needs it (see m_iRestoreTargetIDX).
+    m_iRestoreTargetIDX = (CMD_ATTACK == m_wCommand) ? this->Get_TargetIDX() : 0;
 
     m_wBeforeCMD = m_wCommand;
     m_wCommand = CMD_SKILL2POS;

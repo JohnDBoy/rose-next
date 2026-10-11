@@ -59,6 +59,7 @@ CObjAI::CObjAI(): stats({}) {
     m_nToDoSkillIDX = 0;
     m_nActiveSkillIDX = 0;
     m_nDoingSkillIDX = 0;
+    m_iRestoreTargetIDX = 0;
 
     m_iWaitLoopCnt = 0;
 }
@@ -455,6 +456,15 @@ CObjAI::SetNewCommandAfterSkill(int iSkillNO) {
         case SA_RESTORE: {
             m_wCommand = m_wBeforeCMD;
             m_wBeforeCMD = CMD_STOP;
+
+            // A position skill (Luna Stone, Ice Bang) cleared the target it was cast
+            // over; restoring CMD_ATTACK without one sent ProcCMD_ATTACK down its
+            // no-target branch and stood the avatar down. The server restores the
+            // same target on its side.
+            if (CMD_ATTACK == m_wCommand && 0 == this->Get_TargetIDX() && m_iRestoreTargetIDX) {
+                this->Set_TargetIDX(m_iRestoreTargetIDX);
+            }
+            m_iRestoreTargetIDX = 0;
 
             /// ���ݸ��� ������ų���� Ÿ�� ����..
             if (m_wCommand == CMD_ATTACK) {
@@ -1266,6 +1276,10 @@ CObjAI::SetCMD_Skill2POS(const D3DVECTOR& PosGOTO, short nSkillIDX) {
             m_wBeforeCMD = m_wCommand;
             break;
     }
+
+    // A position skill lands on a spot and drops the target, but the SA_RESTORE
+    // action mode will put CMD_ATTACK back and needs it (see m_iRestoreTargetIDX).
+    m_iRestoreTargetIDX = (CMD_ATTACK == m_wCommand) ? this->Get_TargetIDX() : 0;
 
     m_nToDoSkillIDX = nSkillIDX;
 

@@ -118,6 +118,13 @@ private:
     WORD m_wState;
     WORD m_wCommand;
     WORD m_wBeforeCMD; /// self skill 사용시 현재 명령 저장..
+    /// The attack target a position skill (CMD_SKILL2POS) replaced. SetCMD_Skill2POS
+    /// clears the target -- the skill lands on a spot, not an object -- so the
+    /// SA_RESTORE action mode, which puts m_wBeforeCMD back, had CMD_ATTACK with no
+    /// target and ProcCMD_ATTACK stopped the character: casting Luna Stone or Ice
+    /// Bang mid-fight ended the fight. Saved here while m_wCommand was CMD_ATTACK,
+    /// put back by Do_SKILL's SA_RESTORE branch, 0 otherwise.
+    int m_iRestoreTargetIDX;
 
     CZoneTHREAD* GetCur_ZONE() { return this->GetZONE(); }
 
