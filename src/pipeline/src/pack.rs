@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{BufWriter, Read, Write};
 use std::path::PathBuf;
 
 use clap::ArgMatches;
@@ -80,8 +80,11 @@ pub fn pack(matches: &ArgMatches) -> Result<(), PipelineError> {
 
     let empty_globset = GlobSetBuilder::new();
 
-    let no_pack_globs = globs.get("nopack").unwrap_or(&empty_globset);
-    let ignore_globs = globs.get("ignore").unwrap_or(&empty_globset);
+    // Compile the glob sets once. They used to be rebuilt inside the file loop,
+    // twice per file -- 77,000 compilations for a 38,655-file tree -- which is
+    // where most of a 7-minute bake went (2026-10-11; the I/O itself is ~30 s).
+    let no_pack_globs = globs.get("nopack").unwrap_or(&empty_globset).build()?;
+    let ignore_globs = globs.get("ignore").unwrap_or(&empty_globset).build()?;
 
     // The .vfs format stores each file's offset in a 32-BIT field
     // (triggervfs FileEntry::lFileOffset), which triggervfs reads as UNSIGNED --
@@ -112,19 +115,25 @@ pub fn pack(matches: &ArgMatches) -> Result<(), PipelineError> {
         }
     };
 
-    let create_vfs = |name: &str| -> Result<fs::File, PipelineError> {
+    // Buffered: the archive is written as one stream, so the offset of each file
+    // is known arithmetically (`cur_offset`) and no seek is needed per file.
+    let create_vfs = |name: &str| -> Result<BufWriter<fs::File>, PipelineError> {
         let path = output_dir.join(name);
-        fs::File::create(&path).map_err(|e| {
-            PipelineError::Message(format!(
-                "Failed to create vfs file {}: {}",
-                path.display(),
-                e
-            ))
-        })
+        fs::File::create(&path)
+            .map(|f| BufWriter::with_capacity(8 << 20, f))
+            .map_err(|e| {
+                PipelineError::Message(format!(
+                    "Failed to create vfs file {}: {}",
+                    path.display(),
+                    e
+                ))
+            })
     };
 
     let mut vfs_index = 0usize;
     let mut vfs = create_vfs(&vfs_name_for(vfs_index))?;
+    let mut cur_offset: u64 = 0;
+    let mut input_data: Vec<u8> = Vec::new();
 
     // Completed archives, pushed into the index once the walk finishes.
     let mut finished_metadata: Vec<VfsMetadata> = Vec::new();
@@ -158,12 +167,12 @@ pub fn pack(matches: &ArgMatches) -> Result<(), PipelineError> {
             let input_path = ent.into_path();
             let input_relative_path = input_path.strip_prefix(&input_dir).unwrap().to_path_buf();
 
-            if ignore_globs.build()?.is_match(&input_relative_path) {
+            if ignore_globs.is_match(&input_relative_path) {
                 println!("Ignoring file {}", input_path.display());
                 continue;
             }
 
-            if no_pack_globs.build()?.is_match(&input_relative_path) {
+            if no_pack_globs.is_match(&input_relative_path) {
                 let output_path = output_dir.join(input_relative_path);
                 let output_path_parent = output_path.parent().unwrap();
 
@@ -199,7 +208,7 @@ pub fn pack(matches: &ArgMatches) -> Result<(), PipelineError> {
                 }
             };
 
-            let mut input_data = Vec::new();
+            input_data.clear();
             let input_size = match input_file.read_to_end(&mut input_data) {
                 Ok(s) => s,
                 Err(e) => {
@@ -211,11 +220,10 @@ pub fn pack(matches: &ArgMatches) -> Result<(), PipelineError> {
                 }
             };
 
-            let mut cur_offset = vfs.seek(SeekFrom::Current(0)).unwrap();
-
             // Roll over to a new archive before this file would push us past the
             // 32-bit offset limit. See VFS_MAX_BYTES above.
             if cur_offset + input_size as u64 > VFS_MAX_BYTES {
+                vfs.flush()?;
                 finished_metadata.push(vfs_metadata);
 
                 vfs_index += 1;
@@ -270,8 +278,10 @@ pub fn pack(matches: &ArgMatches) -> Result<(), PipelineError> {
             vfs_file_metadata.version = 1;
 
             vfs_metadata.files.push(vfs_file_metadata);
+            cur_offset += input_size as u64;
         }
     }
+    vfs.flush()?;
     let output_idx_path = output_dir.join(DEFAULT_IDX_NAME);
 
     println!("Saving vfs index file {}", output_idx_path.display());
