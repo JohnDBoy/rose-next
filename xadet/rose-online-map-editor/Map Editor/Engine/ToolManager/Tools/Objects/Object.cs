@@ -38,6 +38,9 @@ namespace Map_Editor.Engine.Tools
 
         /// <summary>Shows the tool's mode line in the panel; <paramref name="placing"/> shows the Stop button.</summary>
         void ShowMode(string text, bool placing);
+
+        /// <summary>The selected object moved (gizmo or cursor): update the property values.</summary>
+        void ShowPosition(Vector3 position);
     }
 
     /// <summary>
@@ -484,7 +487,10 @@ namespace Map_Editor.Engine.Tools
 
                         ToolManager.Position.Update();
 
-                        return ((DecorationTool)App.Form.ToolHost.Content).Select(index);
+                        long selectStart = FrameStats.Start();
+                        int selected = ((DecorationTool)App.Form.ToolHost.Content).Select(index);
+                        FrameStats.Add("select", selectStart);
+                        return selected;
                     }
                 case ObjectType.Construction:
                     {
@@ -504,7 +510,10 @@ namespace Map_Editor.Engine.Tools
 
                         ToolManager.Position.Update();
 
-                        return ((ConstructionTool)App.Form.ToolHost.Content).Select(index);
+                        long selectStart = FrameStats.Start();
+                        int selected = ((ConstructionTool)App.Form.ToolHost.Content).Select(index);
+                        FrameStats.Add("select", selectStart);
+                        return selected;
                     }
             }
 
@@ -788,8 +797,7 @@ namespace Map_Editor.Engine.Tools
             {
                 case ObjectType.Decoration:
                     {
-                        ((ObjectProperty)((DecorationTool)App.Form.ToolHost.Content).Properties.SelectedObject).Position = MapManager.Decoration.WorldObjects[SelectedObject].Entry.Position;
-                        ((DecorationTool)App.Form.ToolHost.Content).Properties.Refresh();
+                        Panel.ShowPosition(MapManager.Decoration.WorldObjects[SelectedObject].Entry.Position);
 
                         if (positionCommand == null)
                             return;
@@ -802,8 +810,7 @@ namespace Map_Editor.Engine.Tools
                     break;
                 case ObjectType.Construction:
                     {
-                        ((ObjectProperty)((ConstructionTool)App.Form.ToolHost.Content).Properties.SelectedObject).Position = MapManager.Construction.WorldObjects[SelectedObject].Entry.Position;
-                        ((ConstructionTool)App.Form.ToolHost.Content).Properties.Refresh();
+                        Panel.ShowPosition(MapManager.Construction.WorldObjects[SelectedObject].Entry.Position);
 
                         if (positionCommand == null)
                             return;
@@ -869,8 +876,7 @@ namespace Map_Editor.Engine.Tools
             {
                 case ObjectType.Decoration:
                     {
-                        ((ObjectProperty)((DecorationTool)App.Form.ToolHost.Content).Properties.SelectedObject).Position = MapManager.Decoration.WorldObjects[SelectedObject].Entry.Position;
-                        ((DecorationTool)App.Form.ToolHost.Content).Properties.Refresh();
+                        Panel.ShowPosition(MapManager.Decoration.WorldObjects[SelectedObject].Entry.Position);
 
                         if (positionCommand == null)
                             return;
@@ -885,8 +891,7 @@ namespace Map_Editor.Engine.Tools
                     break;
                 case ObjectType.Construction:
                     {
-                        ((ObjectProperty)((ConstructionTool)App.Form.ToolHost.Content).Properties.SelectedObject).Position = MapManager.Construction.WorldObjects[SelectedObject].Entry.Position;
-                        ((ConstructionTool)App.Form.ToolHost.Content).Properties.Refresh();
+                        Panel.ShowPosition(MapManager.Construction.WorldObjects[SelectedObject].Entry.Position);
                         
                         if (positionCommand == null)
                             return;

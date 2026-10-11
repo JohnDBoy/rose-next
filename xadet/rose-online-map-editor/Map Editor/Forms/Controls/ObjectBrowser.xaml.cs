@@ -191,6 +191,19 @@ namespace Map_Editor.Forms.Controls
         /// <summary>Highlights the object with this index in the zone's table and scrolls to it.</summary>
         public void SelectZoneIndex(int index)
         {
+            long uiStart = Engine.FrameStats.Start();
+            try
+            {
+                SelectZoneIndexCore(index);
+            }
+            finally
+            {
+                Engine.FrameStats.Add("ui", uiStart);
+            }
+        }
+
+        private void SelectZoneIndexCore(int index)
+        {
             foreach (KeyValuePair<Border, ZscCatalog.Entry> kv in tiles)
             {
                 if (kv.Value.Table.Zsc == zoneTable && kv.Value.Index == index)
@@ -210,7 +223,7 @@ namespace Map_Editor.Forms.Controls
                     HideSearchHint();
                     SearchBox.Text = "#" + index;
                     searchTimer.Stop();
-                    Refill();
+                    RefillCore();
                     foreach (KeyValuePair<Border, ZscCatalog.Entry> kv in tiles)
                     {
                         if (kv.Value.Index == index && kv.Value.Table.Zsc == zoneTable)

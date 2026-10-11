@@ -57,7 +57,7 @@
         <Expander Header="Rotate" Margin="10,0,10,10" IsExpanded="True">
             <local:RotationEditor x:Name="Rotation" />
         </Expander>
-        <Expander Header="Properties" Margin="10,0,10,10" IsExpanded="False" Name="PropertiesExpander">
+        <Expander Header="Properties" Margin="10,0,10,10" IsExpanded="False" Name="PropertiesExpander" Expanded="PropertiesExpander_Expanded">
             <Grid Height="250" Background="White">
                 <WindowsFormsHost Name="PropertiesHost">
                     <wf:PropertyGrid BackColor="White" HelpVisible="False" ToolbarVisible="False" PropertyValueChanged="Properties_PropertyValueChanged" />

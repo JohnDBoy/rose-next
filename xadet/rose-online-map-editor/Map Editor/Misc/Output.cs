@@ -12,6 +12,8 @@ namespace Map_Editor.Misc
     /// </summary>
     public static class Output
     {
+        private const int MAX_LINES = 300;
+
         /// <summary>
         /// Message type
         /// </summary>
@@ -104,7 +106,13 @@ namespace Map_Editor.Misc
                         break;
                 }
 
+                // The list used to grow without bound; inserting into it costs a
+                // frame's worth of layout, so it keeps the last lines only.
+                long logStart = Engine.FrameStats.Start();
                 target.Items.Insert(0, textBlock);
+                while (target.Items.Count > MAX_LINES)
+                    target.Items.RemoveAt(target.Items.Count - 1);
+                Engine.FrameStats.Add("log", logStart);
             }));
         }
 

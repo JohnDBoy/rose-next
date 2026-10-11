@@ -243,6 +243,17 @@ by hand in the GUI; the headless tests below pass.
   the palette is in use. The worker now sleeps 8 ms between renders and
   waits while `ObjectThumbnails.Busy` (placing, or the button down over the
   map). The browser's UI-thread work is measured as `ui`.
+  Second run (gen-2 gone, thumbnails made 0 during nearly every spike): what
+  remained was 55-290 ms of `other` and `ui` around selecting, placing and
+  refilling the palette, i.e. WPF/WinForms work on the shared thread. Two
+  fixes: **the object panels hand the WinForms property grid its values only
+  while the Properties expander is open** (`current` holds them; the grid is
+  rebuilt on every selection and every placement otherwise, 50-150 ms each;
+  `ShowPosition` replaces the tool reaching into the grid), and **the Output
+  panel keeps 300 lines** (an unbounded insert at index 0 cost one skipped
+  frame per line -- the statistics line itself was the 27 ms "worst" of every
+  interval). New buckets: `select` (the panel's Select), `grid`, `log`. The
+  other tools still rebuild their grids on every selection.
 - `tests/Run-ObjectBrowserTests.ps1` builds the editor, then against the real
   data: catalogue and search, a foreign crane appended into Junon Polis' table
   and saved to `build/object-browser-tests/` and read back by both readers with

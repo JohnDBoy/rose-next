@@ -57,6 +57,13 @@ namespace Map_Editor.Forms.Controls
 
         private bool settingUp;
 
+        /// <summary>
+        /// The selected object's editable values. The WinForms property grid is
+        /// only handed them while its expander is open: rebuilding the grid cost
+        /// 50-150 ms on every selection and every placement, collapsed or not.
+        /// </summary>
+        private ObjectProperty current;
+
         #endregion
 
         /// <summary>
@@ -147,6 +154,44 @@ namespace Map_Editor.Forms.Controls
             PlacementEnded();
         }
 
+        public void ShowPosition(Vector3 position)
+        {
+            if (current == null)
+                return;
+            current.Position = position;
+            RefreshProperties();
+        }
+
+        /// <summary>Hands the grid the current values, only while it is on screen.</summary>
+        private void ShowProperties()
+        {
+            if (!PropertiesExpander.IsExpanded)
+            {
+                if (Properties.SelectedObject != null)
+                    Properties.SelectedObject = null;
+                return;
+            }
+
+            long gridStart = Engine.FrameStats.Start();
+            Properties.SelectedObject = current;
+            Engine.FrameStats.Add("grid", gridStart);
+        }
+
+        private void RefreshProperties()
+        {
+            if (!PropertiesExpander.IsExpanded || Properties.SelectedObject == null)
+                return;
+
+            long gridStart = Engine.FrameStats.Start();
+            Properties.Refresh();
+            Engine.FrameStats.Add("grid", gridStart);
+        }
+
+        private void PropertiesExpander_Expanded(object sender, RoutedEventArgs e)
+        {
+            ShowProperties();
+        }
+
         #endregion
 
         private Engine.Tools.Object Tool
@@ -195,7 +240,7 @@ namespace Map_Editor.Forms.Controls
             Rotation.SetRotation(ifoEntry.Rotation);
             Rotation.SetEnabled(true);
 
-            Properties.SelectedObject = new ObjectProperty()
+            current = new ObjectProperty()
             {
                 Description = ifoEntry.Description,
                 EventID = ifoEntry.EventID,
@@ -203,6 +248,7 @@ namespace Map_Editor.Forms.Controls
                 Rotation = ifoEntry.Rotation,
                 Scale = ifoEntry.Scale
             };
+            ShowProperties();
 
             Remove.IsEnabled = true;
             Clone.IsEnabled = true;
@@ -246,7 +292,8 @@ namespace Map_Editor.Forms.Controls
 
             UpdatePasteEnabled();
 
-            Properties.SelectedObject = null;
+            current = null;
+            ShowProperties();
 
             Rotation.SetRotation(Quaternion.Identity);
             Rotation.SetEnabled(false);
@@ -404,10 +451,10 @@ namespace Map_Editor.Forms.Controls
 
         private void Rotation_RotationCommitted(Quaternion rotation)
         {
-            if (selectedObject < 0 || Properties.SelectedObject == null)
+            if (selectedObject < 0 || current == null)
                 return;
 
-            ObjectProperty objectValues = (ObjectProperty)Properties.SelectedObject;
+            ObjectProperty objectValues = current;
             IFO.BaseIFO ifoEntry = MapManager.Decoration.WorldObjects[selectedObject].Entry;
 
             if (objectValues.Rotation == rotation)
@@ -438,7 +485,7 @@ namespace Map_Editor.Forms.Controls
             Tool.ChangeWorld(ifoEntry.Position, rotation, ifoEntry.Scale);
 
             objectValues.Rotation = rotation;
-            Properties.Refresh();
+            RefreshProperties();
         }
 
         #endregion

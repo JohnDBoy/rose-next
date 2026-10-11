@@ -167,6 +167,7 @@ public static class BoundingBoxBatch
     private static VertexPositionColor[] vertices = new VertexPositionColor[0];
     private static short[] indices = new short[0];
     private static int count;
+    private static readonly Vector3[] cornerScratch = new Vector3[8];
 
     public static VertexDeclaration Declaration(GraphicsDevice device)
     {
@@ -197,7 +198,8 @@ public static class BoundingBoxBatch
             indices = ix;
         }
 
-        Vector3[] corners = box.GetCorners();
+        box.GetCorners(cornerScratch);
+        Vector3[] corners = cornerScratch;
         int baseIndex = count * 8;
         for (int i = 0; i < 8; i++)
         {
