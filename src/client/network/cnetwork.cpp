@@ -1149,7 +1149,9 @@ CNetwork::send_char_create_req(const std::string& name,
 
     bool valid_job = (job == Job::Visitor || is_first_job(job));
 
-    if (name.empty() || face_id <= 0 || hair_id <= 0 || !valid_job) {
+    // hair 0 is the first style (LIST_HAIR blocks of five start at 0); see
+    // scripts/fix-hair-block0.py.
+    if (name.empty() || face_id <= 0 || hair_id < 0 || !valid_job) {
         return;
     }
 

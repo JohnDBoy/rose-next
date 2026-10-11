@@ -1463,6 +1463,16 @@ Our `data/` is a translated iROSE dump with gaps; the reference dumps in `C:\Use
   differs. Survey sheets in `build/skill-icon-quality/`, undo in `build/skill-icons-667/` +
   `LIST_SKILL.icons-667.json`, review sheets `report-*.png`. Client-only; re-bake.
 
+- `scripts/fix-hair-block0.py` — **hair ids are zero-based blocks of five** (base, three
+  under-a-hat variants, an empty "no hair" slot at 0, 5, 10 ...), and a cap adds its hair type
+  (LIST_CAP game col 33, 0-4) to the character's hair id to pick the model under it. Our
+  `newhair` set had style 1 shifted to rows 1-4 of `LIST_HAIR.STB` / `LIST_MHAIR.ZSC` /
+  `LIST_WHAIR.ZSC`, creation offered hair 1 and the world server refused 0, so under any
+  type-4 cap (wigs: Dimple Bonnet and 90 others) the client drew row 5, the *second* style's
+  full hair, through the wig -- which read as a broken hair texture. The script moves style 1
+  to 0-3 and creation to hair 0 (2026-10-11); the server accepts 0, migration 0004 moves the
+  hair-1 characters to 0. Ship client, data and servers together. Faces are one-based too
+  (`LIST_MFACE.ZSC` object 0 empty) but have no block structure and are left alone.
 - `scripts/repackage-subweapons.py` — re-files the Jrose "shields" (LIST_SUBWPN 306-334) that are not shields. **The retail table already has the classes**: col 4 is 261 Shield, 262 Support Tool (the Book of Standards → Magic Pearl caster ladder, rows 61-82, INT-gated, +Max MP/+MP regen) and 263 Dolls (renamed "Charm" in `STR_ITEMTYPE.STL`). Class 261 does exactly four things in code: the tooltip's DEF/RES line (now printed for any sub-weapon with non-zero DEF/RES — the server sums every slot regardless of class, so a tool's RES was invisible), the Soldier/Knight *Shield Barrier* / *Endure* requirement, 40% of incoming durability wear, and a shield passive no skill grants. Attach point is the ZSC dummy, never the class. Four real shields remain, one per tier (Garm 210, Golden Angel 220, Ancient Davion 230, Righteous Shield NEO 240), sized at 12-13% of the armour set's DEF; the mirrors are 262 (INT gate = the old STR value), the rest 263 with a DEX (avoid/crit) or STR (max HP/hit) flavour. **Every 230/240 import had cloned the Davion template's +150 DEF option** — stripped, Davion included. Drops: the `OFF_*` lists in `add-karkia-drops.py` (re-applied with `--rewrite`; its `--restore` is a whole-file ITEM_DROP copy, never use it after Oro/Shibuya ran) and `add-oro-drops.py`; Huzam's tab is pinned in `stock-muris-shops.py`. Cell-level sidecar, `--dry-run`/`--verify`/`--restore`.
 
 Note `src/pipeline/src/pack.rs` walks the data tree filtering only *hidden* entries plus the `ignore <glob>` lines of the manifest `scripts/pack.ps1` writes. That exclude list (`$excludes`, 2026-10-04) keeps development files out of the `.vfs`: the map editor that runs from `data/` (exe/pdb/ini/log, dll, `Content\`, `ESTB\`), every `*.json` sidecar, `*.md`/`*.py`/`*.tmp`, and a stray retail `AGIT01\TEMP`. Globs are case-sensitive with forward slashes, `*` crosses folders, and a pattern cannot contain a space. A `.bak` is not excluded: `pack.ps1` refuses to bake while one exists — move it to `build/`. A new kind of tool file under `data/` belongs in `$excludes`.

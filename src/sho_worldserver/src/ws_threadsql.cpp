@@ -724,7 +724,12 @@ CWS_ThreadSQL::handle_char_create_req(QueuedPacket& p) {
         && std::regex_match(req->name()->c_str(), name_re);
 
     bool face_valid = req->face_id() > 0 && req->face_id() < g_TblFACE.row_count;
-    bool hair_valid = req->hair_id() > 0 && req->hair_id() < g_TblHAIR.row_count;
+    // Hair ids are zero-based: every style is a block of five LIST_HAIR rows
+    // (base, three under-a-hat variants, an empty "no hair" slot) starting at
+    // 0, 5, 10 ... and a cap adds its hair type (col 33) to the id. Refusing 0
+    // here is what pushed the first style to rows 1-4 and made wigs draw the
+    // second style's hair (scripts/fix-hair-block0.py).
+    bool hair_valid = req->hair_id() >= 0 && req->hair_id() < g_TblHAIR.row_count;
 
     const char* char_name = req->name()->c_str();
     Gender gender = gender_from(req->gender_id());

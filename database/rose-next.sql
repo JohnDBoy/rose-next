@@ -112,7 +112,7 @@ CREATE TABLE "public"."character" (
     "gender_id" smallint DEFAULT 0 NOT NULL,
     "job_id" smallint DEFAULT 0 NOT NULL,
     "face_id" integer DEFAULT 1 NOT NULL,
-    "hair_id" integer DEFAULT 1 NOT NULL,
+    "hair_id" integer DEFAULT 0 NOT NULL,
     "level" smallint DEFAULT 1 NOT NULL,
     "exp" bigint DEFAULT 0 NOT NULL,
     "hp" integer DEFAULT 50 NOT NULL,
