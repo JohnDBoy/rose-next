@@ -1492,6 +1492,30 @@ Diagnosing a suspected bad bake: parse the `.idx` FAT (`short len; char name[len
 
 **Prefer `--art-only --template-row N` for anything from an unfamiliar dump.** It takes the model (plus `--copy-icon` / `--copy-field-model`) and clones every stat column from one of *our* rows, reading no source cell at all. That is a safety property, not a convenience: item bonus/requirement columns are ability ids fed straight into `m_iAddValue[nType] += nValue` with **no bounds check** on either side (`src/client/common/cuserdata.cpp`, and the gameserver's copy). `m_iAddValue` is `int[AT_MAX]` with `m_nPassiveRate`/`m_btRecoverHP`/`m_iDropRATE` directly behind it, so a modern affix id (Jrose uses 174/175/184/185/195) silently corrupts adjacent character state instead of erroring. `--art-only` also skips the source STL, sidestepping foreign dialects — Jrose writes the legacy `I_NUM` header that our strict reader rejects. See [doc/jrose-back-import.md](doc/jrose-back-import.md). `scripts/add-item-icon.py` adds a custom item icon from a PNG (any size, auto-downscaled to a 40×40 cell) to the `ITEM1.TSI` atlas and prints the new global icon index (`--weapon-row N` also patches the STB); requires Pillow. `scripts/add-skill-icon.py` is the same tool for **skill** icons (`SKILLICON.TSI`, extension sheets `skill04.dds`+, original indices 0–506, extensions from 507; `--skill-row N` patches `LIST_SKILL.STB` col 51). Note the two TSIs use different sprite-rect conventions (item `x..x+40`, skill `x..x+39`) — each script matches its atlas. Both docstrings document the underlying binary formats — read them before editing STB/ZSC/STL/TSI by hand.
 
+**Original weapons come in through `scripts/import-glb-weapon.py`** (2026-10-11; first item:
+the Meshy-generated "Celestial Frost Scepter", LIST_WEAPON 1469, validated in game the same day). It
+reads a glTF binary (Meshy's `glb` export — the only format on its list that needs no Blender
+and carries geometry + UVs + the base-colour texture in one file), writes a ZMS0008 rigid mesh
+(format 0x86: position, normal, uv0; no bones, no material ids, no strip, pool 0) plus a DXT5
+DDS with a full mip chain under `3DDATA\WEAPON\CUSTOM\<slug>\`, and registers it through
+`import-item.py`'s own appenders by handing them an in-memory one-object source table, with
+every stat cloned from `--template-row`. Conventions measured on the stock staffs and baked into
+the geometry (the ZSC part transform is ignored for character parts): metres, shaft along +Z,
+head up, origin = right-hand grip 22% up from the foot, wide axis X; glTF's Y-up maps as
+`(x, -z, y)`, which preserves the counter-clockwise-out winding both formats share, and no UV
+flip. Meshy's retopologised export is ~10k triangles (stock: 100-2,500) — fine for a showpiece,
+and the script refuses anything over the 16-bit count. `--max-triangles N` decimates with
+MeshLab's texture-aware quadric collapse (`pymeshlab`, installed 2026-10-11; imported only when
+used): positions are **welded first** — a glTF splits every vertex on a UV seam, so unwelded the
+collapse treats each seam as a boundary and stalls (7,644 of a 3,000 target) — and the UVs ride
+as wedge coordinates, split back per vertex for the ZMS. 10,140 → 3,000 was invisible in a
+textured render; the shipped scepter is deliberately left at 10k. Only the diffuse is used; normal /
+metallic / roughness maps are dropped. The icon is the `add-item-icon.py` path (the first one is
+the Meshy screenshot keyed and rotated over the median stock icon frame); its `ITEM1.TSI.bak-icons`
+lands in `data/` and must be moved to `build/` before a bake. Backups and a manifest go to
+`build/glb-weapons/<id>/`. Software-render the written ZMS beside a stock mesh before baking: that
+is what proved the orientation here, not the game.
+
 **Jrose's particle-only back items have no model** — a 4-vertex placeholder mesh, the look
 being an effect placed by its item tables (`LIST_BACK` col 51 → `LIST_WEAPONEFFECT`: col 2
 `FILE_EFFECT` row, cols 4-7 quaternion ×0.01, 9-11 position, 13-15 scale ×0.01, read out of
