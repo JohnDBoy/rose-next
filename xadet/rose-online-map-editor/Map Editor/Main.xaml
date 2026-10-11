@@ -136,6 +136,7 @@
             </MenuItem>
             <MenuItem Header="View">
                 <MenuItem Header="Fullscreen" Name="FullScreenMenu" Click="FullScreen_Click" InputGestureText="F11" />
+                <MenuItem Header="Frame statistics" Name="FrameStatsMenu" IsCheckable="True" Click="FrameStats_Click" ToolTip="Write a frame-time breakdown to the Output panel every two seconds" />
             </MenuItem>
             <MenuItem Header="Tools">
                 <MenuItem Header="Movement (.MOV)" Name="MovementMenu" IsEnabled="False">

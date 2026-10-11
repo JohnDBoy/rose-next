@@ -88,7 +88,7 @@ namespace Map_Editor.Engine.Manipulation
 
                 pickedPosition.X = (float)Math.Round(pickedPosition.X / gridSize) * gridSize;
                 pickedPosition.Y = (float)Math.Round(pickedPosition.Y / gridSize) * gridSize;
-                pickedPosition.Z = Height.GetHeight((int)((pickedPosition.X / 2.5f) + 0.5f), (int)((pickedPosition.Y / 2.5f) + 0.5f));
+                pickedPosition.Z = MapManager.Heightmaps.GroundHeight(pickedPosition.X, pickedPosition.Y);
             }
 
             if (mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed)

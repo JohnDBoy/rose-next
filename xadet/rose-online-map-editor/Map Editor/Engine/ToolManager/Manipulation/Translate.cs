@@ -211,7 +211,7 @@ namespace Map_Editor.Engine.Manipulation
 
             if (mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed && !leftButtonDown)
             {
-                heightDifference = position.Z - Height.GetHeight((int)((position.X / 2.5f) + 0.5f), (int)((position.Y / 2.5f) + 0.5f));
+                heightDifference = position.Z - MapManager.Heightmaps.GroundHeight(position.X, position.Y);
                 
                 leftButtonDown = true;
             }
@@ -241,7 +241,7 @@ namespace Map_Editor.Engine.Manipulation
                         position.X -= MouseDifference(Vector3.Normalize(Vector3.UnitX)).X;
 
                     if (App.Form.FollowTerrain.IsChecked == true)
-                        position.Z = Height.GetHeight((int)((position.X / 2.5f) + 0.5f), (int)((position.Y / 2.5f) + 0.5f)) + heightDifference;
+                        position.Z = MapManager.Heightmaps.GroundHeight(position.X, position.Y) + heightDifference;
 
                     if(PositionChanged != null)
                         PositionChanged(null, null);
@@ -267,7 +267,7 @@ namespace Map_Editor.Engine.Manipulation
                         position.Y -= MouseDifference(Vector3.Normalize(Vector3.UnitY)).Y;
 
                     if (App.Form.FollowTerrain.IsChecked == true)
-                        position.Z = Height.GetHeight((int)((position.X / 2.5f) + 0.5f), (int)((position.Y / 2.5f) + 0.5f)) + heightDifference;
+                        position.Z = MapManager.Heightmaps.GroundHeight(position.X, position.Y) + heightDifference;
 
                     if (PositionChanged != null)
                         PositionChanged(null, null);
@@ -320,7 +320,7 @@ namespace Map_Editor.Engine.Manipulation
                 position += arrowPosition;
 
                 if (App.Form.FollowTerrain.IsChecked == true)
-                    position.Z = Height.GetHeight((int)((position.X / 2.5f) + 0.5f), (int)((position.Y / 2.5f) + 0.5f)) + heightDifference;
+                    position.Z = MapManager.Heightmaps.GroundHeight(position.X, position.Y) + heightDifference;
 
                 if (PositionChanged != null)
                     PositionChanged(null, null);

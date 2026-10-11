@@ -337,19 +337,25 @@ namespace Map_Editor.Engine.Terrain
                                 int dx4b = (y * 4) + bx + 1;
                                 int dy4b = (x * 4) + by + 1;
 
+                                // The cell's height range covers all four corners; it used to
+                                // take only the two diagonal ones, so a saddle or a ridge
+                                // cell could reject the pick ray that hit it.
+                                float zMin = Math.Min(Math.Min(HeightFile.Position[dx4a, dy4a], HeightFile.Position[dx4b, dy4b]), Math.Min(HeightFile.Position[dx4a, dy4b], HeightFile.Position[dx4b, dy4a]));
+                                float zMax = Math.Max(Math.Max(HeightFile.Position[dx4a, dy4a], HeightFile.Position[dx4b, dy4b]), Math.Max(HeightFile.Position[dx4a, dy4b], HeightFile.Position[dx4b, dy4a]));
+
                                 Tiles[y, x].BoundingBoxes[by, bx] = new BoundingBox()
                                 {
                                     Min = new Vector3()
                                     {
                                         X = (dy4a * 2.5f) + (mapOffset.Y * 160.0f),
-                                        Y = 10400.0f - ((dx4a * 2.5f) + (mapOffset.X * 160.0f)),
-                                        Z = HeightFile.Position[dx4a, dy4a]
+                                        Y = 10400.0f - ((dx4b * 2.5f) + (mapOffset.X * 160.0f)),
+                                        Z = zMin
                                     },
                                     Max = new Vector3()
                                     {
                                         X = (dy4b * 2.5f) + (mapOffset.Y * 160.0f),
-                                        Y = 10400.0f - ((dx4b * 2.5f) + (mapOffset.X * 160.0f)),
-                                        Z = HeightFile.Position[dx4b, dy4b]
+                                        Y = 10400.0f - ((dx4a * 2.5f) + (mapOffset.X * 160.0f)),
+                                        Z = zMax
                                     }
                                 };
                             }
@@ -448,20 +454,28 @@ namespace Map_Editor.Engine.Terrain
                                 if (!ray.Intersects(Tiles[y, x].BoundingBoxes[vy, vx]).HasValue)
                                     continue;
 
+                                // The two triangles the terrain is drawn with (see Indices: the
+                                // diagonal runs from the west-north corner to the east-south one).
+                                // The pick used to test a flat plane at one corner's height,
+                                // which put objects above or below the ground on every slope.
+                                int dx4a = (y * 4) + vx;
+                                int dy4a = (x * 4) + vy;
+                                float west = Tiles[y, x].BoundingBoxes[vy, vx].Min.X;
+                                float east = Tiles[y, x].BoundingBoxes[vy, vx].Max.X;
+                                float south = Tiles[y, x].BoundingBoxes[vy, vx].Min.Y;
+                                float north = Tiles[y, x].BoundingBoxes[vy, vx].Max.Y;
+
+                                Vector3 westNorth = new Vector3(west, north, HeightFile.Position[dx4a, dy4a]);
+                                Vector3 eastNorth = new Vector3(east, north, HeightFile.Position[dx4a, dy4a + 1]);
+                                Vector3 westSouth = new Vector3(west, south, HeightFile.Position[dx4a + 1, dy4a]);
+                                Vector3 eastSouth = new Vector3(east, south, HeightFile.Position[dx4a + 1, dy4a + 1]);
+
                                 Vector3 vectorPosition = Vector3.Zero;
 
-                                Vector3 p1 = new Vector3(Tiles[y, x].BoundingBoxes[vy, vx].Min.X, Tiles[y, x].BoundingBoxes[vy, vx].Min.Y, Tiles[y, x].BoundingBoxes[vy, vx].Max.Z);
-                                Vector3 p2 = new Vector3(Tiles[y, x].BoundingBoxes[vy, vx].Min.X, Tiles[y, x].BoundingBoxes[vy, vx].Max.Y, Tiles[y, x].BoundingBoxes[vy, vx].Max.Z);
-                                Vector3 p3 = new Vector3(Tiles[y, x].BoundingBoxes[vy, vx].Max.X, Tiles[y, x].BoundingBoxes[vy, vx].Max.Y, Tiles[y, x].BoundingBoxes[vy, vx].Max.Z);
-
-                                if ((vectorPosition = CheckLineTri(nearPoint, farPoint, p1, p2, p3)) != Vector3.Zero)
+                                if ((vectorPosition = CheckLineTri(nearPoint, farPoint, westNorth, westSouth, eastSouth)) != Vector3.Zero)
                                     vertexPositions.Add(vectorPosition);
 
-                                p1 = new Vector3(Tiles[y, x].BoundingBoxes[vy, vx].Min.X, Tiles[y, x].BoundingBoxes[vy, vx].Min.Y, Tiles[y, x].BoundingBoxes[vy, vx].Max.Z);
-                                p2 = new Vector3(Tiles[y, x].BoundingBoxes[vy, vx].Max.X, Tiles[y, x].BoundingBoxes[vy, vx].Min.Y, Tiles[y, x].BoundingBoxes[vy, vx].Max.Z);
-                                p3 = new Vector3(Tiles[y, x].BoundingBoxes[vy, vx].Max.X, Tiles[y, x].BoundingBoxes[vy, vx].Max.Y, Tiles[y, x].BoundingBoxes[vy, vx].Max.Z);
-
-                                if ((vectorPosition = CheckLineTri(nearPoint, farPoint, p1, p2, p3)) != Vector3.Zero)
+                                if ((vectorPosition = CheckLineTri(nearPoint, farPoint, westNorth, eastSouth, eastNorth)) != Vector3.Zero)
                                     vertexPositions.Add(vectorPosition);
                             }
                         }
@@ -818,6 +832,19 @@ namespace Map_Editor.Engine.Terrain
         /// <summary>
         /// Samples the rendered terrain triangles at world coordinates in metres.
         /// </summary>
+        /// <summary>
+        /// The ground height under a point, interpolated on the terrain's own
+        /// triangles; falls back to the nearest vertex (the old behaviour) where
+        /// no block is loaded.
+        /// </summary>
+        public float GroundHeight(float worldX, float worldY)
+        {
+            float height;
+            if (TryGetHeight(worldX, worldY, out height))
+                return height;
+            return Tools.Height.GetHeight((int)((worldX / 2.5f) + 0.5f), (int)((worldY / 2.5f) + 0.5f));
+        }
+
         public bool TryGetHeight(float worldX, float worldY, out float height)
         {
             height = 0.0f;

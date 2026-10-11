@@ -274,7 +274,7 @@ namespace Map_Editor.Engine.Tools
                     Scale = zscObject.Models[i].Scale,
                     Rotation = zscObject.Models[i].Rotation,
                     LightmapEnabled = false,
-                    BoundingBox = new BoundingBox()
+                    BoundingBox = objectManager.CreateBox(modelID, world)   // object space, once
                 });
             }
 
@@ -1079,8 +1079,11 @@ namespace Map_Editor.Engine.Tools
         {
             if (model >= 0)
             {
+                long pickStart = FrameStats.Start();
                 pickedPosition = MapManager.Heightmaps.PickPosition();
+                FrameStats.Add("pick", pickStart);
 
+                long ghostStart = FrameStats.Start();
                 objectManager.ClearBatch();
 
                 worldModel.World = Matrix.Identity;
@@ -1113,13 +1116,17 @@ namespace Map_Editor.Engine.Tools
                 shader.Finish();
 
                 // The ghost is marked as such: a green box and a label, so it is never
-                // mistaken for a placed object.
+                // mistaken for a placed object. Each part's object-space box was made
+                // once in StartAdding; only its eight corners move per frame.
                 BoundingBox ghostBox = new BoundingBox();
                 bool any = false;
+                Vector3[] corners = new Vector3[8];
                 foreach (Objects.Object.WorldObject.Part part in worldModel.Parts)
                 {
-                    Matrix partWorld = Matrix.CreateFromQuaternion(part.Rotation) * Matrix.CreateScale(part.Scale) * Matrix.CreateTranslation(part.Position);
-                    BoundingBox box = objectManager.CreateBox(part.ModelID, partWorld * worldModel.World);
+                    part.BoundingBox.GetCorners(corners);
+                    for (int c = 0; c < 8; c++)
+                        corners[c] = Vector3.Transform(corners[c], worldModel.World);
+                    BoundingBox box = BoundingBox.CreateFromPoints(corners);
                     ghostBox = any ? BoundingBox.CreateMerged(ghostBox, box) : box;
                     any = true;
                 }
@@ -1128,6 +1135,7 @@ namespace Map_Editor.Engine.Tools
                     ghostBox.Draw(device, basicEffect, CameraManager.View, CameraManager.Projection, new Color(120, 255, 120));
                     ToolTipManager.Set("Placing: " + Models.ZscCatalog.ObjectName(FileManager.ZSCs[Type.ToString()], model) + " (click to put it here)", new Vector3(ghostBox.GetCenter().X, ghostBox.GetCenter().Y, ghostBox.Max.Z));
                 }
+                FrameStats.Add("ghost", ghostStart);
             }
 
             List<Objects.Object.WorldObject> worldObjects = (Type == ObjectType.Decoration) ? MapManager.Decoration.WorldObjects : MapManager.Construction.WorldObjects;
@@ -1145,13 +1153,19 @@ namespace Map_Editor.Engine.Tools
 
             BoundingFrustum boundingFrustum = new BoundingFrustum(CameraManager.View * CameraManager.Projection);
 
+            // Every visible box in one draw call (this loop used to make one call,
+            // and one leaked vertex declaration, per box).
+            long boxesStart = FrameStats.Start();
             for(int i = 0; i < worldObjects.Count; i++)
             {
                 if (!boundingFrustum.OnScreen(worldObjects[i].BoundingBox))
                     continue;
 
-                worldObjects[i].BoundingBox.Draw(device, basicEffect, CameraManager.View, CameraManager.Projection, (SelectedObject == i) ? Color.White : (hoveredObject == i) ? Color.Red : Color.Blue);
+                BoundingBoxBatch.Add(worldObjects[i].BoundingBox, (SelectedObject == i) ? Color.White : (hoveredObject == i) ? Color.Red : Color.Blue);
             }
+            FrameStats.Count("boxes", BoundingBoxBatch.Pending);
+            BoundingBoxBatch.Flush(device, basicEffect, CameraManager.View, CameraManager.Projection);
+            FrameStats.Add("boxes", boxesStart);
         }
     }
 }

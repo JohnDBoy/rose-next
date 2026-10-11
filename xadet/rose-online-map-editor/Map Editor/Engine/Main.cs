@@ -153,6 +153,9 @@ namespace Map_Editor.Engine
         /// <param name="gameTime">Time passed since the last call to Update.</param>
         protected override void Update(GameTime gameTime)
         {
+            FrameStats.FrameBoundary();
+            long updateStart = FrameStats.Start();
+
             CameraManager.Update(gameTime);
             ToolManager.Update(gameTime);
             ShotRunner.Update();
@@ -196,6 +199,8 @@ namespace Map_Editor.Engine
                     break;
             }
 
+            FrameStats.Add("update", updateStart);
+
             base.Update(gameTime);
         }
 
@@ -207,6 +212,8 @@ namespace Map_Editor.Engine
         {
             if (splashProgress < SPLASH_TIME)
                 return;
+
+            long drawStart = FrameStats.Start();
 
             if (ShotRunner.Active)
                 ShotRunner.BeforeWorldDraw(device);
@@ -246,6 +253,9 @@ namespace Map_Editor.Engine
 
             if (App.Form.PreviewPanel.IsVisible)
                 App.Form.PreviewPanel.Draw(device);
+
+            FrameStats.Add("draw", drawStart);
+
         }
     }
 }

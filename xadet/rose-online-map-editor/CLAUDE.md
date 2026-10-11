@@ -207,6 +207,34 @@ by hand in the GUI; the headless tests below pass.
   recorded an undo per keystroke; the Height inner radius started at 0 with a
   minimum of 1 and could exceed the outer. Regression: `tests/Run-MovementTests.ps1`
   (tile/brush undo, tools) and `tests/Run-ObjectBrowserTests.ps1`.
+- **Terrain picking hit a flat plane, not the ground** (fixed 2026-10-11).
+  `Heightmap.PickPosition` built both test triangles of a cell with every corner
+  at the cell box's `Max.Z`, and that box took its height range from only two
+  diagonal corners. On any slope the cursor hit a horizontal plane at one
+  corner's height, up to a cell's rise off the real surface, and the hit slid
+  along the view ray. Every placement, the cursor move and the status bar's
+  position went through it. It now intersects the two triangles the terrain is
+  drawn with (`Indices`: the diagonal runs west-north to east-south, the same
+  diagonal `TryGetHeight` interpolates on), and the cell boxes span all four
+  corners. `Heightmaps.GroundHeight(x, y)` is the interpolated ground height
+  with the old nearest-vertex `Height.GetHeight` as fallback; Follow Terrain
+  and the cursor move use it (they used the nearest vertex, so a dragged object
+  stepped by half a cell's rise). `Height.GetHeight` remains for the height
+  brush, which edits vertices.
+- **`BoundingBox.Draw` created a Direct3D vertex declaration per call and
+  never disposed it** -- hundreds a frame with "Draw bounding boxes" on, released
+  by the finalizer and the 5-second forced GC: the stutter people see while
+  placing. `BoundingBoxBatch` keeps one declaration per device (both Draw
+  overloads use it) and draws every visible box of the object tool in one call;
+  the other tools still draw per box but no longer leak. The placement ghost's
+  box comes from each part's object-space box made once in StartAdding, not
+  from every vertex per frame.
+- **View > Frame statistics** (`[Debug] FrameStats`, `Engine/FrameStats.cs`)
+  writes one line every two seconds: average and worst frame, update / draw /
+  pick / ghost / boxes time per frame, boxes drawn, thumbnails pending, gen-2
+  collections. Use it before guessing at a hitch; the thumbnail worker (GPU
+  read-back per picture) and the forced `GC.Collect()` every 5 s in
+  `Main.xaml.cs` are the two remaining suspects, not yet measured.
 - `tests/Run-ObjectBrowserTests.ps1` builds the editor, then against the real
   data: catalogue and search, a foreign crane appended into Junon Polis' table
   and saved to `build/object-browser-tests/` and read back by both readers with

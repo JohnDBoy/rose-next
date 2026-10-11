@@ -170,6 +170,11 @@ namespace Map_Editor.Misc
             if (!configurationValues["Animation"].ContainsKey("DrawBoundingBoxes"))
                 configurationValues["Animation"].Add("DrawBoundingBoxes", true);
 
+            if (!configurationValues.ContainsKey("Debug"))
+                configurationValues.Add("Debug", new Dictionary<string, object>());
+            if (!configurationValues["Debug"].ContainsKey("FrameStats"))
+                configurationValues["Debug"].Add("FrameStats", false);
+
             // Object placement (decoration / construction tools).
             if (!configurationValues.ContainsKey("Placement"))
                 configurationValues.Add("Placement", new Dictionary<string, object>());

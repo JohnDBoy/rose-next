@@ -317,6 +317,7 @@
     <Compile Include="Engine\RenderManager\ObjectThumbnails.cs" />
     <Compile Include="Misc\EditorPaths.cs" />
     <Compile Include="Engine\SpriteManager\HudManager.cs" />
+    <Compile Include="Engine\FrameStats.cs" />
     <Compile Include="Engine\Main.cs" />
     <Compile Include="Engine\ShotRunner.cs" />
     <Compile Include="Engine\Minimap\DdsCodec.cs" />

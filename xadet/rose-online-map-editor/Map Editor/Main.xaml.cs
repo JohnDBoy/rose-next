@@ -121,6 +121,13 @@ namespace Map_Editor
         {
             RightColumn.Width = new GridLength(ConfigurationManager.GetValue<int>("UI", "RightSplitterWidth"));
             OutputExpander.IsExpanded = ConfigurationManager.GetValue<bool>("UI", "OutputExpanded");
+            try
+            {
+                FrameStatsMenu.IsChecked = Engine.FrameStats.Enabled = ConfigurationManager.GetValue<bool>("Debug", "FrameStats");
+            }
+            catch
+            {
+            }
 
             App.Engine = new Engine.Main();
             App.Engine.Run();
@@ -1444,6 +1451,18 @@ namespace Map_Editor
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="System.Windows.RoutedEventArgs"/> instance containing the event data.</param>
+        /// <summary>
+        /// View > Frame statistics: the frame profiler (Engine/FrameStats.cs), saved
+        /// in the ini as [Debug] FrameStats.
+        /// </summary>
+        private void FrameStats_Click(object sender, RoutedEventArgs e)
+        {
+            Engine.FrameStats.Enabled = FrameStatsMenu.IsChecked;
+            ConfigurationManager.SetValue("Debug", "FrameStats", FrameStatsMenu.IsChecked);
+            ConfigurationManager.SaveConfig();
+            Output.WriteLine(Output.MessageType.Normal, FrameStatsMenu.IsChecked ? "Frame statistics on: one line every two seconds" : "Frame statistics off");
+        }
+
         private void FullScreen_Click(object sender, RoutedEventArgs e)
         {
             ToggleFullScreen();
