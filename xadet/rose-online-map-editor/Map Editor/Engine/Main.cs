@@ -124,6 +124,7 @@ namespace Map_Editor.Engine
             ToolManager.Initialize(device);
             FontManager.Initialize(this);
             ToolTipManager.Initialize(device);
+            HudManager.Initialize(device);
             MapManager.Initialize(this);
 
             App.Form.MiddleGrid.Children.Add(App.Form.PreviewPanel = new PreviewPanel()
@@ -238,6 +239,7 @@ namespace Map_Editor.Engine
             if (movement != null) movement.Draw();
 
             ToolTipManager.Draw(gameTime);
+            HudManager.Draw();
 
             if (ToolManager.GetManipulationMode() == ToolManager.ManipulationMode.Position)
                 ToolManager.Position.Draw();

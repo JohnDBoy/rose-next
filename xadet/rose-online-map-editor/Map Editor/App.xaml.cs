@@ -42,7 +42,20 @@ namespace Map_Editor
             ConfigurationManager.LoadConfig();
             ConfigurationManager.CheckConfig();
 
-            Map_Editor.Engine.ShotRunner.Parse(Environment.GetCommandLineArgs());
+            // "Map Editor.exe --zsc-selftest": round-trip every ZSC table through the
+            // raw codec, exercise an append between tables and the rotation maths,
+            // then exit (0 = pass). No window is opened.
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i] == "--zsc-selftest")
+                {
+                    Environment.Exit(Map_Editor.Engine.Models.ZscCatalog.SelfTest() ? 0 : 1);
+                    return;
+                }
+            }
+
+            Map_Editor.Engine.ShotRunner.Parse(args);
 
             System.Windows.Forms.Application.EnableVisualStyles();
 

@@ -1,61 +1,61 @@
-﻿<UserControl x:Class="Map_Editor.Forms.Controls.DecorationTool"
+<UserControl x:Class="Map_Editor.Forms.Controls.DecorationTool"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:wf="clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"
+    xmlns:local="clr-namespace:Map_Editor.Forms.Controls"
     MinHeight="602" Width="300">
     <StackPanel Grid.Column="1">
         <Expander Header="Tool" Margin="10" IsExpanded="True" Name="ToolExpander">
-            <Grid Height="107" Background="White">
-                <CheckBox Margin="13,80,19,0" Name="DrawBoundingBoxes" Click="DrawBoundingBoxes_Click" Height="16" VerticalAlignment="Top">Draw Bounding Boxes</CheckBox>
-                <Separator Margin="13,0,13,36" Height="1" VerticalAlignment="Bottom" Background="#8591a2" Width="252" />
-                <Button IsEnabled="False" Margin="12,37,0,47" Name="RemoveLightmap" HorizontalAlignment="Left" Width="120" Click="RemoveLightmap_Click" >Remove Lightmap</Button>
-                <ToolBar VerticalAlignment="Top" Style="{StaticResource SubToolBar}" Height="27">
+            <StackPanel Background="White">
+                <ToolBar Style="{StaticResource SubToolBar}" Height="27">
                     <ToolBar.Background>
                         <LinearGradientBrush EndPoint="0,1">
                             <GradientStop Color="#FFBCC7D7" Offset="0" />
                             <GradientStop Color="#FFBDC7D8" Offset="1" />
                         </LinearGradientBrush>
                     </ToolBar.Background>
-                    <ToggleButton Height="24" Margin="3,0,0,0" Name="Add" Width="24" IsEnabled="False" ToolTip="Add" Checked="Add_Checked" Unchecked="Add_Unchecked">
+                    <ToggleButton Height="24" Margin="3,0,0,0" Name="Add" Width="24" IsEnabled="False" ToolTip="Add: start placing the object highlighted below (same as double-clicking it). Click the map to put it there; the mouse wheel turns it; Escape stops." Checked="Add_Checked" Unchecked="Add_Unchecked">
                         <Image Height="16" Source="..\..\Resources\Icons\Add.png" Width="16" />
                     </ToggleButton>
-                    <Button Height="24" Margin="3,0,0,0" Name="Remove" Width="24" IsEnabled="False" ToolTip="Remove" Click="Remove_Click">
+                    <Button Height="24" Margin="3,0,0,0" Name="Remove" Width="24" IsEnabled="False" ToolTip="Remove the selected object (Delete)" Click="Remove_Click">
                         <Image Height="16" Source="..\..\Resources\Icons\Remove.png" Width="16" />
                     </Button>
                     <Separator Background="#8591a2" />
-                    <ToggleButton Height="24" Margin="3,0,0,0" Name="Clone" Width="24" IsEnabled="False" ToolTip="Clone" Checked="Clone_Checked" Unchecked="Clone_Unchecked">
+                    <ToggleButton Height="24" Margin="3,0,0,0" Name="Clone" Width="24" IsEnabled="False" ToolTip="Clone: place copies of the selected object with its rotation and scale. Click the map to put one there; Escape stops." Checked="Clone_Checked" Unchecked="Clone_Unchecked">
                         <Image Height="16" Source="..\..\Resources\Icons\Clone.png" Width="16" />
                     </ToggleButton>
                 </ToolBar>
-            </Grid>
+                <Border Margin="10,8,10,0" Padding="8,6" Name="ModeBanner" Background="#eef2f7" BorderBrush="#c9d2e0" BorderThickness="1" CornerRadius="2">
+                    <DockPanel LastChildFill="True">
+                        <Button DockPanel.Dock="Right" Name="StopButton" Width="48" Height="22" Margin="8,0,0,0" VerticalAlignment="Top" Visibility="Collapsed" Click="Stop_Click" ToolTip="Leave placing mode (Escape does the same)">Stop</Button>
+                        <TextBlock Name="ModeText" TextWrapping="Wrap" FontSize="11" Foreground="#2f3a4a">Click an object on the map to select it, or double-click an object below to place it.</TextBlock>
+                    </DockPanel>
+                </Border>
+                <Grid Margin="12,8,12,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="20" />
+                        <RowDefinition Height="20" />
+                        <RowDefinition Height="20" />
+                    </Grid.RowDefinitions>
+                    <CheckBox Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Name="KeepPlacingBox" VerticalAlignment="Center" Click="Placement_Click" ToolTip="On: after placing one, you are still placing; click again for the next, Escape to stop (Shift+click places just one). Off: one click places one object and selects it (Shift+click keeps placing).">Keep placing after each click</CheckBox>
+                    <CheckBox Grid.Row="1" Grid.Column="0" Name="RandomYawBox" VerticalAlignment="Center" Click="Placement_Click" ToolTip="Each placed copy gets a random heading">Random heading</CheckBox>
+                    <CheckBox Grid.Row="1" Grid.Column="1" Name="ScaleJitterBox" VerticalAlignment="Center" Click="Placement_Click" ToolTip="Each placed copy is scaled by 90% to 110%">Vary size ±10%</CheckBox>
+                    <CheckBox Grid.Row="2" Grid.Column="0" Name="AlignToSlopeBox" VerticalAlignment="Center" Click="Placement_Click" ToolTip="Tilt placed copies to stand on the slope under them">Align to slope</CheckBox>
+                    <CheckBox Grid.Row="2" Grid.Column="1" Name="DrawBoundingBoxes" VerticalAlignment="Center" Click="DrawBoundingBoxes_Click">Draw bounding boxes</CheckBox>
+                </Grid>
+                <Separator Margin="12,6,12,0" Height="1" Background="#8591a2" />
+                <Button Margin="12,6,0,8" Name="RemoveLightmap" HorizontalAlignment="Left" Width="120" IsEnabled="False" Click="RemoveLightmap_Click" ToolTip="Drop the baked lighting of the selected object">Remove Lightmap</Button>
+            </StackPanel>
         </Expander>
         <Expander SnapsToDevicePixels="True" Header="Objects" Margin="10,0,10,10" IsExpanded="True" Name="ObjectsExpander">
-            <Grid Height="215" Background="White" SnapsToDevicePixels="True">
-                <ToolBar Style="{StaticResource SubToolBar}" VerticalAlignment="Top" Height="28">
-                    <ToolBar.Background>
-                        <LinearGradientBrush EndPoint="0,1">
-                            <GradientStop Color="#FFBCC7D7" Offset="0" />
-                            <GradientStop Color="#FFBDC7D8" Offset="1" />
-                        </LinearGradientBrush>
-                    </ToolBar.Background>
-                    <Button Margin="3,0,0,0" Height="24" Width="24" Name="Find" Click="Find_Click">
-                        <Image Height="16" Source="..\..\Resources\Icons\Find.png" Width="16" />
-                    </Button>
-                </ToolBar>
-                <ScrollViewer Name="ImageView" SnapsToDevicePixels="True" Margin="0,28,0,0">
-                    <StackPanel SnapsToDevicePixels="True" />
-                </ScrollViewer>
-            </Grid>
+            <local:ObjectBrowser x:Name="Browser" Height="470" SnapsToDevicePixels="True" />
         </Expander>
         <Expander Header="Rotate" Margin="10,0,10,10" IsExpanded="True">
-            <Grid Height="114" Background="White">
-                <Slider Height="22" Margin="55,17,17,0" VerticalAlignment="Top" Minimum="-3.1415926535897932384626433832795028841968" Maximum="3.1415926535897932384626433832795028841968" Name="RotationYaw" ValueChanged="Rotation_ValueChanged" PreviewMouseUp="Rotation_PreviewMouseUp" />
-                <Label Margin="13,13,0,0" HorizontalAlignment="Left" Width="36" Height="28" VerticalAlignment="Top">Yaw</Label>
-                <Slider Margin="55,47,17,45" Minimum="-3.1415926535897932384626433832795028841968" Maximum="3.1415926535897932384626433832795028841968" Name="RotationPitch" ValueChanged="Rotation_ValueChanged" PreviewMouseUp="Rotation_PreviewMouseUp" />
-                <Label HorizontalAlignment="Left" Margin="13,43,0,43" Width="36">Pitch</Label>
-                <Slider Height="22" Margin="55,0,17,16" VerticalAlignment="Bottom" Minimum="-3.1415926535897932384626433832795028841968" Maximum="3.1415926535897932384626433832795028841968" Name="RotationRoll" ValueChanged="Rotation_ValueChanged" PreviewMouseUp="Rotation_PreviewMouseUp" />
-                <Label Height="28" HorizontalAlignment="Left" Margin="13,0,0,13" VerticalAlignment="Bottom" Width="36">Roll</Label>
-            </Grid>
+            <local:RotationEditor x:Name="Rotation" />
         </Expander>
         <Expander Header="Properties" Margin="10,0,10,10" IsExpanded="False" Name="PropertiesExpander">
             <Grid Height="250" Background="White">

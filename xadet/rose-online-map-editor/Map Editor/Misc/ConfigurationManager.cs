@@ -170,6 +170,23 @@ namespace Map_Editor.Misc
             if (!configurationValues["Animation"].ContainsKey("DrawBoundingBoxes"))
                 configurationValues["Animation"].Add("DrawBoundingBoxes", true);
 
+            // Object placement (decoration / construction tools).
+            if (!configurationValues.ContainsKey("Placement"))
+                configurationValues.Add("Placement", new Dictionary<string, object>());
+
+            if (!configurationValues["Placement"].ContainsKey("RandomYaw"))
+                configurationValues["Placement"].Add("RandomYaw", false);
+            if (!configurationValues["Placement"].ContainsKey("ScaleJitter"))
+                configurationValues["Placement"].Add("ScaleJitter", false);
+            if (!configurationValues["Placement"].ContainsKey("AlignToSlope"))
+                configurationValues["Placement"].Add("AlignToSlope", false);
+            if (!configurationValues["Placement"].ContainsKey("YawSnap"))
+                configurationValues["Placement"].Add("YawSnap", 0);
+            if (!configurationValues["Placement"].ContainsKey("KeepPlacing"))
+                configurationValues["Placement"].Add("KeepPlacing", true);
+            if (!configurationValues["Placement"].ContainsKey("BrowseAllTables"))
+                configurationValues["Placement"].Add("BrowseAllTables", false);
+
             SaveConfig();
         }
 

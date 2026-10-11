@@ -226,6 +226,22 @@ namespace Map_Editor
                 return;
             }
 
+            // Object tables grown by the object browser are saved with the map.
+            List<Engine.Models.ZSC> dirtyTables = new List<Engine.Models.ZSC>();
+            foreach (string key in new string[] { "Decoration", "Construction" })
+            {
+                if (FileManager.ZSCs.ContainsKey(key) && FileManager.ZSCs[key].Dirty)
+                    dirtyTables.Add(FileManager.ZSCs[key]);
+            }
+            foreach (Engine.Models.ZSC table in dirtyTables)
+            {
+                if (GameData.IsArchived(table.FilePath))
+                {
+                    MessageBox.Show(string.Format("{0} is read from the client's archives (data.idx) and cannot be saved, so the objects copied into it cannot be kept.", table.FilePath), "Save", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+            }
+
             try
             {
                 Engine.Tools.Movement movement = ToolManager.Tool as Engine.Tools.Movement;
@@ -295,6 +311,20 @@ namespace Map_Editor
                 {
                     lit.Save();
                 });
+
+                foreach (Engine.Models.ZSC table in dirtyTables)
+                {
+                    Output.WriteLine(Output.MessageType.Normal, string.Format("- Saving {0} ({1} objects)", System.IO.Path.GetFileName(table.FilePath), table.Objects.Count));
+                    try
+                    {
+                        table.Save();
+                        Output.WriteLine(Output.MessageType.Event, string.Format("{0} changed: every zone on that table sees the new objects, and the client needs its data re-baked", System.IO.Path.GetFileName(table.FilePath)));
+                    }
+                    catch (Exception ex)
+                    {
+                        Output.WriteException("Saving " + table.FilePath, ex);
+                    }
+                }
 
                 Output.WriteLine(Output.MessageType.Event, string.Format("Saving Completed in {0} Second(s)", (DateTime.Now - loadStart).TotalSeconds));
             })).Start();
@@ -441,6 +471,7 @@ namespace Map_Editor
                             Rotation = MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.Rotation,
                             Scale = MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.Scale
                         };
+                        Forms.Controls.ConstructionTool.CopiedTable = Engine.Models.ZscCatalog.Normalize(FileManager.ZSCs["Construction"].FilePath);
                     }
                     break;
                 case ToolManager.ToolMode.Decoration:
@@ -457,6 +488,7 @@ namespace Map_Editor
                             Rotation = MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.Rotation,
                             Scale = MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.Scale
                         };
+                        Forms.Controls.DecorationTool.CopiedTable = Engine.Models.ZscCatalog.Normalize(FileManager.ZSCs["Decoration"].FilePath);
                     }
                     break;
                 case ToolManager.ToolMode.Effects:
@@ -644,96 +676,14 @@ namespace Map_Editor
                     break;
                 case ToolManager.ToolMode.Construction:
                     {
-                        if (MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.ObjectID != Forms.Controls.ConstructionTool.CopiedObject.ObjectID)
-                        {
-                            UndoManager.AddCommand(new Engine.Commands.Construction.ObjectChanged()
-                            {
-                                ObjectID = MapManager.Construction.Tool.SelectedObject,
-                                Object = MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject],
-                                OldObject = MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.ObjectID,
-                                NewObject = Forms.Controls.ConstructionTool.CopiedObject.ObjectID
-                            });
-                        }
-
-                        UndoManager.AddCommand(new Engine.Commands.Construction.ValueChanged()
-                        {
-                            ObjectID = MapManager.Construction.Tool.SelectedObject,
-                            Object = MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject],
-                            OldValue = new Engine.Commands.Construction.ValueChanged.ObjectValue()
-                            {
-                                Description = MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.Description,
-                                EventID = MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.EventID,
-                                Position = MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.Position,
-                                Rotation = MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.Rotation,
-                                Scale = MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.Scale
-                            },
-                            NewValue = new Engine.Commands.Construction.ValueChanged.ObjectValue()
-                            {
-                                Description = Forms.Controls.ConstructionTool.CopiedObject.Description,
-                                EventID = Forms.Controls.ConstructionTool.CopiedObject.EventID,
-                                Position = Forms.Controls.ConstructionTool.CopiedObject.Position,
-                                Rotation = Forms.Controls.ConstructionTool.CopiedObject.Rotation,
-                                Scale = Forms.Controls.ConstructionTool.CopiedObject.Scale
-                            }
-                        });
-
-                        MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.Description = Forms.Controls.ConstructionTool.CopiedObject.Description;
-                        MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.EventID = Forms.Controls.ConstructionTool.CopiedObject.EventID;
-                        MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.WarpID = Forms.Controls.ConstructionTool.CopiedObject.WarpID;
-                        MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.ObjectID = Forms.Controls.ConstructionTool.CopiedObject.ObjectID;
-                        MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.ObjectType = Forms.Controls.ConstructionTool.CopiedObject.ObjectType;
-                        MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.Rotation = Forms.Controls.ConstructionTool.CopiedObject.Rotation;
-                        MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry.Scale = Forms.Controls.ConstructionTool.CopiedObject.Scale;
-
-                        MapManager.Construction.Add(MapManager.Construction.Tool.SelectedObject, MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].Entry, MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].FileID, MapManager.Construction.WorldObjects[MapManager.Construction.Tool.SelectedObject].EntryID, true);
-                        MapManager.Construction.Tool.Select(MapManager.Construction.Tool.SelectedObject);
+                        // Paste makes a new placement (under the mouse, else beside the
+                        // original) instead of overwriting the selected one.
+                        MapManager.Construction.Tool.PasteNew(Forms.Controls.ConstructionTool.CopiedObject);
                     }
                     break;
                 case ToolManager.ToolMode.Decoration:
                     {
-                        if (MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.ObjectID != Forms.Controls.DecorationTool.CopiedObject.ObjectID)
-                        {
-                            UndoManager.AddCommand(new Engine.Commands.Decoration.ObjectChanged()
-                            {
-                                ObjectID = MapManager.Decoration.Tool.SelectedObject,
-                                Object = MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject],
-                                OldObject = MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.ObjectID,
-                                NewObject = Forms.Controls.DecorationTool.CopiedObject.ObjectID
-                            });
-                        }
-
-                        UndoManager.AddCommand(new Engine.Commands.Decoration.ValueChanged()
-                        {
-                            ObjectID = MapManager.Decoration.Tool.SelectedObject,
-                            Object = MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject],
-                            OldValue = new Engine.Commands.Decoration.ValueChanged.ObjectValue()
-                            {
-                                Description = MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.Description,
-                                EventID = MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.EventID,
-                                Position = MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.Position,
-                                Rotation = MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.Rotation,
-                                Scale = MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.Scale
-                            },
-                            NewValue = new Engine.Commands.Decoration.ValueChanged.ObjectValue()
-                            {
-                                Description = Forms.Controls.DecorationTool.CopiedObject.Description,
-                                EventID = Forms.Controls.DecorationTool.CopiedObject.EventID,
-                                Position = Forms.Controls.DecorationTool.CopiedObject.Position,
-                                Rotation = Forms.Controls.DecorationTool.CopiedObject.Rotation,
-                                Scale = Forms.Controls.DecorationTool.CopiedObject.Scale
-                            }
-                        });
-
-                        MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.Description = Forms.Controls.DecorationTool.CopiedObject.Description;
-                        MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.EventID = Forms.Controls.DecorationTool.CopiedObject.EventID;
-                        MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.WarpID = Forms.Controls.DecorationTool.CopiedObject.WarpID;
-                        MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.ObjectID = Forms.Controls.DecorationTool.CopiedObject.ObjectID;
-                        MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.ObjectType = Forms.Controls.DecorationTool.CopiedObject.ObjectType;
-                        MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.Rotation = Forms.Controls.DecorationTool.CopiedObject.Rotation;
-                        MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry.Scale = Forms.Controls.DecorationTool.CopiedObject.Scale;
-
-                        MapManager.Decoration.Add(MapManager.Decoration.Tool.SelectedObject, MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].Entry, MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].FileID, MapManager.Decoration.WorldObjects[MapManager.Decoration.Tool.SelectedObject].EntryID, true);
-                        MapManager.Decoration.Tool.Select(MapManager.Decoration.Tool.SelectedObject);
+                        MapManager.Decoration.Tool.PasteNew(Forms.Controls.DecorationTool.CopiedObject);
                     }
                     break;
                 case ToolManager.ToolMode.Effects:
@@ -961,15 +911,11 @@ namespace Map_Editor
                     }
                     break;
                 case ToolManager.ToolMode.Decoration:
-                    {
-                        Forms.Controls.DecorationTool.ImageThread.Abort();
-                        Forms.Controls.DecorationTool.GeneratingImages = false;
-                    }
-                    break;
                 case ToolManager.ToolMode.Construction:
                     {
-                        Forms.Controls.ConstructionTool.ImageThread.Abort();
-                        Forms.Controls.ConstructionTool.GeneratingImages = false;
+                        // The object browser's thumbnails are made by a shared service
+                        // with a disk cache; pending ones are simply dropped.
+                        Engine.RenderManager.ObjectThumbnails.CancelAll();
                     }
                     break;
                 case ToolManager.ToolMode.EventTriggers:
@@ -1327,6 +1273,24 @@ namespace Map_Editor
         /// <param name="e">The <see cref="System.EventArgs"/> instance containing the event data.</param>
         private void Panel_Click(object sender, EventArgs e)
         {
+            RenderPanel.Focus();
+        }
+
+        /// <summary>
+        /// The map takes the keyboard focus as soon as the mouse comes over it, so
+        /// hover and placing work without a click first (the "mouse over the
+        /// viewport" test requires the focus). Not while a field is being typed in:
+        /// a WinForms box in a host, or a WPF text box, keeps it.
+        /// </summary>
+        private void Panel_MouseEnter(object sender, EventArgs e)
+        {
+            if (RenderPanel.Focused)
+                return;
+
+            IInputElement focused = Keyboard.FocusedElement;
+            if (focused is System.Windows.Forms.Integration.WindowsFormsHost || focused is System.Windows.Controls.Primitives.TextBoxBase)
+                return;
+
             RenderPanel.Focus();
         }
 

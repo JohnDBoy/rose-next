@@ -1,34 +1,24 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading;
+using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Threading;
 using Map_Editor.Engine;
 using Map_Editor.Engine.Map;
 using Map_Editor.Engine.Models;
-using Map_Editor.Engine.RenderManager;
 using Map_Editor.Engine.Tools;
 using Map_Editor.Misc;
 using Map_Editor.Misc.Properties;
 using Microsoft.Xna.Framework;
-using XNA = Microsoft.Xna.Framework.Graphics;
 
 namespace Map_Editor.Forms.Controls
 {
     /// <summary>
-    /// Interaction logic for ConstructionTool.xaml
+    /// Side panel of the construction tool: the object browser (search across
+    /// every zone's table, thumbnails made once and cached), placement options,
+    /// rotation in degrees and the property grid.
     /// </summary>
-    public partial class ConstructionTool : UserControl
+    public partial class ConstructionTool : UserControl, IObjectToolPanel
     {
-        /// <summary>
-        /// Width and height of the images.
-        /// </summary>
-        public const int IMAGE_DIMENSION = 120;
+        private const string TABLE_KEY = "Construction";
 
         /// <summary>
         /// Gets the properties.
@@ -39,44 +29,7 @@ namespace Map_Editor.Forms.Controls
             get { return (System.Windows.Forms.PropertyGrid)PropertiesHost.Child; }
         }
 
-        #region Image Colours
-
-        /// <summary>
-        /// Normal colour.
-        /// </summary>
-        public readonly SolidColorBrush COLOUR_NORMAL = new SolidColorBrush(Color.FromRgb(201, 210, 225));
-
-        /// <summary>
-        /// Hover colour.
-        /// </summary>
-        public readonly SolidColorBrush COLOUR_HOVER = new SolidColorBrush(Color.FromRgb(225, 201, 201));
-
-        /// <summary>
-        /// Selected colour.
-        /// </summary>
-        public readonly SolidColorBrush COLOUR_SELECTED = new SolidColorBrush(Color.FromRgb(170, 54, 54));
-
-        #endregion
-
         #region Static Members
-
-        /// <summary>
-        /// Gets or sets a value indicating whether [generating images].
-        /// </summary>
-        /// <value><c>true</c> if [generating images]; otherwise, <c>false</c>.</value>
-        public static bool GeneratingImages { get; set; }
-
-        /// <summary>
-        /// Gets or sets the model images.
-        /// </summary>
-        /// <value>The model images.</value>
-        private static List<BitmapImage> modelImages { get; set; }
-
-        /// <summary>
-        /// Gets or sets the image thread.
-        /// </summary>
-        /// <value>The image thread.</value>
-        public static Thread ImageThread { get; set; }
 
         /// <summary>
         /// Gets or sets the copied object.
@@ -84,14 +37,16 @@ namespace Map_Editor.Forms.Controls
         /// <value>The copied object.</value>
         public static IFO.BaseIFO CopiedObject { get; set; }
 
+        /// <summary>The table the copied object's ID belongs to, so a paste into another zone is refused.</summary>
+        public static string CopiedTable { get; set; }
+
         #endregion
 
         #region Member Declarations
 
         /// <summary>
-        /// Gets or sets the model.
+        /// The model picked in the browser, as an index into this zone's table (-1 = none).
         /// </summary>
-        /// <value>The model.</value>
         public int Model { get; set; }
 
         /// <summary>
@@ -99,6 +54,8 @@ namespace Map_Editor.Forms.Controls
         /// </summary>
         /// <value>The selected object.</value>
         private int selectedObject { get; set; }
+
+        private bool settingUp;
 
         #endregion
 
@@ -109,43 +66,119 @@ namespace Map_Editor.Forms.Controls
         {
             InitializeComponent();
 
-            if (modelImages == null || modelImages.Count != FileManager.ZSCs["Construction"].Objects.Count)
-                LoadImages(this);
-            else
-            {
-                for (int i = 0; i < modelImages.Count; i++)
-                    AddImage(i);
-            }
+            Model = -1;
+            selectedObject = -1;
 
-            DrawBoundingBoxes.IsChecked = ConfigurationManager.GetValue<bool>("Construction", "DrawBoundingBoxes");
+            settingUp = true;
+            DrawBoundingBoxes.IsChecked = ConfigurationManager.GetValue<bool>(TABLE_KEY, "DrawBoundingBoxes");
+            KeepPlacingBox.IsChecked = true;
+            try
+            {
+                RandomYawBox.IsChecked = ConfigurationManager.GetValue<bool>("Placement", "RandomYaw");
+                ScaleJitterBox.IsChecked = ConfigurationManager.GetValue<bool>("Placement", "ScaleJitter");
+                AlignToSlopeBox.IsChecked = ConfigurationManager.GetValue<bool>("Placement", "AlignToSlope");
+                KeepPlacingBox.IsChecked = ConfigurationManager.GetValue<bool>("Placement", "KeepPlacing");
+            }
+            catch
+            {
+            }
+            settingUp = false;
+
+            ZSC table = FileManager.ZSCs[TABLE_KEY];
+            Browser.Initialize(table, table.FilePath, TABLE_KEY);
+            Browser.ZoneModelSelected += Browser_ZoneModelSelected;
+            Browser.ModelActivated += Browser_ModelActivated;
+
+            Rotation.RotationChanged += Rotation_RotationChanged;
+            Rotation.RotationCommitted += Rotation_RotationCommitted;
+            Rotation.SetEnabled(false);
+        }
+
+        #region IObjectToolPanel
+
+        public bool IsCloning
+        {
+            get { return Clone.IsChecked == true; }
+        }
+
+        public void PlacementEnded()
+        {
+            if (Add.IsChecked == true)
+                Add.IsChecked = false;
+            if (Clone.IsChecked == true)
+                Clone.IsChecked = false;
+        }
+
+        public bool RandomYaw
+        {
+            get { return RandomYawBox.IsChecked == true; }
+        }
+
+        public bool ScaleJitter
+        {
+            get { return ScaleJitterBox.IsChecked == true; }
+        }
+
+        public bool AlignToSlope
+        {
+            get { return AlignToSlopeBox.IsChecked == true; }
+        }
+
+        public float YawSnapStep
+        {
+            get { return Rotation.SnapStep; }
+        }
+
+        public bool KeepPlacing
+        {
+            get { return KeepPlacingBox.IsChecked == true; }
+        }
+
+        public void ShowMode(string text, bool placing)
+        {
+            ModeText.Text = text;
+            ModeBanner.Background = placing ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 244, 214)) : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(238, 242, 247));
+            ModeBanner.BorderBrush = placing ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(228, 201, 121)) : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(201, 210, 224));
+            StopButton.Visibility = placing ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void Stop_Click(object sender, RoutedEventArgs e)
+        {
+            PlacementEnded();
+        }
+
+        #endregion
+
+        private Engine.Tools.Object Tool
+        {
+            get { return MapManager.Construction.Tool; }
         }
 
         /// <summary>
-        /// Event for when the DrawBoundingBoxes checkbox has been clicked
-        /// Changes the configuration and saves the newer version
+        /// Handles the Click event of the DrawBoundingBoxes control.
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
         private void DrawBoundingBoxes_Click(object sender, RoutedEventArgs e)
         {
-            ConfigurationManager.SetValue("Construction", "DrawBoundingBoxes", DrawBoundingBoxes.IsChecked);
+            ConfigurationManager.SetValue(TABLE_KEY, "DrawBoundingBoxes", DrawBoundingBoxes.IsChecked);
+            ConfigurationManager.SaveConfig();
+        }
+
+        private void Placement_Click(object sender, RoutedEventArgs e)
+        {
+            if (settingUp)
+                return;
+            ConfigurationManager.SetValue("Placement", "RandomYaw", RandomYawBox.IsChecked == true);
+            ConfigurationManager.SetValue("Placement", "ScaleJitter", ScaleJitterBox.IsChecked == true);
+            ConfigurationManager.SetValue("Placement", "AlignToSlope", AlignToSlopeBox.IsChecked == true);
+            ConfigurationManager.SetValue("Placement", "KeepPlacing", KeepPlacingBox.IsChecked == true);
             ConfigurationManager.SaveConfig();
         }
 
         /// <summary>
-        /// Selects the specified object.
+        /// Selects the specified object (a placement in the world).
         /// </summary>
-        /// <param name="index">The index.</param>
-        /// <returns></returns>
         public int Select(int index)
         {
-            if (GeneratingImages)
-            {
-                MessageBox.Show("Please wait for all images to be generated", "Please wait...", MessageBoxButton.OK, MessageBoxImage.Error);
-
-                return -1;
-            }
-
             selectedObject = index;
 
             Add.IsChecked = false;
@@ -156,12 +189,11 @@ namespace Map_Editor.Forms.Controls
 
             IFO.BaseIFO ifoEntry = MapManager.Construction.WorldObjects[index].Entry;
 
-            SelectModel(ifoEntry.ObjectID);
+            Model = ifoEntry.ObjectID;
+            Browser.SelectZoneIndex(ifoEntry.ObjectID);
 
-            Vector3 eularVector = ifoEntry.Rotation.ToEular();
-            RotationYaw.Value = eularVector.X;
-            RotationRoll.Value = eularVector.Y;
-            RotationPitch.Value = eularVector.Z;
+            Rotation.SetRotation(ifoEntry.Rotation);
+            Rotation.SetEnabled(true);
 
             Properties.SelectedObject = new ObjectProperty()
             {
@@ -182,10 +214,18 @@ namespace Map_Editor.Forms.Controls
             App.Form.Copy.IsEnabled = true;
             App.Form.QuickCopy.IsEnabled = true;
 
-            App.Form.Paste.IsEnabled = CopiedObject != null;
-            App.Form.QuickPaste.IsEnabled = CopiedObject != null;
+            UpdatePasteEnabled();
 
             return index;
+        }
+
+        /// <summary>
+        /// Points the browser at a model of this zone's table (undo / redo of a model change).
+        /// </summary>
+        public void SelectModel(int index)
+        {
+            Model = index;
+            Browser.SelectZoneIndex(index);
         }
 
         /// <summary>
@@ -204,483 +244,108 @@ namespace Map_Editor.Forms.Controls
             App.Form.Copy.IsEnabled = false;
             App.Form.QuickCopy.IsEnabled = false;
 
-            App.Form.Paste.IsEnabled = false;
-            App.Form.QuickPaste.IsEnabled = false;
+            UpdatePasteEnabled();
 
             Properties.SelectedObject = null;
 
-            RotationYaw.Value = 0.0f;
-            RotationPitch.Value = 0.0f;
-            RotationRoll.Value = 0.0f;
+            Rotation.SetRotation(Quaternion.Identity);
+            Rotation.SetEnabled(false);
 
             selectedObject = -1;
         }
 
         /// <summary>
-        /// Selects the model.
+        /// Paste creates a new object, so it only needs something copied from this
+        /// zone's table, not a selection.
         /// </summary>
-        /// <param name="index">The index.</param>
-        public void SelectModel(int index)
+        public void UpdatePasteEnabled()
         {
-            imageHost_MouseLeftButtonDown(((StackPanel)(((StackPanel)ImageView.Content).Children[(int)Math.Floor((float)index / 2.0f)])).Children[index % 2], null);
-
-            ImageView.ScrollToVerticalOffset(ImageOffset(index));
+            bool can = CopiedObject != null && CopiedTable == ZscCatalog.Normalize(FileManager.ZSCs[TABLE_KEY].FilePath);
+            App.Form.Paste.IsEnabled = can;
+            App.Form.QuickPaste.IsEnabled = can;
         }
 
-        /// <summary>
-        /// Calculates the vertical offset of a model image.
-        /// </summary>
-        /// <param name="index">The model index.</param>
-        /// <returns>The vertical offset.</returns>
-        public int ImageOffset(int index)
+        #region Browser events
+
+        private void Browser_ZoneModelSelected(int index)
         {
-            return (int)Math.Floor((float)index / 2.0f) * (IMAGE_DIMENSION + 7);
-        }
-
-        #region Static Image Functions
-
-        /// <summary>
-        /// Loads the images.
-        /// </summary>
-        /// <param name="toolWindow">The tool window.</param>
-        public static void LoadImages(ConstructionTool toolWindow)
-        {
-            DateTime loadStart = DateTime.Now;
-            Output.WriteLine(Output.MessageType.Event, "Generating Construction Images");
-
-            modelImages = new List<BitmapImage>();
-
-            ImageThread = new Thread(new ThreadStart(delegate
-            {
-                GeneratingImages = true;
-
-                using (XNA.GraphicsDevice graphicsDevice = new XNA.GraphicsDevice(XNA.GraphicsAdapter.DefaultAdapter, XNA.DeviceType.Hardware, new System.Windows.Forms.Panel().Handle, new XNA.PresentationParameters()
-                {
-                    AutoDepthStencilFormat = XNA.DepthFormat.Depth24,
-                    BackBufferCount = 1,
-                    BackBufferFormat = XNA.SurfaceFormat.Color,
-                    BackBufferHeight = IMAGE_DIMENSION,
-                    BackBufferWidth = IMAGE_DIMENSION,
-                    EnableAutoDepthStencil = true,
-                    FullScreenRefreshRateInHz = 0,
-                    IsFullScreen = false,
-                    MultiSampleQuality = 0,
-                    MultiSampleType = XNA.MultiSampleType.NonMaskable,
-                    PresentationInterval = XNA.PresentInterval.One,
-                    PresentOptions = XNA.PresentOptions.None,
-                    RenderTargetUsage = XNA.RenderTargetUsage.DiscardContents,
-                    SwapEffect = XNA.SwapEffect.Discard
-                }))
-                {
-                    graphicsDevice.RenderState.CullMode = XNA.CullMode.None;
-
-                    XNA.Viewport viewport = graphicsDevice.Viewport;
-
-                    viewport.Width = IMAGE_DIMENSION;
-                    viewport.Height = IMAGE_DIMENSION;
-
-                    graphicsDevice.Viewport = viewport;
-
-                    ZSC zscFile = FileManager.ZSCs["Construction"];
-
-                    using (XNA.BasicEffect shader = new XNA.BasicEffect(graphicsDevice, null))
-                    {
-                        int id = 0;
-
-                        for (int i = 0; i < zscFile.Objects.Count; i++)
-                        {
-                            XNA.RenderTarget2D renderTarget = new XNA.RenderTarget2D(graphicsDevice, IMAGE_DIMENSION, IMAGE_DIMENSION, 1, graphicsDevice.PresentationParameters.BackBufferFormat, graphicsDevice.PresentationParameters.MultiSampleType, graphicsDevice.PresentationParameters.MultiSampleQuality, graphicsDevice.PresentationParameters.RenderTargetUsage);
-
-                            graphicsDevice.SetRenderTarget(0, renderTarget);
-
-                            graphicsDevice.Clear(XNA.ClearOptions.Target | XNA.ClearOptions.DepthBuffer, new XNA.Color(245, 247, 250), 1.0f, 0);
-
-                            BoundingBox boundingBox = new BoundingBox();
-                            ZMS[] models = new ZMS[zscFile.Objects[i].Models.Count];
-
-                            for (int j = 0; j < zscFile.Objects[i].Models.Count; j++)
-                            {
-                                Microsoft.Xna.Framework.Matrix world = Microsoft.Xna.Framework.Matrix.Identity;
-
-                                world *= Microsoft.Xna.Framework.Matrix.CreateFromQuaternion(zscFile.Objects[i].Models[j].Rotation);
-                                world *= Microsoft.Xna.Framework.Matrix.CreateScale(zscFile.Objects[i].Models[j].Scale);
-                                world *= Microsoft.Xna.Framework.Matrix.CreateTranslation(zscFile.Objects[i].Models[j].Position);
-
-                                models[j] = new ZMS();
-                                models[j].Load(zscFile.Models[zscFile.Objects[i].Models[j].ModelID]);
-
-                                Vector3[] modelPoints = new Vector3[models[j].VertexCount];
-
-                                for (int k = 0; k < modelPoints.Length; k++)
-                                    modelPoints[k] = Vector3.Transform(models[j].Vertices[k].Position, world);
-
-                                if (j == 0)
-                                    boundingBox = BoundingBox.CreateFromPoints(modelPoints);
-                                else
-                                    boundingBox = BoundingBox.CreateMerged(boundingBox, BoundingBox.CreateFromPoints(modelPoints));
-                            }
-
-                            viewport.MinDepth = 1.0f;
-                            viewport.MaxDepth = 50000.0f;
-
-                            Microsoft.Xna.Framework.Matrix view = Microsoft.Xna.Framework.Matrix.Identity;
-                            Microsoft.Xna.Framework.Matrix projection = Microsoft.Xna.Framework.Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, viewport.AspectRatio, viewport.MinDepth, viewport.MaxDepth);
-
-                            BoundingSphere modelSphere = BoundingSphere.CreateFromBoundingBox(boundingBox);
-
-                            Vector3 cameraPosition = Vector3.Transform(modelSphere.Center + (Vector3.Forward * ((modelSphere.Radius + 0.5f) / (float)Math.Sin(MathHelper.PiOver4 / 2))), Microsoft.Xna.Framework.Matrix.CreateRotationX(MathHelper.ToRadians(270)));
-
-                            view = Microsoft.Xna.Framework.Matrix.CreateLookAt(cameraPosition, modelSphere.Center, Vector3.Down);
-
-                            for (int j = 0; j < zscFile.Objects[i].Models.Count; j++)
-                            {
-                                Microsoft.Xna.Framework.Matrix world = Microsoft.Xna.Framework.Matrix.Identity;
-                                world *= Microsoft.Xna.Framework.Matrix.CreateFromQuaternion(zscFile.Objects[i].Models[j].Rotation);
-                                world *= Microsoft.Xna.Framework.Matrix.CreateScale(zscFile.Objects[i].Models[j].Scale);
-                                world *= Microsoft.Xna.Framework.Matrix.CreateTranslation(zscFile.Objects[i].Models[j].Position);
-
-                                using (XNA.Texture2D texture = Map_Editor.Engine.GameData.LoadTexture(graphicsDevice, zscFile.Textures[zscFile.Objects[i].Models[j].TextureID].Path))
-                                {
-                                    shader.World = world;
-                                    shader.View = view;
-                                    shader.Projection = projection;
-
-                                    shader.DiffuseColor = Microsoft.Xna.Framework.Graphics.Color.White.ToVector3();
-                                    shader.Texture = texture;
-                                    shader.TextureEnabled = true;
-
-                                    shader.Alpha = zscFile.Textures[zscFile.Objects[i].Models[j].TextureID].Alpha;
-
-                                    shader.Begin();
-
-                                    graphicsDevice.VertexDeclaration = new XNA.VertexDeclaration(graphicsDevice, ZMS.Vertex.VertexElements);
-                                    graphicsDevice.Indices = models[j].CreateIndexBuffer(graphicsDevice);
-                                    graphicsDevice.Vertices[0].SetSource(models[j].CreateVertexBuffer(graphicsDevice), 0, ZMS.Vertex.SIZE_IN_BYTES);
-
-                                    graphicsDevice.RenderState.AlphaBlendEnable = zscFile.Textures[zscFile.Objects[i].Models[j].TextureID].AlphaEnabled;
-
-                                    if (graphicsDevice.RenderState.AlphaBlendEnable)
-                                    {
-                                        graphicsDevice.RenderState.AlphaTestEnable = zscFile.Textures[zscFile.Objects[i].Models[j].TextureID].AlphaTestEnabled;
-                                        graphicsDevice.RenderState.SourceBlend = TextureManager.GetSourceBlend(zscFile.Textures[zscFile.Objects[i].Models[j].TextureID].BlendingMode);
-                                        graphicsDevice.RenderState.DestinationBlend = TextureManager.GetDestinationBlend(zscFile.Textures[zscFile.Objects[i].Models[j].TextureID].BlendingMode);
-                                        graphicsDevice.RenderState.ReferenceAlpha = zscFile.Textures[zscFile.Objects[i].Models[j].TextureID].AlphaReference;
-                                        graphicsDevice.RenderState.AlphaFunction = XNA.CompareFunction.GreaterEqual;
-                                        graphicsDevice.RenderState.BlendFunction = TextureManager.GetBlendFunction(zscFile.Textures[zscFile.Objects[i].Models[j].TextureID].BlendingMode);
-                                    }
-                                    else
-                                    {
-                                        graphicsDevice.RenderState.AlphaTestEnable = false;
-                                        graphicsDevice.RenderState.SourceBlend = XNA.Blend.One;
-                                        graphicsDevice.RenderState.DestinationBlend = XNA.Blend.Zero;
-                                        graphicsDevice.RenderState.ReferenceAlpha = 0;
-                                        graphicsDevice.RenderState.AlphaFunction = XNA.CompareFunction.Always;
-                                        graphicsDevice.RenderState.BlendFunction = XNA.BlendFunction.Add;
-                                    }
-
-                                    graphicsDevice.RenderState.DepthBufferEnable = zscFile.Textures[zscFile.Objects[i].Models[j].TextureID].ZTestEnabled;
-                                    graphicsDevice.RenderState.DepthBufferWriteEnable = zscFile.Textures[zscFile.Objects[i].Models[j].TextureID].ZWriteEnabled;
-
-                                    for (int k = 0; k < shader.CurrentTechnique.Passes.Count; k++)
-                                    {
-                                        shader.CurrentTechnique.Passes[k].Begin();
-
-                                        graphicsDevice.DrawIndexedPrimitives(XNA.PrimitiveType.TriangleList, 0, 0, models[j].VertexCount, 0, models[j].IndexCount);
-
-                                        shader.CurrentTechnique.Passes[k].End();
-                                    }
-
-                                    shader.End();
-                                }
-                            }
-
-                            graphicsDevice.SetRenderTarget(0, null);
-
-                            renderTarget.GetTexture().Save("ConstructionImage.bmp", XNA.ImageFileFormat.Bmp);
-
-                            byte[] buffer = File.ReadAllBytes("ConstructionImage.bmp");
-
-                            BitmapImage previewImage = new BitmapImage();
-                            previewImage.BeginInit();
-                            previewImage.StreamSource = new MemoryStream(buffer);
-                            previewImage.EndInit();
-                            previewImage.Freeze();
-
-                            modelImages.Add(previewImage);
-
-                            int currentID = id;
-
-                            toolWindow.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (DispatcherOperationCallback)delegate
-                            {
-                                toolWindow.AddImage(currentID);
-
-                                return null;
-
-                            }, null);
-
-                            renderTarget.Dispose();
-                            renderTarget = null;
-
-                            id++;
-
-                            if (id == (zscFile.Objects.Count / 5))
-                                Output.WriteLine(Output.MessageType.Normal, "- 20%...");
-                            else if (id == (zscFile.Objects.Count / 5) * 2)
-                                Output.WriteLine(Output.MessageType.Normal, "- 40%...");
-                            else if (id == (zscFile.Objects.Count / 5) * 3)
-                                Output.WriteLine(Output.MessageType.Normal, "- 60%...");
-                            else if (id == (zscFile.Objects.Count / 5) * 4)
-                                Output.WriteLine(Output.MessageType.Normal, "- 80%...");
-                        }
-                    }
-
-                    File.Delete("ConstructionImage.bmp");
-
-                    Output.WriteLine(Output.MessageType.Normal, "- 100%...");
-                    Output.WriteLine(Output.MessageType.Event, string.Format("Created {0} Images in {1} Second(s)", zscFile.Objects.Count, (DateTime.Now - loadStart).TotalSeconds));
-                }
-
-                GeneratingImages = false;
-            }));
-            ImageThread.IsBackground = true;
-            ImageThread.Start();
-        }
-
-        /// <summary>
-        /// Clears the images.
-        /// </summary>
-        public static void ClearImages()
-        {
-            if (modelImages == null)
-                return;
-
-            if (ImageThread.IsAlive)
-                ImageThread.Abort();
-
-            modelImages.Clear();
-            modelImages = null;
-        }
-
-        #endregion
-
-        /// <summary>
-        /// Adds the image.
-        /// </summary>
-        /// <param name="index">The index.</param>
-        public void AddImage(int index)
-        {
-            if (index % 2 == 0)
-            {
-                ((StackPanel)ImageView.Content).Children.Add(new StackPanel()
-                {
-                    Orientation = Orientation.Horizontal,
-                    Margin = new Thickness(0, 7, 0, 0)
-                });
-            }
-
-            Border imageHost = new Border()
-            {
-                BorderBrush = COLOUR_NORMAL,
-                BorderThickness = new Thickness(1),
-                Margin = new Thickness(7, 0, 0, 0),
-                Width = IMAGE_DIMENSION,
-                Height = IMAGE_DIMENSION,
-                SnapsToDevicePixels = true,
-                Cursor = Cursors.Hand,
-                Tag = index,
-                ToolTip = string.Format("ID: {0}", index),
-                Child = new Image()
-                {
-                    Margin = new Thickness(0),
-                    Width = IMAGE_DIMENSION,
-                    Height = IMAGE_DIMENSION,
-                    Source = modelImages[index],
-                    SnapsToDevicePixels = true
-                }
-            };
-
-            imageHost.MouseEnter += new MouseEventHandler(imageHost_MouseEnter);
-            imageHost.MouseLeave += new MouseEventHandler(imageHost_MouseLeave);
-            imageHost.MouseLeftButtonDown += new MouseButtonEventHandler(imageHost_MouseLeftButtonDown);
-
-            ((StackPanel)(((StackPanel)ImageView.Content).Children[((StackPanel)ImageView.Content).Children.Count - 1])).Children.Add(imageHost);
-        }
-
-        #region Image Events
-
-        /// <summary>
-        /// Handles the MouseEnter event of the imageHost control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.Input.MouseEventArgs"/> instance containing the event data.</param>
-        private void imageHost_MouseEnter(object sender, MouseEventArgs e)
-        {
-            Border imageHost = (Border)sender;
-
-            if (imageHost.BorderBrush == COLOUR_SELECTED)
-                return;
-
-            imageHost.BorderBrush = COLOUR_HOVER;
-        }
-
-        /// <summary>
-        /// Handles the MouseLeave event of the imageHost control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.Input.MouseEventArgs"/> instance containing the event data.</param>
-        private void imageHost_MouseLeave(object sender, MouseEventArgs e)
-        {
-            Border imageHost = (Border)sender;
-
-            if (imageHost.BorderBrush == COLOUR_SELECTED)
-                return;
-
-            imageHost.BorderBrush = COLOUR_NORMAL;
-        }
-
-        /// <summary>
-        /// Handles the MouseLeftButtonDown event of the imageHost control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.Input.MouseButtonEventArgs"/> instance containing the event data.</param>
-        private void imageHost_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (GeneratingImages)
-            {
-                MessageBox.Show("Please wait for all images to be generated", "Please wait...", MessageBoxButton.OK, MessageBoxImage.Error);
-
-                return;
-            }
-
-            Border imageHost = (Border)sender;
-
-            if (imageHost.BorderBrush == COLOUR_SELECTED)
-                return;
-
-            if (Model >= 0)
-            {
-                Border previousModel = (Border)((StackPanel)(((StackPanel)ImageView.Content).Children[(int)Math.Floor((float)Model / 2.0f)])).Children[Model % 2];
-
-                previousModel.BorderBrush = COLOUR_NORMAL;
-                previousModel.Cursor = Cursors.Hand;
-            }
-
-            imageHost.BorderBrush = COLOUR_SELECTED;
-            imageHost.Cursor = Cursors.Arrow;
-
-            Model = (int)imageHost.Tag;
+            Model = index;
 
             if (!Add.IsEnabled)
                 Add.IsEnabled = true;
 
+            // While placing, or with a placement selected, picking another object
+            // swaps the model (the old behaviour of clicking a thumbnail).
             if (Remove.IsEnabled || Add.IsChecked == true)
-                ((Construction)ToolManager.Tool).ChangeModel(Model);
+                Tool.ChangeModel(Model);
+        }
+
+        private void Browser_ModelActivated(int index)
+        {
+            Model = index;
+            Add.IsEnabled = true;
+
+            if (Add.IsChecked == true)
+                Tool.ChangeModel(Model);
+            else
+                Add.IsChecked = true;
         }
 
         #endregion
 
         #region Button Events
 
-        /// <summary>
-        /// Handles the Checked event of the Add control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.RoutedEventArgs"/> instance containing the event data.</param>
         private void Add_Checked(object sender, RoutedEventArgs e)
         {
             if (Clone.IsChecked == true)
                 Clone.IsChecked = false;
 
-            MapManager.Construction.Tool.StartAdding(Model);
+            int index = Browser.EnsureInZone();
+            if (index < 0)
+                index = Model;
+            if (index < 0)
+            {
+                Add.IsChecked = false;
+                return;
+            }
+
+            Model = index;
+            Tool.StartAdding(Model);
         }
 
-        /// <summary>
-        /// Handles the Unchecked event of the Add control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.RoutedEventArgs"/> instance containing the event data.</param>
         private void Add_Unchecked(object sender, RoutedEventArgs e)
         {
-            MapManager.Construction.Tool.StopAdding();
+            Tool.StopAdding();
         }
 
-        /// <summary>
-        /// Handles the Click event of the Remove control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.RoutedEventArgs"/> instance containing the event data.</param>
         private void Remove_Click(object sender, RoutedEventArgs e)
         {
-            MapManager.Construction.Tool.Remove(false);
+            Tool.Remove(false);
         }
 
-        /// <summary>
-        /// Handles the Checked event of the Clone control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.RoutedEventArgs"/> instance containing the event data.</param>
         private void Clone_Checked(object sender, RoutedEventArgs e)
         {
             if (Add.IsChecked == true)
                 Add.IsChecked = false;
 
-            MapManager.Construction.Tool.StartAdding(Model);
-        }
-
-        /// <summary>
-        /// Handles the Unchecked event of the Clone control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.RoutedEventArgs"/> instance containing the event data.</param>
-        private void Clone_Unchecked(object sender, RoutedEventArgs e)
-        {
-            MapManager.Construction.Tool.StopAdding();
-        }
-
-        /// <summary>
-        /// Handles the Click event of the RemoveLightmap control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.RoutedEventArgs"/> instance containing the event data.</param>
-        private void RemoveLightmap_Click(object sender, RoutedEventArgs e)
-        {
-            MapManager.Construction.Tool.RemoveLightmaps();
-        }
-
-        /// <summary>
-        /// Handles the Click event of the Find control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.RoutedEventArgs"/> instance containing the event data.</param>
-        private void Find_Click(object sender, RoutedEventArgs e)
-        {
-            if (GeneratingImages)
+            if (selectedObject < 0)
             {
-                MessageBox.Show("Please wait for all images to be generated", "Please wait...", MessageBoxButton.OK, MessageBoxImage.Error);
-
+                Clone.IsChecked = false;
                 return;
             }
 
-            Search findObject = new Search(Forms.Search.FindType.GoTo);
+            Model = MapManager.Construction.WorldObjects[selectedObject].Entry.ObjectID;
+            Tool.StartAdding(Model);
+        }
 
-            findObject.GoToClicked += new Search.GoTo(delegate(int value)
-            {
-                if (value < FileManager.ZSCs["Construction"].Objects.Count)
-                {
-                    if (MessageBox.Show("Object found, do you wish to select it?", "Select Object", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
-                    {
-                        SelectModel(value);
+        private void Clone_Unchecked(object sender, RoutedEventArgs e)
+        {
+            Tool.StopAdding();
+        }
 
-                        findObject.Close();
-                    }
-
-                    return true;
-                }
-
-                return false;
-            });
-
-            findObject.ShowDialog();
+        private void RemoveLightmap_Click(object sender, RoutedEventArgs e)
+        {
+            Tool.RemoveLightmaps();
         }
 
         #endregion
@@ -688,10 +353,11 @@ namespace Map_Editor.Forms.Controls
         /// <summary>
         /// Handles the PropertyValueChanged event of the Properties control.
         /// </summary>
-        /// <param name="s">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.Forms.PropertyValueChangedEventArgs"/> instance containing the event data.</param>
         private void Properties_PropertyValueChanged(object s, System.Windows.Forms.PropertyValueChangedEventArgs e)
         {
+            if (selectedObject < 0)
+                return;
+
             ObjectProperty objectValues = (ObjectProperty)Properties.SelectedObject;
 
             IFO.BaseIFO ifoEntry = MapManager.Construction.WorldObjects[selectedObject].Entry;
@@ -721,37 +387,31 @@ namespace Map_Editor.Forms.Controls
             ifoEntry.Description = objectValues.Description;
             ifoEntry.EventID = objectValues.EventID;
 
-            MapManager.Construction.Tool.ChangeWorld(objectValues.Position, objectValues.Rotation, objectValues.Scale);
+            Tool.ChangeWorld(objectValues.Position, objectValues.Rotation, objectValues.Scale);
+            Rotation.SetRotation(objectValues.Rotation);
         }
 
-        /// <summary>
-        /// Handles the ValueChanged event of the Rotation control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.RoutedPropertyChangedEventArgs&lt;System.Double&gt;"/> instance containing the event data.</param>
-        private void Rotation_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        #region Rotation events
+
+        private void Rotation_RotationChanged(Quaternion rotation)
         {
-            if (!Remove.IsEnabled)
+            if (selectedObject < 0)
                 return;
 
             IFO.BaseIFO ifoEntry = MapManager.Construction.WorldObjects[selectedObject].Entry;
-
-            MapManager.Construction.Tool.ChangeWorld(ifoEntry.Position, Quaternion.CreateFromYawPitchRoll((float)RotationRoll.Value, (float)RotationYaw.Value, (float)RotationPitch.Value), ifoEntry.Scale);
+            Tool.ChangeWorld(ifoEntry.Position, rotation, ifoEntry.Scale);
         }
 
-        /// <summary>
-        /// Handles the PreviewMouseUp event of the RotationRoll control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="System.Windows.Input.MouseButtonEventArgs"/> instance containing the event data.</param>
-        private void Rotation_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+        private void Rotation_RotationCommitted(Quaternion rotation)
         {
-            if (Properties.SelectedObject == null)
+            if (selectedObject < 0 || Properties.SelectedObject == null)
                 return;
 
             ObjectProperty objectValues = (ObjectProperty)Properties.SelectedObject;
-
             IFO.BaseIFO ifoEntry = MapManager.Construction.WorldObjects[selectedObject].Entry;
+
+            if (objectValues.Rotation == rotation)
+                return;
 
             UndoManager.AddCommand(new Engine.Commands.Construction.ValueChanged()
             {
@@ -770,16 +430,17 @@ namespace Map_Editor.Forms.Controls
                     Description = ifoEntry.Description,
                     EventID = ifoEntry.EventID,
                     Position = ifoEntry.Position,
-                    Rotation = ifoEntry.Rotation,
+                    Rotation = rotation,
                     Scale = ifoEntry.Scale
                 }
             });
 
-            if (((ObjectProperty)Properties.SelectedObject).Rotation != ifoEntry.Rotation)
-            {
-                ((ObjectProperty)Properties.SelectedObject).Rotation = ifoEntry.Rotation;
-                Properties.Refresh();
-            }
+            Tool.ChangeWorld(ifoEntry.Position, rotation, ifoEntry.Scale);
+
+            objectValues.Rotation = rotation;
+            Properties.Refresh();
         }
+
+        #endregion
     }
 }

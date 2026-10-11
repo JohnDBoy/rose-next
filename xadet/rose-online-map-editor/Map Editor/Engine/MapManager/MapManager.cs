@@ -232,8 +232,7 @@ namespace Map_Editor.Engine
             Output.WriteLine(Output.MessageType.Normal, "--------------------------");
             Output.WriteLine(Output.MessageType.Event, string.Format("Loading Map {0}", Name));
 
-            DecorationTool.ClearImages();
-            ConstructionTool.ClearImages();
+            Engine.RenderManager.ObjectThumbnails.CancelAll();
             AnimationTool.ClearImages();
             EventTriggerTool.ClearImages();
 

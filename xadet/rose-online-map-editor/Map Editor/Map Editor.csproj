@@ -150,6 +150,14 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="Forms\Controls\ObjectBrowser.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Forms\Controls\RotationEditor.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="Forms\Controls\EffectTool.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
@@ -303,6 +311,12 @@
     <Compile Include="Engine\FileManager\Models\ZMO.cs" />
     <Compile Include="Engine\FileManager\Models\ZMS.cs" />
     <Compile Include="Engine\FileManager\Models\ZSC.cs" />
+    <Compile Include="Engine\FileManager\Models\ZscRaw.cs" />
+    <Compile Include="Engine\FileManager\Models\ZscCatalog.cs" />
+    <Compile Include="Engine\Extensions\Rotation.cs" />
+    <Compile Include="Engine\RenderManager\ObjectThumbnails.cs" />
+    <Compile Include="Misc\EditorPaths.cs" />
+    <Compile Include="Engine\SpriteManager\HudManager.cs" />
     <Compile Include="Engine\Main.cs" />
     <Compile Include="Engine\ShotRunner.cs" />
     <Compile Include="Engine\Minimap\DdsCodec.cs" />
@@ -447,6 +461,12 @@
     </Compile>
     <Compile Include="Forms\Controls\DecorationTool.xaml.cs">
       <DependentUpon>DecorationTool.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\Controls\ObjectBrowser.xaml.cs">
+      <DependentUpon>ObjectBrowser.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\Controls\RotationEditor.xaml.cs">
+      <DependentUpon>RotationEditor.xaml</DependentUpon>
     </Compile>
     <Compile Include="Forms\Controls\EffectTool.xaml.cs">
       <DependentUpon>EffectTool.xaml</DependentUpon>

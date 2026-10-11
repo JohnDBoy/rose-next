@@ -218,7 +218,7 @@
                     <Image Width="16" Height="16" Source="Resources\Icons\Position.png" />
                 </ToggleButton>
                 <Separator Background="#8591a2" />
-                <ToggleButton Width="24" Height="24" Name="FollowTerrain" ToolTip="Follow Terrain" IsEnabled="False">
+                <ToggleButton Width="24" Height="24" Name="FollowTerrain" ToolTip="Follow Terrain (keep the object on the ground while moving it)" IsEnabled="False" IsChecked="True">
                     <Image Width="16" Height="16" Source="Resources\Icons\FollowTerrain.png" />
                 </ToggleButton>
                 <ComboBox Name="SnapToGrid" Width="90" Background="#cbd4e4" Style="{DynamicResource {x:Type ComboBox}}">
@@ -349,7 +349,7 @@
                 <TextBlock Foreground="#bcc3d0" Margin="5,0" Name="Position"></TextBlock>
             </StatusBarItem>
             <StatusBarItem>
-                <TextBlock Foreground="#bcc3d0" Margin="5,0">Ready</TextBlock>
+                <TextBlock Name="StatusText" Foreground="#bcc3d0" Margin="5,0">Ready</TextBlock>
             </StatusBarItem>
         </StatusBar>
         <Grid>
@@ -367,7 +367,7 @@
                         <ColumnDefinition Width="292.5*" x:Name="RightColumn" />
                     </Grid.ColumnDefinitions>
                     <WindowsFormsHost x:Name="RenderPanelHost">
-                        <wf:Panel KeyUp="Panel_KeyUp" Click="Panel_Click" />
+                        <wf:Panel KeyUp="Panel_KeyUp" Click="Panel_Click" MouseEnter="Panel_MouseEnter" />
                     </WindowsFormsHost>
                     <ScrollViewer Grid.Column="1" Name="ToolHost" VerticalScrollBarVisibility="Auto" />
                     <GridSplitter Name="RightSplitter" HorizontalAlignment="Left" Width="4" Background="#FF273655" Grid.Column="1" />

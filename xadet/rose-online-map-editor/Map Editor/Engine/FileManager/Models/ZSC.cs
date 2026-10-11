@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Microsoft.Xna.Framework;
@@ -599,6 +600,22 @@ namespace Map_Editor.Engine.Models
         /// <summary>
         /// Initializes a new instance of the <see cref="ZSC"/> class.
         /// </summary>
+        /// <summary>
+        /// The file this table was read from (null for a placeholder).
+        /// </summary>
+        public string FilePath { get; set; }
+
+        /// <summary>
+        /// The same table as the bytes on disk, kept so the table can be written
+        /// back and grown. Null for a placeholder.
+        /// </summary>
+        public ZscRaw Raw { get; set; }
+
+        /// <summary>
+        /// True once an object was appended and the table needs saving.
+        /// </summary>
+        public bool Dirty { get; set; }
+
         public ZSC()
         {
             Textures = new List<Texture>();
@@ -622,6 +639,10 @@ namespace Map_Editor.Engine.Models
         /// <param name="filePath">The file path.</param>
         public void Load(string filePath)
         {
+            FilePath = filePath;
+            Dirty = false;
+            Raw = new ZscRaw(GameData.ReadAllBytes(filePath));
+
             FileHandler fh = new FileHandler(filePath, FileHandler.FileOpenMode.Reading, Encoding.GetEncoding("EUC-KR"));
 
             short modelCount = fh.Read<short>();
@@ -799,6 +820,143 @@ namespace Map_Editor.Engine.Models
             }
 
             fh.Close();
+        }
+
+        /// <summary>
+        /// Copies object <paramref name="index"/> of <paramref name="source"/> into
+        /// this table (meshes, materials and effects deduplicated by path) and
+        /// returns its index here. Returns the existing index when the table
+        /// already holds an identical object. Marks the table dirty when it grew.
+        /// </summary>
+        public int AppendFrom(ZSC source, int index)
+        {
+            if (Raw == null || source.Raw == null)
+                throw new InvalidOperationException("Only a table loaded from a file can be appended to");
+
+            ZscRaw.AppendResult result = Raw.AppendObject(source.Raw, index);
+
+            if (result.AlreadyPresent)
+                return result.ObjectIndex;
+
+            // Mirror the raw append into the parsed lists the renderer reads.
+            foreach (KeyValuePair<int, int> kv in result.NewMeshes)
+            {
+                while (Models.Count < kv.Value)
+                    Models.Add(string.Empty);
+                Models.Add(source.Models[kv.Key]);
+            }
+
+            foreach (KeyValuePair<int, int> kv in result.NewMaterials)
+            {
+                Texture src = source.Textures[kv.Key];
+                Textures.Add(new Texture()
+                {
+                    Path = src.Path,
+                    Skin = src.Skin,
+                    AlphaEnabled = src.AlphaEnabled,
+                    ZTestEnabled = src.ZTestEnabled,
+                    TwoSided = src.TwoSided,
+                    AlphaTestEnabled = src.AlphaTestEnabled,
+                    AlphaReference = src.AlphaReference,
+                    ZWriteEnabled = src.ZWriteEnabled,
+                    BlendingMode = src.BlendingMode,
+                    SpecularEnabled = src.SpecularEnabled,
+                    GlowType = src.GlowType,
+                    Alpha = src.Alpha,
+                    Glow = src.Glow
+                });
+            }
+
+            foreach (KeyValuePair<int, int> kv in result.NewEffects)
+                Effects.Add(source.Effects[kv.Key]);
+
+            Object srcObject = source.Objects[index];
+            ZscRaw.Entry rawObject = Raw.Objects[result.ObjectIndex];
+
+            Object copy = new Object()
+            {
+                CylinderRadius = srcObject.CylinderRadius,
+                CylinderX = srcObject.CylinderX,
+                CylinderY = srcObject.CylinderY,
+                BoundingBox = srcObject.BoundingBox,
+                Models = new List<Object.Model>(),
+                Effects = new List<Object.Effect>()
+            };
+
+            for (int i = 0; i < srcObject.Models.Count; i++)
+            {
+                Object.Model m = srcObject.Models[i];
+                copy.Models.Add(new Object.Model()
+                {
+                    ModelID = (short)rawObject.Parts[i].Mesh,
+                    TextureID = (short)rawObject.Parts[i].Material,
+                    BoneIndex = m.BoneIndex,
+                    DummyIndex = m.DummyIndex,
+                    Parent = m.Parent,
+                    CollisionLevel = m.CollisionLevel,
+                    CollisionPick = m.CollisionPick,
+                    RangeSet = m.RangeSet,
+                    UseLightmap = m.UseLightmap,
+                    Position = m.Position,
+                    Scale = m.Scale,
+                    Rotation = m.Rotation,
+                    AxisRotation = m.AxisRotation,
+                    Motion = m.Motion
+                });
+            }
+
+            for (int i = 0; i < srcObject.Effects.Count; i++)
+            {
+                Object.Effect e = srcObject.Effects[i];
+                copy.Effects.Add(new Object.Effect()
+                {
+                    EffectID = (short)rawObject.Dummies[i].Effect,
+                    EffectType = e.EffectType,
+                    Parent = e.Parent,
+                    Position = e.Position,
+                    Scale = e.Scale,
+                    Rotation = e.Rotation
+                });
+            }
+
+            while (Objects.Count < result.ObjectIndex)
+                Objects.Add(new Object() { Models = new List<Object.Model>(), Effects = new List<Object.Effect>() });
+            Objects.Add(copy);
+
+            Dirty = true;
+            return result.ObjectIndex;
+        }
+
+        /// <summary>
+        /// Writes the table back to <see cref="FilePath"/>. The previous file is
+        /// copied to the editor's backup folder first, and the written bytes are
+        /// read back and checked before the method returns.
+        /// </summary>
+        public void Save()
+        {
+            if (Raw == null || string.IsNullOrEmpty(FilePath))
+                throw new InvalidOperationException("This table was not loaded from a file");
+            if (GameData.IsArchived(FilePath))
+                throw new InvalidOperationException(string.Format("{0} is read from the client's archives (data.idx) and cannot be saved.", FilePath));
+
+            byte[] bytes = Raw.ToBytes();
+
+            ZscRaw check = new ZscRaw(bytes);
+            if (check.Objects.Count != Raw.Objects.Count || check.Meshes.Count != Raw.Meshes.Count ||
+                check.Materials.Count != Raw.Materials.Count || check.Effects.Count != Raw.Effects.Count)
+                throw new InvalidDataException("The ZSC did not read back with the same counts; nothing was written");
+
+            if (File.Exists(FilePath))
+            {
+                string backupFolder = Path.Combine(Map_Editor.Misc.EditorPaths.Root, "zsc-backups");
+                Directory.CreateDirectory(backupFolder);
+                string backup = Path.Combine(backupFolder, string.Format("{0}.{1:yyyyMMdd-HHmmss}.zsc", Path.GetFileNameWithoutExtension(FilePath), DateTime.Now));
+                File.Copy(FilePath, backup, true);
+                Map_Editor.Misc.Output.WriteLine(Map_Editor.Misc.Output.MessageType.Normal, string.Format("- Previous {0} kept at {1}", Path.GetFileName(FilePath), backup));
+            }
+
+            File.WriteAllBytes(FilePath, bytes);
+            Dirty = false;
         }
 
         #region Static Functions

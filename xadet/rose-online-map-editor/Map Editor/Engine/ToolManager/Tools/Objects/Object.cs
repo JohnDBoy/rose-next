@@ -15,6 +15,32 @@ using Map_Editor.Engine.SpriteManager;
 namespace Map_Editor.Engine.Tools
 {
     /// <summary>
+    /// What the object tool needs from its side panel (decoration and
+    /// construction share one implementation).
+    /// </summary>
+    public interface IObjectToolPanel
+    {
+        /// <summary>True while the Clone toggle is down (placing copies of the selection).</summary>
+        bool IsCloning { get; }
+
+        /// <summary>Placing finished (one-shot click or Escape): release the Add / Clone toggles.</summary>
+        void PlacementEnded();
+
+        bool RandomYaw { get; }
+        bool ScaleJitter { get; }
+        bool AlignToSlope { get; }
+
+        /// <summary>Yaw step in degrees for the mouse wheel while placing; 0 = free.</summary>
+        float YawSnapStep { get; }
+
+        /// <summary>Stay in placing mode after each click (Shift+click does the opposite).</summary>
+        bool KeepPlacing { get; }
+
+        /// <summary>Shows the tool's mode line in the panel; <paramref name="placing"/> shows the Stop button.</summary>
+        void ShowMode(string text, bool placing);
+    }
+
+    /// <summary>
     /// Object class.
     /// </summary>
     public class Object : ITool
@@ -111,9 +137,79 @@ namespace Map_Editor.Engine.Tools
         /// <value><c>true</c> if [mouse down]; otherwise, <c>false</c>.</value>
         private bool mouseDown { get; set; }
 
+        /// <summary>Heading of the object being placed, degrees about Z.</summary>
+        private float placeYaw;
+
+        /// <summary>Uniform scale of the object being placed.</summary>
+        private float placeScale = 1.0f;
+
+        private int lastWheel;
+        private bool wheelPrimed;
+        private bool escapeDown;
+        private bool leftWasDown;
+        private readonly Random random = new Random();
+        private string lastMode;
+
+        /// <summary>
+        /// Says what the tool is doing and what the next click does, in the 3D view,
+        /// the status bar and the panel. The panel and status bar are only touched
+        /// when the text changes.
+        /// </summary>
+        private void PublishMode()
+        {
+            IObjectToolPanel panel = Panel;
+            ZSC zsc = FileManager.ZSCs[Type.ToString()];
+            string text;
+            Color colour;
+            bool placing = model >= 0;
+
+            if (placing)
+            {
+                bool keep = panel != null && panel.KeepPlacing;
+                text = string.Format("PLACING {0}  -  click the map to put it there  |  mouse wheel turns it  |  {1}  |  Esc stops",
+                    Models.ZscCatalog.ObjectName(zsc, model),
+                    keep ? "every click places another (Shift+click: just this one)" : "one click places one (Shift+click keeps placing)");
+                colour = new Color(255, 230, 150);
+            }
+            else if (SelectedObject >= 0)
+            {
+                List<Objects.Object.WorldObject> worldObjects = (Type == ObjectType.Decoration) ? MapManager.Decoration.WorldObjects : MapManager.Construction.WorldObjects;
+                int id = worldObjects[SelectedObject].Entry.ObjectID;
+                text = string.Format("SELECTED {0} (object {1})  -  drag the arrows to move  |  Rotate in the panel  |  Delete removes  |  Add or double-click in the panel places another  |  click empty ground to deselect",
+                    Models.ZscCatalog.ObjectName(zsc, id), id);
+                colour = Color.White;
+            }
+            else
+            {
+                text = string.Format("{0} tool  -  click an object on the map to select it  |  double-click an object in the panel to place it", Type);
+                colour = new Color(200, 210, 225);
+            }
+
+            SpriteManager.HudManager.SetStatus(text, colour);
+
+            if (text != lastMode)
+            {
+                lastMode = text;
+                if (panel != null)
+                    panel.ShowMode(text.Replace("  -  ", ". ").Replace("  |  ", ". "), placing);
+                try
+                {
+                    App.Form.StatusText.Text = text;
+                }
+                catch
+                {
+                }
+            }
+        }
+
         #endregion
 
         #endregion
+
+        private IObjectToolPanel Panel
+        {
+            get { return App.Form.ToolHost.Content as IObjectToolPanel; }
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Object"/> class.
@@ -187,6 +283,13 @@ namespace Map_Editor.Engine.Tools
             Cursor.Current = Cursors.Default;
 
             hoveredObject = -1;
+
+            RollPlacement();
+            wheelPrimed = false;
+
+            // The ghost follows the mouse only while the map has the focus (see
+            // MouseStateExtensions.Intersects); take it now rather than after a click.
+            App.Form.RenderPanel.Focus();
         }
 
         /// <summary>
@@ -195,6 +298,155 @@ namespace Map_Editor.Engine.Tools
         public void StopAdding()
         {
             model = -1;
+        }
+
+        /// <summary>
+        /// Leaves placing mode and tells the panel to release its toggles.
+        /// </summary>
+        private void StopPlacing()
+        {
+            StopAdding();
+            IObjectToolPanel panel = Panel;
+            if (panel != null)
+                panel.PlacementEnded();
+        }
+
+        /// <summary>
+        /// Picks the heading and scale of the next placed copy: random when the
+        /// panel asks for it, otherwise the heading stays whatever the wheel set.
+        /// </summary>
+        private void RollPlacement()
+        {
+            IObjectToolPanel panel = Panel;
+            if (panel != null && panel.RandomYaw)
+                placeYaw = Rotation.Wrap((float)(random.NextDouble() * 360.0));
+            placeScale = (panel != null && panel.ScaleJitter) ? 0.9f + (float)random.NextDouble() * 0.2f : 1.0f;
+        }
+
+        private Vector3 TerrainNormal(Vector3 at)
+        {
+            const float d = 0.5f;
+            float x1, x2, y1, y2;
+            if (!MapManager.Heightmaps.TryGetHeight(at.X - d, at.Y, out x1) || !MapManager.Heightmaps.TryGetHeight(at.X + d, at.Y, out x2) ||
+                !MapManager.Heightmaps.TryGetHeight(at.X, at.Y - d, out y1) || !MapManager.Heightmaps.TryGetHeight(at.X, at.Y + d, out y2))
+                return Vector3.UnitZ;
+
+            Vector3 n = new Vector3(-(x2 - x1) / (2.0f * d), -(y2 - y1) / (2.0f * d), 1.0f);
+            n.Normalize();
+            return n;
+        }
+
+        /// <summary>The rotation a new copy gets at <paramref name="at"/>.</summary>
+        private Quaternion PlacementRotation(Vector3 at)
+        {
+            IObjectToolPanel panel = Panel;
+            if (panel != null && panel.AlignToSlope)
+                return Rotation.OnSlope(TerrainNormal(at), placeYaw);
+            return Rotation.Yaw(placeYaw);
+        }
+
+        /// <summary>
+        /// Adds a new placement to the block under <paramref name="position"/> and
+        /// returns its index in the world list, or -1 when no block file covers
+        /// that spot.
+        /// </summary>
+        private int Place(Vector3 position, int objectID, Quaternion rotation, Vector3 scale, string description, short eventID, short warpID, IFO.ObjectType objectType)
+        {
+            int fileID = MapManager.InsideFile(position);
+            if (fileID < 0)
+            {
+                Map_Editor.Misc.Output.WriteLine(Map_Editor.Misc.Output.MessageType.Error, string.Format("No block file covers ({0:0.0}, {1:0.0}); the object was not placed", position.X, position.Y));
+                return -1;
+            }
+
+            Vector2 fileBlock = MapManager.InsideBlock(position);
+            List<IFO.BaseIFO> list = (Type == ObjectType.Decoration) ? FileManager.IFOs[fileID].Decoration : FileManager.IFOs[fileID].Construction;
+            int entryID = list.Count;
+
+            IFO.BaseIFO newObject = new IFO.BaseIFO()
+            {
+                Description = description ?? string.Empty,
+                WarpID = warpID,
+                EventID = eventID,
+                ObjectID = objectID,
+                ObjectType = objectType,
+                MapPosition = new Vector2()
+                {
+                    X = (int)MapManager.MapPosition(fileBlock, position).X,
+                    Y = (int)MapManager.MapPosition(fileBlock, position).Y
+                },
+                Position = position,
+                Rotation = rotation,
+                Scale = scale,
+                Parent = FileManager.IFOs[fileID]
+            };
+
+            list.Add(newObject);
+
+            switch (Type)
+            {
+                case ObjectType.Decoration:
+                    MapManager.Decoration.Add(list[entryID], fileID, entryID);
+                    UndoManager.AddCommand(new Commands.Decoration.Added()
+                    {
+                        ObjectID = MapManager.Decoration.WorldObjects.Count - 1,
+                        Object = MapManager.Decoration.WorldObjects[MapManager.Decoration.WorldObjects.Count - 1],
+                        File = fileID,
+                        Entry = newObject
+                    });
+                    return MapManager.Decoration.WorldObjects.Count - 1;
+                case ObjectType.Construction:
+                    MapManager.Construction.Add(list[entryID], fileID, entryID);
+                    UndoManager.AddCommand(new Commands.Construction.Added()
+                    {
+                        ObjectID = MapManager.Construction.WorldObjects.Count - 1,
+                        Object = MapManager.Construction.WorldObjects[MapManager.Construction.WorldObjects.Count - 1],
+                        File = fileID,
+                        Entry = newObject
+                    });
+                    return MapManager.Construction.WorldObjects.Count - 1;
+            }
+            return -1;
+        }
+
+        /// <summary>
+        /// Pastes a copied placement as a new object: under the mouse when it is
+        /// over the map, else two metres beside the original. The copy is
+        /// selected afterwards.
+        /// </summary>
+        public void PasteNew(IFO.BaseIFO copied)
+        {
+            if (copied == null)
+                return;
+
+            ZSC zsc = FileManager.ZSCs[Type.ToString()];
+            if (copied.ObjectID < 0 || copied.ObjectID >= zsc.Objects.Count)
+            {
+                Map_Editor.Misc.Output.WriteLine(Map_Editor.Misc.Output.MessageType.Error, string.Format("The copied object (ID {0}) is not in this zone's table; nothing pasted", copied.ObjectID));
+                return;
+            }
+
+            if (model >= 0)
+                StopPlacing();
+
+            Vector3 position = Vector3.Zero;
+            if (Mouse.GetState().Intersects(device.Viewport))
+                position = MapManager.Heightmaps.PickPosition();
+
+            if (position == Vector3.Zero)
+            {
+                position = copied.Position + new Vector3(2.0f, 0.0f, 0.0f);
+                float here, there;
+                if (MapManager.Heightmaps.TryGetHeight(copied.Position.X, copied.Position.Y, out there) && MapManager.Heightmaps.TryGetHeight(position.X, position.Y, out here))
+                    position.Z = here + (copied.Position.Z - there);
+            }
+
+            int index = Place(position, copied.ObjectID, copied.Rotation, copied.Scale, copied.Description, copied.EventID, copied.WarpID, copied.ObjectType);
+            if (index >= 0)
+            {
+                Deselect();
+                SelectedObject = Select(index);
+            }
         }
 
         #endregion
@@ -208,6 +460,10 @@ namespace Map_Editor.Engine.Tools
         /// <returns></returns>
         public int Select(int index)
         {
+            // Select used to add these handlers on every call and never remove
+            // them, so each selection ran every earlier selection's handlers too.
+            Unsubscribe();
+
             switch (Type)
             {
                 case ObjectType.Decoration:
@@ -253,6 +509,43 @@ namespace Map_Editor.Engine.Tools
             }
 
             return -1;
+        }
+
+        private void Unsubscribe()
+        {
+            ToolManager.Cursor.PositionChanged -= new EventHandler(Cursor_PositionChanged);
+            ToolManager.Cursor.Cancelled -= new EventHandler(Cursor_Cancelled);
+            ToolManager.Cursor.Finished -= new EventHandler(Cursor_Finished);
+            ToolManager.Position.MouseReleased -= new EventHandler(Translate_MouseReleased);
+            ToolManager.Position.PositionChanged -= new EventHandler(Translate_PositionChanged);
+        }
+
+        /// <summary>
+        /// Drops the selection (a click on empty ground).
+        /// </summary>
+        public void Deselect()
+        {
+            if (SelectedObject < 0)
+                return;
+
+            Unsubscribe();
+            SelectedObject = -1;
+            hoveredObject = -1;
+            positionCommand = null;
+
+            switch (Type)
+            {
+                case ObjectType.Decoration:
+                    ((DecorationTool)App.Form.ToolHost.Content).Clean();
+                    break;
+                case ObjectType.Construction:
+                    ((ConstructionTool)App.Form.ToolHost.Content).Clean();
+                    break;
+            }
+
+            ToolManager.Cursor.Position = Vector3.Zero;
+            ToolManager.Position.BoundingBox = new BoundingBox();
+            ToolManager.Position.Position = Vector3.Zero;
         }
 
         /// <summary>
@@ -618,124 +911,96 @@ namespace Map_Editor.Engine.Tools
         public void Update(GameTime gameTime)
         {
             KeyboardState keyboardState = Keyboard.GetState();
-
-            if (SelectedObject >= 0)
-            {
-                if (keyboardState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Delete))
-                    Remove(false);
-            }
-
             MouseState mouseState = Mouse.GetState();
 
-            if (!mouseState.Intersects(device.Viewport))
+            PublishMode();
+
+            bool escape = keyboardState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape);
+            bool escapePressed = escape && !escapeDown;
+            escapeDown = escape;
+
+            // Escape leaves placing mode wherever the mouse is.
+            if (model >= 0 && escapePressed)
+            {
+                StopPlacing();
                 return;
+            }
+
+            bool inViewport = mouseState.Intersects(device.Viewport);
+            bool leftDown = mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed;
+            bool leftPressed = leftDown && !leftWasDown && inViewport;
+            leftWasDown = leftDown;
+
+            // The keyboard is polled, not routed, so Delete is only honoured while
+            // the mouse is over the map: typing in a panel field must not delete.
+            if (SelectedObject >= 0 && inViewport && keyboardState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Delete))
+                Remove(false);
+
+            if (!inViewport)
+            {
+                wheelPrimed = false;
+                return;
+            }
 
             if (model >= 0)
             {
                 objectManager.Update(gameTime);
 
-                if (mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed && !mouseDown)
+                // The wheel turns the ghost: one snap step per notch, 5 degrees when
+                // snapping is off.
+                if (!wheelPrimed)
                 {
-                    int fileID = MapManager.InsideFile(pickedPosition);
-                    Vector2 fileBlock = MapManager.InsideBlock(pickedPosition);
+                    lastWheel = mouseState.ScrollWheelValue;
+                    wheelPrimed = true;
+                }
+                int notches = (mouseState.ScrollWheelValue - lastWheel) / 120;
+                if (notches != 0)
+                {
+                    lastWheel += notches * 120;
+                    IObjectToolPanel panel = Panel;
+                    float step = (panel != null && panel.YawSnapStep > 0.0f) ? panel.YawSnapStep : 5.0f;
+                    placeYaw = Rotation.Snap(placeYaw + notches * step, (panel != null) ? panel.YawSnapStep : 0.0f);
+                }
 
-                    switch (Type)
+                if (leftDown && !mouseDown)
+                {
+                    mouseDown = true;
+
+                    bool cloning = Panel != null && Panel.IsCloning && SelectedObject >= 0;
+                    List<Objects.Object.WorldObject> source = (Type == ObjectType.Decoration) ? MapManager.Decoration.WorldObjects : MapManager.Construction.WorldObjects;
+
+                    int placed;
+                    if (cloning)
                     {
-                        case ObjectType.Decoration:
-                            {
-                                int objectID = FileManager.IFOs[fileID].Decoration.Count;
+                        IFO.BaseIFO from = source[SelectedObject].Entry;
+                        placed = Place(pickedPosition, model, from.Rotation, from.Scale, from.Description, from.EventID, from.WarpID, from.ObjectType);
+                    }
+                    else
+                        placed = Place(pickedPosition, model, PlacementRotation(pickedPosition), new Vector3(placeScale, placeScale, placeScale), string.Empty, 0, 0, IFO.ObjectType.User);
 
-                                IFO.BaseIFO newObject = new IFO.BaseIFO()
-                                {
-                                    Description = string.Empty,
-                                    WarpID = 0,
-                                    EventID = 0,
-                                    ObjectID = model,
-                                    ObjectType = IFO.ObjectType.User,
-                                    MapPosition = new Vector2()
-                                    {
-                                        X = (int)MapManager.MapPosition(fileBlock, pickedPosition).X,
-                                        Y = (int)MapManager.MapPosition(fileBlock, pickedPosition).Y
-                                    },
-                                    Position = pickedPosition,
-                                    Rotation = new Quaternion(0, 0, 0, 0),
-                                    Scale = new Vector3(1.0f, 1.0f, 1.0f),
-                                    Parent = FileManager.IFOs[fileID]
-                                };
+                    bool shift = keyboardState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.LeftShift) || keyboardState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.RightShift);
+                    bool keepPlacing = (Panel != null && Panel.KeepPlacing) != shift;
 
-                                if (((DecorationTool)App.Form.ToolHost.Content).Clone.IsChecked == true)
-                                {
-                                    newObject.Description = MapManager.Decoration.WorldObjects[SelectedObject].Entry.Description;
-                                    newObject.WarpID = MapManager.Decoration.WorldObjects[SelectedObject].Entry.WarpID;
-                                    newObject.EventID = MapManager.Decoration.WorldObjects[SelectedObject].Entry.EventID;
-                                    newObject.ObjectType = MapManager.Decoration.WorldObjects[SelectedObject].Entry.ObjectType;
-                                    newObject.Description = MapManager.Decoration.WorldObjects[SelectedObject].Entry.Description;
-                                    newObject.Rotation = MapManager.Decoration.WorldObjects[SelectedObject].Entry.Rotation;
-                                    newObject.Scale = MapManager.Decoration.WorldObjects[SelectedObject].Entry.Scale;
-                                }
-
-                                FileManager.IFOs[fileID].Decoration.Add(newObject);
-                                MapManager.Decoration.Add(FileManager.IFOs[fileID].Decoration[objectID], fileID, objectID);
-
-                                UndoManager.AddCommand(new Commands.Decoration.Added()
-                                {
-                                    ObjectID = MapManager.Decoration.WorldObjects.Count - 1,
-                                    Object = MapManager.Decoration.WorldObjects[MapManager.Decoration.WorldObjects.Count - 1],
-                                    File = fileID,
-                                    Entry = newObject
-                                });
-                            }
-                            break;
-                        case ObjectType.Construction:
-                            {
-                                int objectID = FileManager.IFOs[fileID].Construction.Count;
-
-                                IFO.BaseIFO newObject = new IFO.BaseIFO()
-                                {
-                                    Description = string.Empty,
-                                    WarpID = 0,
-                                    EventID = 0,
-                                    ObjectID = model,
-                                    ObjectType = IFO.ObjectType.User,
-                                    MapPosition = new Vector2()
-                                    {
-                                        X = (int)MapManager.MapPosition(fileBlock, pickedPosition).X,
-                                        Y = (int)MapManager.MapPosition(fileBlock, pickedPosition).Y
-                                    },
-                                    Position = pickedPosition,
-                                    Rotation = new Quaternion(0, 0, 0, 0),
-                                    Scale = new Vector3(1.0f, 1.0f, 1.0f),
-                                    Parent = FileManager.IFOs[fileID]
-                                };
-
-                                if (((ConstructionTool)App.Form.ToolHost.Content).Clone.IsChecked == true)
-                                {
-                                    newObject.Description = MapManager.Construction.WorldObjects[SelectedObject].Entry.Description;
-                                    newObject.WarpID = MapManager.Construction.WorldObjects[SelectedObject].Entry.WarpID;
-                                    newObject.EventID = MapManager.Construction.WorldObjects[SelectedObject].Entry.EventID;
-                                    newObject.ObjectType = MapManager.Construction.WorldObjects[SelectedObject].Entry.ObjectType;
-                                    newObject.Description = MapManager.Construction.WorldObjects[SelectedObject].Entry.Description;
-                                    newObject.Rotation = MapManager.Construction.WorldObjects[SelectedObject].Entry.Rotation;
-                                    newObject.Scale = MapManager.Construction.WorldObjects[SelectedObject].Entry.Scale;
-                                }
-
-                                FileManager.IFOs[fileID].Construction.Add(newObject);
-                                MapManager.Construction.Add(FileManager.IFOs[fileID].Construction[objectID], fileID, objectID);
-
-                                UndoManager.AddCommand(new Commands.Construction.Added()
-                                {
-                                    ObjectID = MapManager.Construction.WorldObjects.Count - 1,
-                                    Object = MapManager.Construction.WorldObjects[MapManager.Construction.WorldObjects.Count - 1],
-                                    File = fileID,
-                                    Entry = newObject
-                                });
-                            }
-                            break;
+                    if (placed >= 0)
+                    {
+                        string name = Models.ZscCatalog.ObjectName(FileManager.ZSCs[Type.ToString()], model);
+                        SpriteManager.HudManager.Notice(string.Format("Placed {0} here{1}.", name, keepPlacing ? "; click again to place another, Esc to stop" : "; it is selected now"), 4.0f);
                     }
 
-                    mouseDown = true;
+                    if (keepPlacing)
+                        RollPlacement();
+                    else
+                    {
+                        // One click places one object and selects it, ready to adjust.
+                        StopPlacing();
+                        if (placed >= 0)
+                        {
+                            Deselect();
+                            SelectedObject = Select(placed);
+                        }
+                    }
                 }
-                else if (mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Released && mouseDown)
+                else if (!leftDown && mouseDown)
                     mouseDown = false;
 
                 return;
@@ -765,22 +1030,26 @@ namespace Map_Editor.Engine.Tools
                 if (boundingFrustum.OnScreen(worldObjects[i].BoundingBox) && pickRay.Intersects(worldObjects[i].BoundingBox).HasValue)
                     mouseSelections.Add(i);
             }
-                
+
             if (mouseSelections.Count == 0)
             {
                 Cursor.Current = Cursors.Default;
 
                 hoveredObject = -1;
 
+                // A click on empty ground drops the selection.
+                if (leftPressed)
+                    Deselect();
+
                 return;
             }
 
             int closestObject = mouseSelections[0];
             float currentDistance = Vector3.Distance(CameraManager.Position, worldObjects[closestObject].BoundingBox.GetCenter());
-            
+
             for (int i = 0; i < mouseSelections.Count; i++)
             {
-                float distance = Vector3.Distance(CameraManager.Position, worldObjects[i].BoundingBox.GetCenter());
+                float distance = Vector3.Distance(CameraManager.Position, worldObjects[mouseSelections[i]].BoundingBox.GetCenter());
 
                 if (distance > currentDistance)
                     continue;
@@ -789,7 +1058,7 @@ namespace Map_Editor.Engine.Tools
                 currentDistance = distance;
             }
 
-            if (mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed && closestObject != SelectedObject)
+            if (leftPressed && closestObject != SelectedObject)
                 SelectedObject = Select(closestObject);
             else
                 hoveredObject = closestObject;
@@ -816,26 +1085,18 @@ namespace Map_Editor.Engine.Tools
 
                 worldModel.World = Matrix.Identity;
 
-                switch (Type)
+                IObjectToolPanel panel = Panel;
+                if (panel != null && panel.IsCloning && SelectedObject >= 0)
                 {
-                    case ObjectType.Decoration:
-                        {
-                            if (((DecorationTool)App.Form.ToolHost.Content).Clone.IsChecked == true)
-                            {
-                                worldModel.World *= Matrix.CreateFromQuaternion(MapManager.Decoration.WorldObjects[SelectedObject].Entry.Rotation);
-                                worldModel.World *= Matrix.CreateScale(MapManager.Decoration.WorldObjects[SelectedObject].Entry.Scale);
-                            }
-                        }
-                        break;
-                    case ObjectType.Construction:
-                        {
-                            if (((ConstructionTool)App.Form.ToolHost.Content).Clone.IsChecked == true)
-                            {
-                                worldModel.World *= Matrix.CreateFromQuaternion(MapManager.Construction.WorldObjects[SelectedObject].Entry.Rotation);
-                                worldModel.World *= Matrix.CreateScale(MapManager.Construction.WorldObjects[SelectedObject].Entry.Scale);
-                            }
-                        }
-                        break;
+                    List<Objects.Object.WorldObject> source = (Type == ObjectType.Decoration) ? MapManager.Decoration.WorldObjects : MapManager.Construction.WorldObjects;
+                    worldModel.World *= Matrix.CreateFromQuaternion(source[SelectedObject].Entry.Rotation);
+                    worldModel.World *= Matrix.CreateScale(source[SelectedObject].Entry.Scale);
+                }
+                else
+                {
+                    // The ghost shows the heading, slope and scale the click will give.
+                    worldModel.World *= Matrix.CreateFromQuaternion(PlacementRotation(pickedPosition));
+                    worldModel.World *= Matrix.CreateScale(placeScale);
                 }
 
                 worldModel.World *= Matrix.CreateTranslation(pickedPosition);
@@ -850,6 +1111,23 @@ namespace Map_Editor.Engine.Tools
                 objectManager.Draw(textureManager, shader, false);
 
                 shader.Finish();
+
+                // The ghost is marked as such: a green box and a label, so it is never
+                // mistaken for a placed object.
+                BoundingBox ghostBox = new BoundingBox();
+                bool any = false;
+                foreach (Objects.Object.WorldObject.Part part in worldModel.Parts)
+                {
+                    Matrix partWorld = Matrix.CreateFromQuaternion(part.Rotation) * Matrix.CreateScale(part.Scale) * Matrix.CreateTranslation(part.Position);
+                    BoundingBox box = objectManager.CreateBox(part.ModelID, partWorld * worldModel.World);
+                    ghostBox = any ? BoundingBox.CreateMerged(ghostBox, box) : box;
+                    any = true;
+                }
+                if (any)
+                {
+                    ghostBox.Draw(device, basicEffect, CameraManager.View, CameraManager.Projection, new Color(120, 255, 120));
+                    ToolTipManager.Set("Placing: " + Models.ZscCatalog.ObjectName(FileManager.ZSCs[Type.ToString()], model) + " (click to put it here)", new Vector3(ghostBox.GetCenter().X, ghostBox.GetCenter().Y, ghostBox.Max.Z));
+                }
             }
 
             List<Objects.Object.WorldObject> worldObjects = (Type == ObjectType.Decoration) ? MapManager.Decoration.WorldObjects : MapManager.Construction.WorldObjects;

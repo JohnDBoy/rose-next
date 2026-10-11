@@ -123,6 +123,78 @@ tuning). Code: `Engine/Minimap/` and `Forms/Tools/MinimapWindow.xaml(.cs)`.
   byte-identical after Restore), and the window built off screen
   (`build/minimap-tests/window.png`). Not yet driven by hand in the GUI.
 
+## Object browser and placement (2026-10-11)
+
+The decoration and construction panels share `Forms/Controls/ObjectBrowser` (a
+searchable thumbnail grid) and `RotationEditor` (degrees), and the object tool
+(`Engine/ToolManager/Tools/Objects/Object.cs`) places differently. Not yet tried
+by hand in the GUI; the headless tests below pass.
+
+- **A placement is an index into the zone's own ZSC** (LIST_ZONE cols 12/13), so
+  "All zones" scope (`ZscCatalog`: every table LIST_ZONE names, 46 tables / 2,825
+  objects, 1,945 once identical copies are folded by `ZscRaw.ContentHash`) can only
+  *show* other tables' objects. Using one (Add, Clone, double-click) calls
+  `ZSC.AppendFrom`, which copies the object into the zone's table with meshes,
+  materials (path + 36 flag bytes) and effects deduplicated by path, and marks it
+  `Dirty`; `Save_Click` writes dirty tables after the LITs (previous file kept in
+  `%LOCALAPPDATA%\RoseNextMapEditor\zsc-backups`). Appending never moves an id, so
+  nothing else on the shared table changes, but every zone on that table sees the
+  new object and the client needs a re-bake. There is no undo for an append; an
+  unused appended object is harmless.
+- **`ZscRaw` is the writer**, a byte-level mirror of `scripts/import-oro.py`'s `Zsc`
+  (the parsed `ZSC` class is lossy: cylinder /100, collision bits folded, unknown
+  part properties skipped). Two traps it handles: a dummy point's effect `0xFFFF`
+  means *no effect* and must not be remapped; a source table can list one mesh
+  path under two indices, so the lookup is repeated right before each append or
+  the second part gets a duplicate mesh. `"Map Editor.exe" --zsc-selftest` (run
+  from `data/`) round-trips all 62 tables byte for byte, appends every object of
+  one table into another for six pairs and checks both readers plus the rotation
+  maths; it found both traps.
+- **Thumbnails** come from `Engine/RenderManager/ObjectThumbnails`: one worker
+  thread with its own XNA device, newest request first, PNGs cached under
+  `%LOCALAPPDATA%\RoseNextMapEditor\thumbnails` keyed by content hash (so an edited
+  object gets a new picture and a copy in another table reuses one). Nothing waits
+  for them: no "please wait" modal, and an object can be picked by name before its
+  picture exists. The old per-tool copies of the render loop in `DecorationTool` /
+  `ConstructionTool` are gone (`ConstructionTool` is still a sed-derived copy of
+  `DecorationTool`; regenerate it from the decoration files rather than editing both).
+- **Placement**: the tool says what it is doing. `HudManager` draws a mode line
+  at the top left of the 3D view every frame (PLACING / SELECTED / idle, with what
+  the next click does) and a four-second notice after each placement; the same
+  text goes to the status bar and to a banner in the panel, which shows a Stop
+  button while placing. The ghost carries a green box and a "Placing: name" label
+  so it is never taken for a placed object. "Keep placing after each click" (on by
+  default, `[Placement] KeepPlacing`) decides whether a click leaves you placing or
+  places one and selects it; Shift+click does the opposite of the checkbox. Escape
+  (or Stop) leaves the mode, the mouse wheel turns the ghost by the yaw snap step
+  (5° when snapping is off; the camera never used the wheel), and the other
+  options (Random heading, Vary size ±10%, Align to slope) apply to each copy. A click on empty ground deselects;
+  Paste makes a new object under the mouse (or 2 m beside the original) instead of
+  overwriting the selection, and refuses a copy from another zone's table. Follow
+  Terrain is on by default. Also fixed on the way: `Select()` added gizmo handlers
+  on every call and never removed them; the closest-hit loop indexed the wrong
+  list; Delete fired while typing in a panel field (now only with the mouse over
+  the map). `Place()` refuses a spot no block file covers instead of indexing
+  `IFOs[-1]`.
+- **A WPF `TextBox` in the main window never receives keystrokes.** `App.Engine.Run()`
+  (XNA) pumps the window's messages from `Window_Loaded`, so WPF keyboard input, which
+  is delivered through `ComponentDispatcher` by the WPF loop, never arrives; mouse input
+  does (it goes through the window procedure), and the shortcuts are bound to `KeyUp`
+  for the same reason. That is why the original water tool's Z field is a WinForms
+  box in a `WindowsFormsHost`: do the same for any typed field in a side panel (the
+  browser's search box and the degree fields are). Dialogs (`New`, `Open`, `Search`)
+  are separate windows with their own loop and may use WPF boxes.
+- **Rotation** is yaw / pitch / roll in degrees for a Z-up world
+  (`Engine/Extensions/Rotation.cs`: roll about Y, then pitch about X, then yaw
+  about Z, built and decomposed through XNA's row-vector matrices; the self-test
+  proves the round trip). The old sliders mapped yaw and roll to each other's
+  handler. The property grid still shows the raw quaternion.
+- `tests/Run-ObjectBrowserTests.ps1` builds the editor, then against the real
+  data: catalogue and search, a foreign crane appended into Junon Polis' table
+  and saved to `build/object-browser-tests/` and read back by both readers with
+  every original index and byte intact, thumbnails made and cached, the browser
+  and rotation editor drawn to `browser.png` / `rotation.png`.
+
 ## Fullscreen view (F11)
 
 **View > Fullscreen** or **F11** shows the map alone over the whole screen, for

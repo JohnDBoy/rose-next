@@ -1,0 +1,34 @@
+<UserControl x:Class="Map_Editor.Forms.Controls.ObjectBrowser"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:wf="clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"
+    SnapsToDevicePixels="True">
+    <DockPanel Background="White" LastChildFill="True">
+        <Grid DockPanel.Dock="Top" Margin="6,6,6,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <!-- A WinForms box: the XNA loop pumps this window's messages, so a WPF
+                 TextBox never receives keystrokes here (the water tool's Z field has
+                 the same reason). -->
+            <WindowsFormsHost Grid.Column="0" Name="SearchHost" Height="22" ToolTip="Search by mesh or folder name, e.g. 'tree', 'crane junon', or an id like '#152'. Enter searches now, Escape clears.">
+                <wf:TextBox Dock="Fill" />
+            </WindowsFormsHost>
+            <ComboBox x:FieldModifier="public" Grid.Column="1" Name="Scope" Width="108" Height="22" Margin="4,0,0,0" SelectionChanged="Scope_SelectionChanged" ToolTip="This zone: only objects already in this zone's table. All zones: every table in the game; using one of those copies it into this zone's table.">
+                <ComboBoxItem>This zone</ComboBoxItem>
+                <ComboBoxItem>All zones</ComboBoxItem>
+            </ComboBox>
+        </Grid>
+        <TextBlock x:FieldModifier="public" DockPanel.Dock="Top" Name="Status" Margin="8,0,8,4" Foreground="#5e6978" TextWrapping="Wrap" FontSize="11">0 objects</TextBlock>
+        <Border DockPanel.Dock="Top" Margin="6,0,6,4" Padding="6,4" Background="#eef2f7" BorderBrush="#c9d2e0" BorderThickness="1">
+            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#4a5563"><Bold>Click</Bold> an object to select it. <Bold>Double-click</Bold> it to start placing it on the map (or press Add).</TextBlock>
+        </Border>
+        <Border x:FieldModifier="public" DockPanel.Dock="Top" Name="ForeignHint" Margin="6,0,6,4" Padding="6,4" Background="#fff4d6" BorderBrush="#e4c979" BorderThickness="1" Visibility="Collapsed">
+            <TextBlock Name="ForeignHintText" TextWrapping="Wrap" FontSize="11" Foreground="#5a4a1c" />
+        </Border>
+        <ScrollViewer Name="Scroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="White">
+            <WrapPanel Name="Grid" Margin="3,0,0,6" />
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>
