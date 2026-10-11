@@ -928,6 +928,9 @@ namespace Map_Editor.Engine.Tools
 
             bool inViewport = mouseState.Intersects(device.Viewport);
             bool leftDown = mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed;
+
+            // The thumbnail worker yields while the map is being worked on.
+            ObjectThumbnails.Busy = model >= 0 || (leftDown && inViewport);
             bool leftPressed = leftDown && !leftWasDown && inViewport;
             leftWasDown = leftDown;
 

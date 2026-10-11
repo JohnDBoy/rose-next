@@ -115,6 +115,20 @@ namespace Map_Editor.Engine.RenderManager
             get { lock (sync) { return queue.Count; } }
         }
 
+        /// <summary>How many pictures were rendered since the editor started (cache hits excluded).</summary>
+        public static int Completed
+        {
+            get { return completed; }
+        }
+        private static volatile int completed;
+
+        /// <summary>
+        /// Set by the tools while the user is placing or dragging: the worker
+        /// waits rather than compete for the GPU (each render ends in a
+        /// read-back that stalls the device the editor is drawing with).
+        /// </summary>
+        public static volatile bool Busy;
+
         public static BitmapSource Placeholder()
         {
             if (placeholder == null)
@@ -188,9 +202,15 @@ namespace Map_Editor.Engine.RenderManager
                         image = LoadPng(file);
                     if (image == null)
                     {
+                        // Not while the user is placing or dragging, and never two in a
+                        // row without a breath: the editor's frames come first.
+                        while (Busy)
+                            Thread.Sleep(50);
                         image = Render(r.Zsc, r.Index, meshes, textures);
                         if (image != null)
                             SavePng(file, image);
+                        completed++;
+                        Thread.Sleep(8);
                     }
                 }
                 catch (Exception ex)

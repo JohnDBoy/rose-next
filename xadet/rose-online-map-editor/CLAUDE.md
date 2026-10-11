@@ -232,9 +232,17 @@ by hand in the GUI; the headless tests below pass.
 - **View > Frame statistics** (`[Debug] FrameStats`, `Engine/FrameStats.cs`)
   writes one line every two seconds: average and worst frame, update / draw /
   pick / ghost / boxes time per frame, boxes drawn, thumbnails pending, gen-2
-  collections. Use it before guessing at a hitch; the thumbnail worker (GPU
-  read-back per picture) and the forced `GC.Collect()` every 5 s in
-  `Main.xaml.cs` are the two remaining suspects, not yet measured.
+  collections, plus the worst frame's own split (update / draw / ui / other).
+  First measurement (2026-10-11, Birth Island, boxes on): steady 16.7 ms
+  (vsync), draw 5-8 ms, pick 0.1, ghost 0.03, 600 boxes 0.35 ms. Every
+  interval with a gen-2 collection had a 31-35 ms worst frame against 18-20
+  without: the forced `GC.Collect()` every 5 s in `Main.xaml.cs` cost ~15 ms
+  each time and is gone (it dated from the leak above). The 90-330 ms spikes
+  were "other" time: the thumbnail worker (its GPU read-back stalls the
+  device the editor draws with) and WPF work on the shared UI thread while
+  the palette is in use. The worker now sleeps 8 ms between renders and
+  waits while `ObjectThumbnails.Busy` (placing, or the button down over the
+  map). The browser's UI-thread work is measured as `ui`.
 - `tests/Run-ObjectBrowserTests.ps1` builds the editor, then against the real
   data: catalogue and search, a foreign crane appended into Junon Polis' table
   and saved to `build/object-browser-tests/` and read back by both readers with

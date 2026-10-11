@@ -315,6 +315,19 @@ namespace Map_Editor.Forms.Controls
 
         private void Refill()
         {
+            long uiStart = Engine.FrameStats.Start();
+            try
+            {
+                RefillCore();
+            }
+            finally
+            {
+                Engine.FrameStats.Add("ui", uiStart);
+            }
+        }
+
+        private void RefillCore()
+        {
             ObjectThumbnails.CancelAll();
             Grid.Children.Clear();
             tiles.Clear();
@@ -496,7 +509,9 @@ namespace Map_Editor.Forms.Controls
             Image captured = image;
             ObjectThumbnails.Request(entry.Table.Zsc, entry.Table.Path, entry.Index, delegate(BitmapSource picture)
             {
+                long uiStart = Engine.FrameStats.Start();
                 captured.Source = picture;
+                Engine.FrameStats.Add("ui", uiStart);
             });
         }
 
