@@ -1527,7 +1527,7 @@ Diagnosing a suspected bad bake: parse the `.idx` FAT (`short len; char name[len
 **Prefer `--art-only --template-row N` for anything from an unfamiliar dump.** It takes the model (plus `--copy-icon` / `--copy-field-model`) and clones every stat column from one of *our* rows, reading no source cell at all. That is a safety property, not a convenience: item bonus/requirement columns are ability ids fed straight into `m_iAddValue[nType] += nValue` with **no bounds check** on either side (`src/client/common/cuserdata.cpp`, and the gameserver's copy). `m_iAddValue` is `int[AT_MAX]` with `m_nPassiveRate`/`m_btRecoverHP`/`m_iDropRATE` directly behind it, so a modern affix id (Jrose uses 174/175/184/185/195) silently corrupts adjacent character state instead of erroring. `--art-only` also skips the source STL, sidestepping foreign dialects — Jrose writes the legacy `I_NUM` header that our strict reader rejects. See [doc/jrose-back-import.md](doc/jrose-back-import.md). `scripts/add-item-icon.py` adds a custom item icon from a PNG (any size, auto-downscaled to a 40×40 cell) to the `ITEM1.TSI` atlas and prints the new global icon index (`--weapon-row N` also patches the STB); requires Pillow. `scripts/add-skill-icon.py` is the same tool for **skill** icons (`SKILLICON.TSI`, extension sheets `skill04.dds`+, original indices 0–506, extensions from 507; `--skill-row N` patches `LIST_SKILL.STB` col 51). Note the two TSIs use different sprite-rect conventions (item `x..x+40`, skill `x..x+39`) — each script matches its atlas. Both docstrings document the underlying binary formats — read them before editing STB/ZSC/STL/TSI by hand.
 
 **Original weapons come in through `scripts/import-glb-weapon.py`** (2026-10-11; first item:
-the Meshy-generated "Celestial Frost Scepter", LIST_WEAPON 1469, validated in game the same day). It
+the Meshy-generated "Celestial Frost Scepter", LIST_WEAPON 1469, validated in game the same day; since 2026-10-12 that row *is* the moving version below -- the static one was dropped). It
 reads a glTF binary (Meshy's `glb` export — the only format on its list that needs no Blender
 and carries geometry + UVs + the base-colour texture in one file), writes a ZMS0008 rigid mesh
 (format 0x86: position, normal, uv0; no bones, no material ids, no strip, pool 0) plus a DXT5
@@ -1553,8 +1553,8 @@ anchor dummies** (trail tip, trail low, gem point = index 2, LIST_WEAPON col 43)
 them silently shows no socketed-gem glow (`CObjAVT::CreateGemmingEffect` bounds-checks the index) --
 the Vengeance Staff template has none.
 
-**Moving pieces on a custom weapon** (2026-10-12, validated in game: LIST_WEAPON 1470 "Celestial
-Frost Scepter (Spin)"): a piece of the model becomes a rigid mesh inside its own `.EFT`, turned by
+**Moving pieces on a custom weapon** (2026-10-12, validated in game on the Celestial Frost Scepter,
+LIST_WEAPON 1469, slug `celestial_frost_scepter`): a piece of the model becomes a rigid mesh inside its own `.EFT`, turned by
 a generated node-rotation `.ZMO` (loop count 0) and attached by a `POINT_EFFECT_ORIENTED` dummy
 on the weapon object -- the Jrose animated backs' mechanism, never used on a weapon in retail.
 Three selections: `--spin INDEX:SECONDS[:circular]` (a detached shell; the dry run prints the
