@@ -565,6 +565,19 @@ CObjMOB::Change_CHAR(int iCharIDX) {
         return false;
     }
 
+    /// The new form starts at its own full HP, and the clients have to be told:
+    /// the packet carries it, because the client cannot derive it (it would have
+    /// to know this is a fresh body and not the old one with a new model) and the
+    /// only other HP it hears about is the next hit's hp_after. So the state is
+    /// switched first and the packet built from it.
+    // 이거만 해도 될려나 ???
+    // 모델 데이타 !!!! 안해서 뻑~~~
+    this->m_nCharIdx = iCharIDX;
+    this->m_pCharMODEL = g_pCharDATA->GetMODEL(iCharIDX);
+    this->m_fScale = NPC_SCALE(iCharIDX) / 100.f;
+    this->m_iOriMaxHP = ClampedMobMaxHP(iCharIDX);
+    this->m_iHP = m_iOriMaxHP;
+
     classPACKET* pCPacket = Packet_AllocNLock();
     if (!pCPacket)
         return false;
@@ -573,18 +586,11 @@ CObjMOB::Change_CHAR(int iCharIDX) {
     pCPacket->m_HEADER.m_nSize = sizeof(gsv_CHANGE_NPC);
     pCPacket->m_gsv_CHANGE_NPC.m_wObjectIDX = this->Get_INDEX();
     pCPacket->m_gsv_CHANGE_NPC.m_nNPCNo = iCharIDX;
+    pCPacket->m_gsv_CHANGE_NPC.m_iHP = this->m_iHP;
 
     this->GetZONE()->SendPacketToSectors(this, pCPacket);
 
     Packet_ReleaseNUnlock(pCPacket);
-
-    // 이거만 해도 될려나 ???
-    // 모델 데이타 !!!! 안해서 뻑~~~
-    this->m_nCharIdx = iCharIDX;
-    this->m_pCharMODEL = g_pCharDATA->GetMODEL(iCharIDX);
-    this->m_fScale = NPC_SCALE(iCharIDX) / 100.f;
-    this->m_iOriMaxHP = ClampedMobMaxHP(iCharIDX);
-    this->m_iHP = m_iOriMaxHP;
 
     return true;
 }

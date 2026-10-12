@@ -2114,7 +2114,22 @@ CRecvPACKET::Recv_gsv_CHANGE_NPC() {
         /// it is the shape that corrupted the heap at zone teardown.
         if (!pCHAR->HasModelNODE()) {
             g_pObjMGR->Del_Object(pCHAR->Get_INDEX());
+            return;
         }
+
+        /// The new form is at its own full HP on the server (CObjMOB::Change_CHAR);
+        /// Create() seeded the rebuilt character with the row's per-level HP value
+        /// and the shadow still held the old body's HP, so the bar read near zero
+        /// until the next hit. The packet carries the real value; apply it the way
+        /// a direct HP sync is applied, which also supersedes any hit queued for
+        /// the old body.
+        LogString(LOG_DEBUG_,
+            "CombatTrace GSV_CHANGE_NPC.hp: target %d npc %d hp %d visible %d\n",
+            (int)m_pRecvPacket->m_gsv_CHANGE_NPC.m_wObjectIDX,
+            (int)m_pRecvPacket->m_gsv_CHANGE_NPC.m_nNPCNo,
+            m_pRecvPacket->m_gsv_CHANGE_NPC.m_iHP,
+            pCHAR->Get_HP());
+        pCHAR->Reconcile_HP(m_pRecvPacket->m_gsv_CHANGE_NPC.m_iHP);
     }
 }
 

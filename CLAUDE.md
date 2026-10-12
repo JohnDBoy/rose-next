@@ -1500,8 +1500,12 @@ Our `data/` is a translated iROSE dump with gaps; the reference dumps in `C:\Use
   appended), and **Turak's morphs 559/560** were "???(??)" with a key the STL lacks -- named
   "Turak" / LNPC0558 as every dump has them. Whole-file originals in `build/spawned-npc-gaps/orig/`,
   `--restore` refuses if a table changed since (hash in the manifest). Servers load the CHR and
-  LIST_NPC: restart and bake. Known, not fixed: on Change_CHAR the client's HP bar does not follow
-  the new form's max HP (559/560 have a higher HP column than 558).
+  LIST_NPC: restart and bake. **A morph (AI Change_CHAR) now ships its HP** (2026-10-12, validated):
+  `gsv_CHANGE_NPC` carries the new form's HP, the server switches state before building the packet,
+  and the client applies it through `Reconcile_HP` -- before, `CObjMOB::Create` seeded the rebuilt
+  character with the row's per-level HP value (259, not 259 x level) under a recomputed max, so the
+  bar read near zero on a full-health monster until the next hit (trace: `visible 259 -> hp 47915`).
+  The swap itself is abrupt (model deleted and recreated, no effect); cosmetic, left as is.
 - `scripts/fix-mob-bullet-effects.py` — restores `WEAPON_BULLET_EFFECT` (`LIST_WEAPON.STB` game col 38). Empty there means a ranged monster fires **no projectile and lands no visible hit**: the client's `Get_BulletNO()` skips `Add_BULLET`, and the server's `UsesProjectileAttackPresentation()` picks `MeleeHitFrame`, which nothing on a bow/gun motion consumes.
 - `scripts/import-arrow-bullets.py` — the player-side sibling: an arrow/bullet's projectile is `NATURAL_BULLET_NO` (`LIST_NATURAL.STB` game col 17, a `LIST_EFFECT` row). Angelic Arrow (320 → 597) and Vengeance Arrow (319 → 600) pointed at **blank** `LIST_EFFECT` rows, so they fired nothing (alpha #2). Only the tsuki dump has those rows; the script writes them in place (plus FILE_EFFECT 32/97 and the `arrow_effect_1`/`elect_hit_02` chain) through `import-monster-skills.py`'s `Plan`. Client-only data.
 - `scripts/add-zone-name.py` — appends entries to `LIST_ZONE_S.STL`. A blank name above the minimap is **not** a minimap bug: the name comes from the STL keyed by `ZONE_STRING_ID`, never from the STB name column. Documents the `ITST01` layout, incl. the 7-bit varint lengths and the fact that the client ignores the per-entry offset table and reads strings sequentially.

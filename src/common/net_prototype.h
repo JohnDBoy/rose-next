@@ -1109,6 +1109,12 @@ struct gsv_DAMAGE: public t_PACKETHEADER {
 struct gsv_CHANGE_NPC: public t_PACKETHEADER {
     WORD m_wObjectIDX;
     short m_nNPCNo;
+    /// The monster's HP after the morph. CObjMOB::Change_CHAR sets the server's
+    /// HP to the new form's full maximum; without this the client rebuilt the
+    /// character with the row's per-level HP value (259, not 259 x level) under
+    /// a max HP it recomputed, and showed a bar near zero on a full-health
+    /// monster until the next damage packet dragged it right (Turak, 2026-10-12).
+    int m_iHP;
 };
 
 struct cli_SUMMON_CMD: public t_PACKETHEADER {
