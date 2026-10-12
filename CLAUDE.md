@@ -1467,6 +1467,22 @@ LTB cell can carry a stale non-zero position; `Stb.s()` does not strip.
 
 Our `data/` is a translated iROSE dump with gaps; the reference dumps in `C:\Users\Thomas\Desktop\Testclients\` (QQ-iROSE, RoseZA, titanRose) are intact, so diffing a single field across all three is a fast, high-confidence way to find and fix them. All three scripts below are idempotent, take `--dry-run`, and verify after writing. `data/` is gitignored, so **the script is the only committed record of the change** — put the reasoning in its docstring.
 
+- `scripts/audit-spawned-npcs.py` (2026-10-12) — **run after any import that touches monsters, NPCs, AI or
+  maps**; read-only, two seconds for the whole game. Walks every zone row's REGEN and MOB lumps, follows
+  every AI action that spawns or morphs into a monster (Change_CHAR, Create_PET, CallToAttack, Summon,
+  SummonMaster*), and checks each reachable id through `LIST_NPC` (blank row, AI file on disk, hand
+  items against `LIST_WEAPON`/`LIST_SUBWPN.ZSC`), `LIST_NPC.CHR` (entry, skeleton), `PART_NPC.ZSC`
+  (models in range with parts, every mesh and texture on disk, part motions) and the motion/effect
+  pools (the 0xCDCD padding excepted). ERROR = crash or invisible body (a blank row reached by an AI
+  action, a missing CHR entry or model, a missing mesh), WARN = degrades with a log line (textures,
+  clips, effects, AI files, hand items past their table, blank rows in regen lumps -- the server
+  refuses those; nine retail ones are known). Exit 1 on an ERROR. Every case it checks was found by
+  hand first (Ghost Seed, Basilisk Captain, Ikaness Worker, Gangster Pangs, the retry storm). First
+  run: 817 reachable ids; **Sikuku Elite Fighter 562 (Turak's summon) and [Astronomer] Boyren 1175
+  (Mount Eruca) have no CHR entry** -- 562 is a hole in every dump we own, 1175 has an entry in tsuki
+  ("[Stargazer] Hubble") and Jrose; **Ikaness Warden 2293 and Evil Fairy 2725 hold weapons 1158/1156
+  whose ZSC objects have no parts** (tsuki's do). Built on `rosedata` + `rosefmt`; nothing is parsed
+  in it. `--zone N`, `--json`.
 - `scripts/fix-mob-bullet-effects.py` — restores `WEAPON_BULLET_EFFECT` (`LIST_WEAPON.STB` game col 38). Empty there means a ranged monster fires **no projectile and lands no visible hit**: the client's `Get_BulletNO()` skips `Add_BULLET`, and the server's `UsesProjectileAttackPresentation()` picks `MeleeHitFrame`, which nothing on a bow/gun motion consumes.
 - `scripts/import-arrow-bullets.py` — the player-side sibling: an arrow/bullet's projectile is `NATURAL_BULLET_NO` (`LIST_NATURAL.STB` game col 17, a `LIST_EFFECT` row). Angelic Arrow (320 → 597) and Vengeance Arrow (319 → 600) pointed at **blank** `LIST_EFFECT` rows, so they fired nothing (alpha #2). Only the tsuki dump has those rows; the script writes them in place (plus FILE_EFFECT 32/97 and the `arrow_effect_1`/`elect_hit_02` chain) through `import-monster-skills.py`'s `Plan`. Client-only data.
 - `scripts/add-zone-name.py` — appends entries to `LIST_ZONE_S.STL`. A blank name above the minimap is **not** a minimap bug: the name comes from the STL keyed by `ZONE_STRING_ID`, never from the STB name column. Documents the `ITST01` layout, incl. the 7-bit varint lengths and the fact that the client ignores the per-entry offset table and reads strings sequentially.
