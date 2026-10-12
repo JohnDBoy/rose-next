@@ -172,24 +172,16 @@ class Header(object):
 
 
 def read_header(path):
-    """Parse the parts of a DDS header we care about, or None if it is not a DDS."""
-    try:
-        with open(path, "rb") as f:
-            head = f.read(128)
-    except OSError:
-        return None
-    if len(head) < 128 or head[:4] != b"DDS ":
+    """Parse the parts of a DDS header we care about, or None if it is not a DDS
+    (``rosefmt.dds.header``)."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from rosefmt import dds
+    d = dds.header(path)
+    if d is None:
         return None
     h = Header()
-    flags = struct.unpack_from("<I", head, 8)[0]
-    h.height, h.width = struct.unpack_from("<II", head, 12)
-    mips = struct.unpack_from("<I", head, 28)[0]
-    h.mips = mips if (flags & DDSD_MIPMAPCOUNT) else 0
-    h.pf_flags = struct.unpack_from("<I", head, 80)[0]
-    h.fourcc = head[84:88]
-    h.bits = struct.unpack_from("<I", head, 88)[0]
-    h.amask = struct.unpack_from("<I", head, 104)[0]
-    h.caps2 = struct.unpack_from("<I", head, 112)[0]
+    h.height, h.width, h.mips = d.height, d.width, d.mips
+    h.pf_flags, h.fourcc, h.bits, h.amask, h.caps2 = d.pf_flags, d.fourcc, d.bit_count, d.a_mask, d.caps2
     return h
 
 

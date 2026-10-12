@@ -130,6 +130,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 OURS = os.path.join(ROOT, "data")
 sys.path.insert(0, HERE)
+from rosefmt import zms as _zms  # noqa: E402
+from rosefmt.binio import FormatError  # noqa: E402
 
 STB_REL = r"3DDATA\STB\LIST_WEAPON.STB"
 ZSC_REL = r"3DDATA\WEAPON\LIST_WEAPON.ZSC"
@@ -283,66 +285,30 @@ def gather(glb):
 
 def read_zms_v8(path):
     """(positions m, normals, uv0, faces) of a v7/v8 rigid mesh -- enough to
-    measure a template and to verify our own output."""
-    b = open(path, "rb").read()
-    e = b.index(b"\0")
-    magic = b[:e].decode("latin-1")
-    if magic not in ("ZMS0007", "ZMS0008"):
-        sys.exit("%s: %s is not a v7/v8 mesh" % (path, magic))
-    p = e + 1
-    fmt = struct.unpack_from("<I", b, p)[0]
-    p += 4 + 24
-    nb = struct.unpack_from("<H", b, p)[0]
-    p += 2 + 2 * nb
-    nv = struct.unpack_from("<H", b, p)[0]
-    p += 2
-    pos = np.frombuffer(b, "<f4", nv * 3, p).reshape(nv, 3).astype(np.float64)
-    p += 12 * nv
-    nrm = None
-    if fmt & VF_NORMAL:
-        nrm = np.frombuffer(b, "<f4", nv * 3, p).reshape(nv, 3).astype(np.float64)
-        p += 12 * nv
-    if fmt & 8:
-        p += 16 * nv
-    if (fmt & 16) and (fmt & 32):
-        p += 24 * nv
-    if fmt & 64:
-        p += 12 * nv
-    uv = None
-    for bit in (128, 256, 512, 1024):
-        if fmt & bit:
-            u = np.frombuffer(b, "<f4", nv * 2, p).reshape(nv, 2).astype(np.float64)
-            uv = u if uv is None else uv
-            p += 8 * nv
-    nf = struct.unpack_from("<H", b, p)[0]
-    p += 2
-    faces = np.frombuffer(b, "<u2", nf * 3, p).reshape(nf, 3).astype(np.int64)
-    return pos, nrm, uv, faces
+    measure a template and to verify our own output (``rosefmt.zms``)."""
+    m = _zms.parse(path)
+    if m.version not in (7, 8):
+        sys.exit("%s: ZMS%04d is not a v7/v8 mesh" % (path, m.version))
+    pos = m.positions.astype(np.float64)
+    nrm = m.normals.astype(np.float64) if m.normals is not None else None
+    uv = m.uvs[0].astype(np.float64) if m.uvs else None
+    return pos, nrm, uv, m.faces.astype(np.int64)
 
 
 def write_zms_v8(pos, nrm, uv, faces, pool=0):
     """pool 0 = static (a weapon part), 1 = dynamic -- what every retail effect
     mesh uses and what zz_morpher asserts (`mesh->get_dynamic()`), since the
-    morpher rewrites the vertex buffer every frame."""
+    morpher rewrites the vertex buffer every frame. (``rosefmt.zms.rigid_v8``)"""
     nv, nf = len(pos), len(faces)
     if nv > MAX_INDEX or nf > MAX_INDEX:
         sys.exit("%d vertices / %d triangles: ZMS counts are 16-bit (keep both under %d). "
                  "Use the generator's remesh/retopology export, or decimate first -- stock "
                  "weapons are 100-2,500 triangles." % (nv, nf, MAX_INDEX))
-    out = [b"ZMS0008\0", struct.pack("<I", VF_POSITION | VF_NORMAL | VF_UV0)]
-    out.append(struct.pack("<3f", *pos.min(0)))
-    out.append(struct.pack("<3f", *pos.max(0)))
-    out.append(struct.pack("<H", 0))                              # bones
-    out.append(struct.pack("<H", nv))
-    out.append(pos.astype("<f4").tobytes())
-    out.append(nrm.astype("<f4").tobytes())
-    out.append(uv.astype("<f4").tobytes())
-    out.append(struct.pack("<H", nf))
-    out.append(faces.astype("<u2").tobytes())
-    out.append(struct.pack("<H", 0))                              # material ids
-    out.append(struct.pack("<H", 0))                              # strip indices
-    out.append(struct.pack("<H", pool))
-    return b"".join(out)
+    try:
+        return _zms.build(_zms.rigid_v8(pos, nrm, uv, faces, pool))
+    except FormatError as e:
+        sys.exit("%s. Use the generator's remesh/retopology export, or decimate first -- "
+                 "stock weapons are 100-2,500 triangles." % e)
 
 
 def decimate(pos, nrm, uv, faces, target):

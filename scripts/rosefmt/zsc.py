@@ -145,6 +145,63 @@ def serialize_object(o):
     return b"".join(out)
 
 
+# Part / dummy property tags (client io_model.cpp CFixedPART::Load / CCharPART::Load)
+TAG_POS, TAG_ROT, TAG_SCALE, TAG_AXIS_ROT, TAG_BONE, TAG_DUMMY, TAG_PARENT = 1, 2, 3, 4, 5, 6, 7
+TAG_COLLISION = 29
+
+
+def decode_props(props):
+    """A proplist as a dict: ``pos`` (3f), ``rot`` as (x, y, z, w) -- **the file
+    stores w, x, y, z** -- ``scale`` (3f), ``parent`` (1-based in the file, -1 =
+    root here), ``collision`` (i16), ``bone``/``dummy`` (i16), and ``raw``
+    {tag: bytes} for every other tag (the motion paths among them)."""
+    out = {"pos": (0.0, 0.0, 0.0), "rot": (0.0, 0.0, 0.0, 1.0), "scale": (1.0, 1.0, 1.0),
+           "parent": -1, "collision": 0, "raw": {}}
+    o = 0
+    while o < len(props):
+        tag = props[o]
+        o += 1
+        if tag == 0:
+            break
+        ln = props[o]
+        o += 1
+        val = props[o:o + ln]
+        o += ln
+        try:
+            if tag == TAG_POS and ln >= 12:
+                out["pos"] = struct.unpack_from("<3f", val)
+            elif tag == TAG_ROT and ln >= 16:
+                w, x, y, z = struct.unpack_from("<4f", val)
+                out["rot"] = (x, y, z, w)
+            elif tag == TAG_SCALE and ln >= 12:
+                out["scale"] = struct.unpack_from("<3f", val)
+            elif tag == TAG_PARENT and ln >= 2:
+                out["parent"] = struct.unpack_from("<h", val)[0] - 1
+            elif tag == TAG_COLLISION and ln >= 2:
+                out["collision"] = struct.unpack_from("<h", val)[0]
+            elif tag == TAG_BONE and ln >= 2:
+                out["bone"] = struct.unpack_from("<h", val)[0]
+            elif tag == TAG_DUMMY and ln >= 2:
+                out["dummy"] = struct.unpack_from("<h", val)[0]
+            else:
+                out["raw"][tag] = val
+        except struct.error:
+            out["raw"][tag] = val
+    return out
+
+
+def material_flags(flags):
+    """The 36-byte material record after the texture path (the editor's ZSC.cs):
+    nine i16 -- skin, alpha, two_sided, alpha_test, alpha_ref, zwrite, ztest,
+    blend (0 none, 1 lighten, 2 normal), specular -- then f32, i16 and 3f kept
+    raw as ``extra``. 96% of materials are alpha-tested and the flags are
+    unreliable as a whole (doc: Transparency Antialiasing)."""
+    f = struct.unpack_from("<9h", flags, 0)
+    return {"skin": f[0], "alpha": f[1], "two_sided": f[2], "alpha_test": f[3],
+            "alpha_ref": f[4], "zwrite": f[5], "ztest": f[6], "blend": f[7],
+            "specular": f[8], "extra": bytes(flags[18:36])}
+
+
 def prop_paths(props):
     """File paths held in a proplist (part motions)."""
     out, o = [], 0

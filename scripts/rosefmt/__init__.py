@@ -24,9 +24,13 @@ Rules (the reasons are in doc/data-codecs.md):
 * **The trap lives with the code.** Every format gotcha is in the docstring of
   the field it concerns, not in a commit message.
 
-The map formats (ZON, HIM, TIL, MOV, IFO as structured records, LIT) are in
-``scripts/mapgen/`` and stay there; ``rosefmt.ifo_lumps`` is the older raw-lump
-view of an IFO that the importers use, documented as such.
+The map formats (ZON, HIM, TIL, MOV, IFO as structured records, LIT) moved
+here from ``scripts/mapgen/`` on 2026-10-12; ``mapgen.zon`` and friends are
+re-export shims so the generator and its callers read unchanged.
+``rosefmt.ifo_lumps`` is the importers' raw-lump view of an IFO, built on
+``rosefmt.ifo``. ZMS meshes and DDS headers are ``rosefmt.zms`` / ``rosefmt.dds``;
+``mapgen.catalogue`` / ``objlight`` / ``lighting`` are the geometry and baking
+tools on top of them.
 
 Import from a script with::
 
@@ -40,10 +44,22 @@ from .stl import Stl, stl_by_key
 from .zsc import Zsc
 from .chr import Chr
 from .ltb import Ltb
-from . import aip, binio, chr as chr_, condialog, idx, ifo_lumps, ltb, qsd, stb, stl, tsi, zmo, zsc
+from . import (aip, binio, chr as chr_, chunk, condialog, container, dds, idx, ifo,
+               ifo_lumps, lit, ltb, qsd, stb, stl, tsi, zmo, zms, zon, zsc)
 
 __all__ = [
     "FormatError", "Stb", "Stl", "stl_by_key", "Zsc", "Chr", "Ltb",
-    "aip", "binio", "condialog", "idx", "ifo_lumps", "ltb", "qsd", "stb", "stl", "tsi",
-    "zmo", "zsc",
+    "aip", "binio", "chunk", "condialog", "container", "dds", "idx", "ifo", "ifo_lumps",
+    "lit", "ltb", "qsd", "stb", "stl", "tsi", "zmo", "zms", "zon", "zsc", "CODECS",
 ]
+
+# extension -> (parse, build) for the whole-file map codecs (what mapgen.CODECS was)
+CODECS = {
+    ".zon": (zon.parse, zon.build),
+    ".ifo": (ifo.parse, ifo.build),
+    ".him": (chunk.parse_him, chunk.build_him),
+    ".til": (chunk.parse_til, chunk.build_til),
+    ".mov": (chunk.parse_mov, chunk.build_mov),
+    ".lit": (lit.parse_lit, lit.build_lit),
+    ".zms": (zms.parse, zms.build),
+}

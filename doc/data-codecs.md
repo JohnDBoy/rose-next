@@ -56,11 +56,47 @@ others.
 | `ifo_lumps` | IFO chunks as raw lumps | 1582/1582 | the importers' view; `mapgen.ifo` is the structured codec for new work. |
 | `zmo` | motion clips | read-only | header and the `EZMO` event trailer; `with_events` edits frames in place. |
 | `idx` | `data.idx` | read-only | unsigned offsets; `pipeline.exe` writes it. |
-| `binio` | primitives | | `pstr8`/`pstr16`/`vstr` (varint)/`cstr`, `FormatError`, `read_file` (path or bytes). |
+| `binio` | primitives | | `pstr8`/`pstr16`/`vstr` (varint)/`cstr`, `FormatError`, `read_file` (path or bytes); `Reader`/`Writer` cursors. |
+| `zon`, `chunk`, `ifo`, `lit`, `container` | the map formats | 9,035/9,035 | moved from `mapgen/` on 2026-10-12 unchanged; `mapgen.zon` and friends are re-export shims. `rosefmt.CODECS` maps extension to (parse, build). |
+| `zms` | meshes v5-v8 | 7,842/7,842 | `parse`/`build`, `header`, `Mesh.positions_cm`/`triangles_cm`/`bbox_cm`, `rigid_v8`. v6 keeps its per-record u32 index columns; four shipped v8 files end before a trailer field and are kept short. |
+| `dds` | texture headers, BGRA sheets | 14,278/14,278 (header) | `parse_header`/`build_header`, `split`/`join`, `info`, `side`, `read_bgra`/`write_bgra`. DXT encoding stays a texconv tool (`mapgen.lighting.encode_dds`, `make-minimap.py`). |
 
-The map formats stay in `scripts/mapgen/` (ZON, HIM, TIL, MOV, structured
-IFO, LIT, ZSC reading with geometry, DDS). The two packages are siblings; the
-CLAUDE.md table lists both.
+`scripts/mapgen/` is now the generator and the bakers only (`layout`, `terrain`,
+`paint`, `lighting`, `objlight`, `relight`, `catalogue`, `prefab`, `preview`...).
+`catalogue.read_zsc`, `catalogue.mesh_*` and `objlight.read_zms` are geometry
+views built on `rosefmt.zsc` / `rosefmt.zms`; `lighting.dds_info` calls
+`rosefmt.dds.info`. `ifo_lumps` no longer repeats the IFO record layout: it
+walks each record with `rosefmt.ifo`'s readers and slices the byte spans.
+
+## Phase 2 (2026-10-12): the map codecs and the three split formats
+
+The pure codecs in `mapgen/` (`binio`, `container`, `zon`, `chunk`, `ifo`,
+`lit`) moved into `rosefmt` as they were; each `mapgen/<name>.py` is a
+re-export shim, so the 15 scripts and the three `docs/mapgen/*.md` references
+read unchanged. `mapgen.binio`'s `Reader`/`Writer` merged into
+`rosefmt.binio`, and `FormatError` is one class (a `ValueError`). The two IFO
+implementations became one: `ifo_lumps` keeps the importers' raw API but reads
+records through `rosefmt.ifo`. The three formats that were split across both
+packages were merged:
+
+- **ZSC**: `rosefmt.zsc` gained `decode_props` (the file stores the quaternion
+  as w, x, y, z; parent is 1-based) and `material_flags`; `catalogue.read_zsc`
+  is a view over `Zsc` with the same output.
+- **ZMS**: `rosefmt.zms` is new, from the engine's `load_mesh_8`/`load_mesh_6`
+  (`src/engine/src/zz_mesh_tool.cpp`); `catalogue.mesh_box`/`mesh_vertices`/
+  `mesh_triangles`, `objlight.read_zms` and the glb importer's reader/writer
+  are built on it. The private copies in `audit-zsc-bounds.py`,
+  `fix-coplanar-object-overlaps.py`, `fix-wing-twin-faces.py` and
+  `measure-flinch-timing.py` stay (applied one-offs).
+- **DDS**: `rosefmt.dds` is new; `lighting.dds_info`, `audit-lightmap-index`'s
+  `dds_side`, `add-dds-mipmaps`' `read_header` and the icon tools' BGRA
+  sheet reader/writer are built on it.
+
+Verified the same way as phase 1: `mapgen-roundtrip.py` still 9,035/9,035 and
+its selftest; `rosefmt-roundtrip.py` byte-identical on every format including
+ZMS and DDS; the outputs of `catalogue.read_zsc`, the ZMS readers and
+`dds_info` hashed for every file before and after (identical); and the
+read-only script commands diffed before and after.
 
 ## What moved, what stayed
 

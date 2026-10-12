@@ -1,73 +1,65 @@
-"""IFO map chunks as raw lumps -- the importers' view (``x_y.IFO``).
+"""IFO map chunks as raw lumps -- the importers' view, built on ``rosefmt.ifo``.
 
-**The structured codec is ``mapgen.ifo``** (records with fields, every lump
+**The structured codec is ``rosefmt.ifo``** (records with fields, every lump
 decoded, proven on all 9,035 map files); use it for anything new. This module
-is the older, byte-level view the region importers were written against: a
-lump is a block of bytes, an object record is ``(name, fixed, extra)`` with the
-few fields the importers filter on decoded, and a rewrite replaces whole
-blocks. Both round-trip; this one is kept because fifteen importers speak it.
+is the older, byte-level view fifteen region importers were written against:
+a lump is a block of bytes, an object record is ``(name, fixed, extra)`` with
+the few fields the importers filter on decoded, and a rewrite replaces whole
+blocks. The record *layout* is not repeated here: each record is walked with
+the structured codec's own readers and its byte span sliced, so there is one
+place that knows where a field sits.
 
-Layout: ``i32 lump_count | lump_count x (i32 type, i32 absolute_offset)`` then
-the blocks contiguously in table order. The object record shared by every
-object lump::
-
-    u8 name_len + name | i16 warp_id | i16 event_id | i32 obj_type | i32 obj_id
-    | i32 map_x | i32 map_y | 16B quat | 12B pos | 12B scale
-
-Per-lump extras: MOB adds ``i32 AI`` + pascal .CON name; REGEN a point name,
-two mob lists and four i32s; EVENT_OBJECT two **varint** strings (every other
-string is plain u8 -- reading an event-object trigger as u8 silently
-under-consumes the lump); EFFECT a .eft name; SOUND a .wav name, range (cm)
-and interval (s). Undecoded lumps are copied byte for byte. The *final* lump's
-block runs to EOF and RoseZA's map editor leaves junk after it, which is
-captured as ``trailing`` and re-emitted.
+Lump table: ``i32 lump_count | lump_count x (i32 type, i32 absolute_offset)``,
+then the blocks contiguously in table order; a block runs to the next table
+entry's offset, the last to EOF. Every lump but the last must be consumed
+exactly (``exact``): an under-consumed lump is how a misread field is caught
+(an event-object trigger read as u8 instead of varint, for instance). The
+*final* lump's block may carry editor junk, kept as ``trailing``.
 
 Positions are cm relative to the zone centre (world = pos + 520000); chunk
 folder ``x_y`` is slot ``(x, 64 - y)``.
 """
 import struct
 
-from .binio import read_file
+from . import ifo
+from .binio import FormatError, Reader, read_file
 
-LUMP_OBJECT, LUMP_MOB, LUMP_REGEN = 1, 2, 8
-LUMP_SOUND, LUMP_EFFECT = 4, 5
-LUMP_WARP, LUMP_COLLISION, LUMP_EVENT_OBJECT = 10, 11, 12
-LUMP_MAPINFO, LUMP_NPC = 0, 3
-LUMP_WIDEWATER, LUMP_OCEAN, LUMP_WATER = 6, 7, 9
+LUMP_MAPINFO, LUMP_OBJECT, LUMP_MOB, LUMP_CNST = ifo.MAPINFO, ifo.OBJECT, ifo.MOB, ifo.CNST
+LUMP_SOUND, LUMP_EFFECT, LUMP_MORPH, LUMP_WATER = ifo.SOUND, ifo.EFFECT, ifo.MORPH, ifo.WATER
+LUMP_REGEN, LUMP_OCEAN, LUMP_WARP = ifo.REGEN, ifo.OCEAN, ifo.WARP
+LUMP_COLLISION, LUMP_EVENT_OBJECT = ifo.COLLISION, ifo.EVENT_OBJECT
 OBJ_FIXED = 2 + 2 + 4 + 4 + 4 + 4 + 16 + 12 + 12
 
+# per object lump: (record class, extra-fields reader) from the structured codec
+_RECORD = {
+    LUMP_OBJECT: (ifo.Record, None), LUMP_CNST: (ifo.Record, None),
+    LUMP_MORPH: (ifo.Record, None), LUMP_WARP: (ifo.Record, None),
+    LUMP_COLLISION: (ifo.Record, None),
+    LUMP_MOB: (ifo.Mob, ifo._rx_mob), LUMP_SOUND: (ifo.Sound, ifo._rx_sound),
+    LUMP_EFFECT: (ifo.Effect, ifo._rx_effect), LUMP_REGEN: (ifo.Regen, ifo._rx_regen),
+    LUMP_EVENT_OBJECT: (ifo.EventObject, ifo._rx_event),
+}
 
-class IfoReader:
+
+class IfoReader(Reader):
+    """The cursor the old code exposed; ``rosefmt.binio.Reader`` with ``.o``."""
+
     def __init__(self, buf, o=0):
-        self.b, self.o = buf, o
+        super().__init__(buf, o)
 
-    def i32(self):
-        v, = struct.unpack_from("<i", self.b, self.o)
-        self.o += 4
-        return v
+    @property
+    def o(self):
+        return self.pos
 
-    def u8(self):
-        v = self.b[self.o]
-        self.o += 1
-        return v
+    @o.setter
+    def o(self, v):
+        self.pos = v
 
     def take(self, n):
-        s = self.b[self.o:self.o + n]
-        if len(s) != n:
-            raise ValueError("truncated .IFO")
-        self.o += n
-        return s
-
-    def bstr(self):
-        """u8 length + bytes -- what ReadByte + Read/Seek does."""
-        return self.take(self.u8())
+        return self.raw(n)
 
     def vstr(self):
-        """7-bit varint length + bytes -- what CFileSystem::ReadPascalString does."""
-        b = self.u8()
-        if b & 0x80:
-            b = ((self.u8() << 7) | (b - 0x80))
-        return self.take(b)
+        return self.pstr()
 
 
 def put_bstr(s):
@@ -79,39 +71,29 @@ def put_bstr(s):
 def parse_object_lump(buf, start, end, lump_type, exact=True):
     """Decode an object lump. Returns (objects, trailing_bytes).
 
-    Every lump but the last consumes its block exactly, and ``exact`` makes a
-    shortfall an error there -- that is how a misread field gets caught rather
-    than silently absorbed.
+    Each object is ``dict(name, fixed, extra, warp_id, event_id, obj_id, rec)``:
+    ``fixed`` the 60 header bytes after the name, ``extra`` the per-lump
+    fields as bytes, ``rec`` the structured record.
     """
-    r = IfoReader(buf, start)
+    cls, rx = _RECORD.get(lump_type, (ifo.Record, None))
+    r = Reader(buf, start, end)
     count = r.i32()
+    if count < 0 or count > 100000:
+        raise FormatError("lump %d: implausible record count %d" % (lump_type, count))
     objs = []
     for _ in range(count):
-        name = r.bstr()
-        fixed = r.take(OBJ_FIXED)
-        warp_id, event_id = struct.unpack_from("<hh", fixed, 0)
-        obj_id, = struct.unpack_from("<i", fixed, 8)
-        raw_start = r.o
-        if lump_type == LUMP_MOB:
-            r.take(4)                       # i32 AI
-            r.bstr()                        # .CON file
-        elif lump_type == LUMP_EVENT_OBJECT:
-            r.vstr(); r.vstr()              # trigger name, .CON file
-        elif lump_type == LUMP_EFFECT:
-            r.bstr()                        # .eft file
-        elif lump_type == LUMP_SOUND:
-            r.bstr(); r.i32(); r.i32()      # .wav file, range (cm), interval (sec)
-        elif lump_type == LUMP_REGEN:
-            r.bstr()                        # regen point name
-            for _ in range(2):              # basic list, then tactics list
-                for _ in range(r.i32()):
-                    r.bstr(); r.i32(); r.i32()
-            r.take(16)                      # interval, limit, range, tactics point
-        objs.append(dict(name=name, fixed=fixed, extra=buf[raw_start:r.o],
-                         warp_id=warp_id, event_id=event_id, obj_id=obj_id))
-    if r.o > end or (exact and r.o != end):
-        raise ValueError("lump %d: parsed to %d, block ends at %d" % (lump_type, r.o, end))
-    return objs, buf[r.o:end]
+        s0 = r.pos
+        rec = ifo._read_header(r, cls)
+        s1 = r.pos
+        if rx:
+            rx(r, rec)
+        s2 = r.pos
+        fixed = buf[s0 + 1 + len(rec.name):s1]
+        objs.append(dict(name=rec.name, fixed=bytes(fixed), extra=bytes(buf[s1:s2]),
+                         warp_id=rec.warp_id, event_id=rec.event_id, obj_id=rec.obj_id, rec=rec))
+    if r.pos > end or (exact and r.pos != end):
+        raise FormatError("lump %d: parsed to %d, block ends at %d" % (lump_type, r.pos, end))
+    return objs, bytes(buf[r.pos:end])
 
 
 def build_object_lump(objs, trailing=b""):
@@ -126,16 +108,16 @@ def build_object_lump(objs, trailing=b""):
 
 def parse_ifo(buf, label="ifo"):
     """(buf, bounds) with bounds = [(lump_type, start, end)] in table order."""
-    r = IfoReader(buf)
+    r = Reader(buf)
     n = r.i32()
     lumps = [(r.i32(), r.i32()) for _ in range(n)]
-    header_end = r.o
+    header_end = r.pos
     offsets = [o for _, o in lumps]
     if offsets != sorted(offsets):
-        raise ValueError("%s: lump offsets are not in table order" % label)
+        raise FormatError("%s: lump offsets are not in table order" % label)
     if offsets and offsets[0] != header_end:
-        raise ValueError("%s: first lump at %d, header ends at %d"
-                         % (label, offsets[0], header_end))
+        raise FormatError("%s: first lump at %d, header ends at %d"
+                          % (label, offsets[0], header_end))
     bounds = [(t, off, lumps[i + 1][1] if i + 1 < n else len(buf))
               for i, (t, off) in enumerate(lumps)]
     return buf, bounds

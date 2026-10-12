@@ -165,13 +165,8 @@ def listing(path):
 
 
 def dds_side(path):
-    with open(path, "rb") as f:
-        h = f.read(20)
-    if len(h) < 20 or h[:4] != b"DDS ":
-        return None
-    import struct
-    hgt, wid = struct.unpack_from("<2I", h, 12)
-    return wid, hgt
+    from rosefmt import dds
+    return dds.side(path)
 
 
 def audit_chunk(zdir, stem, zscs, add):

@@ -45,6 +45,8 @@ import numpy as np
 from PIL import Image
 
 from . import areas, catalogue, lighting, lit
+from rosefmt import zms as _zms
+from rosefmt.binio import FormatError
 
 LIT_FORMATS = (390, 386)         # pos|normal|uv0|uv1, pos|uv0|uv1
 ORIGIN_CM = 520000.0             # IFO positions are zone-centre-relative
@@ -84,44 +86,15 @@ OBJECT_DEFAULT = {
 
 def read_zms(data_dir, rel):
     """(positions cm (n, 3), faces (m, 3), uv1 (n, 2), format) of a v7/v8
-    ZMS (zz_mesh_tool.cpp load_mesh_8: position, normal, colour, skin,
-    tangent, uv0..uv3, faces), or None. v6 meshes are never lit in retail."""
+    ZMS, or None. v6 meshes are never lit in retail. (``rosefmt.zms``)"""
     try:
-        with open(os.path.join(data_dir, rel.replace("\\", os.sep)), "rb") as f:
-            b = f.read()
-    except OSError:
+        m = _zms.parse(os.path.join(data_dir, rel.replace("\\", os.sep)))
+    except (OSError, FormatError):
         return None
-    e = b.index(b"\0")
-    magic = b[:e].decode("latin-1")
-    if magic not in ("ZMS0007", "ZMS0008"):
+    if m.version not in (7, 8):
         return None
-    p = e + 1
-    fmt = struct.unpack_from("<I", b, p)[0]
-    p += 4 + 24
-    nb = struct.unpack_from("<H", b, p)[0]
-    p += 2 + 2 * nb
-    nv = struct.unpack_from("<H", b, p)[0]
-    p += 2
-    pos = np.frombuffer(b, "<f4", nv * 3, p).reshape(nv, 3).astype(float) * 100.0
-    p += 12 * nv
-    if fmt & 4:
-        p += 12 * nv                                   # normal
-    if fmt & 8:
-        p += 16 * nv                                   # colour (float4)
-    if (fmt & 16) and (fmt & 32):
-        p += 24 * nv                                   # skin: float4 weights + 4 x u16
-    if fmt & 64:
-        p += 12 * nv                                   # tangent
-    uvs = []
-    for bit in (128, 256, 512, 1024):
-        if fmt & bit:
-            uvs.append(np.frombuffer(b, "<f4", nv * 2, p).reshape(nv, 2).astype(float))
-            p += 8 * nv
-    nf = struct.unpack_from("<H", b, p)[0]
-    p += 2
-    faces = np.frombuffer(b, "<u2", nf * 3, p).reshape(nf, 3).astype(int)
-    uv1 = uvs[1] if len(uvs) >= 2 else None
-    return pos, faces, uv1, fmt
+    uv1 = m.uvs[1].astype(float) if len(m.uvs) >= 2 else None
+    return m.positions_cm(), m.faces.astype(int), uv1, m.format
 
 
 class Parts:

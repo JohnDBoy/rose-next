@@ -23,6 +23,8 @@ import argparse, io, os, struct, shutil, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rosefmt.tsi import tsi_read, tsi_write  # noqa: E402
+from rosefmt import dds as _dds  # noqa: E402
+from rosefmt.binio import FormatError  # noqa: E402
 
 from PIL import Image
 
@@ -93,64 +95,28 @@ def occupied_cells(textures, blocks):
 
 # ---------------------------------------------------------------- DDS (uncompressed BGRA)
 def dds_write(path, img, dry):
+    """Write a 512x512 RGBA image as an uncompressed BGRA DDS, no mip chain.
+
+    No chain on purpose: adding it is scripts/add-dds-mipmaps.py's job -- the
+    two scripts are a loop (this writes a plain sheet, that one mips it). For
+    this atlas the chain is never sampled (zz_renderer_d3d forces miplevels = 1
+    for image textures), so it only costs file size. (``rosefmt.dds``)
+    """
     assert img.size == (SHEET_SIZE, SHEET_SIZE) and img.mode == "RGBA"
-    header = struct.pack(
-        "<4sIIIIIII44xIIIIIIIIII12x",
-        b"DDS ", 124,
-        0x0000100F,                 # CAPS|HEIGHT|WIDTH|PITCH|PIXELFORMAT
-        SHEET_SIZE, SHEET_SIZE,
-        SHEET_SIZE * 4, 0, 0,       # pitch, depth, mipcount
-        32, 0x41, 0, 32,            # pf: size, RGB|ALPHAPIXELS, fourcc, bitcount
-        0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000,
-        0x1000, 0)                  # caps: TEXTURE, caps2; +12 pad = 128-byte header
-    assert len(header) == 128, len(header)
-    b, g, r, a = (img.getchannel(c) for c in ("B", "G", "R", "A"))
-    pixels = Image.merge("RGBA", (b, g, r, a)).tobytes()  # BGRA byte order
-    if not dry:
-        with open(path, "wb") as fh:
-            fh.write(header + pixels)
+    _dds.write_bgra(path, img, dry)
 
 def dds_read_bgra(path):
-    """Read the top mip of one of our uncompressed extension sheets.
+    """The top mip of one of our uncompressed extension sheets as RGBA.
 
-    Validate the pixel format from the header rather than from the file length.
-    An earlier version asserted `len(d) == 128 + SHEET_SIZE**2 * 4`, which broke
-    the moment something regenerated icon51.dds with a mip chain (10 levels, so
-    1,398,228 bytes instead of 1,048,704) -- and since add_icon() fills the last
-    extension sheet before starting a new one, that blocked *every* new item
-    icon, from a PNG or from another data set's atlas. The trailing mips are
-    simply ignored; we only ever composite into level 0.
-
-    What put a chain on icon51.dds is scripts/add-dds-mipmaps.py, the sweep that
-    gives every mip-less DDS under data/ a real one so D3DX does not build it at
-    load time. The two scripts are a loop -- this one writes a plain sheet, that
-    one mips it -- and before this read tolerated a chain, running the sweep
-    locked *every* subsequent icon add out of the sheet permanently.
-
-    dds_write() still emits no chain on purpose: adding it is the sweep's job,
-    not this script's. So run add-dds-mipmaps.py after adding icons, before a
-    bake. For this atlas specifically the chain is never actually sampled --
-    zz_renderer_d3d forces `miplevels = 1` for image textures ("if this is image
-    texture, we need no mipmap") -- so it costs a little file size and nothing
-    else. It matters enormously for model textures, which is the case that
-    justifies the sweep.
+    Validated from the header, not the file length: a sheet that the mipmap
+    sweep gave a chain is longer than one level, and the extra levels are
+    ignored (we only ever composite into level 0). (``rosefmt.dds``)
     """
-    with open(path, "rb") as fh:
-        d = fh.read()
-    if d[:4] != b"DDS " or len(d) < 128:
-        sys.exit("%s is not a DDS file" % path)
-    h, w = struct.unpack_from("<II", d, 12)
-    pf_flags, fourcc, bitcount = struct.unpack_from("<I4sI", d, 80)
-    top = SHEET_SIZE * SHEET_SIZE * 4
-    if (w, h) != (SHEET_SIZE, SHEET_SIZE) or bitcount != 32 \
-            or not (pf_flags & 0x41) or fourcc != b"\x00\x00\x00\x00" \
-            or len(d) < 128 + top:
-        sys.exit("%s is not one of our uncompressed %dx%d BGRA extension sheets "
-                 "(got %dx%d, fourcc %r, %d bpp)"
-                 % (path, SHEET_SIZE, SHEET_SIZE, w, h, fourcc, bitcount))
-    bgra = Image.frombytes("RGBA", (SHEET_SIZE, SHEET_SIZE), d[128:128 + top])
-    c0, c1, c2, c3 = bgra.split()  # file bytes are B,G,R,A -> swap back
-    return Image.merge("RGBA", (c2, c1, c0, c3))
+    try:
+        return _dds.read_bgra(path, size=(SHEET_SIZE, SHEET_SIZE))
+    except FormatError as e:
+        sys.exit("%s is not one of our uncompressed %dx%d BGRA extension sheets (%s)"
+                 % (path, SHEET_SIZE, SHEET_SIZE, e))
 
 # ---------------------------------------------------------------- main
 def add_icon(art, label, dry):

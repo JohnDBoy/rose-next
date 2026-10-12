@@ -27,84 +27,38 @@ import numpy as np
 
 from . import chunk, ifo, terrain, tiles
 from .paint import SLOPE_BANDS, corner_slopes
+from rosefmt import zms as _zms
+from rosefmt.binio import FormatError
+from rosefmt.zsc import Zsc, decode_props, material_flags
 
 TAG_POS, TAG_ROT, TAG_SCALE, TAG_PARENT, TAG_COLLISION = 1, 2, 3, 7, 29
 MESH_SCALE = {6: 1.0, 7: 100.0, 8: 100.0}            # header units -> cm
 
 
 def read_zsc(path):
-    """Objects of a map ZSC: [{"parts": [{mesh, pos, rot(x,y,z,w), scale, parent, collision}]}], meshes."""
-    raw = open(path, "rb").read()
-    p = [0]
-
-    def take(fmt):
-        v = struct.unpack_from(fmt, raw, p[0])
-        p[0] += struct.calcsize(fmt)
-        return v if len(v) > 1 else v[0]
-
-    def cstr():
-        e = raw.index(b"\0", p[0])
-        s = raw[p[0]:e].decode("latin-1")
-        p[0] = e + 1
-        return s
-
-    meshes = [cstr() for _ in range(take("<h"))]
-    materials, mat_flags = [], []
-    for _ in range(take("<h")):                       # materials: texture path + flags
-        materials.append(cstr())
-        # skin, alpha, two-sided, alpha test, alpha ref, z write, z test,
-        # blend (0 none, 1 lighten, 2 normal), specular (the editor's ZSC.cs)
-        f = struct.unpack_from("<9h", raw, p[0])
-        mat_flags.append({"alpha": f[1], "alpha_test": f[3], "zwrite": f[5], "blend": f[7]})
-        p[0] += 9 * 2 + 4 + 2 + 12
-    for _ in range(take("<h")):                       # effects
-        cstr()
+    """Objects of a map ZSC: [{"parts": [{mesh, pos, rot(x,y,z,w), scale, parent,
+    collision, texture, material}]}], meshes -- the catalogue's view over
+    ``rosefmt.zsc.Zsc`` (material flags: alpha, alpha_test, zwrite, blend)."""
+    z = Zsc(path)
+    if z.trailing:
+        raise ValueError("%s: parsed %d of %d bytes" % (path, z.obj_end, len(z.d)))
+    meshes = [m.decode("latin-1") for m in z.meshes]
+    materials = [p.decode("latin-1") for p, _ in z.materials]
+    mat_flags = []
+    for _, flags in z.materials:
+        f = material_flags(flags)
+        mat_flags.append({"alpha": f["alpha"], "alpha_test": f["alpha_test"],
+                          "zwrite": f["zwrite"], "blend": f["blend"]})
     objects = []
-    for _ in range(take("<h")):
-        take("<3i")
-        parts = []
-        n = take("<h")
-        if n:
-            for _ in range(n):
-                part = {"mesh": take("<h"), "pos": (0.0, 0.0, 0.0), "rot": (0.0, 0.0, 0.0, 1.0),
-                        "scale": (1.0, 1.0, 1.0), "parent": -1, "collision": 0}
-                mat = take("<h")
-                part["texture"] = materials[mat] if 0 <= mat < len(materials) else ""
-                part["material"] = mat_flags[mat] if 0 <= mat < len(mat_flags) else {}
-                while True:
-                    tag = take("<B")
-                    if tag == 0:
-                        break
-                    size = take("<B")
-                    end = p[0] + size
-                    if tag == TAG_POS:
-                        part["pos"] = take("<3f")
-                    elif tag == TAG_ROT:
-                        w, x, y, z = take("<4f")
-                        part["rot"] = (x, y, z, w)
-                    elif tag == TAG_SCALE:
-                        part["scale"] = take("<3f")
-                    elif tag == TAG_PARENT:
-                        part["parent"] = take("<h") - 1
-                    elif tag == TAG_COLLISION:
-                        part["collision"] = take("<h")
-                    p[0] = end
-                parts.append(part)
-            for _ in range(take("<h")):               # per-object effects
-                take("<2h")
-                while True:
-                    tag = take("<B")
-                    if tag == 0:
-                        break
-                    # Not `p[0] += take("<B")`: that reads p[0] BEFORE take()
-                    # advances it, losing the size byte (same trap as in
-                    # audit-zsc-bounds.py).
-                    size = take("<B")
-                    p[0] += size
-            p[0] += 24                                # stored bbox (wrong; unused)
-        objects.append({"parts": parts})
-    if p[0] != len(raw):
-        raise ValueError("%s: parsed %d of %d bytes" % (path, p[0], len(raw)))
+    for _cyl, parts, _dummies, _bb in z.objects:
+        out = []
+        for mesh, mat, props in parts:
+            d = decode_props(props)
+            out.append({"mesh": mesh, "pos": d["pos"], "rot": d["rot"], "scale": d["scale"],
+                        "parent": d["parent"], "collision": d["collision"],
+                        "texture": materials[mat] if 0 <= mat < len(materials) else "",
+                        "material": mat_flags[mat] if 0 <= mat < len(mat_flags) else {}})
+        objects.append({"parts": out})
     return meshes, objects
 
 
@@ -117,99 +71,39 @@ def _quat(q):
                      [2 * (x * z + y * w), 2 * (y * z - x * w), 1 - 2 * (x * x + y * y)]])
 
 
-def mesh_box(data_dir, rel):
+def _mesh(data_dir, rel):
     try:
-        with open(os.path.join(data_dir, rel.replace("\\", os.sep)), "rb") as f:
-            head = f.read(64)
-    except OSError:
+        return _zms.parse(os.path.join(data_dir, rel.replace("\\", os.sep)))
+    except (OSError, FormatError):
         return None
-    magic = head[:8].split(b"\0")[0].decode("latin-1")
-    scale = MESH_SCALE.get(int(magic[3:]) if magic[:3] == "ZMS" and magic[3:].isdigit() else 0)
+
+
+def mesh_box(data_dir, rel):
+    """(min, max) of the header box in cm, or None (``rosefmt.zms.header``)."""
+    try:
+        ver, _fmt, lo, hi = _zms.header(os.path.join(data_dir, rel.replace("\\", os.sep)))
+    except (OSError, FormatError):
+        return None
+    scale = MESH_SCALE.get(ver)
     if scale is None:
         return None
-    return np.array(struct.unpack_from("<3f", head, 12)) * scale, np.array(struct.unpack_from("<3f", head, 24)) * scale
+    return np.array(lo) * scale, np.array(hi) * scale
 
 
 def mesh_vertices(data_dir, rel):
-    """Vertex positions in cm, or None. Layout as in fix-coplanar-object-overlaps.py
-    load_mesh (v7/v8 in metres, v6 in cm), positions only."""
-    try:
-        with open(os.path.join(data_dir, rel.replace("\\", os.sep)), "rb") as f:
-            b = f.read()
-    except OSError:
+    """Vertex positions in cm, or None (v7/v8 in metres, v6 in cm)."""
+    m = _mesh(data_dir, rel)
+    if m is None or m.version not in MESH_SCALE:
         return None
-    e = b.index(b"\0")
-    magic = b[:e].decode("latin-1")
-    ver = int(magic[3:]) if magic[:3] == "ZMS" and magic[3:].isdigit() else 0
-    p = e + 1 + 4 + 24                                  # format u32, min/max 6 floats
-    if ver in (7, 8):
-        nb = struct.unpack_from("<H", b, p)[0]
-        p += 2 + 2 * nb
-        nv = struct.unpack_from("<H", b, p)[0]
-        p += 2
-        return np.frombuffer(b, "<f4", nv * 3, p).reshape(nv, 3).astype(float) * 100.0
-    if ver == 6:
-        nb = struct.unpack_from("<I", b, p)[0]
-        p += 4 + 8 * nb
-        nv = struct.unpack_from("<I", b, p)[0]
-        p += 4
-        rec = np.frombuffer(b, "<f4", nv * 4, p).reshape(nv, 4)   # u32 index + xyz
-        return rec[:, 1:].astype(float)
-    return None
+    return m.positions_cm()
 
 
 def mesh_triangles(data_dir, rel):
-    """(n, 3, 3) triangle corners in cm, or None. Same layout walk as
-    fix-coplanar-object-overlaps.py load_mesh, which round-trips every mesh
-    we ship."""
-    try:
-        with open(os.path.join(data_dir, rel.replace("\\", os.sep)), "rb") as f:
-            b = f.read()
-    except OSError:
+    """(n, 3, 3) triangle corners in cm, or None."""
+    m = _mesh(data_dir, rel)
+    if m is None or m.version not in MESH_SCALE:
         return None
-    e = b.index(b"\0")
-    magic = b[:e].decode("latin-1")
-    ver = int(magic[3:]) if magic[:3] == "ZMS" and magic[3:].isdigit() else 0
-    p = e + 1
-    fmt = struct.unpack_from("<I", b, p)[0]
-    p += 4 + 24
-    if ver in (7, 8):
-        nb = struct.unpack_from("<H", b, p)[0]
-        p += 2 + 2 * nb
-        nv = struct.unpack_from("<H", b, p)[0]
-        p += 2
-        verts = np.frombuffer(b, "<f4", nv * 3, p).reshape(nv, 3).astype(float) * 100.0
-        p += 12 * nv
-        sizes = [(4, 12), (8, 16), (64, 12), (128, 8), (256, 8), (512, 8), (1024, 8)]
-        if (fmt & 16) and (fmt & 32):
-            p += 24 * nv
-        for bit, size in sizes:
-            if fmt & bit:
-                p += size * nv
-        nf = struct.unpack_from("<H", b, p)[0]
-        p += 2
-        faces = np.frombuffer(b, "<u2", nf * 3, p).reshape(nf, 3).astype(int)
-    elif ver == 6:
-        nb = struct.unpack_from("<I", b, p)[0]
-        p += 4 + 8 * nb
-        nv = struct.unpack_from("<I", b, p)[0]
-        p += 4
-        verts = np.frombuffer(b, "<f4", nv * 4, p).reshape(nv, 4)[:, 1:].astype(float)
-        p += 16 * nv
-        sizes = [(4, 16), (8, 20), (64, 16), (128, 12), (256, 12), (512, 12), (1024, 12)]
-        if (fmt & 16) and (fmt & 32):
-            p += 36 * nv
-        for bit, size in sizes:
-            if fmt & bit:
-                p += size * nv
-        nf = struct.unpack_from("<I", b, p)[0]
-        p += 4
-        faces = np.frombuffer(b, "<u4", nf * 4, p).reshape(nf, 4)[:, 1:].astype(int)
-    else:
-        return None
-    if len(faces) and faces.max() >= len(verts):
-        return None
-    return verts[faces]
+    return m.triangles_cm()
 
 
 SPECIAL_ZSC = os.path.join("3DDATA", "SPECIAL", "LIST_DECO_SPECIAL.ZSC")

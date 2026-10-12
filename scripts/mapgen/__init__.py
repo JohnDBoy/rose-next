@@ -1,15 +1,16 @@
-"""Map generator: codecs for ROSE zone files (phase 0).
+"""Map generator (layouts, terrain, painting, lightmap bakers, zone assembly).
 
 See docs/mapgen/PLAN.md for the project and docs/mapgen/FORMATS.md for the
-formats. Every codec here is `parse_x(bytes) -> model` and
-`build_x(model) -> bytes`; `scripts/mapgen-roundtrip.py` proves they are exact
-on the whole of data/3DDATA/MAPS.
+formats. The file codecs (ZON, HIM/TIL/MOV, IFO, LIT) live in ``scripts/rosefmt``
+since 2026-10-12 -- ``mapgen.zon`` and friends are re-export shims -- and
+``scripts/mapgen-roundtrip.py`` proves them exact on the whole of
+data/3DDATA/MAPS. Every codec is `parse_x(bytes) -> model`, `build_x(model) -> bytes`.
 """
 
-from . import chunk, ifo, lit, zon
-from .binio import FormatError
+from . import chunk, ifo, lit, zon  # noqa: F401 (shims over rosefmt)
+from .binio import FormatError  # noqa: F401
 
-# extension -> (parse, build)
+# extension -> (parse, build); the codecs are rosefmt's since 2026-10-12
 CODECS = {
     ".zon": (zon.parse, zon.build),
     ".ifo": (ifo.parse, ifo.build),

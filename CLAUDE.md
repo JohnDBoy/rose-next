@@ -1381,19 +1381,19 @@ TIL, MOV, IFO, LIT) have codecs that round-trip retail files **byte for byte**:
 `python scripts/mapgen-roundtrip.py --selftest` proves it on all 9,035 map files.
 The binary layouts, and the client/server code that consumes each field, are in
 [docs/mapgen/FORMATS.md](docs/mapgen/FORMATS.md).
-Import them with `sys.path.insert(0, "scripts")` and `from mapgen import ...`.
+Import them with `sys.path.insert(0, "scripts")` and `from rosefmt import zon, chunk, ifo, lit` (the `mapgen.*` names still work as shims; 2026-10-12).
 
 | File | Module | API |
 |---|---|---|
-| `<zone>.ZON` | `mapgen/zon.py` | `parse(bytes)` / `build(zon)`; info, event points, textures, tiles, economy |
-| `x_y.HIM` / `.TIL` / `.MOV` | `mapgen/chunk.py` | `parse_him` / `build_him` (+ `compute_him_bounds`), `parse_til` / `build_til`, `parse_mov` / `build_mov` |
-| `x_y.IFO` (all 13 lumps) | `mapgen/ifo.py` | `parse(bytes)` / `build(ifo)`; `m.lump(ifo.OBJECT)` -> records (`obj_id`, `pos` zone-centre cm, `rot`, `scale`); NPC/MOB, sound, effect, regen, ocean, warp, collision, event lumps; `None` = lump absent |
-| ZON/IFO lump container | `mapgen/container.py` | unknown lumps kept raw, so a rewrite is byte-identical |
-| `LightMap/*.lit` | `mapgen/lit.py` | `parse_lit` / `build_lit` (`LitObject.obj_index` 1-based ordinal, `LitPart` cell fields) |
-| `LIST_*.ZSC` (read) | `mapgen/catalogue.py` | `read_zsc(path)` -> meshes + objects/parts (mesh, texture, transform, parent, collision, material flags: alpha, alpha test, z-write, blend) |
-| `LIST_*.ZSC` / STB / STL / CHR / LTB (write) | `scripts/import-oro.py` | `Stb` (`get`/`set`/`to_bytes`), `Stl`, `Zsc`, `Chr`, `Ltb` -- the codec library every importer loads |
-| `.ZMS` | `catalogue.mesh_triangles` / `mesh_box`, `objlight.read_zms` | triangles; header box; positions + faces + second UV set + format |
-| `.DDS` | `lighting.encode_dds` (texconv, DXT5, chosen mip count), `lighting.dds_info` | encode / read the header |
+| `<zone>.ZON` | `rosefmt/zon.py` (`mapgen.zon` shim) | `parse(bytes)` / `build(zon)`; info, event points, textures, tiles, economy |
+| `x_y.HIM` / `.TIL` / `.MOV` | `rosefmt/chunk.py` (`mapgen.chunk` shim) | `parse_him` / `build_him` (+ `compute_him_bounds`), `parse_til` / `build_til`, `parse_mov` / `build_mov` |
+| `x_y.IFO` (all 13 lumps) | `rosefmt/ifo.py` (`mapgen.ifo` shim) | `parse(bytes)` / `build(ifo)`; `m.lump(ifo.OBJECT)` -> records (`obj_id`, `pos` zone-centre cm, `rot`, `scale`); NPC/MOB, sound, effect, regen, ocean, warp, collision, event lumps; `None` = lump absent |
+| ZON/IFO lump container | `rosefmt/container.py` (`mapgen.container` shim) | unknown lumps kept raw, so a rewrite is byte-identical |
+| `LightMap/*.lit` | `rosefmt/lit.py` (`mapgen.lit` shim) | `parse_lit` / `build_lit` (`LitObject.obj_index` 1-based ordinal, `LitPart` cell fields) |
+| `LIST_*.ZSC` (read, geometry view) | `mapgen/catalogue.py` over `rosefmt.zsc` | `read_zsc(path)` -> meshes + objects/parts (mesh, texture, transform, parent, collision, material flags); `rosefmt.zsc.decode_props` / `material_flags` are the decoders |
+| `LIST_*.ZSC` / STB / STL / CHR / LTB (write) | `scripts/rosefmt/` | `Stb`, `Stl`, `Zsc`, `Chr`, `Ltb` (see Data File Codecs); `import-oro.py` only re-exports them |
+| `.ZMS` | `rosefmt/zms.py` | `parse`/`build` (v5-v8, byte-exact on all 7,842), `Mesh.positions_cm` / `triangles_cm` / `bbox_cm`, `rigid_v8` to make one; `catalogue.mesh_*` and `objlight.read_zms` are views over it |
+| `.DDS` | `rosefmt/dds.py` + `lighting.encode_dds` | header `parse_header`/`build_header`/`info`/`side`, uncompressed BGRA sheets `read_bgra`/`write_bgra`; DXT encoding is texconv (`lighting.encode_dds`, `make-minimap.py`) |
 | editor STB lists | `tiles.read_stb_cells` | any STB's cells as text |
 | a whole zone's heights | `prefab._zone_field(zdir)` | heightfield (row 0 = south) + SW chunk slot; `mapgen/relight.Zone` loads a zone the way the client does (chunks, IFOs, ZSCs, water) |
 
@@ -1424,7 +1424,7 @@ Tools built on them:
 
 ### Data File Codecs (`scripts/rosefmt/`, 2026-10-12)
 
-**Every non-map file format has one reader and one writer, in `scripts/rosefmt/`.
+**Every file format has one reader and one writer, in `scripts/rosefmt/` -- the map codecs too since 2026-10-12 (`mapgen.zon`/`chunk`/`ifo`/`lit`/`container`/`binio` are re-export shims).**
 Never write another STB/STL/ZSC/CHR/LTB/AIP/TSI/QSD/CON parser in a script, and
 never load `import-oro.py` to get one** (it re-exports these for the 73 scripts
 that still do). Rules, inventory and what was deliberately left alone:
@@ -1442,10 +1442,13 @@ that still do). Rules, inventory and what was deliberately left alone:
 | TSI atlases | `rosefmt/tsi.py` | `read(path, strict)`, `write`, `iter_sprites`, `texture_entry`, `sprite_entry(texid, x1, y1, x2, y2, label)` |
 | QSD quests | `rosefmt/qsd.py` | `parse/build`; `walk`, `find_entity`, `has_trigger`, `build_trigger`, `append_pattern`, `drop_conditions`, `item_refs`, `remap_items`, `quest_refs` |
 | `.CON` dialogs (bytes) | `rosefmt/condialog.py` | `split/join` (Lua + QEX1, keyed on the final size), `str_ids`, `get_item`, `set_click`. Not `con.py`: a reserved name on Windows |
-| IFO as raw lumps | `rosefmt/ifo_lumps.py` | `read_ifo`, `read_lump`, `build_object_lump`, `build_ifo`, `LUMP_*`; **`mapgen.ifo` is the structured codec for new work** |
+| IFO as raw lumps | `rosefmt/ifo_lumps.py` | `read_ifo`, `read_lump`, `build_object_lump`, `build_ifo`, `LUMP_*`; a view built on **`rosefmt.ifo`, the structured codec for new work** (record layout lives there only) |
+| ZON / HIM / TIL / MOV / IFO (records) / LIT | `rosefmt/zon.py`, `chunk.py`, `ifo.py`, `lit.py`, `container.py` | the map codecs (table above); `rosefmt.CODECS` maps extension -> (parse, build) |
+| `.ZMS` meshes | `rosefmt/zms.py` | `parse`/`build`, `header`, `Mesh.positions_cm`/`triangles_cm`, `rigid_v8` |
+| `.DDS` headers / BGRA sheets | `rosefmt/dds.py` | `parse_header`/`build_header`, `split`/`join`, `info`, `side`, `read_bgra`/`write_bgra` |
 | ZMO clips | `rosefmt/zmo.py` | `read_header`, `events`, `event_set`, `with_events` (read + trailer edit only) |
 | `data.idx` | `rosefmt/idx.py` | `parse` (read-only; unsigned offsets) |
-| primitives | `rosefmt/binio.py` | `pstr8/pstr16/vstr/cstr` read+write, `FormatError`, `read_file` |
+| primitives | `rosefmt/binio.py` | `pstr8/pstr16/vstr/cstr` read+write, `FormatError`, `read_file`; `Reader`/`Writer` cursors (the map codecs') |
 
 `python scripts/rosefmt-roundtrip.py` re-serialises every shipped file of every
 format and must stay all-OK (`--root <dump>` for a reference client, `--selftest`

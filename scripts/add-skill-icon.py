@@ -28,6 +28,8 @@ import argparse, io, os, struct, shutil, subprocess, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rosefmt.tsi import tsi_read, tsi_write  # noqa: E402
+from rosefmt import dds as _dds  # noqa: E402
+from rosefmt.binio import FormatError  # noqa: E402
 
 from PIL import Image
 
@@ -69,95 +71,28 @@ def sprite_entry(texid, cell, label):
 
 # ---------------------------------------------------------------- DDS (uncompressed BGRA)
 def dds_write(path, img, dry):
+    """Write a 512x512 RGBA image as an uncompressed BGRA DDS, no mip chain.
+
+    No chain on purpose: adding it is scripts/add-dds-mipmaps.py's job -- the
+    two scripts are a loop (this writes a plain sheet, that one mips it). For
+    this atlas the chain is never sampled (zz_renderer_d3d forces miplevels = 1
+    for image textures), so it only costs file size. (``rosefmt.dds``)
+    """
     assert img.size == (SHEET_SIZE, SHEET_SIZE) and img.mode == "RGBA"
-    header = struct.pack(
-        "<4sIIIIIII44xIIIIIIIIII12x",
-        b"DDS ", 124,
-        0x0000100F,                 # CAPS|HEIGHT|WIDTH|PITCH|PIXELFORMAT
-        SHEET_SIZE, SHEET_SIZE,
-        SHEET_SIZE * 4, 0, 0,       # pitch, depth, mipcount
-        32, 0x41, 0, 32,            # pf: size, RGB|ALPHAPIXELS, fourcc, bitcount
-        0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000,
-        0x1000, 0)                  # caps: TEXTURE, caps2; +12 pad = 128-byte header
-    assert len(header) == 128, len(header)
-    b, g, r, a = (img.getchannel(c) for c in ("B", "G", "R", "A"))
-    pixels = Image.merge("RGBA", (b, g, r, a)).tobytes()  # BGRA byte order
-    if not dry:
-        with open(path, "wb") as fh:
-            fh.write(header + pixels)
+    _dds.write_bgra(path, img, dry)
 
 def dds_read_bgra(path):
-    """Read mip 0 of one of our uncompressed extension sheets.
+    """The top mip of one of our uncompressed extension sheets as RGBA.
 
-    Tolerates a mip chain. scripts/add-dds-mipmaps.py gave every DDS under
-    data/ a chain -- a real load-time win, since D3DX building one at runtime
-    cost 1300 ms across a single session -- so a sheet this script wrote bare
-    does not stay bare. Demanding exactly the base level made the script fail
-    on its own output once that pass had run.
+    Validated from the header, not the file length: a sheet that the mipmap
+    sweep gave a chain is longer than one level, and the extra levels are
+    ignored (we only ever composite into level 0). (``rosefmt.dds``)
     """
-    with open(path, "rb") as fh:
-        d = fh.read()
-    base = SHEET_SIZE * SHEET_SIZE * 4
-    assert d[:4] == b"DDS " and len(d) >= 128 + base, \
-        "%s is not one of our uncompressed extension sheets" % path
-    h, w = struct.unpack_from("<II", d, 12)
-    mips, = struct.unpack_from("<I", d, 28)
-    fourcc, bits = struct.unpack_from("<4sI", d, 84)
-    assert (w, h) == (SHEET_SIZE, SHEET_SIZE) and fourcc == bytes(4) and bits == 32, \
-        "%s: expected 512x512 uncompressed 32-bit (mips=%d fourcc=%r bits=%d)" % \
-        (path, mips, fourcc, bits)
-    bgra = Image.frombytes("RGBA", (SHEET_SIZE, SHEET_SIZE), d[128:128 + base])
-    c0, c1, c2, c3 = bgra.split()  # file bytes are B,G,R,A -> swap back
-    return Image.merge("RGBA", (c2, c1, c0, c3))
-
-TEXCONV = os.path.join("thirdparty", "directxtex-2020.9.30", "texconv.exe")
-
-def restore_mipmaps(path, dry):
-    """Re-add the mip chain dds_write() drops, matching add-dds-mipmaps.py.
-
-    dds_write emits mip 0 only. Leaving it that way silently undoes the
-    mipmap pass for this atlas and puts it back on the slow runtime path
-    (D3DX regenerating a chain on every client, on every load).
-
-    The flags are not interchangeable -- see add-dds-mipmaps.py:
-      -dx9   D3DX9 cannot read a DX10 extended header; the client would
-             draw the icons untextured rather than report an error.
-      -nowic WIC darkens RGB when downsampling (36-71% measured), which
-             shows up only in the lower mips as a wash at distance.
-      -if BOX  a strict 2x2 box is what D3DX produced at runtime before,
-             so the visual result is unchanged.
-    """
-    if dry:
-        print("  would restore the mip chain on %s" % os.path.basename(path))
-        return
-    if not os.path.exists(TEXCONV):
-        print("  WARNING: texconv not found -- %s ships with no mip chain, so the"
-              " client rebuilds one at load. Re-run scripts/add-dds-mipmaps.py."
-              % os.path.basename(path))
-        return
-    cmd = [TEXCONV, "-nologo", "-y", "-dx9", "-m", "0", "-nowic",
-           "-if", "BOX", "-f", "B8G8R8A8_UNORM",
-           "-o", os.path.dirname(path), path]
-    r = subprocess.run(cmd, capture_output=True, text=True)
-    if r.returncode != 0:
-        sys.exit("texconv failed on %s:\n%s" % (path, (r.stdout or r.stderr).strip()))
-    n, = struct.unpack_from("<I", open(path, "rb").read(32), 28)
-    print("  mip chain restored on %s (%d levels)" % (os.path.basename(path), n))
-
-
-# ---------------------------------------------------------------- STB (in-place cell patch)
-def stb_read(path):
-    with open(path, "rb") as fh:
-        d = fh.read()
-    f = io.BytesIO(d)
-    f.read(4)
-    offset, rows, cols = struct.unpack("<III", f.read(12))
-    f.seek(offset)
-    def pstr():
-        n, = struct.unpack("<H", f.read(2))
-        return f.read(n)
-    data = [[pstr() for _ in range(cols - 1)] for _ in range(rows - 1)]
-    return d, offset, rows, cols, data
+    try:
+        return _dds.read_bgra(path, size=(SHEET_SIZE, SHEET_SIZE))
+    except FormatError as e:
+        sys.exit("%s is not one of our uncompressed %dx%d BGRA extension sheets (%s)"
+                 % (path, SHEET_SIZE, SHEET_SIZE, e))
 
 # ---------------------------------------------------------------- main
 def main():

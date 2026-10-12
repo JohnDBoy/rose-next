@@ -1,13 +1,12 @@
 """Round-trip every shipped data file through the rosefmt codecs.
 
-For every STB, STL, ZSC, CHR, LTB, AIP, TSI, QSD, CON and IFO under ``data/``
-(or ``--root``), this parses the file, serialises the model back and compares
-the bytes. A format passes only when every file is byte-identical; a reader
-without a writer (ZMO, the VFS index) is only parsed.
-
-The map formats proper (ZON, HIM, TIL, MOV, IFO as records, LIT) are covered by
-``scripts/mapgen-roundtrip.py``; the IFO check here is the raw-lump view the
-importers use (``rosefmt.ifo_lumps``).
+For every STB, STL, ZSC, CHR, LTB, AIP, TSI, QSD, CON, IFO (both views), ZON,
+HIM, TIL, MOV, LIT, ZMS and DDS (header) under ``data/`` (or ``--root``), this
+parses the file, serialises the model back and compares the bytes. A format
+passes only when every file is byte-identical; a reader without a writer
+(ZMO, the VFS index) is only parsed. ``scripts/mapgen-roundtrip.py`` is the
+detailed map-format report (per-lump accounting, format variants, the HIM
+bounds formula); this is the one gate for every codec.
 
     python scripts/rosefmt-roundtrip.py                 # data/
     python scripts/rosefmt-roundtrip.py --root <dump>   # a reference client
@@ -24,7 +23,8 @@ import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from rosefmt import Chr, Ltb, Stb, Stl, Zsc, aip, condialog as con, ifo_lumps, idx, qsd, tsi, zmo  # noqa: E402
+from rosefmt import (CODECS, Chr, Ltb, Stb, Stl, Zsc, aip, condialog as con, dds,  # noqa: E402
+                     ifo_lumps, idx, qsd, tsi, zmo)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_ROOT = os.path.join(REPO, "data")
@@ -82,10 +82,24 @@ def rt_ifo(p):
     for t, off, end in bounds:
         if t in (ifo_lumps.LUMP_OBJECT, ifo_lumps.LUMP_MOB, ifo_lumps.LUMP_REGEN,
                  ifo_lumps.LUMP_SOUND, ifo_lumps.LUMP_EFFECT, ifo_lumps.LUMP_WARP,
-                 ifo_lumps.LUMP_COLLISION, ifo_lumps.LUMP_EVENT_OBJECT, ifo_lumps.LUMP_NPC):
+                 ifo_lumps.LUMP_COLLISION, ifo_lumps.LUMP_EVENT_OBJECT, ifo_lumps.LUMP_CNST):
             objs, trailing = ifo_lumps.read_lump(buf, bounds, t)
             repl[t] = ifo_lumps.build_object_lump(objs, trailing)
     return ifo_lumps.build_ifo(bounds, buf, repl)
+
+
+def _whole(ext):
+    parse, build = CODECS[ext]
+
+    def rt(p):
+        with open(p, "rb") as fh:
+            return build(parse(fh.read()))
+    return rt
+
+
+def rt_dds(p):
+    with open(p, "rb") as fh:
+        return dds.join(*dds.split(fh.read()))
 
 
 def parse_zmo(p):
@@ -111,6 +125,14 @@ FORMATS = {
     "qsd": (".qsd", rt_qsd),
     "con": (".con", rt_con),
     "ifo": (".ifo", rt_ifo),
+    "ifo-records": (".ifo", _whole(".ifo")),
+    "zon": (".zon", _whole(".zon")),
+    "him": (".him", _whole(".him")),
+    "til": (".til", _whole(".til")),
+    "mov": (".mov", _whole(".mov")),
+    "lit": (".lit", _whole(".lit")),
+    "zms": (".zms", _whole(".zms")),
+    "dds": (".dds", rt_dds),
     "zmo": (".zmo", parse_zmo),
     "idx": (".idx", parse_idx),
 }

@@ -550,8 +550,13 @@ Settled from the client source and the shipped shaders (phase 8 step 3):
 
 ## Codec status (phase 0)
 
-Codecs live in `scripts/mapgen/`. The modules are `zon.py`, `ifo.py`,
-`chunk.py` (HIM/TIL/MOV) and `lit.py`, on top of `binio.py` and `container.py`.
+Codecs live in `scripts/rosefmt/` since 2026-10-12 (the one home for every
+file format, see `doc/data-codecs.md`): `zon.py`, `ifo.py`, `chunk.py`
+(HIM/TIL/MOV) and `lit.py`, on top of `binio.py` and `container.py`. The
+`scripts/mapgen/` modules of the same names are re-export shims, so
+`from mapgen import zon` still works. `scripts/rosefmt-roundtrip.py` covers these
+formats too (plus ZMS and DDS); this file's accounting comes from
+`mapgen-roundtrip.py`.
 
 Each is `parse(bytes) -> model` / `build(model) -> bytes`, and strings stay
 `bytes`. Container offsets are recomputed on build, never copied.

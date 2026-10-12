@@ -498,7 +498,6 @@ def encode_dds(images, mips=0):
 
 
 def dds_info(data):
-    """(width, height, mip count, fourcc) of a DDS file's header."""
-    h, w, mips = struct.unpack_from("<III", data, 12)[0], struct.unpack_from("<I", data, 16)[0], \
-        struct.unpack_from("<I", data, 28)[0]
-    return w, h, mips, data[84:88].decode("latin-1")
+    """(width, height, mip count, fourcc) of a DDS file's header (``rosefmt.dds.info``)."""
+    from rosefmt import dds
+    return dds.info(data)
