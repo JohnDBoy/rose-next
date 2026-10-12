@@ -384,7 +384,11 @@ zone change: the zone load deletes every `CEvent`, and a held answer would dangl
 markup (`{FC=n}` / `{B}` / `{BR}`) becomes RML via `data-rml`. Also: **a `data-for` whose rows
 also read a shared variable can be evaluated past the end when the array shrinks in the same
 frame that variable changes** ("Data array index out of bounds") -- keep such arrays grow-only
-and hide unused rows (the minimap's marks).
+and hide unused rows (the minimap's marks). Root cause found 2026-10-13 and patched in the vendored
+RmlUi (`DataViewDefault.cpp`, `DataViewFor` bias -1000): a row clone is a *sibling* of its
+`data-for` element, so a view on the row itself (`data-class-ui-blink="b.expiring"` in the buff
+strip and target frame) tied with the for-view in sort order and the unstable sort sometimes ran it
+first after a shrink. The grow-only lists are now belt and braces, not required.
 
 **Shop** (2026-09-26, `RoseRmlShop`, `DLG_TYPE_STORE` + `DLG_TYPE_DEAL` in one window): a view
 over the hidden `CStoreDLG` / `CDealDLG`, whose slots, drag items and commands it uses; the shelf

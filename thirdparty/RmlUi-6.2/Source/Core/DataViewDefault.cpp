@@ -424,7 +424,12 @@ String DataViewText::BuildText() const
 	return result;
 }
 
-DataViewFor::DataViewFor(Element* element) : DataView(element, 0) {}
+// Rose Next: lowest bias, so the 'for' view updates before every other view at its depth. Its
+// clones are inserted as its siblings, so a view on a clone itself (e.g. 'data-class-x="b.flag"' on
+// the 'data-for' element) has the same depth and, at bias 0, the same sort order; the unstable sort
+// then sometimes ran it first after the array shrank, reading a removed row ("Data array index out
+// of bounds"). Still above the parent's views: -1000 at depth d+1 > 999 at depth d.
+DataViewFor::DataViewFor(Element* element) : DataView(element, -1000) {}
 
 bool DataViewFor::Initialize(DataModel& model, Element* element, const String& in_expression, const String& /*modifier*/)
 {
