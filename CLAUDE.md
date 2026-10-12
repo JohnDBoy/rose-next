@@ -1486,10 +1486,11 @@ Our `data/` is a translated iROSE dump with gaps; the reference dumps in `C:\Use
   (see below). **A placed NPC spawns only if its row's NPC_TYPE (col 27) is 999** --
   `zonefile.cpp` skips every other placement silently, so a stub row (name, no columns) is an
   NPC that never appears: ERROR. A placement whose `.CON` has no LIST_EVENT row is a mute NPC:
-  WARN (47 of them, the Desert of the Dead's EM29-*.con among them). Still open after the first
-  fixes: [Vicious Captain] Ruven 1125 (Eucar, QUESTBOARD.con) and [Cosmic Vassal] Little Angel of
-  Junon 1208 (Sunshine Coast) are such stubs. Built on `rosedata` + `rosefmt`; nothing is parsed
-  in it. `--zone N`, `--json`.
+  WARN (45 of them, the Desert of the Dead's EM29-*.con among them; left for custom dialogs).
+  The two other stubs it found -- [Vicious Captain] Ruven 1125 (Eucar) and [Cosmic Vassal] Little
+  Angel of Junon 1208 (Sunshine Coast, a placeholder model standing in the sea) -- were **erased**
+  on 2026-10-13 (row, STL key, CHR entry and placement; `fix-spawned-npc-gaps.py` item 7). Built
+  on `rosedata` + `rosefmt`; nothing is parsed in it. `--zone N`, `--json`.
 - `scripts/fix-spawned-npc-gaps.py` (2026-10-12, not yet validated in game) — closes the audit's
   first findings. **Sikuku Elite Fighter 562** (Turak's SummonMaster) has no CHR entry in *any* dump,
   but our rows 540/1708 are the same monster with a model: 562 gets a copy of 540's entry.
@@ -1501,8 +1502,9 @@ Our `data/` is a translated iROSE dump with gaps; the reference dumps in `C:\Use
   different item -- and in game the Fairy still fights unarmed: Jrose's `mob_can.zms` is a 0.2 cm
   placeholder, the row exists for the attack presentation. Second round after the in-game test:
   **Boyren needed a real row, not just a model** (type 999, Cornell's columns, STL key LNPC1175
-  appended), and **Turak's morphs 559/560** were "???(??)" with a key the STL lacks -- named
-  "Turak" / LNPC0558 as every dump has them. Whole-file originals in `build/spawned-npc-gaps/orig/`,
+  appended), and **Turak's morph (559) and death-summon (560) rows** were "???(??)" with a key the
+  STL lacks -- now **"Alpha Turak"** with their own key LNPC0559 (a Turak turning into a Turak read
+  as nonsense; the rows are the bigger form). Whole-file originals in `build/spawned-npc-gaps/orig/`,
   `--restore` refuses if a table changed since (hash in the manifest). Servers load the CHR and
   LIST_NPC: restart and bake. **A morph (AI Change_CHAR) now ships its HP** (2026-10-12, validated):
   `gsv_CHANGE_NPC` carries the new form's HP, the server switches state before building the packet,

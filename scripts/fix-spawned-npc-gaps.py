@@ -36,9 +36,24 @@
    speeds, size, level, the 100s, type 999, PVP 0, AI 204) with his own name,
    `Bond.mon` and STL key LNPC1175, which is appended to LIST_NPC_S.STL. No
    dialog: his placement names `EM58-001.CON`, which no LIST_EVENT row has.
-6. **Turak's morphs 559/560 are nameless in game** ("???(??)" in col 0, STL key
-   LNPC0559 which the STL does not have): the iROSE translation gap. Every
-   reference dump names them "Turak" with key LNPC0558; so do we now.
+6. **Turak's morph (559) and death-summon (560) rows** were "???(??)" with an STL
+   key the STL did not have (the iROSE translation gap); every reference dump
+   names them "Turak". A Turak that turns into a Turak and summons a Turak reads
+   as nonsense, and the rows are the bigger form (HP column 259 against 181), so
+   they are **"Alpha Turak"** with their own STL entry LNPC0559 (user, 2026-10-13).
+7. **[Vicious Captain] Ruven 1125 (Eucar, the quest board) and [Cosmic Vassal]
+   Little Angel of Junon 1208 (Sunshine Coast)** were the two other stub rows the
+   audit's type-999 rule found: placed, named in the STL, never spawned. Given
+   rows on 2026-10-13 and seen in game: the Angel is a bald armoured man
+   standing in the sea (its CHR entry is a "noname" placeholder) and Ruven has
+   no original model either, so the user had both **removed**: their MOB
+   placement records come out of the two map files (Eucar 33_33.IFO, Sunshine
+   Coast 32_32.IFO -- the MOB lump has no lightmap ordinals, unlike OBJECT/CNST,
+   so a record can go) and the two are **erased**, not stubbed: every LIST_NPC
+   cell blanked, the LIST_NPC_S.STL keys removed, the CHR entries made holes
+   (their PART_NPC models stay: five other rows share each set). Nothing else
+   referenced either id (quests, AI, tables scanned). The GM browser lists a row
+   by its name, which is why a stub still showed up. Alpha Turak stays.
 
 Idempotent: a gap already closed is skipped. Before the first write the four
 tables (LIST_NPC.CHR, PART_NPC.ZSC, LIST_WEAPON.ZSC, LIST_NPC.STB) are copied
@@ -78,11 +93,20 @@ WEAPON_ZSC = r"3DDATA\WEAPON\LIST_WEAPON.ZSC"
 NPC_MON_COL = 1
 
 CLONE_CHR = {562: 540}                       # our row <- our row
-NPC_ROW_TEMPLATE = {1175: 1001}              # Boyren's columns <- [Village Chief] Cornell
-NPC_ROW_KEEP = {0, 1}                        # name and mon file stay his
+# stub rows (a name and nothing else) that are placed as NPCs: columns <- [Village Chief] Cornell
+NPC_ROW_TEMPLATE = {1175: 1001}              # [Astronomer] Boyren, Mount Eruca
+# placed NPCs that are removed instead (their MOB record deleted, the row left a stub)
+REMOVE_PLACEMENTS = {1125: 51,               # [Vicious Captain] Ruven, Magic City of the Eucar
+                     1208: 37}               # [Cosmic Vassal] Little Angel of Junon, Sunshine Coast
+ZONE_STB = r"3DDATA\STB\LIST_ZONE.STB"
+ZONE_ZON_COL = 1                             # the zone row's .zon path
+NPC_ROW_KEEP = {0, 1}                        # name and mon file stay theirs
 NPC_STL = r"3DDATA\STB\LIST_NPC_S.STL"
 NPC_STRID_COL = oro.NPC_STRID_COL            # 40
-RENAME_ROWS = {559: ("Turak", "LNPC0558"), 560: ("Turak", "LNPC0558")}
+# Turak (558) morphs into 559 at low HP and its death summons 560; both were a
+# second "Turak" (and before that "???(??)"). They are the bigger form (HP column
+# 259 against 181), so they get their own name and STL entry (user, 2026-10-13).
+RENAME_ROWS = {559: ("Alpha Turak", "LNPC0559"), 560: ("Alpha Turak", "LNPC0559")}
 IMPORT_CHR = {1175: ("Boyren", SRC_667, 2129, "Bond.mon")}   # our row <- (label, dump, its row, mon file)
 WEAPON_OBJECTS = {1158: SRC_667, 1156: SRC_JROSE}            # our object <- dump's same index
 TABLES = (oro.NPC_CHR_REL, oro.PART_NPC_ZSC_REL, WEAPON_ZSC, NPC_STB, NPC_STL)
@@ -238,10 +262,19 @@ def run(dry):
             if not dry:
                 stl.save(dry, keep_backup=False)
 
-    # 2c. the nameless morph rows
+    # 2c. the morph / death-summon rows get their own name
     npc = oro.Stb(P(NPC_STB))
-    changed = False
+    stl = oro.Stl(P(NPC_STL))
+    changed = stl_changed = False
     for r, (name, key) in RENAME_ROWS.items():
+        if not stl.has(key):
+            stl.append(key, r, name)
+            print("  LIST_NPC_S.STL += %s %r" % (key, name))
+            stl_changed = True
+        elif stl.name(key) != name:
+            stl.set_name(key, name)
+            print("  LIST_NPC_S.STL %s -> %r" % (key, name))
+            stl_changed = True
         if npc.s(r, 0) == name and npc.s(r, NPC_STRID_COL) == key:
             continue
         print("  LIST_NPC %d %r key %s -> %r key %s" % (r, npc.s(r, 0), npc.s(r, NPC_STRID_COL), name, key))
@@ -250,6 +283,67 @@ def run(dry):
         changed = True
     if changed and not dry:
         npc.save(dry, keep_backup=False)
+    if stl_changed and not dry:
+        stl.save(dry, keep_backup=False)
+
+    # 2d. removed NPCs: the row erased, the STL key and CHR entry gone, the
+    #     placement out of the map
+    from rosefmt import ifo
+    npc = oro.Stb(P(NPC_STB))
+    stl = oro.Stl(P(NPC_STL))
+    chr_ = oro.Chr(P(oro.NPC_CHR_REL))
+    zone = oro.Stb(P(ZONE_STB))
+    changed = stl_changed = chr_changed = False
+    for r, zid in REMOVE_PLACEMENTS.items():
+        label = npc.s(r, 0) or ("row %d" % r)
+        if any(npc.get(r, c).strip() for c in range(npc.cols)):
+            for c in range(npc.cols):
+                npc.set(r, c, b"")
+            changed = True
+            print("  LIST_NPC %d (%s) erased" % (r, label))
+        key = "LNPC%04d" % r
+        if stl.has(key):
+            stl.remove([key])
+            stl_changed = True
+            print("  LIST_NPC_S.STL -= %s" % key)
+        if r < len(chr_.chars) and chr_.chars[r] is not None:
+            chr_.chars[r] = None
+            chr_changed = True
+            print("  LIST_NPC.CHR %d -> hole" % r)
+        folder = oro.rel_path(DATA, os.path.dirname(zone.s(zid, ZONE_ZON_COL)))
+        seen = set()
+        for f in sorted(os.listdir(folder)):
+            if not f.lower().endswith(".ifo") or f.lower() in seen:
+                continue
+            seen.add(f.lower())
+            path = os.path.join(folder, f)
+            with open(path, "rb") as fh:
+                data = fh.read()
+            m = ifo.parse(data)
+            mobs = m.lump(ifo.MOB)
+            if not mobs or not any(rec.obj_id == r for rec in mobs):
+                continue
+            kept = [rec for rec in mobs if rec.obj_id != r]
+            print("  %s %s: remove NPC %d (%s) placement, %d -> %d MOB records"
+                  % (zone.s(zid, 0), f, r, npc.s(r, 0), len(mobs), len(kept)))
+            if dry:
+                continue
+            rel = os.path.relpath(path, DATA)
+            bak = os.path.join(ORIG, "ifo", rel)
+            if not os.path.exists(bak):
+                os.makedirs(os.path.dirname(bak), exist_ok=True)
+                shutil.copyfile(path, bak)
+            mobs[:] = kept
+            with open(path, "wb") as fh:
+                fh.write(ifo.build(m))
+            man.setdefault("ifos", {})[rel] = sha(path)
+    if not dry:
+        if changed:
+            npc.save(dry, keep_backup=False)
+        if stl_changed:
+            stl.save(dry, keep_backup=False)
+        if chr_changed:
+            chr_.save(dry, keep_backup=False)
 
     # 3. the weapons
     for idx, root in WEAPON_OBJECTS.items():
@@ -267,6 +361,8 @@ def run(dry):
 
     if not dry:
         man["after"] = {os.path.basename(rel): sha(P(rel)) for rel in TABLES}
+        for rel in list(man.get("ifos", {})):
+            man["ifos"][rel] = sha(P(rel))
         with open(MANIFEST, "w", encoding="utf-8") as fh:
             json.dump(man, fh, indent=1)
     print("  dry run, nothing written" if dry else "  done -- restart the servers and re-bake")
@@ -295,6 +391,26 @@ def verify():
             print("  FAIL LIST_NPC %d: type %r key %r in STL %s" % (dst, npc.s(dst, oro.NPC_TYPE_COL), key, stl.has(key))); ok = False
         else:
             print("  ok   LIST_NPC %d: type 999, level %s, %s -> %r" % (dst, npc.s(dst, 7), key, stl.name(key, 1) or stl.name(key)))
+    from rosefmt import ifo
+    zone = oro.Stb(P(ZONE_STB))
+    for r, zid in REMOVE_PLACEMENTS.items():
+        if any(npc.get(r, c).strip() for c in range(npc.cols)):
+            print("  FAIL LIST_NPC %d: not blank (%r)" % (r, npc.s(r, 0))); ok = False
+        if stl.has("LNPC%04d" % r):
+            print("  FAIL LIST_NPC_S.STL still has LNPC%04d" % r); ok = False
+        if chr_.chars[r] is not None:
+            print("  FAIL LIST_NPC.CHR %d still has an entry" % r); ok = False
+        folder = oro.rel_path(DATA, os.path.dirname(zone.s(zid, ZONE_ZON_COL)))
+        left = 0
+        for f in os.listdir(folder):
+            if f.lower().endswith(".ifo"):
+                with open(os.path.join(folder, f), "rb") as fh:
+                    m = ifo.parse(fh.read())
+                left += sum(1 for rec in (m.lump(ifo.MOB) or []) if rec.obj_id == r)
+        if left:
+            print("  FAIL zone %d: %d placement(s) of NPC %d remain" % (zid, left, r)); ok = False
+        else:
+            print("  ok   NPC %d: erased (row, STL key, CHR entry), no placement in zone %d" % (r, zid))
     for r, (name, key) in RENAME_ROWS.items():
         if npc.s(r, 0) != name or npc.s(r, NPC_STRID_COL) != key:
             print("  FAIL LIST_NPC %d: %r %s" % (r, npc.s(r, 0), npc.s(r, NPC_STRID_COL))); ok = False
@@ -330,6 +446,12 @@ def restore():
         name = os.path.basename(rel)
         shutil.copyfile(os.path.join(ORIG, name), P(rel))
         print("  %s restored" % name)
+    for rel, h in man.get("ifos", {}).items():
+        if sha(P(rel)) != h:
+            print("  %s changed since this script wrote it: left alone" % rel)
+            continue
+        shutil.copyfile(os.path.join(ORIG, "ifo", rel), P(rel))
+        print("  %s restored" % rel)
     os.remove(MANIFEST)
     print("  restored (the copied weapon art files are left in place; nothing references them)")
 
