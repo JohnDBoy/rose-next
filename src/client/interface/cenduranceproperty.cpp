@@ -25,6 +25,24 @@ const int ENDU_ICON_Y = 40;
 const int ENDU_ICON_WIDTH = 20;
 const int ENDU_ICON_HEIGHT = 20;
 
+namespace {
+/// How long past its duration a skill status may wait for the server's clear
+/// before CEnduranceSkill::Proc ends it (the server clears ~1-2 s past it).
+const DWORD kServerClearGraceMs = 5000;
+
+/// The state types the server ends by its own once-a-second countdown
+/// (StatusEffects::Proc): poison, the max HP/MP raises, every held state and taunt.
+/// Regen (ING_INC_HP/MP) ends on its total instead, the summon marker never ends,
+/// and revive is timed by the server's own 30 s, not by a skill duration.
+bool
+IsServerTimedState(int iStateType) {
+    return iStateType == ING_POISONED || iStateType == ING_INC_MAX_HP
+        || iStateType == ING_INC_MAX_MP
+        || (iStateType >= ING_CHECK_START && iStateType <= ING_CHECK_END)
+        || iStateType == ING_TAUNT;
+}
+} // namespace
+
 void
 DeleteEntity(CEnduranceProperty* pEnduranceProperty) {
     if (pEnduranceProperty) {
@@ -1210,6 +1228,30 @@ CEnduranceSkill::Proc(CObjCHAR* pObjCHAR) {
         DeleteEffect();
         return false;
     }	*/
+
+    // Backstop. The server ends a timed status with GSV_CLEAR_STATUS and this entity
+    // waits for it, so a status presented *after* that packet -- a payload parked on
+    // its caster and applied at a late action frame, or by the abandoned/ended-cast
+    // resolution -- stayed on screen (icon and effect, no ticks) until the next status
+    // change on this character. StatusEffects::Proc counts the duration down once a
+    // second and clears on the tick after zero, i.e. at most ~2 s past the duration,
+    // and this clock starts at the packet's arrival or later: a status older than
+    // duration + grace is one the server no longer has. Entities created from spawn
+    // flags (entity index 0, placeholder duration) are left to the server.
+    if (m_iEndityIdx > 0 && m_iEnduranceTime > 0
+        && IsServerTimedState(STATE_TYPE(m_iStatusSTBNO))) {
+        const DWORD dwAge = g_GameDATA.GetGameTime() - m_iStartTime;
+        if (dwAge >= static_cast<DWORD>(m_iEnduranceTime) * 1000 + kServerClearGraceMs) {
+            LOG_INFO("Status expired without a server clear: obj {} skill {} state {} "
+                     "duration {} s age {} ms",
+                pObjCHAR ? pObjCHAR->Get_INDEX() : -1,
+                m_iEndityIdx,
+                m_iStatusSTBNO,
+                m_iEnduranceTime,
+                dwAge);
+            return false;
+        }
+    }
 
     return true;
 }

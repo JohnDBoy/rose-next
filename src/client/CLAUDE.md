@@ -390,6 +390,23 @@ replace the measured height outright, so 26 rows drew their name and bar inside 
 bind-pose mesh on purpose -- bees, bats, gargoyles and other flyers hover through animation, which
 `getModelHeight` cannot see -- and are unchanged. A new import needs no col 42 unless it flies.
 
+## Skill Statuses End On The Server's Word, With A Backstop (2026-10-13, not yet validated in game)
+
+A skill status (`CEnduranceSkill`) has no timer of its own: it leaves when `GSV_CLEAR_STATUS`
+arrives (`DeleteEnduranceState`). A status presented *after* that packet -- a payload parked on its
+caster and applied at a late action frame, or by the abandoned/ended-cast resolution -- therefore
+stayed on screen (burn icon and effect, no ticks) until the next status change on that character
+(alpha report: "burning but no damage after the duration"). Two changes:
+
+- `ApplyEffectOfSkill` backdates the new entity to the payload's arrival (`m_dwCreateTime`), since
+  the server's countdown started when it sent the packet.
+- `CEnduranceSkill::Proc` ends a status older than its `SKILL_DURATION` + 5 s
+  (`kServerClearGraceMs`; the server clears at most ~2 s past the duration). Log at Info:
+  `Status expired without a server clear`. Only state types the server counts down
+  (`IsServerTimedState`: poison, max HP/MP, the held states 6-28, taunt) and only entities with a
+  skill index -- the ones built from spawn flags carry a placeholder duration of 100 and stay
+  server-driven, as do regen, the summon marker and revive.
+
 ## Bone-Attached Particle Budgeting
 
 Character model bone effects created by `CCharMODEL::CreateBoneEFFECT` are passive cosmetic effects and are registered with `CBoneEffectBudget` (`BoneEffectBudget.cpp/h`) using owner, NPC id, bone index, and effect hash. Registration is intentionally narrow: do not add skill particles, hit effects, bullets, terrain/weather effects, weapon effects, or general `g_pEffectLIST` effects to `BoneFx`.

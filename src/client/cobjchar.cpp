@@ -3038,10 +3038,21 @@ CObjCHAR::ApplyEffectOfSkill(int iSkillIDX,
                 {
                     /// 일단 유져일경우만 속성객체 추가..
                     // if( pChar->IsA( OBJ_USER ) )
-                    pEffectedChar->AddEnduranceEntity(iSkillIDX,
-                        iStateIndex,
-                        SKILL_DURATION(iSkillIDX),
-                        ENDURANCE_TYPE_SKILL);
+                    if (pEffectedChar->AddEnduranceEntity(iSkillIDX,
+                            iStateIndex,
+                            SKILL_DURATION(iSkillIDX),
+                            ENDURANCE_TYPE_SKILL)) {
+                        // The payload may have waited on its caster for an action
+                        // frame; the server's countdown started when it was sent, so
+                        // the entity's clock starts at the packet's arrival.
+                        CEnduranceProperty* pEntity =
+                            pEffectedChar->m_EndurancePack.GetEntityByStateType(
+                                STATE_TYPE(iStateIndex));
+                        if (pEntity) {
+                            pEntity->BackdateStartTime(
+                                g_GameDATA.GetGameTime() - pEffectOfSkill->m_dwCreateTime);
+                        }
+                    }
                     LogString(LOG_DEBUG_,
                         "SkillStatusTrace client applied: target %d skill %d slot %d state %d state_type %d duration %d\n",
                         pEffectedChar->Get_INDEX(),

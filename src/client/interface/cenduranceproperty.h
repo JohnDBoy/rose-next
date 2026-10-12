@@ -175,6 +175,10 @@ public:
     virtual int GetStartTime() { return m_iStartTime; }
     virtual int GetStateSTBNO() { return m_iStatusSTBNO; }
 
+    /// Start the duration clock earlier: a status presented after its packet waited
+    /// (parked on the caster until an action frame) counts from the packet's arrival.
+    void BackdateStartTime(DWORD dwAgeMs) { m_iStartTime -= dwAgeMs; }
+
     virtual bool CreateEffect(CObjCHAR* pObjCHAR, int iEffectIDX) = 0 { *(int*)0 = 10; };
     virtual void DeleteEffect() = 0 { *(int*)0 = 10; };
 
