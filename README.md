@@ -107,18 +107,26 @@ wrong attack frames, unlit lamps).
 
 ### Tooling
 
-- **Map generator and lightmap bakers** (`scripts/mapgen/`): round-trip codecs
-  for every map format, proven byte-identical on all 9,035 retail map files; a
-  layout-driven zone generator; ground and object lightmap bakers fitted against
-  retail; `scripts/relight-zone.py` applies them to any existing zone.
+- **`rosefmt`** (`scripts/rosefmt/`): one Python reader and writer for every
+  ROSE file format: the STB/STL tables, ZSC model tables, CHR, LTB, AIP monster
+  AI, TSI atlases, QSD quests, `.CON` dialogs, the map files (ZON, HIM, TIL, MOV,
+  IFO, LIT), ZMS meshes, DDS headers and the VFS index. Every codec reproduces
+  every shipped file byte for byte (`scripts/rosefmt-roundtrip.py` checks all of
+  them, and five other clients' dumps), and each module's docstring carries the
+  format layout and its traps. Import it from any script; never write a parser
+  twice. Design and inventory: [doc/data-codecs.md](doc/data-codecs.md).
+- **Map generator and lightmap bakers** (`scripts/mapgen/`): a layout-driven
+  zone generator; ground and object lightmap bakers fitted against retail;
+  `scripts/relight-zone.py` applies them to any existing zone.
 - **Map editor** (`xadet/`, C#/XNA): the 2007 editor, extended with headless
   screenshots, a minimap maker, a cross-zone object browser and placement tools.
 - **Quest editor** (CLI + wizard), **NPC shop editor** and a GM item browser,
   and a **VFS browser** in [src/tools/](src/tools/).
-- **140+ Python scripts** in [scripts/](scripts/): region importers, balance
-  passes, data audits and repairs, item/skill/icon importers, VFS verification.
-  Each is idempotent with `--dry-run`, `--verify` and `--restore`, and its
-  docstring is the record of why it exists.
+- **130 Python scripts** in [scripts/](scripts/), built on `rosefmt`: region
+  importers, balance passes, data audits and repairs, item/skill/icon importers,
+  VFS verification. Each is idempotent with `--dry-run`, `--verify` and
+  `--restore`, and its docstring is the record of why it exists (the game data
+  is not in git, so the script is the committed history of every data change).
 
 ---
 
@@ -141,7 +149,9 @@ Client (C++/D3D9Ex) ←→ LoginServer  ←→  WorldServer  ←→  GameServer
 | `src/tgamectrl/` | The classic UI control framework |
 | `src/pipeline/` | Rust asset packer (`pipeline.exe`) |
 | `src/tools/` | VFS browser, NPC shop editor, quest editor (Rust) |
-| `scripts/` | Build/dev scripts and the Python data tooling, incl. `scripts/mapgen/` |
+| `scripts/` | Build/dev scripts and the Python data tooling |
+| `scripts/rosefmt/` | The file-format codecs, one module per format |
+| `scripts/mapgen/` | The map generator and lightmap bakers |
 | `xadet/` | The map editor (C#) |
 | `database/` | PostgreSQL schema and migrations |
 | `data/` | Game data (not tracked; see [data/README.md](data/README.md)) |
@@ -425,6 +435,7 @@ base_crit = 0
 | [doc/relighting-maps.md](doc/relighting-maps.md) | Baking lightmaps for an existing or edited zone. |
 | [doc/zsc-bounding-boxes.md](doc/zsc-bounding-boxes.md) | Why every ZSC bounding box is wrong and how culling works around it. |
 | [doc/cerberus-lair-brief.md](doc/cerberus-lair-brief.md) | Design of the server-run Cerberus Lair instance. |
+| [doc/data-codecs.md](doc/data-codecs.md) | The `rosefmt` codec package: rules, inventory, how a codec is proven. |
 | [doc/rose-next-build.md](doc/rose-next-build.md) | Build sharp edges, including the hand-written thirdparty projects. |
 
 > These files carry a lot of "this looks wrong but is deliberate, here is why"
