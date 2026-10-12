@@ -109,6 +109,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+from rosefmt import Stb  # noqa: E402
 SKILL_STB = os.path.join(ROOT, "data", "3DDATA", "STB", "LIST_SKILL.STB")
 STATUS_STB = os.path.join(ROOT, "data", "3DDATA", "STB", "LIST_STATUS.STB")
 SIDECAR = os.path.join(ROOT, "data", "3DDATA", "STB", "LIST_SKILL.pct-buffs.json")
@@ -166,55 +168,6 @@ CONVERTIBLE = {
 
 
 # ------------------------------------------------------------------ STB I/O
-class Stb:
-    def __init__(self, path):
-        raw = open(path, "rb").read()
-        if raw[:4] != b"STB1":
-            raise SystemExit(f"{path}: not an STB1 file")
-        self.path = path
-        self.data_offset, rr, rc = struct.unpack_from("<III", raw, 4)
-        self.rows, self.cols = rr - 1, rc - 1
-        self.header = raw[16:self.data_offset]
-        f = io.BytesIO(raw)
-        f.seek(self.data_offset)
-
-        def cell():
-            n, = struct.unpack("<H", f.read(2))
-            return f.read(n)
-
-        self.d = [[cell() for _ in range(self.cols)] for _ in range(self.rows)]
-        self.tail = f.read()
-
-    def get(self, r, c):
-        return self.d[r][c] if r < self.rows and c < self.cols else b""
-
-    def i(self, r, c):
-        v = self.get(r, c).strip()
-        try:
-            return int(v)
-        except ValueError:
-            return 0
-
-    def s(self, r, c):
-        return self.get(r, c).decode("latin-1", "replace").strip()
-
-    def set_i(self, r, c, v):
-        self.d[r][c] = str(int(v)).encode("latin-1")
-
-    def write(self, path):
-        out = io.BytesIO()
-        out.write(b"STB1")
-        out.write(struct.pack("<III", 16 + len(self.header), self.rows + 1, self.cols + 1))
-        out.write(self.header)
-        for row in self.d:
-            for cell in row:
-                out.write(struct.pack("<H", len(cell)))
-                out.write(cell)
-        out.write(self.tail)
-        with open(path, "wb") as fh:
-            fh.write(out.getvalue())
-
-
 def load_sim():
     spec = importlib.util.spec_from_file_location("balance_sim",
                                                   os.path.join(HERE, "balance-sim.py"))
@@ -251,7 +204,7 @@ def plan(skill, status, sim):
         if typ not in (SKILL_TYPE_SELF_DUR, SKILL_TYPE_TARGET_DUR, SKILL_TYPE_PASSIVE):
             continue
         top = max(rows, key=lambda r: skill.i(r, C_RANK))
-        name = skill.s(top, 0)
+        name = skill.s(top, 0).strip()
         if skill.i(top, C_RANK) < 1:
             continue                                   # NPC / unranked rows
         # Every player-facing buff and passive has a rank ladder (5-20 steps).

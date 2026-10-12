@@ -1,6 +1,7 @@
 """Read STB/STL tables from *any* ROSE data dump, ours or a reference client.
 
-Our other scripts each carry a private STB parser tuned to our own files. That is
+The codecs are scripts/rosefmt (Stb, Stl); this module is the survey layer.
+Our other scripts used to carry a private STB parser tuned to our own files. That is
 fine until you point one at a foreign dump and it silently produces nothing,
 because the reference clients differ from us in three ways that are invisible
 until you hit them:
@@ -53,165 +54,15 @@ Run directly for a quick look at a table:
     python scripts/rose-data-reader.py <file.STB|file.STL> [--enc cp932] [--rows 20]
 """
 import io
+import os
 import re
 import struct
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from rosefmt import Stb, Stl, stl_by_key  # noqa: E402,F401
+
 # ---------------------------------------------------------------------- STB
-
-class Stb:
-    def __init__(self, path, encoding="latin-1"):
-        self.path, self.encoding = path, encoding
-        raw = open(path, "rb").read()
-        if raw[:4] != b"STB1":
-            raise ValueError("%s: not an STB1 file (%r)" % (path, raw[:4]))
-        self.data_offset, raw_rows, raw_cols = struct.unpack_from("<III", raw, 4)
-        self.rows, self.cols = raw_rows - 1, raw_cols - 1
-
-        h = io.BytesIO(raw[16:self.data_offset])
-        self.row_height, = struct.unpack("<I", h.read(4))
-        self.widths = struct.unpack("<%dH" % (raw_cols + 1), h.read(2 * (raw_cols + 1)))
-
-        def pstr():
-            n, = struct.unpack("<H", h.read(2))
-            return h.read(n)
-
-        self.colnames = [pstr() for _ in range(raw_cols)]
-        self.rownames = [pstr() for _ in range(raw_rows)]
-
-        f = io.BytesIO(raw)
-        f.seek(self.data_offset)
-
-        def cell():
-            n, = struct.unpack("<H", f.read(2))
-            return f.read(n)
-
-        self.d = [[cell() for _ in range(self.cols)] for _ in range(self.rows)]
-
-    def _dec(self, b):
-        return b.decode(self.encoding, "replace")
-
-    def get(self, r, c):
-        """Raw bytes for a game cell, or b"" when out of range."""
-        return self.d[r][c] if 0 <= r < self.rows and 0 <= c < self.cols else b""
-
-    def s(self, r, c):
-        return self._dec(self.get(r, c))
-
-    def i(self, r, c):
-        v = self.get(r, c).strip()
-        try:
-            return int(v)
-        except ValueError:
-            return 0
-
-    def rowname(self, r):
-        # rownames[0] labels the column-title line, so game row r is rownames[r+1]
-        return self._dec(self.rownames[r + 1]) if r + 1 < len(self.rownames) else ""
-
-    def colname(self, c):
-        # colnames[0] labels the root column, so game col c is colnames[c+1]
-        return self._dec(self.colnames[c + 1]) if c + 1 < len(self.colnames) else ""
-
-    def occupied(self, r):
-        return any(x.strip() for x in self.d[r])
-
-    def key_column(self):
-        """Index of the column holding STL keys (LWEA001, LNPC0001, ...).
-
-        Ours is 45 on LIST_WEAPON; Jrose uses the last column. Sniffing beats
-        hardcoding either, because the wrong guess yields a wrong name rather
-        than an error.
-        """
-        best, score = None, 0.0
-        for c in range(self.cols):
-            vals = [self.s(r, c).strip() for r in range(self.rows) if self.occupied(r)]
-            vals = [v for v in vals if v]
-            if not vals:
-                continue
-            hit = sum(1 for v in vals if re.fullmatch(r"[A-Za-z]{3,6}\d{3,5}", v))
-            frac = hit / float(len(vals))
-            if frac > score:
-                best, score = c, frac
-        return best if score > 0.7 else None
-
-
-# ---------------------------------------------------------------------- STL
-
-class Stl:
-    """Both dialects: modern NRST01/ITST01/QEST01 and legacy N_NUM/I_NUM/Q_NUM.
-
-    Layout: pstr8 tag | u32 key_count | key_count x (pstr8 key, u32 id).
-    Modern then has u32 lang_count | lang_count x u32 block offset, and each
-    block starts with key_count x u32 entry offsets. Legacy has neither -- the
-    entries begin immediately.
-
-    Entry strings use a 7-bit varint length, and the client reads them
-    sequentially, ignoring the offset table; so must we.
-    """
-
-    FIELDS = {b"NRST01": 1, b"ITST01": 2, b"QEST01": 4,
-              b"N_NUM": 1, b"I_NUM": 2, b"Q_NUM": 4}
-    LEGACY = {b"N_NUM", b"I_NUM", b"Q_NUM"}
-
-    def __init__(self, path, encoding="latin-1"):
-        b = open(path, "rb").read()
-        self.b, self.encoding, self.path = b, encoding, path
-        o = 0
-        n = b[o]; o += 1
-        self.tag = b[o:o + n]; o += n
-        if self.tag not in self.FIELDS:
-            raise ValueError("%s: unknown STL tag %r" % (path, self.tag))
-        self.nfields = self.FIELDS[self.tag]
-        self.legacy = self.tag in self.LEGACY
-
-        self.count, = struct.unpack_from("<I", b, o); o += 4
-        self.keys = []
-        for _ in range(self.count):
-            ln = b[o]; o += 1
-            k = b[o:o + ln]; o += ln
-            i, = struct.unpack_from("<I", b, o); o += 4
-            self.keys.append((k, i))
-
-        if self.legacy:
-            self.lang_off, self._body = None, o
-        else:
-            nlang, = struct.unpack_from("<I", b, o); o += 4
-            self.lang_off = struct.unpack_from("<%dI" % nlang, b, o)
-
-    def _pstr(self, o):
-        ln, shift = 0, 0
-        while True:
-            c = self.b[o]; o += 1
-            ln |= (c & 0x7F) << shift
-            if not (c & 0x80):
-                break
-            shift += 7
-        return self.b[o:o + ln].decode(self.encoding, "replace"), o + ln
-
-    def lang(self, index=0):
-        """All entries for one language block, in key order."""
-        o = self._body if self.legacy else self.lang_off[index] + 4 * self.count
-        out = []
-        for _ in range(self.count):
-            row = []
-            for _ in range(self.nfields):
-                s, o = self._pstr(o)
-                row.append(s)
-            out.append(tuple(row))
-        self.end = o          # equals len(self.b) on a clean parse -- worth asserting
-        return out
-
-    def by_key(self, index=0):
-        return {k.decode("latin-1"): v for (k, _), v in zip(self.keys, self.lang(index))}
-
-    def by_id(self, index=0):
-        return {i: v for (_, i), v in zip(self.keys, self.lang(index))}
-
-
-def stl_by_key(path, encoding="latin-1", index=0):
-    return Stl(path, encoding).by_key(index)
-
 
 # ------------------------------------------------------------------- romaji
 

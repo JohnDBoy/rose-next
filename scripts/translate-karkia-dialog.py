@@ -56,6 +56,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+from rosefmt import Ltb  # noqa: E402
 SRC = r"C:\Users\Thomas\Desktop\Testclients\Jrose"
 OUR_LTB = os.path.join(ROOT, "data", "3DDATA", "EVENT", "ulngtb_con.ltb")
 SRC_LTB = os.path.join(SRC, "3DDATA", "EVENT", "ulngtb_con.ltb")
@@ -149,63 +151,7 @@ def con_nodes(path):
     return out
 
 
-# ------------------------------------------------------------------ .LTB codec
-class Ltb:
-    """i32 col, i32 row, index[row][col] = (i32 pos, i16 len_wide), UTF-16LE pool.
-
-    Cells are kept as raw bytes so every existing string round-trips byte for
-    byte; only the ones we write are re-encoded.
-    """
-
-    def __init__(self, path):
-        b = open(path, "rb").read()
-        self.cols, nrow = struct.unpack_from("<ii", b, 0)
-        self.rows = []
-        o = 8
-        for _r in range(nrow):
-            cells = []
-            for _c in range(self.cols):
-                pos, ln = struct.unpack_from("<ih", b, o); o += 6
-                cells.append(b[pos:pos + ln * 2] if ln > 0 else b"")
-            self.rows.append(cells)
-
-    def text(self, row, col):
-        if not (0 <= row < len(self.rows)) or not (0 <= col < self.cols):
-            return ""
-        return self.rows[row][col].decode("utf-16-le", "replace").rstrip("\0")
-
-    def grow_to(self, n):
-        while len(self.rows) < n:
-            self.rows.append([b""] * self.cols)
-
-    def set_all_langs(self, row, key, text):
-        """Key into col 0, text into every language column, as the editor does."""
-        enc = lambda s: (s + "\0").encode("utf-16-le")
-        self.rows[row][0] = enc(key)
-        for c in range(1, self.cols):
-            self.rows[row][c] = enc(text)
-
-    def to_bytes(self):
-        n, c = len(self.rows), self.cols
-        base = 8 + n * c * 6
-        index, pool = [], []
-        pos = base
-        for cells in self.rows:
-            for cell in cells:
-                if not cell:
-                    index.append((0, 0))
-                    continue
-                index.append((pos, len(cell) // 2))
-                pool.append(cell)
-                pos += len(cell)
-        out = bytearray(struct.pack("<ii", c, n))
-        for p, ln in index:
-            out += struct.pack("<ih", p, ln)
-        for s in pool:
-            out += s
-        return bytes(out)
-
-
+# ------------------------------------------------------------------ .LTB codec: rosefmt.ltb
 # ------------------------------------------------------------------ the work
 def collect(scope):
     """{str_id: japanese} for the .CONs in `scope`, structural nodes dropped."""

@@ -1422,6 +1422,39 @@ Tools built on them:
 - `scripts/audit-lightmap-index.py` -- the lightmap crash audit, also a quick way
   to list records that name objects a ZSC does not have (missing in game).
 
+### Data File Codecs (`scripts/rosefmt/`, 2026-10-12)
+
+**Every non-map file format has one reader and one writer, in `scripts/rosefmt/`.
+Never write another STB/STL/ZSC/CHR/LTB/AIP/TSI/QSD/CON parser in a script, and
+never load `import-oro.py` to get one** (it re-exports these for the 73 scripts
+that still do). Rules, inventory and what was deliberately left alone:
+[doc/data-codecs.md](doc/data-codecs.md). Import with
+`sys.path.insert(0, dirname(__file__))` then `from rosefmt import Stb, Stl, ...`.
+
+| Format | Module | API |
+|---|---|---|
+| `STB1` tables | `rosefmt/stb.py` | `Stb(path, encoding="latin-1")`: `get/s/i` (game indices), `set/set_i`, `occupied`, `colname/rowname`, `key_column()`, `grow_to`, `to_bytes`, `save(dry)` |
+| STL strings, both dialects | `rosefmt/stl.py` | `Stl(path, encoding)`: `has/index/name/field`, `append/set_name/remove`, `lang/by_key/by_id`, `to_bytes`; `legacy` flag; `read_table`/`write_table` |
+| ZSC model tables | `rosefmt/zsc.py` | `Zsc`: `meshes/materials/effects/objects`, `to_bytes(extra…)` appends, `rebuild()` rewrites objects; `serialize_object`, `prop_paths`, `asset_refs` |
+| `LIST_NPC.CHR` | `rosefmt/chr.py` | `Chr`: `skeletons/motions/effects/chars` (hole = `None`), `to_bytes`, `save` |
+| LTB dialog text | `rosefmt/ltb.py` | `Ltb`: `text/set_text/set_all_langs/grow_to/to_bytes`; `wide` (ULNGTB) vs narrow (LNGTB) detected |
+| `.aip` AI | `rosefmt/aip.py` | `parse(b)` -> (header, title, patterns, tail); `build(...)` |
+| TSI atlases | `rosefmt/tsi.py` | `read(path, strict)`, `write`, `iter_sprites`, `texture_entry`, `sprite_entry(texid, x1, y1, x2, y2, label)` |
+| QSD quests | `rosefmt/qsd.py` | `parse/build`; `walk`, `find_entity`, `has_trigger`, `build_trigger`, `append_pattern`, `drop_conditions`, `item_refs`, `remap_items`, `quest_refs` |
+| `.CON` dialogs (bytes) | `rosefmt/condialog.py` | `split/join` (Lua + QEX1, keyed on the final size), `str_ids`, `get_item`, `set_click`. Not `con.py`: a reserved name on Windows |
+| IFO as raw lumps | `rosefmt/ifo_lumps.py` | `read_ifo`, `read_lump`, `build_object_lump`, `build_ifo`, `LUMP_*`; **`mapgen.ifo` is the structured codec for new work** |
+| ZMO clips | `rosefmt/zmo.py` | `read_header`, `events`, `event_set`, `with_events` (read + trailer edit only) |
+| `data.idx` | `rosefmt/idx.py` | `parse` (read-only; unsigned offsets) |
+| primitives | `rosefmt/binio.py` | `pstr8/pstr16/vstr/cstr` read+write, `FormatError`, `read_file` |
+
+`python scripts/rosefmt-roundtrip.py` re-serialises every shipped file of every
+format and must stay all-OK (`--root <dump>` for a reference client, `--selftest`
+for synthetic edit checks). Things that will bite: a `con.py` cannot be imported
+on Windows (the console device); `LIST_STRING_S.STL` has five language slots on
+one block, and a writer that does not keep the sharing quadruples the file; the
+retail `LNGTB_*.LTB` count bytes where `ULNGTB_*.LTB` count wide chars; an empty
+LTB cell can carry a stale non-zero position; `Stb.s()` does not strip.
+
 ### Data Repair Tooling
 
 Our `data/` is a translated iROSE dump with gaps; the reference dumps in `C:\Users\Thomas\Desktop\Testclients\` (QQ-iROSE, RoseZA, titanRose) are intact, so diffing a single field across all three is a fast, high-confidence way to find and fix them. All three scripts below are idempotent, take `--dry-run`, and verify after writing. `data/` is gitignored, so **the script is the only committed record of the change** — put the reasoning in its docstring.

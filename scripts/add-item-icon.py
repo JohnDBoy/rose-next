@@ -21,6 +21,9 @@ indices stable. Icon-only changes need a client restart, not a server restart
 """
 import argparse, io, os, struct, shutil, sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from rosefmt.tsi import tsi_read, tsi_write  # noqa: E402
+
 from PIL import Image
 
 RES_DIR = os.path.join("data", "3DDATA", "CONTROL", "RES")
@@ -55,50 +58,6 @@ def rect_fits(x1, y1, x2, y2):
     return x2 <= SHEET_SIZE and y2 <= SHEET_SIZE
 
 # ---------------------------------------------------------------- TSI
-def tsi_read(path, strict=True):
-    """Parse a TSI. `strict` cross-checks the header's sprite total.
-
-    That total is a real safety net on **our** atlas, where we write it back --
-    but it is not universally meaningful. 667's ITEM1.TSI declares 540 while its
-    blocks hold 9295, and the blocks still consume the file to the exact byte, so
-    the structure is right and only that one header field means something else
-    there. Reading a foreign atlas to extract art is therefore done with
-    strict=False; anything we write keeps the check.
-    """
-    with open(path, "rb") as fh:
-        f = io.BytesIO(fh.read())
-    ntex, = struct.unpack("<h", f.read(2))
-    textures = []  # (name, raw_entry_bytes)
-    for _ in range(ntex):
-        start = f.tell()
-        nlen, = struct.unpack("<h", f.read(2))
-        name = f.read(nlen).split(b"\x00")[0].decode("ascii")
-        f.read(4)  # colorkey
-        f.seek(start)
-        raw = f.read(2 + nlen + 4)
-        textures.append((name, raw))
-    total, = struct.unpack("<h", f.read(2))
-    blocks = []  # (count, raw_block_bytes)
-    for _ in range(ntex):
-        cnt, = struct.unpack("<h", f.read(2))
-        blocks.append((cnt, f.read(cnt * 54)))
-    assert f.read() == b"", "trailing bytes in TSI"
-    if strict:
-        assert total == sum(c for c, _ in blocks), "TSI sprite count mismatch"
-    return textures, blocks
-
-def tsi_write(path, textures, blocks, dry):
-    assert len(textures) == len(blocks)
-    out = [struct.pack("<h", len(textures))]
-    out += [raw for _, raw in textures]
-    out.append(struct.pack("<h", sum(c for c, _ in blocks)))
-    for cnt, raw in blocks:
-        out.append(struct.pack("<h", cnt))
-        out.append(raw)
-    if not dry:
-        with open(path, "wb") as fh:
-            fh.write(b"".join(out))
-
 def texture_entry(name):
     nb = name.encode("ascii") + b"\x00"
     return (name, struct.pack("<h", len(nb)) + nb + struct.pack("<I", 0))

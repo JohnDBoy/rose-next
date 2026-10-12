@@ -120,6 +120,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+from rosefmt import zmo as _zmo  # noqa: E402
 DATA_ROOT = os.path.join(ROOT, "data")
 DEFAULT_SRC = r"C:\Users\Thomas\Desktop\Testclients\rose brazil\Extracted"
 BUILD_DIR = os.path.join(ROOT, "build", "hebarn")
@@ -490,11 +492,7 @@ def return_trigger():
 
 # ------------------------------------------------------------------ stage 1: model
 def zmo_events(blob):
-    if blob[-4:] not in (b"EZMO", b"3ZMO"):
-        return None, None
-    off, = struct.unpack_from("<I", blob, len(blob) - 8)
-    n, = struct.unpack_from("<H", blob, off)
-    return off + 2, list(struct.unpack_from("<%dh" % n, blob, off + 2))
+    return _zmo.events(blob)
 
 
 def patched_clip(blob, changes):

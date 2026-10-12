@@ -58,45 +58,12 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+from rosefmt import Stb  # noqa: E402
 STB_DIR = os.path.join(ROOT, "data", "3DDATA", "STB")
 
 
 # ------------------------------------------------------------------ STB reader
-class Stb:
-    """STB1: "STB1" | u32 data_offset | u32 raw_rows | u32 raw_cols | header | cells.
-
-    Game indices drop the header row and the root column, so d[r][c] is get_int32(r, c).
-    """
-
-    def __init__(self, path):
-        raw = open(path, "rb").read()
-        if raw[:4] != b"STB1":
-            raise SystemExit(f"{path}: not an STB1 file")
-        self.data_offset, rr, rc = struct.unpack_from("<III", raw, 4)
-        self.rows, self.cols = rr - 1, rc - 1
-        f = io.BytesIO(raw)
-        f.seek(self.data_offset)
-
-        def cell():
-            n, = struct.unpack("<H", f.read(2))
-            return f.read(n)
-
-        self.d = [[cell() for _ in range(self.cols)] for _ in range(self.rows)]
-
-    def get(self, r, c):
-        return self.d[r][c] if r < self.rows and c < self.cols else b""
-
-    def i(self, r, c):
-        v = self.get(r, c).strip()
-        try:
-            return int(v)
-        except ValueError:
-            return 0
-
-    def s(self, r, c):
-        return self.get(r, c).decode("latin-1", "replace").strip()
-
-
 _TBL = {}
 
 
@@ -211,7 +178,7 @@ class Mob:
     __slots__ = ("row", "name", "lv", "hp", "atk", "hit", "df", "res", "avoid", "aspd")
 
     def __init__(self, s, r):
-        self.row, self.name = r, s.s(r, 0)
+        self.row, self.name = r, s.s(r, 0).strip()
         self.lv = s.i(r, NPC_COL["level"])
         self.hp = self.lv * s.i(r, NPC_COL["hp"])   # cobjnpc.cpp: m_iOriMaxHP
         self.atk = s.i(r, NPC_COL["atk"])
@@ -293,9 +260,9 @@ def best_weapon(lv, wtypes):
         if not s.get(r, 0).strip() or s.i(r, 4) not in wtypes:
             continue
         rl = _req_level(s, r)
-        if rl > lv or _junk(s.s(r, 0)) or s.i(r, 35) <= 0:
+        if rl > lv or _junk(s.s(r, 0).strip()) or s.i(r, 35) <= 0:
             continue
-        c.append(dict(name=s.s(r, 0), atk=s.i(r, 35), spd=s.i(r, 36), q=s.i(r, 8),
+        c.append(dict(name=s.s(r, 0).strip(), atk=s.i(r, 35), spd=s.i(r, 36), q=s.i(r, 8),
                       dur=s.i(r, 29), wtype=s.i(r, 4), magic=s.i(r, 37), rl=rl))
     if not c:
         _WPN[k] = None
@@ -314,12 +281,12 @@ def best_armor(name, lv):
     s = tbl(name)
     best = None
     for r in range(1, s.rows):
-        if not s.get(r, 0).strip() or _req_level(s, r) > lv or _junk(s.s(r, 0)):
+        if not s.get(r, 0).strip() or _req_level(s, r) > lv or _junk(s.s(r, 0).strip()):
             continue
         d, res = s.i(r, 31), s.i(r, 32)
         if d <= 0 and res <= 0:
             continue
-        x = dict(name=s.s(r, 0), df=d, res=res, dur=s.i(r, 29))
+        x = dict(name=s.s(r, 0).strip(), df=d, res=res, dur=s.i(r, 29))
         if best is None or x["df"] + x["res"] > best["df"] + best["res"]:
             best = x
     _ARM[k] = best

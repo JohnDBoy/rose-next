@@ -59,6 +59,11 @@ After running: restart servers + client, spawn with /item <type>:<new id> (GM 20
 """
 import argparse, collections, io, os, re, shutil, struct, sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from rosefmt import Stb  # noqa: E402
+from rosefmt import stl as _stl  # noqa: E402
+from rosefmt.zsc import Zsc as _Zsc, serialize_object as zsc_serialize_object  # noqa: E402,F401
+
 OURS = "data"
 FIELD_ZSC_REL = r"3DDATA\ITEM\LIST_FieldITEM.ZSC"
 
@@ -116,65 +121,43 @@ TYPES = {
 
 # ---------------------------------------------------------------- STB
 def stb_read(path):
+    """(file bytes, data offset, raw rows, raw cols, cells) -- the shape the
+    appenders below and a few callers index into."""
+    t = Stb(path)
     with open(path, "rb") as fh:
         d = fh.read()
-    f = io.BytesIO(d)
-    f.read(4)
-    offset, rows, cols = struct.unpack("<III", f.read(12))
-    f.seek(offset)
-    def pstr():
-        n, = struct.unpack("<H", f.read(2))
-        return f.read(n)
-    data = [[pstr() for _ in range(cols - 1)] for _ in range(rows - 1)]
-    return d, offset, rows, cols, data
+    return d, t.data_offset, t.rows + 1, t.cols + 1, t.d
 
 def stb_append_row(path, row_cells, dry):
-    d, offset, rows, cols, _ = stb_read(path)
-    assert len(row_cells) == cols - 1, (len(row_cells), cols - 1)
-    new_id = rows - 1
-    row_name = str(new_id).encode("ascii")
-    name_block = struct.pack("<H", len(row_name)) + row_name
-    cells = b"".join(struct.pack("<H", len(c)) + c for c in row_cells)
-    out = (d[0:4]
-           + struct.pack("<III", offset + len(name_block), rows + 1, cols)
-           + d[16:offset] + name_block + d[offset:] + cells)
+    t = Stb(path)
+    assert len(row_cells) == t.cols, (len(row_cells), t.cols)
+    new_id = t.rows
+    t.grow_to(t.rows + 1, {new_id: str(new_id)})
+    t.d[new_id] = list(row_cells)
     if not dry:
-        with open(path, "wb") as fh:
-            fh.write(out)
+        t.write(path)
     return new_id
 
 def stb_write_row(path, row, row_cells, dry):
-    """Overwrite an existing (blank) row's cells in place.
-
-    The counterpart to stb_append_row, for --target-row. Same rebuild as
-    stb_set_cell: the header, its column titles and every row name are preserved
-    verbatim, and the table's row count does not change.
-    """
-    d, offset, rows, cols, data = stb_read(path)
-    if not 0 <= row < rows - 1:
-        sys.exit("stb_write_row: row %d out of range (%d rows)" % (row, rows - 1))
-    if len(row_cells) != cols - 1:
-        sys.exit("stb_write_row: %d cells for %d columns" % (len(row_cells), cols - 1))
-    data[row] = list(row_cells)
-    body = b"".join(struct.pack("<H", len(c)) + c for r in data for c in r)
+    """Overwrite an existing (blank) row's cells in place (--target-row).
+    The header, its column titles and every row name are preserved verbatim."""
+    t = Stb(path)
+    if not 0 <= row < t.rows:
+        sys.exit("stb_write_row: row %d out of range (%d rows)" % (row, t.rows))
+    if len(row_cells) != t.cols:
+        sys.exit("stb_write_row: %d cells for %d columns" % (len(row_cells), t.cols))
+    t.d[row] = list(row_cells)
     if not dry:
-        with open(path, "wb") as fh:
-            fh.write(d[:offset] + body)
+        t.write(path)
     return row
 
 def stb_set_cell(path, row, col, value, dry):
-    """Overwrite one cell in place. Rebuilds the data section; the header (column
-    titles + row names) is preserved verbatim, so editors still read the file."""
-    d, offset, rows, cols, data = stb_read(path)
-    if not 0 <= row < rows - 1 or not 0 <= col < cols - 1:
-        sys.exit("stb_set_cell: row %d col %d out of range (%dx%d)"
-                 % (row, col, rows - 1, cols - 1))
-    if isinstance(value, str):
-        value = value.encode("euc-kr")
-    data[row][col] = value
-    body = b"".join(struct.pack("<H", len(c)) + c
-                    for r in data for c in r)
-    out = d[:offset] + body
+    """Overwrite one cell in place; a str is written in the game's Korean code page."""
+    t = Stb(path, encoding="euc-kr")
+    if not 0 <= row < t.rows or not 0 <= col < t.cols:
+        sys.exit("stb_set_cell: row %d col %d out of range (%dx%d)" % (row, col, t.rows, t.cols))
+    t.set(row, col, value)
+    out = t.to_bytes()
     if not dry:
         with open(path, "wb") as fh:
             fh.write(out)
@@ -182,63 +165,13 @@ def stb_set_cell(path, row, col, value, dry):
 
 
 # ---------------------------------------------------------------- ZSC
-class Zsc:
+class Zsc(_Zsc):
+    """rosefmt's reader, plus the note the importer always printed."""
     def __init__(self, path):
-        with open(path, "rb") as fh:
-            self.d = fh.read()
-        f = self.f = io.BytesIO(self.d)
-        self.meshes, self.materials, self.effects, self.objects = [], [], [], []
-        n = self.u16()
-        for _ in range(n):
-            self.meshes.append(self.cstr())
-        self.mesh_end = f.tell()
-        n = self.u16()
-        for _ in range(n):
-            self.materials.append((self.cstr(), f.read(36)))
-        self.mat_end = f.tell()
-        n = self.u16()
-        for _ in range(n):
-            self.effects.append(self.cstr())
-        self.objcnt_pos = f.tell()
-        n = self.u16()
-        for _ in range(n):
-            cyl = f.read(12)
-            nparts = self.u16()
-            parts, dummies, bb = [], [], b""
-            if nparts > 0:
-                for _ in range(nparts):
-                    parts.append((self.u16(), self.u16(), self.props()))
-                for _ in range(self.u16()):
-                    dummies.append((f.read(4), self.props()))
-                bb = f.read(24)
-            self.objects.append((cyl, parts, dummies, bb))
-        # some third-party editors leave junk after the last object; the game
-        # only reads the declared object count, so ignore it (never copy it)
-        self.obj_end = f.tell()
-        self.trailing = len(self.d) - self.obj_end
+        super().__init__(path)
         if self.trailing:
             print("NOTE: %s has %d trailing bytes after the last object (ignored)" % (path, self.trailing))
 
-    def u16(self):
-        return struct.unpack("<H", self.f.read(2))[0]
-
-    def cstr(self):
-        out = b""
-        while True:
-            c = self.f.read(1)
-            if c in (b"\x00", b""):
-                break
-            out += c
-        return out
-
-    def props(self):
-        start = self.f.tell()
-        while True:
-            t = self.f.read(1)[0]
-            if t == 0:
-                break
-            self.f.read(self.f.read(1)[0])
-        return self.d[start:self.f.tell()]
 
 def norm(p):
     return p.decode("ascii", "replace").replace("\\", "/").lower()
@@ -350,27 +283,6 @@ def effect_dependencies(source, eft_rel):
         for m in _ASSET_RE.finditer(blob):
             queue.append(_collapse_seps(m.group()))
     return out
-
-def zsc_serialize_object(o):
-    """One object record, exactly as Zsc.__init__ parsed it.
-
-    A zero-part object ends after its count -- no dummy list and no bounding box
-    follow -- which is what the game writes for an unused row and what the
-    parser expects to read back.
-    """
-    cyl, parts, dummies, bb = o
-    out = [cyl, struct.pack("<H", len(parts))]
-    if not parts:
-        return b"".join(out)
-    for mid, tid, props in parts:
-        out.append(struct.pack("<HH", mid, tid))
-        out.append(props)
-    out.append(struct.pack("<H", len(dummies)))
-    for a, props in dummies:
-        out += [a, props]
-    out.append(bb)
-    return b"".join(out)
-
 
 def zsc_selftest(paths):
     """Re-serialising every object must reproduce the section byte for byte.
@@ -616,28 +528,7 @@ def vstr_write(b):
     return write_varint(len(b)) + b
 
 def stl_read(path):
-    with open(path, "rb") as fh:
-        f = io.BytesIO(fh.read())
-    typ = vstr_read(f)
-    assert typ == b"ITST01", typ
-    keycount, = struct.unpack("<I", f.read(4))
-    keys = []
-    for _ in range(keycount):
-        k = vstr_read(f)
-        idx, = struct.unpack("<I", f.read(4))
-        keys.append((k, idx))
-    langcount, = struct.unpack("<I", f.read(4))
-    langpos = struct.unpack("<%dI" % langcount, f.read(4 * langcount))
-    langs = []
-    for lp in langpos:
-        f.seek(lp)
-        offsets = struct.unpack("<%dI" % keycount, f.read(4 * keycount))
-        entries = []
-        for o in offsets:
-            f.seek(o)
-            entries.append((vstr_read(f), vstr_read(f)))
-        langs.append(entries)
-    return keys, langs
+    return _stl.read_table(path)
 
 def stl_append(path, new_key, new_idx, name, desc, dry):
     keys, langs = stl_read(path)
@@ -649,34 +540,9 @@ def stl_append(path, new_key, new_idx, name, desc, dry):
     stl_write(path, keys, langs, dry)
 
 def stl_write(path, keys, langs, dry):
-    """Serialise a whole ITST01 table. Every per-language entry is written at a
-    fresh offset, so this is also how entries get *removed* -- the offset table
-    is rebuilt rather than patched."""
-    keycount, langcount = len(keys), len(langs)
-
-    header = vstr_write(b"ITST01") + struct.pack("<I", keycount)
-    for k, idx in keys:
-        header += vstr_write(k) + struct.pack("<I", idx)
-    header += struct.pack("<I", langcount)
-    langpos_at = len(header)
-    header += b"\x00" * (4 * langcount)
-
-    body = b""
-    lang_positions = []
-    for entries in langs:
-        lang_positions.append(len(header) + len(body))
-        base = len(header) + len(body) + 4 * keycount
-        offsets, blob = [], b""
-        for n, ds in entries:
-            offsets.append(base + len(blob))
-            blob += vstr_write(n) + vstr_write(ds)
-        body += struct.pack("<%dI" % keycount, *offsets) + blob
-
-    out = bytearray(header + body)
-    out[langpos_at:langpos_at + 4 * langcount] = struct.pack("<%dI" % langcount, *lang_positions)
-    if not dry:
-        with open(path, "wb") as fh:
-            fh.write(bytes(out))
+    """Serialise a whole ITST01 table; the offset tables are rebuilt, so this is
+    also how entries get *removed*."""
+    _stl.write_table(path, keys, langs, dry)
 
 # ---------------------------------------------------------------- assets
 def copy_assets(files_needed, source, dry):

@@ -50,6 +50,9 @@ hard-errors on any `.bak` under data/ for exactly that reason.
 
 import argparse, base64, json, os, shutil, struct, sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from rosefmt.aip import parse_aip, build_aip  # noqa: E402,F401
+
 G = 0x0B000000
 # action type -> label. Every one of these carries `WORD cMonster` at offset 8.
 MONSTER_ACTS = {
@@ -111,66 +114,6 @@ def is_fatal(why):
 
 # --------------------------------------------------------------------------- #
 # .aip container
-
-
-def parse_aip(b):
-    """Decompose into (header, title, patterns, tail).
-
-    patterns: [ (name32, [ (name32, [cond_bytes], [act_bytes]) ]) ]
-    Layout is CAI_FILE::Load -> CAI_PATTERN::Load -> CAI_EVENT::Load.
-    """
-    o = 0
-
-    def i32():
-        nonlocal o
-        v, = struct.unpack_from("<i", b, o)
-        o += 4
-        return v
-
-    npat, sec, secatk, ntitle = i32(), i32(), i32(), i32()
-    title = b[o:o + ntitle]
-    o += ntitle
-    pats = []
-    for _ in range(npat):
-        pname = b[o:o + 32]
-        o += 32
-        nev = i32()
-        evs = []
-        for _ in range(nev):
-            ename = b[o:o + 32]
-            o += 32
-            conds = []
-            for _ in range(i32()):
-                sz, = struct.unpack_from("<I", b, o)
-                conds.append(b[o:o + sz])
-                o += sz
-            acts = []
-            for _ in range(i32()):
-                sz, = struct.unpack_from("<I", b, o)
-                acts.append(b[o:o + sz])
-                o += sz
-            evs.append((ename, conds, acts))
-        pats.append((pname, evs))
-    return (npat, sec, secatk), title, pats, b[o:]
-
-
-def build_aip(header, title, pats, tail):
-    out = bytearray()
-    out += struct.pack("<iiii", len(pats), header[1], header[2], len(title))
-    out += title
-    for pname, evs in pats:
-        out += pname
-        out += struct.pack("<i", len(evs))
-        for ename, conds, acts in evs:
-            out += ename
-            out += struct.pack("<i", len(conds))
-            for c in conds:
-                out += c
-            out += struct.pack("<i", len(acts))
-            for a in acts:
-                out += a
-    out += tail
-    return bytes(out)
 
 
 def act_monster(a):

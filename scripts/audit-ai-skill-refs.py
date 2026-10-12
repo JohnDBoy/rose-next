@@ -174,6 +174,8 @@ import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from rosefmt import zmo as _zmo  # noqa: E402
 
 AIACT24 = 0x19 | 0x0B000000  # type index 25 == "act 24" in the tool's 1-based numbering
 AICOND_CHANCE = 0x08 | 0x04000000  # cond 07 "random percent"; BYTE cPercent at offset 8
@@ -566,11 +568,7 @@ def zmo_events(path):
         d = open(path, "rb").read()
     except OSError:
         return None
-    if d[-4:] not in (b"EZMO", b"3ZMO"):
-        return set()
-    off, = struct.unpack_from("<I", d, len(d) - 8)
-    n, = struct.unpack_from("<H", d, off)
-    return {e for e in struct.unpack_from("<%dh" % n, d, off + 2) if e}
+    return _zmo.event_set(d)
 
 
 def resolve_ci(root, rel):

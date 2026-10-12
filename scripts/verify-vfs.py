@@ -34,85 +34,11 @@ import pathlib
 import struct
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from rosefmt.idx import IdxError, Reader, parse_idx  # noqa: E402,F401
+
 U32_MAX = 0xFFFFFFFF
 I32_MAX = 0x7FFFFFFF
-
-
-class IdxError(Exception):
-    pass
-
-
-class Reader(object):
-    """Little-endian cursor over the .idx bytes."""
-
-    def __init__(self, data):
-        self.d = data
-        self.o = 0
-
-    def i32(self):
-        if self.o + 4 > len(self.d):
-            raise IdxError("truncated .idx: wanted 4 bytes at %d" % self.o)
-        v = struct.unpack_from("<i", self.d, self.o)[0]
-        self.o += 4
-        return v
-
-    def u32(self):
-        if self.o + 4 > len(self.d):
-            raise IdxError("truncated .idx: wanted 4 bytes at %d" % self.o)
-        v = struct.unpack_from("<I", self.d, self.o)[0]
-        self.o += 4
-        return v
-
-    def str16(self):
-        if self.o + 2 > len(self.d):
-            raise IdxError("truncated .idx: wanted a string length at %d" % self.o)
-        n = struct.unpack_from("<H", self.d, self.o)[0]
-        self.o += 2
-        if self.o + n > len(self.d):
-            raise IdxError("truncated .idx: wanted %d string bytes at %d" % (n, self.o))
-        s = self.d[self.o:self.o + n].decode("latin-1")
-        self.o += n
-        return s
-
-
-def parse_idx(path):
-    """Return [(archive_name, [(name, offset, size), ...]), ...].
-
-    Mirrors roselib's VfsIndex::write: base/current version, a filesystem count,
-    then per filesystem a name and a *reserved* i32 that is backfilled with the
-    absolute offset of that filesystem's file table.
-    """
-    r = Reader(pathlib.Path(path).read_bytes())
-    r.i32()  # base_version
-    r.i32()  # current_version
-    nfs = r.i32()
-    if not (0 < nfs < 10000):
-        raise IdxError("implausible filesystem count %d -- is this a data.idx?" % nfs)
-
-    heads = []
-    for _ in range(nfs):
-        heads.append((r.str16(), r.i32()))
-
-    out = []
-    for name, table_off in heads:
-        r.o = table_off
-        count = r.i32()
-        r.i32()  # deleted count
-        r.i32()  # first offset (informational)
-        files = []
-        for _ in range(count):
-            fn = r.str16()
-            # UNSIGNED: this is the whole point. A legacy archive written past
-            # 2 GB stores a value that reads negative as i32 and correct as u32.
-            off = r.u32()
-            size = r.u32()
-            r.u32()          # block size
-            r.o += 3         # deleted, compressed, encrypted
-            r.i32()          # version
-            r.i32()          # checksum
-            files.append((fn, off, size))
-        out.append((name, files))
-    return out
 
 
 def check(game_dir):

@@ -29,6 +29,9 @@ in block order; UI_strID.ID maps NAME -> index (whitespace-separated lines).
 """
 import argparse, io, os, shutil, struct, sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from rosefmt import tsi as _tsi  # noqa: E402
+
 from PIL import Image, ImageDraw, ImageFont
 
 RES_DIR = os.path.join("data", "3DDATA", "CONTROL", "RES")
@@ -48,43 +51,19 @@ SPRITES = [  # (name, glyph, fill) in cell order
 
 # ---------------------------------------------------------------- TSI
 def tsi_read(path):
-    with open(path, "rb") as fh:
-        f = io.BytesIO(fh.read())
-    ntex, = struct.unpack("<h", f.read(2))
-    textures = []  # (name, raw_entry_bytes)
-    for _ in range(ntex):
-        start = f.tell()
-        nlen, = struct.unpack("<h", f.read(2))
-        name = f.read(nlen).split(b"\x00")[0].decode("ascii")
-        f.read(4)  # colorkey
-        f.seek(start)
-        textures.append((name, f.read(2 + nlen + 4)))
-    total, = struct.unpack("<h", f.read(2))
-    blocks = []  # (count, raw_block_bytes)
-    for _ in range(ntex):
-        cnt, = struct.unpack("<h", f.read(2))
-        blocks.append((cnt, f.read(cnt * 54)))
-    assert f.read() == b"", "trailing bytes in TSI"
+    textures, blocks = _tsi.read(path, strict=False)
     # Retail Ui.TSI's total field is wrong (690 vs 688 actual). The client only
     # uses it for a vector reserve and fills sprites from the per-texture
     # counts, so global sprite indices come from the real block sums.
-    if total != sum(c for c, _ in blocks):
+    total, actual = _tsi.declared_total(path), sum(c for c, _ in blocks)
+    if total != actual:
         print("note: TSI total field %d != actual sprites %d (retail quirk; "
-              "rewriting with the actual count)" % (total, sum(c for c, _ in blocks)))
+              "rewriting with the actual count)" % (total, actual))
     return textures, blocks
 
 
 def tsi_write(path, textures, blocks, dry):
-    assert len(textures) == len(blocks)
-    out = [struct.pack("<h", len(textures))]
-    out += [raw for _, raw in textures]
-    out.append(struct.pack("<h", sum(c for c, _ in blocks)))
-    for cnt, raw in blocks:
-        out.append(struct.pack("<h", cnt))
-        out.append(raw)
-    if not dry:
-        with open(path, "wb") as fh:
-            fh.write(b"".join(out))
+    _tsi.write(path, textures, blocks, dry)
 
 
 def texture_entry(name):

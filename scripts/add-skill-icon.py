@@ -26,6 +26,9 @@ STB was patched, restart the game server too (it reads SKILL_ICON_NO for the
 """
 import argparse, io, os, struct, shutil, subprocess, sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from rosefmt.tsi import tsi_read, tsi_write  # noqa: E402
+
 from PIL import Image
 
 RES_DIR = os.path.join("data", "3DDATA", "CONTROL", "RES")
@@ -53,40 +56,6 @@ def backup_once(path):
         shutil.copy2(path, dst)
         print("  backed up %s -> %s" % (os.path.basename(path), dst))
 
-
-def tsi_read(path):
-    with open(path, "rb") as fh:
-        f = io.BytesIO(fh.read())
-    ntex, = struct.unpack("<h", f.read(2))
-    textures = []  # (name, raw_entry_bytes)
-    for _ in range(ntex):
-        start = f.tell()
-        nlen, = struct.unpack("<h", f.read(2))
-        name = f.read(nlen).split(b"\x00")[0].decode("ascii")
-        f.read(4)  # colorkey
-        f.seek(start)
-        raw = f.read(2 + nlen + 4)
-        textures.append((name, raw))
-    total, = struct.unpack("<h", f.read(2))
-    blocks = []  # (count, raw_block_bytes)
-    for _ in range(ntex):
-        cnt, = struct.unpack("<h", f.read(2))
-        blocks.append((cnt, f.read(cnt * 54)))
-    assert f.read() == b"", "trailing bytes in TSI"
-    assert total == sum(c for c, _ in blocks), "TSI sprite count mismatch"
-    return textures, blocks
-
-def tsi_write(path, textures, blocks, dry):
-    assert len(textures) == len(blocks)
-    out = [struct.pack("<h", len(textures))]
-    out += [raw for _, raw in textures]
-    out.append(struct.pack("<h", sum(c for c, _ in blocks)))
-    for cnt, raw in blocks:
-        out.append(struct.pack("<h", cnt))
-        out.append(raw)
-    if not dry:
-        with open(path, "wb") as fh:
-            fh.write(b"".join(out))
 
 def texture_entry(name):
     nb = name.encode("ascii") + b"\x00"
