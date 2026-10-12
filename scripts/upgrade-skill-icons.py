@@ -73,7 +73,7 @@ def _load(name, path):
     return mod
 
 ask = _load("add_skill_icon", os.path.join("scripts", "add-skill-icon.py"))
-oro = _load("import_oro", os.path.join("scripts", "import-oro.py"))
+import rosedata as oro  # the shared data layer (was import-oro.py)
 
 RES = ask.RES_DIR
 TSI = ask.TSI

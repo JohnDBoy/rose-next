@@ -463,7 +463,7 @@ def main():
                          "the original whole-file backup is kept")
     args = ap.parse_args()
 
-    oro = load("import-oro")
+    import rosedata as oro  # the shared data layer (was import-oro.py)
 
     if args.restore:
         if not os.path.isdir(BACKUP):

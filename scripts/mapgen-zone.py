@@ -66,16 +66,9 @@ from mapgen.zone import (CHUNK_CM, EventPoint, Tile, ZoneParams, build_zone,  # 
 
 
 def _load_oro():
-    spec = importlib.util.spec_from_file_location("import_oro", os.path.join(HERE, "import-oro.py"))
-    mod = importlib.util.module_from_spec(spec)
-    argv, sys.argv = sys.argv, ["import-oro.py", "--help"]
-    try:
-        spec.loader.exec_module(mod)
-    except SystemExit:
-        pass
-    finally:
-        sys.argv = argv
-    return mod
+    """The shared data layer (scripts/rosedata): codecs, table schema, importer helpers."""
+    import rosedata
+    return rosedata
 
 
 oro = _load_oro()      # STB / STL codecs (parse + to_bytes only; never its save())

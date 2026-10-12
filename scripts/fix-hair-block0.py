@@ -74,11 +74,9 @@ BLOCK = 5
 
 
 def load_oro():
-    spec = importlib.util.spec_from_file_location(
-        "import_oro", os.path.join(ROOT, "scripts", "import-oro.py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    """The shared data layer (scripts/rosedata): codecs, table schema, importer helpers."""
+    import rosedata
+    return rosedata
 
 
 def dpath(rel):

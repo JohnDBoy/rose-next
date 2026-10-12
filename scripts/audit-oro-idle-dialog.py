@@ -52,7 +52,7 @@ def load(name, fname):
     return mod
 
 
-oro = load("import_oro", "import-oro.py")
+import rosedata as oro  # the shared data layer (was import-oro.py)
 fate = load("import_oro_fate", "import-oro-fate.py")
 
 

@@ -535,7 +535,7 @@ def main():
     rd = load("rose-data-reader")
     pr = load("prune-dead-skill-books")
     fix = load("fix-item-names")
-    oro = load("import-oro")
+    import rosedata as oro  # the shared data layer (was import-oro.py)
 
     if args.restore:
         n = restore(fix, oro)

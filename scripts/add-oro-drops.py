@@ -363,7 +363,7 @@ def main():
                     help="print drop rates per table shape (no writes)")
     args = ap.parse_args()
 
-    oro = load("import-oro")
+    import rosedata as oro  # the shared data layer (was import-oro.py)
     kd = load("add-karkia-drops")
     npc = oro.Stb(NPC_STB)
     drop = oro.Stb(DROP_STB)

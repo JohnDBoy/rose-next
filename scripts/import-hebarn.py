@@ -270,7 +270,7 @@ def load(name, fname):
     return mod
 
 
-oro = load("import_oro", "import-oro.py")                      # STB/STL/CHR/ZSC/IFO codecs
+import rosedata as oro  # the shared data layer (was import-oro.py)
 mon = load("audit_ai_monster_refs", "audit-ai-monster-refs.py")  # .aip codec
 fate = load("import_oro_fate", "import-oro-fate.py")           # QSD codec
 kd = load("add_karkia_drops", "add-karkia-drops.py")           # drop-row encoding

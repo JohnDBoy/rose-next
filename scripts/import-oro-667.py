@@ -209,7 +209,7 @@ def load(name, fname, argv_extra=()):
     return mod
 
 
-oro = load("import_oro", "import-oro.py")
+import rosedata as oro  # the shared data layer (was import-oro.py)
 kk = load("import_karkia", "import-karkia.py")
 rdr = load("rose_data_reader", "rose-data-reader.py")
 oro.backup = lambda path: None      # our undo is build/oro-667/, never a .bak

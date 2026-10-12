@@ -52,7 +52,7 @@ def load(name, fname):
     return m
 
 
-oro = load("import_oro", "import-oro.py")
+import rosedata as oro  # the shared data layer (was import-oro.py)
 kk = load("import_karkia", "import-karkia.py")
 
 

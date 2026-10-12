@@ -98,12 +98,23 @@ ZMS and DDS; the outputs of `catalogue.read_zsc`, the ZMS readers and
 `dds_info` hashed for every file before and after (identical); and the
 read-only script commands diffed before and after.
 
+## Phase 3 (2026-10-12): `import-oro.py` retired
+
+The RoseZA-era Oro importer had become the library 73 scripts loaded with
+`importlib` for its codecs, its LIST_NPC column numbers, its file helpers, its
+ZON readers and `import_characters`. The codecs were already `rosefmt`; the
+rest is now `scripts/rosedata/` (`schema`, `files`, `zone`, `npc`) with one
+flat namespace, so `import rosedata as oro` is a drop-in for what `load_oro()`
+returned. The ZON helpers are rebuilt on `rosefmt.zon` (checked equal to the
+old byte-pokers on all 138 ZON files); the character importer moved as it was.
+Every caller's loader function now returns the package, and `import-oro.py` is
+deleted; its stages are in git history before commit ee1ca094.
+
 ## What moved, what stayed
 
 Moved (the script now imports the shared codec under the same names, so every
 caller is unchanged): `import-oro.py` (STB, STL, ZSC, CHR, LTB, IFO lumps, QSD
-and CON helpers, TSI reader; it re-exports them for the 73 scripts that load
-it), `import-item.py` (ZSC, STL functions, the STB appenders rebuilt on `Stb`),
+and CON helpers, TSI reader; it re-exported them until phase 3 retired it), `import-item.py` (ZSC, STL functions, the STB appenders rebuilt on `Stb`),
 `rose-data-reader.py` (STB, STL), `import-oro-fate.py` (QSD walkers, CON
 helpers), `audit-ai-monster-refs.py` (AIP), `add-item-icon.py`,
 `add-skill-icon.py`, `add-quest-emoticons.py` (TSI), `translate-karkia-dialog.py`

@@ -242,7 +242,7 @@ def main():
                     help="also prune books the rule finds outside the reviewed set")
     args = ap.parse_args()
 
-    oro = load("import-oro")
+    import rosedata as oro  # the shared data layer (was import-oro.py)
     rd = load("rose-data-reader")
 
     if args.restore:

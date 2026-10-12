@@ -211,7 +211,7 @@ def restore(root):
 def audit(root):
     """Bullet-less monsters on a ranged attack clip: the rows the client fallback carries."""
     rd = load("rose_data_reader", "rose-data-reader.py")
-    oro = load("import_oro", "import-oro.py")
+    import rosedata as oro  # the shared data layer (was import-oro.py)
     npc = rd.Stb(os.path.join(root, NPC_STB), "latin-1")
     weapons = rd.Stb(os.path.join(root, WEAPON_STB), "latin-1")
     chr_ = oro.Chr(os.path.join(root, NPC_CHR))

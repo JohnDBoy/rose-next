@@ -317,7 +317,7 @@ def load(name, fname):
     return mod
 
 
-oro = load("import_oro", "import-oro.py")             # STB/STL/CHR/ZSC/IFO codecs
+import rosedata as oro  # the shared data layer (was import-oro.py)
 kk = load("import_karkia", "import-karkia.py")        # copy_new, economy splice
 fate = load("import_oro_fate", "import-oro-fate.py")  # QSD + .CON codecs
 tk = load("translate_karkia", "translate-karkia-dialog.py")   # .LTB codec

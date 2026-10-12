@@ -632,20 +632,9 @@ ECONOMY_MIN_INTS = 3 + (11 - 1)
 
 
 def load_oro():
-    """Reuse import-oro.py's readers and writers rather than duplicating them.
-
-    Same trick rebalance-endgame-curve.py uses. Its main() is guarded by
-    __name__, so importing it under any other name runs no side effects.
-    """
-    spec = importlib.util.spec_from_file_location(
-        "import_oro", os.path.join(HERE, "import-oro.py"))
-    mod = importlib.util.module_from_spec(spec)
-    saved, sys.argv = sys.argv, ["import-oro.py"]
-    try:
-        spec.loader.exec_module(mod)
-    finally:
-        sys.argv = saved
-    return mod
+    """The shared data layer (scripts/rosedata): codecs, table schema, importer helpers."""
+    import rosedata
+    return rosedata
 
 
 oro = load_oro()

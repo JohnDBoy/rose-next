@@ -252,7 +252,7 @@ def main():
     ap.add_argument("--restore", action="store_true")
     args = ap.parse_args()
 
-    oro = load("import_oro", "import-oro.py")
+    import rosedata as oro  # the shared data layer (was import-oro.py)
     exp_mod = load("rebalance_exp_rewards", "rebalance-exp-rewards.py")
     stb = oro.Stb(NPC_STB)
     zone_of = oro_rows(oro, stb)

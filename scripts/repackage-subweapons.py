@@ -308,7 +308,7 @@ def main():
     ap.add_argument("--restore", action="store_true")
     args = ap.parse_args()
 
-    oro = load("import-oro")
+    import rosedata as oro  # the shared data layer (was import-oro.py)
     ftl = load("fix-tooltip-labels")
     sub = oro.Stb(SUBWPN_STB)
     sell = oro.Stb(SELL_STB)

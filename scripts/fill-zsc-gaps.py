@@ -62,9 +62,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 DATA = os.path.join(REPO, "data")
 sys.path.insert(0, HERE)
-_spec = importlib.util.spec_from_file_location("import_oro", os.path.join(HERE, "import-oro.py"))
-ro = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(ro)
+import rosedata as ro  # noqa: E402  (the shared data layer, was import-oro.py)
 from mapgen import catalogue, ifo, tiles  # noqa: E402
 
 TESTCLIENTS = r"C:\Users\Thomas\Desktop\Testclients"

@@ -592,7 +592,7 @@ def motion_warnings(root):
     that is within 1.5 s of its arrival, and folds it silently otherwise -- so the
     hit lands at the end of the cast rather than on its own frame). Read-only; the
     fix is a CHR slot or --remotion."""
-    oro = load("import-oro")
+    import rosedata as oro  # the shared data layer (was import-oro.py)
     npc = rd.Stb(os.path.join(root, NPC_STB))
     ai = rd.Stb(os.path.join(root, AI_STB))
     skills = load_skill_rows.stb

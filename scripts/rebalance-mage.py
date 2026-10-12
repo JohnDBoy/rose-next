@@ -142,18 +142,9 @@ PROFILES = {
 
 
 def load_stb_module():
-    """import-oro.py carries the only writable STB implementation we have."""
-    spec = importlib.util.spec_from_file_location(
-        "import_oro", os.path.join(HERE, "import-oro.py"))
-    mod = importlib.util.module_from_spec(spec)
-    saved, sys.argv = sys.argv, ["import-oro.py", "--help"]
-    try:
-        spec.loader.exec_module(mod)
-    except SystemExit:
-        pass
-    finally:
-        sys.argv = saved
-    return mod
+    """The shared data layer (scripts/rosedata): codecs, table schema, importer helpers."""
+    import rosedata
+    return rosedata
 
 
 def gi(stb, r, c):

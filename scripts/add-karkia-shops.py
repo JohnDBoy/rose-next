@@ -517,7 +517,7 @@ def main():
     ap.add_argument("--restore", action="store_true")
     args = ap.parse_args()
 
-    oro = load("import-oro")
+    import rosedata as oro  # the shared data layer (was import-oro.py)
     rd = load("rose-data-reader")
 
     if args.restore:

@@ -168,10 +168,9 @@ MARKS = {   # row: (name, reviewed value(s), new value)
 
 
 def load_codec():
-    spec = importlib.util.spec_from_file_location("rose_codec", os.path.join(HERE, "import-oro.py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    """The shared data layer (scripts/rosedata): codecs, table schema, importer helpers."""
+    import rosedata
+    return rosedata
 
 
 def cell(npc, r):

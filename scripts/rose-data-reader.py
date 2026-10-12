@@ -37,7 +37,7 @@ though nothing at runtime uses them: reference dumps label their columns and our
 own files mostly do not, so a foreign header often documents a column we have but
 never named.
 
-Usage, matching how `rebalance-endgame-curve.py` loads `import-oro.py`:
+Usage (the codecs are rosefmt's; a script reaches them with `import rosedata as oro` too):
 
     import importlib.util, os
     spec = importlib.util.spec_from_file_location(

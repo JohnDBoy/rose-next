@@ -382,7 +382,7 @@ def load(name, fname):
     return m
 
 
-oro = load("import_oro", "import-oro.py")   # Stb (set/to_bytes), effect_chain, rel_path
+import rosedata as oro  # the shared data layer (was import-oro.py)
 
 
 def ival(stb, r, c):
