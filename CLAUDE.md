@@ -1450,6 +1450,8 @@ that still do). Rules, inventory and what was deliberately left alone:
 | `data.idx` | `rosefmt/idx.py` | `parse` (read-only; unsigned offsets) |
 | primitives | `rosefmt/binio.py` | `pstr8/pstr16/vstr/cstr` read+write, `FormatError`, `read_file`; `Reader`/`Writer` cursors (the map codecs') |
 
+**Before and after any codec change** run `scripts/rosefmt-baseline.py run <dir>` and `diff`
+the two captures (65 read-only script commands + reader hashes; ~25 min, `--quick` for most of it).
 `python scripts/rosefmt-roundtrip.py` re-serialises every shipped file of every
 format and must stay all-OK (`--root <dump>` for a reference client, `--selftest`
 for synthetic edit checks). Things that will bite: a `con.py` cannot be imported

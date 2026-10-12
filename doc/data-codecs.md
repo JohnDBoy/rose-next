@@ -164,6 +164,18 @@ Left in place, on purpose:
    `ITEM1.TSI` declares 540 sprites for 9,295. Each is now preserved
    (`Stl.tail`, `qsd['tail']`, `condialog.split_ex`, `tsi.build(total=)`).
 
+## The before/after harness
+
+`scripts/rosefmt-baseline.py run <dir>` captures the output of every read-only
+script command (65 of them: `--verify`, `--selftest`, `--dry-run`, the reports)
+and hashes what the shared readers return for every ZSC, ZMS and DDS;
+`diff <before> <after>` reports any command whose exit code or output changed
+and any file whose reader output changed, ignoring elapsed-time stamps and
+set-ordered listings. Run it before and after any change to `rosefmt`,
+`mapgen` or a shared helper; the round-trip script proves the bytes, this
+proves the behaviour. A full run is ~25 minutes (`--quick` skips the coplanar
+scan, which is almost all of it).
+
 ## Adding a format
 
 Put the codec in `rosefmt/<format>.py` with the layout in the module docstring,
