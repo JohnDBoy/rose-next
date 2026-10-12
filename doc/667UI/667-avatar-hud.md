@@ -1,5 +1,7 @@
 # 667 avatar-info HUD: recovered behavior
 
+> The investigation tools this document runs (`audit-667-ui.py`, `inspect-667-hud-assets.py`, `trace-667-ui.py`) were removed from `scripts/` on 2026-10-12 once the investigation was closed; they are in git history before commit d17ceb1c.
+
 Second investigation, 2026-09-23. Static evidence from the exact EXE/DLL hashes in
 [667-ui-investigation.md](667-ui-investigation.md), compared with the current
 `avatarinfodlg.cpp`, `tcontrolmgr.cpp`, `timage.cpp`, `tguage.cpp`, and `ctfontimpl.cpp`.

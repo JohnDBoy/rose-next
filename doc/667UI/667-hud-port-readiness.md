@@ -1,5 +1,7 @@
 # 667 HUD: final focused static pass
 
+> The investigation tools this document runs (`audit-667-ui.py`, `inspect-667-hud-assets.py`, `trace-667-ui.py`) were removed from `scripts/` on 2026-10-12 once the investigation was closed; they are in git history before commit d17ceb1c.
+
 This completes the three follow-ups from [the HUD investigation](667-avatar-hud.md).
 The result is sufficient to start an avatar HUD prototype, not a claim that the
 entire 667 UI has been reconstructed. No production game code was changed.

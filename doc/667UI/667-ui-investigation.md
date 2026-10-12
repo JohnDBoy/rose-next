@@ -1,5 +1,7 @@
 # 667 UI reverse-engineering investigation
 
+> The investigation tools this document runs (`audit-667-ui.py`, `inspect-667-hud-assets.py`, `trace-667-ui.py`) were removed from `scripts/` on 2026-10-12 once the investigation was closed; they are in git history before commit d17ceb1c.
+
 Initial static reconnaissance, 2026-09-23. Source client:
 `C:\Users\Thomas\Desktop\Testclients\667`.
 

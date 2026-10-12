@@ -86,8 +86,8 @@ packages were merged:
   (`src/engine/src/zz_mesh_tool.cpp`); `catalogue.mesh_box`/`mesh_vertices`/
   `mesh_triangles`, `objlight.read_zms` and the glb importer's reader/writer
   are built on it. The private copies in `audit-zsc-bounds.py`,
-  `fix-coplanar-object-overlaps.py`, `fix-wing-twin-faces.py` and
-  `measure-flinch-timing.py` stay (applied one-offs).
+  `fix-coplanar-object-overlaps.py` and `fix-wing-twin-faces.py` stay (applied
+  one-offs).
 - **DDS**: `rosefmt.dds` is new; `lighting.dds_info`, `audit-lightmap-index`'s
   `dds_side`, `add-dds-mipmaps`' `read_header` and the icon tools' BGRA
   sheet reader/writer are built on it.
@@ -118,7 +118,7 @@ Left in place, on purpose:
   the shared class returns bytes. Replacing them changes call sites for no gain.
 - `import-eldeon-spawns.py`, `import-eldeon-art.py`, `restore-warp-gates.py`,
   `fix-coplanar-object-overlaps.py`, `audit-zsc-bounds.py`, `zsc_weapon_fix.py`,
-  `measure-flinch-timing.py`, `import-cerberus.py`'s `zmo_with_events`: private
+  `import-cerberus.py`'s `zmo_with_events`: private
   readers in scripts that have run and are not expected to run again, or that
   carry validation logic a plain codec call would drop. Switch them over when
   they are next touched.
