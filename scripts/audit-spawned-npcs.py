@@ -100,8 +100,9 @@ def zone_rows(zone_stb, only):
     return out
 
 
-def spawns_of_zone(folder_rel):
-    """{npc id: [where]} from the REGEN and MOB lumps of every chunk."""
+def spawns_of_zone(folder_rel, placed):
+    """{npc id: [where]} from the REGEN and MOB lumps of every chunk; ``placed``
+    collects {npc id: .CON name} for the NPC placements."""
     found = defaultdict(list)
     folder = oro.rel_path(DATA, folder_rel)
     if not os.path.isdir(folder):
@@ -123,6 +124,7 @@ def spawns_of_zone(folder_rel):
         for rec in m.lump(ifo.MOB) or []:
             if rec.obj_id > 0:
                 found[rec.obj_id].append("%s npc" % stem)
+                placed[rec.obj_id] = rec.con_file
     return found, None
 
 
@@ -296,8 +298,9 @@ def main():
     # 1. what the zones spawn
     reach = defaultdict(list)                  # npc id -> ["zone 131 The Burned Forest: 31_30 regen ..."]
     zone_problems = []
+    placed = {}
     for zid, zname, folder in zones:
-        found, problem = spawns_of_zone(folder)
+        found, problem = spawns_of_zone(folder, placed)
         if problem:
             zone_problems.append("zone %d %s: %s" % (zid, zname, problem))
             continue
@@ -330,6 +333,17 @@ def main():
     # 3. every reachable id through the chain
     for i in sorted(reach):
         audit.check_npc(i, via_ai=any(w.startswith("ai ") for w in reach[i]))
+    # 4. NPC placements: zonefile.cpp spawns one only when its row's NPC_TYPE is 999
+    events = oro.Stb(oro.rel_path(DATA, oro.EVENT_STB_REL))
+    con_rows = {os.path.basename(events.s(r, oro.EVENT_FILE_COL)).lower() for r in range(events.rows)}
+    for i, con in sorted(placed.items()):
+        if not 0 <= i < audit.npc.rows or audit.row_blank(i):
+            continue
+        if audit.npc.s(i, oro.NPC_TYPE_COL).strip() != "999":
+            audit.add("ERROR", i, "placed as an NPC but LIST_NPC type is %r, not 999: the server skips the placement silently"
+                      % audit.npc.s(i, oro.NPC_TYPE_COL).strip())
+        if con and con.decode("latin-1").lower() not in con_rows:
+            audit.add("WARN", i, "placement names dialog %s, which no LIST_EVENT row has (mute NPC)" % con.decode("latin-1"))
 
     # report
     by_sev = defaultdict(list)

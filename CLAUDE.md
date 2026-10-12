@@ -1479,7 +1479,13 @@ Our `data/` is a translated iROSE dump with gaps; the reference dumps in `C:\Use
   refuses those; nine retail ones are known). Exit 1 on an ERROR. Every case it checks was found by
   hand first (Ghost Seed, Basilisk Captain, Ikaness Worker, Gangster Pangs, the retry storm). First
   run: 817 reachable ids, four gaps, all closed by `scripts/fix-spawned-npc-gaps.py` the same day
-  (see below). Built on `rosedata` + `rosefmt`; nothing is parsed in it. `--zone N`, `--json`.
+  (see below). **A placed NPC spawns only if its row's NPC_TYPE (col 27) is 999** --
+  `zonefile.cpp` skips every other placement silently, so a stub row (name, no columns) is an
+  NPC that never appears: ERROR. A placement whose `.CON` has no LIST_EVENT row is a mute NPC:
+  WARN (47 of them, the Desert of the Dead's EM29-*.con among them). Still open after the first
+  fixes: [Vicious Captain] Ruven 1125 (Eucar, QUESTBOARD.con) and [Cosmic Vassal] Little Angel of
+  Junon 1208 (Sunshine Coast) are such stubs. Built on `rosedata` + `rosefmt`; nothing is parsed
+  in it. `--zone N`, `--json`.
 - `scripts/fix-spawned-npc-gaps.py` (2026-10-12, not yet validated in game) — closes the audit's
   first findings. **Sikuku Elite Fighter 562** (Turak's SummonMaster) has no CHR entry in *any* dump,
   but our rows 540/1708 are the same monster with a model: 562 gets a copy of 540's entry.
@@ -1488,8 +1494,14 @@ Our `data/` is a translated iROSE dump with gaps; the reference dumps in `C:\Use
   `rosedata.import_characters`. **Ikaness Warden's weapon 1158** comes from 667's same-named row
   (`MOB_ICANES_WARDEN.zms`, two files copied); **Evil Fairy's 1156** from Jrose's object (the Fairy is
   Jrose's, hand column copied verbatim; `mob_can.zms`, files already here) -- 667's 1156 is a
-  different item. Whole-file originals in `build/spawned-npc-gaps/orig/`, `--restore` refuses if a
-  table changed since (hash in the manifest). Servers load the CHR: restart and bake.
+  different item -- and in game the Fairy still fights unarmed: Jrose's `mob_can.zms` is a 0.2 cm
+  placeholder, the row exists for the attack presentation. Second round after the in-game test:
+  **Boyren needed a real row, not just a model** (type 999, Cornell's columns, STL key LNPC1175
+  appended), and **Turak's morphs 559/560** were "???(??)" with a key the STL lacks -- named
+  "Turak" / LNPC0558 as every dump has them. Whole-file originals in `build/spawned-npc-gaps/orig/`,
+  `--restore` refuses if a table changed since (hash in the manifest). Servers load the CHR and
+  LIST_NPC: restart and bake. Known, not fixed: on Change_CHAR the client's HP bar does not follow
+  the new form's max HP (559/560 have a higher HP column than 558).
 - `scripts/fix-mob-bullet-effects.py` — restores `WEAPON_BULLET_EFFECT` (`LIST_WEAPON.STB` game col 38). Empty there means a ranged monster fires **no projectile and lands no visible hit**: the client's `Get_BulletNO()` skips `Add_BULLET`, and the server's `UsesProjectileAttackPresentation()` picks `MeleeHitFrame`, which nothing on a bow/gun motion consumes.
 - `scripts/import-arrow-bullets.py` — the player-side sibling: an arrow/bullet's projectile is `NATURAL_BULLET_NO` (`LIST_NATURAL.STB` game col 17, a `LIST_EFFECT` row). Angelic Arrow (320 → 597) and Vengeance Arrow (319 → 600) pointed at **blank** `LIST_EFFECT` rows, so they fired nothing (alpha #2). Only the tsuki dump has those rows; the script writes them in place (plus FILE_EFFECT 32/97 and the `arrow_effect_1`/`elect_hit_02` chain) through `import-monster-skills.py`'s `Plan`. Client-only data.
 - `scripts/add-zone-name.py` — appends entries to `LIST_ZONE_S.STL`. A blank name above the minimap is **not** a minimap bug: the name comes from the STL keyed by `ZONE_STRING_ID`, never from the STB name column. Documents the `ITST01` layout, incl. the 7-bit varint lengths and the fact that the client ignores the per-entry offset table and reads strings sequentially.

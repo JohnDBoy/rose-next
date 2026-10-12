@@ -24,7 +24,21 @@
 4. **Object 1156 has no parts** -- the Evil Fairy's weapon. The Fairy came from
    Jrose (import-karkia.py copies LIST_NPC cols 0-42 verbatim, hand included),
    so Jrose's object 1156 (`mob_can.zms`, `mob_flower.dds`, both already here)
-   is the right source; 667's 1156 is a different item.
+   is the right source; 667's 1156 is a different item. In game (2026-10-12)
+   the Fairy still shows no weapon and fights unarmed: Jrose's `mob_can.zms` is
+   a 0.2 cm placeholder (header box 0.16 x 0.16 x 0.2 cm), the way Jrose gives
+   an unarmed monster a weapon *row* for its attack presentation. Kept, since
+   it is what the Fairy's source ships and the row now matches it.
+5. **Boyren was still absent after fix 2**: `zonefile.cpp` spawns a placed NPC
+   only when its LIST_NPC row's `NPC_TYPE` (col 27) is 999 and skips it
+   silently otherwise, and row 1175 was a stub with only a name. He gets the
+   columns of a known-good townsperson of ours ([Village Chief] Cornell, 1001:
+   speeds, size, level, the 100s, type 999, PVP 0, AI 204) with his own name,
+   `Bond.mon` and STL key LNPC1175, which is appended to LIST_NPC_S.STL. No
+   dialog: his placement names `EM58-001.CON`, which no LIST_EVENT row has.
+6. **Turak's morphs 559/560 are nameless in game** ("???(??)" in col 0, STL key
+   LNPC0559 which the STL does not have): the iROSE translation gap. Every
+   reference dump names them "Turak" with key LNPC0558; so do we now.
 
 Idempotent: a gap already closed is skipped. Before the first write the four
 tables (LIST_NPC.CHR, PART_NPC.ZSC, LIST_WEAPON.ZSC, LIST_NPC.STB) are copied
@@ -64,9 +78,14 @@ WEAPON_ZSC = r"3DDATA\WEAPON\LIST_WEAPON.ZSC"
 NPC_MON_COL = 1
 
 CLONE_CHR = {562: 540}                       # our row <- our row
+NPC_ROW_TEMPLATE = {1175: 1001}              # Boyren's columns <- [Village Chief] Cornell
+NPC_ROW_KEEP = {0, 1}                        # name and mon file stay his
+NPC_STL = r"3DDATA\STB\LIST_NPC_S.STL"
+NPC_STRID_COL = oro.NPC_STRID_COL            # 40
+RENAME_ROWS = {559: ("Turak", "LNPC0558"), 560: ("Turak", "LNPC0558")}
 IMPORT_CHR = {1175: ("Boyren", SRC_667, 2129, "Bond.mon")}   # our row <- (label, dump, its row, mon file)
 WEAPON_OBJECTS = {1158: SRC_667, 1156: SRC_JROSE}            # our object <- dump's same index
-TABLES = (oro.NPC_CHR_REL, oro.PART_NPC_ZSC_REL, WEAPON_ZSC, NPC_STB)
+TABLES = (oro.NPC_CHR_REL, oro.PART_NPC_ZSC_REL, WEAPON_ZSC, NPC_STB, NPC_STL)
 ORIG = os.path.join(BUILD, "orig")
 
 
@@ -197,6 +216,41 @@ def run(dry):
             if not dry:
                 npc.save(dry, keep_backup=False)
 
+    # 2b. Boyren's row: the server spawns a placed NPC only when NPC_TYPE is 999
+    npc = oro.Stb(P(NPC_STB))
+    for dst, tpl in NPC_ROW_TEMPLATE.items():
+        if npc.s(dst, oro.NPC_TYPE_COL).strip() == "999":
+            print("  LIST_NPC %d already a type-999 row (skipped)" % dst)
+            continue
+        for c in range(npc.cols):
+            if c in NPC_ROW_KEEP:
+                continue
+            npc.set(dst, c, npc.get(tpl, c))
+        key = "LNPC%04d" % dst
+        npc.set(dst, NPC_STRID_COL, key)
+        print("  LIST_NPC %d <- columns of row %d (%s), type 999, key %s" % (dst, tpl, npc.s(tpl, 0), key))
+        if not dry:
+            npc.save(dry, keep_backup=False)
+        stl = oro.Stl(P(NPC_STL))
+        if not stl.has(key):
+            stl.append(key, dst, npc.s(dst, 0))
+            print("  LIST_NPC_S.STL += %s %r" % (key, npc.s(dst, 0)))
+            if not dry:
+                stl.save(dry, keep_backup=False)
+
+    # 2c. the nameless morph rows
+    npc = oro.Stb(P(NPC_STB))
+    changed = False
+    for r, (name, key) in RENAME_ROWS.items():
+        if npc.s(r, 0) == name and npc.s(r, NPC_STRID_COL) == key:
+            continue
+        print("  LIST_NPC %d %r key %s -> %r key %s" % (r, npc.s(r, 0), npc.s(r, NPC_STRID_COL), name, key))
+        npc.set(r, 0, name)
+        npc.set(r, NPC_STRID_COL, key)
+        changed = True
+    if changed and not dry:
+        npc.save(dry, keep_backup=False)
+
     # 3. the weapons
     for idx, root in WEAPON_OBJECTS.items():
         our = oro.Zsc(P(WEAPON_ZSC))
@@ -233,6 +287,19 @@ def verify():
         print("  ok   CHR %d: skel %s, models %s, %d anims" % (i, skel.decode("latin-1"), e["models"], len(e["anims"])))
         if oro.norm(skel) not in files:
             print("  FAIL CHR %d: skeleton missing" % i); ok = False
+    npc = oro.Stb(P(NPC_STB))
+    stl = oro.Stl(P(NPC_STL))
+    for dst in NPC_ROW_TEMPLATE:
+        key = npc.s(dst, NPC_STRID_COL)
+        if npc.s(dst, oro.NPC_TYPE_COL) != "999" or not stl.has(key):
+            print("  FAIL LIST_NPC %d: type %r key %r in STL %s" % (dst, npc.s(dst, oro.NPC_TYPE_COL), key, stl.has(key))); ok = False
+        else:
+            print("  ok   LIST_NPC %d: type 999, level %s, %s -> %r" % (dst, npc.s(dst, 7), key, stl.name(key, 1) or stl.name(key)))
+    for r, (name, key) in RENAME_ROWS.items():
+        if npc.s(r, 0) != name or npc.s(r, NPC_STRID_COL) != key:
+            print("  FAIL LIST_NPC %d: %r %s" % (r, npc.s(r, 0), npc.s(r, NPC_STRID_COL))); ok = False
+        else:
+            print("  ok   LIST_NPC %d: %r %s" % (r, name, key))
     z = oro.Zsc(P(WEAPON_ZSC))
     for idx in WEAPON_OBJECTS:
         parts = z.objects[idx][1]
