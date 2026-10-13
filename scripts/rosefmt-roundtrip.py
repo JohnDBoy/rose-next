@@ -24,7 +24,7 @@ import traceback
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from rosefmt import (CODECS, Chr, Ltb, Stb, Stl, Zsc, aip, condialog as con, dds,  # noqa: E402
-                     ifo_lumps, idx, qsd, tsi, zmo)
+                     ifo_lumps, idx, ptl, qsd, tsi, zmo)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_ROOT = os.path.join(REPO, "data")
@@ -97,6 +97,10 @@ def _whole(ext):
     return rt
 
 
+def rt_ptl(p):
+    return ptl.build(*ptl.parse(p))
+
+
 def rt_dds(p):
     with open(p, "rb") as fh:
         return dds.join(*dds.split(fh.read()))
@@ -133,6 +137,7 @@ FORMATS = {
     "lit": (".lit", _whole(".lit")),
     "zms": (".zms", _whole(".zms")),
     "dds": (".dds", rt_dds),
+    "ptl": (".ptl", rt_ptl),
     "zmo": (".zmo", parse_zmo),
     "idx": (".idx", parse_idx),
 }

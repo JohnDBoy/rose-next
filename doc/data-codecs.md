@@ -55,6 +55,7 @@ others.
 | `condialog` | `.CON` dialogs | 226/226 | `split`/`join` (Lua + QEX1 appendix, XOR keyed on the final size), `str_ids`, `get_item`/`set_click`. Named `condialog` because `con` is a reserved device name on Windows and Python cannot import `con.py`. The full codec is the quest editor's `convo.rs`. |
 | `ifo_lumps` | IFO chunks as raw lumps | 1582/1582 | the importers' view; `mapgen.ifo` is the structured codec for new work. |
 | `zmo` | motion clips | read-only | header and the `EZMO` event trailer; `with_events` edits frames in place. |
+| `ptl` | particle systems | yes (719 ours, 1159 Jrose) | sequences + typed events; `update_coord` decides whether a particle follows a moving effect (added 2026-10-13 for `fix-evil-fairy-bullet.py`). |
 | `idx` | `data.idx` | read-only | unsigned offsets; `pipeline.exe` writes it. |
 | `binio` | primitives | | `pstr8`/`pstr16`/`vstr` (varint)/`cstr`, `FormatError`, `read_file` (path or bytes); `Reader`/`Writer` cursors. |
 | `zon`, `chunk`, `ifo`, `lit`, `container` | the map formats | 9,035/9,035 | moved from `mapgen/` on 2026-10-12 unchanged; `mapgen.zon` and friends are re-export shims. `rosefmt.CODECS` maps extension to (parse, build). |

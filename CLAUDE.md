@@ -1456,6 +1456,7 @@ importers and passes used to load `import-oro.py` for. Rules, inventory and what
 | `.ZMS` meshes | `rosefmt/zms.py` | `parse`/`build`, `header`, `Mesh.positions_cm`/`triangles_cm`, `rigid_v8` |
 | `.DDS` headers / BGRA sheets | `rosefmt/dds.py` | `parse_header`/`build_header`, `split`/`join`, `info`, `side`, `read_bgra`/`write_bgra` |
 | ZMO clips | `rosefmt/zmo.py` | `read_header`, `events`, `event_set`, `with_events` (read + trailer edit only) |
+| `.ptl` particles | `rosefmt/ptl.py` | `parse`/`build` (byte-exact on all 719), `Sequence.update_coord` (0 world = left behind by a moving effect, 1 rides it), `events_of(type)` |
 | `data.idx` | `rosefmt/idx.py` | `parse` (read-only; unsigned offsets) |
 | primitives | `rosefmt/binio.py` | `pstr8/pstr16/vstr/cstr` read+write, `FormatError`, `read_file`; `Reader`/`Writer` cursors (the map codecs') |
 

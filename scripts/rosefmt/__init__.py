@@ -36,7 +36,7 @@ Import from a script with::
 
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from rosefmt import Stb, Stl, Zsc, Chr, Ltb
-    from rosefmt import aip, condialog, ifo_lumps, qsd, tsi, zmo, idx
+    from rosefmt import aip, condialog, ifo_lumps, ptl, qsd, tsi, zmo, idx
 """
 from .binio import FormatError
 from .stb import Stb
@@ -45,12 +45,12 @@ from .zsc import Zsc
 from .chr import Chr
 from .ltb import Ltb
 from . import (aip, binio, chr as chr_, chunk, condialog, container, dds, idx, ifo,
-               ifo_lumps, lit, ltb, qsd, stb, stl, tsi, zmo, zms, zon, zsc)
+               ifo_lumps, lit, ltb, ptl, qsd, stb, stl, tsi, zmo, zms, zon, zsc)
 
 __all__ = [
     "FormatError", "Stb", "Stl", "stl_by_key", "Zsc", "Chr", "Ltb",
     "aip", "binio", "chunk", "condialog", "container", "dds", "idx", "ifo", "ifo_lumps",
-    "lit", "ltb", "qsd", "stb", "stl", "tsi", "zmo", "zms", "zon", "zsc", "CODECS",
+    "lit", "ltb", "ptl", "qsd", "stb", "stl", "tsi", "zmo", "zms", "zon", "zsc", "CODECS",
 ]
 
 # extension -> (parse, build) for the whole-file map codecs (what mapgen.CODECS was)
