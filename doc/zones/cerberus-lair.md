@@ -2,7 +2,7 @@
 
 tsuki's Cerberus Lair as zone 49 (`scripts/import-cerberus.py`, stages 1-4) plus a
 game-server controller (`src/sho_gameserver/src/cerberus_lair.*`); design and status
-in [doc/cerberus-lair-brief.md](doc/cerberus-lair-brief.md). Every hour, on the
+in [doc/cerberus-lair-brief.md](../cerberus-lair-brief.md). Every hour, on the
 hour, [Arumic Seal Keeper] Yelena (NPC 4149, at the Arumic temple in Arumic Valley)
 opens registration for 10 minutes; at :10 up to five level-140+ registrants are
 drawn, charged 100,000 zuly on arrival, partied and sent in; two packs of Hellhound
@@ -13,7 +13,7 @@ action 9 when approached or hit; its death plus a minute, or 20
 minutes, evicts everyone; there is no way out before that (no gate, save-point revive
 and warp scrolls refused in the lair: `CCerberusLair::IsLair`). Loot is mostly items
 nothing else drops (importer docstring, "Loot"). Test with
-`/cerberus open|draw|status|reset`.
+`/cerberus open|draw|status|reset` and `/cerberus wall up|down`.
 
 Things that will bite:
 
@@ -28,7 +28,7 @@ Things that will bite:
   live team-change packet: the seal break removes it silently (`Sub_DIRECT` +
   `delete`, the GM `npc DEL` pattern) and spawns a `TEAMNO_MOB` sleeper.
 - **The ice wall is `scripts/cerberus-wall.py`'s** (design and log:
-  [doc/cerberus-ice-wall.md](doc/cerberus-ice-wall.md)): the "crater rim" is a
+  [doc/cerberus-ice-wall.md](../cerberus-ice-wall.md)): the "crater rim" is a
   walkable terrain ridge, open over the top and around its south end, so the script
   rasterises the lair's real collision (`mapgen/catalogue.Footprints`), lays
   invisible panels along the ridge and single-spike ice crystals (`mauice05/07`;

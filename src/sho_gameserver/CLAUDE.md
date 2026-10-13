@@ -11,8 +11,8 @@ main.cpp → lib_gsmain (init) → Zone Threads (gs_threadzone)
                                     ↓
                               Per-zone game loop:
                               - Process player input packets
-                              - Run AI (cobjavt / ai_lib)
-                              - Compute combat (srv_common/)
+                              - Run AI (cobjnpc / common/cobjai / ai_lib)
+                              - Compute combat (`common/calculation.cpp`, `cobjchar.cpp`)
                               - Broadcast state changes
                               - SQL thread for persistence
 ```
@@ -28,7 +28,7 @@ main.cpp → lib_gsmain (init) → Zone Threads (gs_threadzone)
 | `src/gs_listuser.cpp/h` | Connected user tracking |
 | `src/gs_threadsql.cpp/h` | Async SQL operations |
 | `src/gs_party.cpp/h` | Party system |
-| `src/gs_socketlsv.cpp/h` | Inter-server communication (login/world) |
+| `src/gs_socketlsv.cpp/h` | Link to the world server (legacy "LSV" name; there is no login-server connection) |
 | `src/network.cpp/h` | Packet broadcasting helpers |
 | `src/cobjchar.cpp/h` | Server-side character object |
 | `src/cobjavt.cpp/h` | Avatar (player) object |
@@ -36,24 +36,25 @@ main.cpp → lib_gsmain (init) → Zone Threads (gs_threadzone)
 | `src/cobjevent.cpp/h` | Event objects |
 | `src/cobjitem.cpp/h` | Dropped item objects |
 | `src/status_effects.cpp/h` | Buff/debuff system |
-| `src/srv_common/` | Combat calculations, skill processing, damage application |
+| `src/srv_common/` | Chat rooms (`cchatroom`), `cobjvar.h` |
+| `../common/calculation.cpp` | Combat math (server-only `#ifdef __SERVER`), compiled directly into this project |
 | `src/ai_lib/` | Server-side AI behavior |
-| `src/common/` | Code shared with worldserver |
+| `src/common/` | Server copies of `CObjAI`, regen areas, user data and the AI/motion/skill table readers (the client has its own) |
 
 ## Networking
 
 - IOCP-based (inherited from `common-server/`)
 - Packet handlers: `Recv_cli_*()` for client packets, `Send_gsv_*()` for server packets
 - Broadcasting: `send_packet()` (single), `send_packet_party()` (party), `send_packet_nearby()` (sector-based, 9 adjacent sectors)
-- FlatBuffers for some packet types (movement, stat updates)
-- Inter-server: communicates with LoginServer and WorldServer via `gs_socketlsv`
+- FlatBuffers for some packet types (movement, stat updates, combat `DamageEvent` / `CombatSwing`, tuning preview)
+- Inter-server: one connection, to the WorldServer (`[worldserver] ip` / `server_port`), via `gs_socketlsv`
 
 ## Zone System
 
 - Each zone runs in its own thread (`gs_threadzone`)
 - Zones divided into sectors for spatial queries
 - `send_packet_nearby()` broadcasts to players in 9 adjacent sectors
-- Zone data loaded from STB files in `data/` directory
+- Zones listed in `LIST_ZONE.STB`; each zone's map data comes from its `.ZON` and per-tile `x_y.IFO` / `x_y.MOV` under `data_dir` (`zonefile.cpp`)
 
 ## Combat Flow
 
@@ -111,7 +112,7 @@ used heavily, no jump.
 
 ### A Junk NPC Row Must Degrade, Not Kill
 
-`CObjMOB::Init` derives max HP as `NPC_LEVEL * NPC_HP` and sizes the per-attacker saved-damage table (`m_SavedDAMAGED`, EXP/drop share) as `NPC_HP / 8 + 4` into a **short**. Three LIST_NPC rows (996 Moss Golem, 997 Nepenthes, 998 Turak — unspawned duplicates, HP column 7.9-13 million where the largest real value is 10,701) overflowed both: a negative max HP and a negative table size that `new[]` read as ~4 billion, so `/mon 996` killed the process with nothing in the log (2026-09-15). `ClampedMobMaxHP` / `ClampedSavedDamageCNT` (64-bit product clamped to `INT_MAX`; table capped at 4096) cover `Init` and `Change_CHAR`. The rows stay as they are — the balance passes leave them alone on purpose — and the Eldeon Moss Golem that actually spawns is **1591**. `/mon` and `/mon2` (`cheatcmd.cpp`, `MobRowRefusalReason`) now refuse such rows with a whisper saying why — no model, level 0, or an HP column over 20,000 — so a tester summoning by number cannot get an invisible or absurd monster. Survey 2026-09-15: of 1,426 named rows, 646 are placed on a map and 111 more are reachable through AI summons; of the 669 unreachable, 212 have junk stats, 183 share a name with a live row, 302 are coherent unused retail/event content. Ids are load-bearing (drop tables, AI, quests, dialogs), so rows are never deleted or renumbered.
+`CObjMOB::Init` derives max HP as `NPC_LEVEL * NPC_HP` and sizes the per-attacker saved-damage table (`m_SavedDAMAGED`, EXP/drop share) as `NPC_HP / 8 + 4` into a **short**. Three LIST_NPC rows (996 Moss Golem, 997 Nepenthes, 998 Turak — unspawned duplicates, HP column 7.9-13 million where the largest real value is 10,701) overflowed both: a negative max HP and a negative table size that `new[]` read as ~4 billion, so `/mon 996` killed the process with nothing in the log (2026-09-15). `ClampedMobMaxHP` (64-bit product clamped to `INT_MAX`) covers `Init` and `Change_CHAR`; `ClampedSavedDamageCNT` (table capped at 4096) covers `Init`, the only place the table is allocated. The rows stay as they are — the balance passes leave them alone on purpose — and the Eldeon Moss Golem that actually spawns is **1591**. `/mon` and `/mon2` (`cheatcmd.cpp`, `MobRowRefusalReason`) now refuse such rows with a whisper saying why — no model, level 0, or an HP column over 20,000 — so a tester summoning by number cannot get an invisible or absurd monster. Survey 2026-09-15: of 1,426 named rows, 646 are placed on a map and 111 more are reachable through AI summons; of the 669 unreachable, 212 have junk stats, 183 share a name with a live row, 302 are coherent unused retail/event content. Ids are load-bearing (drop tables, AI, quests, dialogs), so rows are never deleted or renumbered.
 
 ### Skill Damage Presentation
 
@@ -123,7 +124,7 @@ used heavily, no jump.
 
 ## Configuration
 
-`server.toml` in working directory (see `doc/server.toml.example`):
+`server.toml` next to `sho_gameserver.exe`, or the path given by `--config <path>` (see `doc/server.toml.example`). Besides `[database]` and `[gameserver]` below, the game server reads `[worldserver] ip` / `server_port` (the world server it connects to) and the `[game]` base-stat table:
 ```toml
 [database]
 connection_string = "postgres://user:pass@localhost/rose-next"
@@ -173,8 +174,8 @@ destination. And `SetCMD_MOVE2D` is the move used by
 `Goto_TARGET`/`Start_MOVE`, which has no walkability gate. The result in such a zone
 is a monster that chases perfectly and can never give up — and since `Run_AWAY`
 leaves the command as `CMD_ATTACK` when it fails, and nothing logs, it looks like
-missing AI data rather than a missing asset. It is not missing AI data: 379 of our
-509 `.aip` files declare a pattern-2 leash, and every Karkia monster has one
+missing AI data rather than a missing asset. It is not missing AI data: 347 of our
+534 `.aip` files declare a leash (an `AIACT_16` run-back in the attack-move pattern, recounted 2026-10-13), and every Karkia monster has one
 (typically "≥50-80 m from spawn → run back to within 1-5 m").
 
 Since 2026-09-12 `LoadZONE` counts the tiles that actually loaded and, if **none** did,
@@ -192,8 +193,7 @@ opens the walkability grid and logs a warning. This is the server-side form of t
   are declared and never assigned anywhere, so they hold uninitialised garbage. A per-tile
   flag is also correct for a non-rectangular zone, which a min/max box is not.
 
-- It fires for all 9 Karkia zones and for **Lunar LZ02** — the only zones we ship with
-  zero `.MOV`. Nothing else is affected; no zone has *partial* coverage, so the
+- It fires for all 9 Karkia zones, Lunar LZ02, Oro's Golden Ring (83), Fossil Sanctuary (85) and Colosseum (14), Skaaj (89) and SHIBUYA / Live House SEVEN (126/127) — every zone we ship with zero `.MOV`. No zone has *partial* coverage, so the
   "none loaded" test can never half-apply to a map that meant to block something.
 - Jrose never shipped Karkia's `.MOV` either, so there is nothing to import. Generating
   them from terrain is the only way to get real per-cell walkability there.
@@ -210,10 +210,10 @@ opens the walkability grid and logs a warning. This is the server-side form of t
 ## Dependencies
 
 - `common-server` — IOCP sockets, SQL thread base
-- `common` — shared game logic (calculations, items, quests)
+- `common` (common.lib) — STB reader, logging, network/string utils; the shared game logic (`calculation.cpp`, `shared/` items, quests, inventory, economy, AI file) is compiled directly into this project from `src/common/`
 - `common-lib` (Rust FFI) — logger, config parsing
 - `lib_util` — C++ utilities
-- Thirdparty: libpq (PostgreSQL), lua5, flatbuffers
+- Thirdparty: libpq (PostgreSQL, via common-server), flatbuffers, fmt, json (headers)
 
 ## Conventions
 

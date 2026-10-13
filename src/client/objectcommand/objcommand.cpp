@@ -257,8 +257,10 @@ CObjCommandManager::PopCommand(bool& bSkillCommand) {
 
     for (; begin != m_ObjCommandList.end();) {
         if ((*begin)->m_bValid == false) {
-            // Only skill commands are ever validated (GSV_SKILL_START), so every
-            // queued move / attack / stop ends here, never executed.
+            // A command still invalid here was never confirmed. Remote move /
+            // attack / stop and skill commands are validated at push since
+            // 2026-09-29 (CObjCHAR::QueueNonSkillCommand, PushCommandSkill2*),
+            // so this now drops only what nothing ever validated.
             if (m_iTraceOwner) {
                 LogString(LOG_DEBUG_,
                     "CombatTrace queued command dropped, never validated: obj %d type %s\n",

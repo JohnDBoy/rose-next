@@ -224,7 +224,10 @@ are reported as "already imported" and skipped, so a full run is idempotent. Eac
 skill set writes its own manifest (`manifest-<ids>.json`; the first boss run kept
 the legacy `manifest.json`).
 
-Then put the AI casts back:  `audit-ai-skill-refs.py --restore` followed by
+Then put the AI casts back:  `audit-ai-skill-refs.py --restore --only FILE.aip`
+for each AI file whose casts the import makes valid (then redo that file's
+`--remap`/`--remotion`; a bare `--restore` reverts every file's recorded strips
+and re-points) followed by
 `audit-ai-skill-refs.py` again -- with the rows present only the *other* files'
 dangling casts are stripped, and `--verify` on both audits must pass. Servers
 cache the STBs at startup: restart the gameserver, and ship the client the new

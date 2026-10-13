@@ -921,13 +921,14 @@ bool zz_renderer_d3d::initialize ()
 
 	// Applied to both modes from one place. Windowed mode used to hardcode
 	// D3DPRESENT_INTERVAL_IMMEDIATE and ignore state.use_vsync (which defaults to true),
-	// so vsync was silently forced off there and the frame rate ran unbounded -- there is
-	// no software frame limiter anywhere else in the engine. Keeping the decision in a
+	// so vsync was silently forced off there and the frame rate ran unbounded -- the
+	// software limiter (zz_system::sleep(), max_framerate) is left uncapped by INIT.LUA's
+	// setFramerateRange(15, 1000) unless [VIDEO] MAX_FPS is set. Keeping the decision in a
 	// single place stops the two branches drifting apart again.
 	//
-	// rose-next.ini -> [VIDEO] VSYNC=0 uncaps the frame rate. The exported useVSync()
-	// script hook is never called by the client, so without this there would be no way
-	// to turn vsync off now that windowed mode respects it.
+	// rose-next.ini -> [VIDEO] VSYNC=0 uncaps the frame rate. INIT.LUA calls the exported
+	// useVSync(1), but this read comes after it at every device creation (the script's
+	// value is only the default), so the ini is the knob that counts.
 	state.use_vsync =
 		(::GetPrivateProfileIntA("VIDEO", "VSYNC", state.use_vsync ? 1 : 0, "./rose-next.ini") != 0);
 

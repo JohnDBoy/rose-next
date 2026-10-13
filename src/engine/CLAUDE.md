@@ -16,7 +16,7 @@ Consequences worth knowing before touching rendering:
 - Force the legacy path for A/B testing with `[VIDEO] D3D9EX=0` in `rose-next.ini` or `ROSE_NO_D3D9EX=1` in the environment — and confirm via the log, since a toggle that silently does nothing gives a false negative.
 - The **depth-stencil format is negotiated at device creation**, not fixed — see "Depth Buffer Precision" below before touching format selection in `initialize()`.
 
-`[VIDEO] VSYNC=0` uncaps the framerate — but vsync is **not** the only limiter, contrary to what this line used to say. `zz_system::sleep()`, reached from `swapBuffers()`, enforces `max_framerate` with `::Sleep()`. It does not bind in practice only because `data/SCRIPTS/INIT.LUA:39` calls `setFramerateRange(15, 1000)`; the `src/` default is **60**, so grepping `src/` alone gives the wrong answer — the same trap as `setMipmapLevel` and `setLazyBufferSize`. Note `sleep()` also runs `manager_update()`, the resource amortiser, so the client's `present` phase has never been GPU wait alone: measured, real Present is 0.2–0.4 ms and the rest was the amortiser plus a per-frame yield. Full design notes, the D3DX9 upgrade rationale, the rejected `FLIPEX` work and the remaining gaps are in [doc/d3d9ex-migration.md](doc/d3d9ex-migration.md).
+`[VIDEO] VSYNC=0` uncaps the framerate — but vsync is **not** the only limiter. `zz_system::sleep()`, reached from `swapBuffers()`, enforces `max_framerate` (deadline pacing: `::Sleep()` plus a 1 ms spin; 500 fps and up count as no limit). With the default `[VIDEO] MAX_FPS=0` it does not bind, because `data/SCRIPTS/INIT.LUA:39` calls `setFramerateRange(15, 1000)`; `MAX_FPS=N` (honoured only with `VSYNC=0`, logged as `Framerate cap:` in client.log) re-calls it with N after the script. The `src/` default is **60**, so grepping `src/` alone gives the wrong answer — the same trap as `setMipmapLevel` and `setLazyBufferSize`. Note `sleep()` also runs `manager_update()`, the resource amortiser, so the client's `present` phase has never been GPU wait alone: measured, real Present is 0.2–0.4 ms and the rest was the amortiser plus a per-frame yield. Full design notes, the D3DX9 upgrade rationale, the rejected `FLIPEX` work and the remaining gaps are in [doc/d3d9ex-migration.md](../../doc/d3d9ex-migration.md).
 
 ### Missing Assets Must Degrade, Not Kill (Engine/VFS)
 
@@ -60,7 +60,7 @@ Things that will bite:
   exists for this constraint.
 - **Mesh units depend on the ZMS version.** `load_mesh_minmax` applies `ZZ_XFORM_IN`
   (x0.01) for version < 7 only, so v7/v8 headers are metres and v6 headers are already
-  cm. We ship 22 v6 meshes.
+  cm. We ship 11 v6 meshes.
 - `ViewCullingFunc` tests only **four** frustum planes (near, far, left, right — never
   top or bottom), so vertical FOV culls nothing and the commented-out z comparisons in
   `CompareSizePath2Obj` are not worth restoring on their own.
@@ -73,7 +73,7 @@ re-derives the correct box from ZMS headers plus part transforms, proves the axi
 signature per file, ranks objects whose geometry escapes their stored box, flags boxes
 that are corruptly *over*sized, and reports missing mesh files. Run it after any
 `import-*.py` that appends ZSC objects. Full record in
-[doc/zsc-bounding-boxes.md](doc/zsc-bounding-boxes.md).
+[doc/zsc-bounding-boxes.md](../../doc/zsc-bounding-boxes.md).
 
 ### Depth Buffer Precision (Engine)
 
@@ -174,8 +174,8 @@ while alpha test is on, detected with `CheckDeviceFormat(..., (D3DFORMAT)'SSAA')
 The alpha test then runs per MSAA sample at the same threshold, so edges get the
 MSAA level's smoothing (4x = 5 steps, 8x = 9) and nothing solid changes. The hook
 is in `zz_renderer_d3d::enable_alpha_test`, which every alpha-test toggle goes
-through. Options > Graphics > "See-through edges" switches it live (no restart);
-ini `[VIDEO] TRANSPARENCY_AA` (1 on, the default; 0 off; 2 = NVIDIA alpha-to-coverage,
+through. The UI2 options (Graphics > "See-through edges") switch it live (no restart);
+with the classic interface it is ini-only: `[VIDEO] TRANSPARENCY_AA` (1 on, the default; 0 off; 2 = NVIDIA alpha-to-coverage,
 ini-only, for comparison). `error.txt` logs `r_d3d: transparency AA ...` with the
 driver's answer.
 

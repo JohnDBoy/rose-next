@@ -664,8 +664,9 @@ private:
     /// Cache warming is a separate feature with a separate switch
     /// ([VIDEO] CACHE_WARM_MB) that happens to share this worker thread, so
     /// gating it on m_bEnabled made it silently do nothing whenever prefetch was
-    /// off -- which is the default. The symptom was a warm that aborted on its
-    /// very first candidate name and reported "done (0 file(s))".
+    /// off -- which it always is during a loading screen (only
+    /// CGameStateMain::Enter applies MAP_PREFETCH). The symptom was a warm that
+    /// aborted on its very first candidate name and reported "done (0 file(s))".
     bool ShouldContinueWarm(unsigned long generation) {
         EnterCriticalSection(&m_cs);
         const bool go = !m_bStop && generation == m_Generation;

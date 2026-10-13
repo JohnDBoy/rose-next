@@ -744,8 +744,8 @@ Shutdown() {
 /// fullscreen toggle or frame-drag resize.
 ///
 /// Explicitly hooking every call site proved unreliable -- they are spread
-/// across CApplication (4) and the video options dialog (2), and it is easy to
-/// add a seventh. So the authoritative check is this one: compare the engine's
+/// across CApplication (5) and the video options dialog (2), plus
+/// CGameStatePrepareMain's resetScreenIfNeeded, and it is easy to add another. So the authoritative check is this one: compare the engine's
 /// current device against ours every frame and rebuild when it changes. The
 /// explicit hooks remain as an optimisation ( they release while the old device
 /// is still current, which is tidier ), but correctness does not depend on them.

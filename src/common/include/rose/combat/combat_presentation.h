@@ -145,7 +145,8 @@ private:
 // ids somewhere the server cannot reach without issuing 2^31 events.
 //
 // Every client-side synthetic id must be built from this base. Keep the per-source
-// offsets distinct so the four legacy paths stay separable in a log.
+// offsets distinct so the five legacy paths (four GSV_DAMAGE branches plus
+// ConvertDamageOfSkillToDamage) stay separable in a log.
 constexpr uint32_t kClientSyntheticEventIdBase = 0x80000000u;
 
 struct DamageEvent {

@@ -4438,8 +4438,9 @@ CObjCHAR::IsProjectilePresentedSkillDamage(int iSkillIDX) {
     // Target-bound (instant + duration) and target-state-duration skills —
     // e.g. Fire Ring (TYPE_09 defense-down), single-target buffs/debuffs —
     // are drained at the caster's action frame in cobjchar_actionframe.cpp
-    // (case 25: SKILL_ACTION_TARGET_BOUND* → ProcEffectedSkill() without
-    // bProjectileImpact). BULLET_NO on those rows refers to the effect
+    // (ActionSkill, frame 24: SKILL_ACTION_TARGET_BOUND* → ProcEffectedSkill()
+    // without bProjectileImpact; a frame 25 also drains, via
+    // ProcImmediateSkillHit()). BULLET_NO on those rows refers to the effect
     // graphic ID, not a tracked CBulletDIRECTION — no bullet impact event
     // is ever produced, so an entry queued with bWaitForProjectileImpact=true
     // is skipped at action frame and orphaned forever, and the debuff /
@@ -6486,11 +6487,13 @@ CObjCHAR::PushCommandSkill2Self(short nSkillIDX) {
         // it never played and its damage was eaten by the next melee hit frame).
         // NOT marked as "result received": PushCommand erases older result-less
         // skill commands, and that is wanted -- the server's newest skill command
-        // replaces its previous one (SetCMD_Skill2OBJ is single-valued), and two
-        // queued skill commands deadlock here: a popped command re-queues itself
-        // while the queue is non-empty (CanApplyCommand), so neither ever applies
-        // (the boss's Charge and Fireball, superseded within the same second,
-        // reshuffled forever and the fireball damage landed on a melee frame).
+        // replaces its previous one (SetCMD_Skill2OBJ is single-valued). Two
+        // queued skill commands used to deadlock here: a popped command re-queued
+        // itself while the queue was non-empty (CanApplyCommand), so neither ever
+        // applied (the boss's Charge and Fireball, superseded within the same
+        // second, reshuffled forever and the fireball damage landed on a melee
+        // frame). ProcQueuedCommand's m_bQueueGateBypass has stopped that churn
+        // since 2026-09-29; newest-wins stays the intended rule regardless.
         // The start permission for the new command is counted from its own
         // SKILL_START, so forget starts that belonged to the command just dropped.
         if (this != (CObjCHAR*)g_pAVATAR) {
@@ -6525,11 +6528,13 @@ CObjCHAR::PushCommandSkill2Obj(WORD wSrvDIST,
         // it never played and its damage was eaten by the next melee hit frame).
         // NOT marked as "result received": PushCommand erases older result-less
         // skill commands, and that is wanted -- the server's newest skill command
-        // replaces its previous one (SetCMD_Skill2OBJ is single-valued), and two
-        // queued skill commands deadlock here: a popped command re-queues itself
-        // while the queue is non-empty (CanApplyCommand), so neither ever applies
-        // (the boss's Charge and Fireball, superseded within the same second,
-        // reshuffled forever and the fireball damage landed on a melee frame).
+        // replaces its previous one (SetCMD_Skill2OBJ is single-valued). Two
+        // queued skill commands used to deadlock here: a popped command re-queued
+        // itself while the queue was non-empty (CanApplyCommand), so neither ever
+        // applied (the boss's Charge and Fireball, superseded within the same
+        // second, reshuffled forever and the fireball damage landed on a melee
+        // frame). ProcQueuedCommand's m_bQueueGateBypass has stopped that churn
+        // since 2026-09-29; newest-wins stays the intended rule regardless.
         // The start permission for the new command is counted from its own
         // SKILL_START, so forget starts that belonged to the command just dropped.
         if (this != (CObjCHAR*)g_pAVATAR) {
@@ -6560,11 +6565,13 @@ CObjCHAR::PushCommandSkill2Pos(const D3DVECTOR& PosGOTO, short nSkillIDX) {
         // it never played and its damage was eaten by the next melee hit frame).
         // NOT marked as "result received": PushCommand erases older result-less
         // skill commands, and that is wanted -- the server's newest skill command
-        // replaces its previous one (SetCMD_Skill2OBJ is single-valued), and two
-        // queued skill commands deadlock here: a popped command re-queues itself
-        // while the queue is non-empty (CanApplyCommand), so neither ever applies
-        // (the boss's Charge and Fireball, superseded within the same second,
-        // reshuffled forever and the fireball damage landed on a melee frame).
+        // replaces its previous one (SetCMD_Skill2OBJ is single-valued). Two
+        // queued skill commands used to deadlock here: a popped command re-queued
+        // itself while the queue was non-empty (CanApplyCommand), so neither ever
+        // applied (the boss's Charge and Fireball, superseded within the same
+        // second, reshuffled forever and the fireball damage landed on a melee
+        // frame). ProcQueuedCommand's m_bQueueGateBypass has stopped that churn
+        // since 2026-09-29; newest-wins stays the intended rule regardless.
         // The start permission for the new command is counted from its own
         // SKILL_START, so forget starts that belonged to the command just dropped.
         if (this != (CObjCHAR*)g_pAVATAR) {

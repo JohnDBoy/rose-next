@@ -1,6 +1,6 @@
 ### Oro Is The 667 Build's Oro (2026-09-13)
 
-The RoseZA-era Oro was removed (`scripts/remove-oro.py`, everything moved to `build/oro-removal/`, `--restore`) and the 667 test client's version imported (`scripts/import-oro-667.py`: `--selftest --dry-run --verify --revert`, undo in `build/oro-667/`). Ten zones: 14 Colosseum (walkable, empty), 71 Muris, 72 Portal Room, 73 Portal Temple, 78/79 Wasteland, 80 Oasis Shrine, 81 Ruins Path, 83 Golden Ring (`ODGR01`), 85 Fossil Sanctuary (`ODFS01`). 667 itself deleted the old Wreckage, Golden Ring 01-03 and Gates of Muris. **No quests** by decision; the fate system, the Jones/Nova travel legs (`QP401.QSD` now holds only those two triggers) and the Muris shops stay. Validated in game (2026-10-13); small adjustments still to come.
+The RoseZA-era Oro was removed (`scripts/remove-oro.py`, everything moved to `build/oro-removal/`, `--restore`) and the 667 test client's version imported (`scripts/import-oro-667.py`: `--selftest --dry-run --verify --revert`, undo in `build/oro-667/`). Ten zones: 14 Colosseum (walkable, empty), 71 Muris, 72 Portal Room, 73 Portal Temple, 78/79 Wasteland, 80 Oasis Shrine, 81 Ruins Path, 83 Golden Ring (`ODGR01`), 85 Fossil Sanctuary (`ODFS01`). 667 itself deleted the old Wreckage, Golden Ring 01-03 and Gates of Muris. **No quests** by decision; the fate system, the Jones/Nova travel legs (of Oro's triggers, `QP401.QSD` kept only those two; later imports added their own) and the Muris shops stay. Validated in game (2026-10-13); small adjustments still to come.
 
 Things that will bite:
 

@@ -77,7 +77,7 @@ six maps: Union War 122, Golden Colosseum 110, Junon Polis 99, Sikuku
 Underground Prison 73, Junon Cartel/Crusader Training Camp 43 each (the two
 folders are byte-identical copies), Forgotten Temple B1 35. Field maps are
 clean. One exact duplicate: Junon Polis DECO 153 written into both 36_31 and
-36_32, sunk 100 m. Not yet validated in game.
+36_32, sunk 100 m. Validated in game.
 
 Two things the first attempts got wrong, kept here so they are not re-learnt:
 back-to-back faces (one copy's top on another's bottom) are not a fight

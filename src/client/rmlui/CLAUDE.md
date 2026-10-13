@@ -13,9 +13,11 @@ Off by default — enable with `[VIDEO] RMLUI=1` in `rose-next.ini` or `ROSE_RML
 `/dps` opens the RmlUi damage meter instead of the legacy `CDamageMeterPanel`; both read the same
 `CDamageMeter` core, so they A/B in place.
 
-**Scope is new/custom panels only.** `tgamectrl`, the 56 retail XML dialogs, chat input and **IME**
-are out — RmlUi has no IME composition handling, and the input boundary is the fiddliest part of the
-integration. The purpose is quick, player-editable interfaces, **not** reproducing the original
+**Scope began as new/custom panels only.** UI2 (below) has since replaced nearly every in-game retail
+dialog, the chat input included, one at a time (the login / character-select screens and the few boxes
+listed under "Popup sweep" stay classic). `tgamectrl` itself stays: the hidden classic dialogs remain
+the models. **IME** is out -- RmlUi has no IME composition handling, and the input boundary is the
+fiddliest part of the integration. The purpose is quick, player-editable interfaces, **not** reproducing the original
 TSI/atlas workflow: `.rml`/`.rcss` are loaded loose (never via the VFS) so players can edit them.
 Textures under `3ddata/rmlui/` resolve **disk first** (a player's file overrides the skin's); **game
 art resolves VFS first**, as the classic client does -- a stale loose `icon52.dds` in the launch
@@ -28,7 +30,8 @@ UI re-expressed as gradients — palette sampled from `GLASSUI_*.DDS`, a colour-
 theme first and keeps its own `.rcss` to layout only; the damage meter is the reference. RCSS has no
 `var()`, so the palette is a comment block, not tokens. `/uireload` re-reads every stylesheet in
 game (styles only — markup still needs a restart). Each gradient is one draw call and the backend
-does not batch; fine for a few panels, revisit before moving the whole HUD over.
+does not batch; measured with the whole HUD converted, batching stays pinned (see `/uistats` under
+the performance rules).
 
 **UI2 is the RmlUi remake of the retail HUD, converted one piece at a time** (2026-09-23). The
 player picks classic or UI2 with `[VIDEO] UI2=1` (implies RmlUi) or the `/ui2` chat command, which
@@ -36,9 +39,9 @@ switches live and saves the choice. `src/client/rmlui/RoseUi2.cpp` holds the who
 switch: `kReplacedDialogs` (legacy `DLG_TYPE_*` hidden from the outside every frame in
 `IT_MGR::Update`, because game code re-shows dialogs freely — no legacy class is edited) and
 `kReplacedPieces` (HUD draws that are not dialogs, e.g. `CEndurancePack::Draw`, gated at their
-call site). Converted so far: the status panel (`DLG_TYPE_INFO` → `RoseRmlStatusPanel`, 667
-compact layout) and the buff strip (`PIECE_BUFF_BAR` → `RoseRmlBuffBar`: buffs, summon/fuel
-gauges, worn gear). Shared helpers: `RoseRmlLayout` (drag position saved in `[UI_LAYOUT]`,
+call site). The first two converted were the status panel (`DLG_TYPE_INFO` → `RoseRmlStatusPanel`,
+667 compact layout) and the buff strip (`PIECE_BUFF_BAR` → `RoseRmlBuffBar`: buffs, summon/fuel
+gauges, worn gear); the sections below cover the rest. Shared helpers: `RoseRmlLayout` (drag position saved in `[UI_LAYOUT]`,
 clamped on screen) and `RoseRmlIcons` (a legacy TSI sprite → `<img src rect>`, loaded through the
 VFS — no atlas re-cutting). Things that will bite:
 
@@ -47,8 +50,9 @@ VFS — no atlas re-cutting). Things that will bite:
 - A converted panel must reproduce **every** job of the legacy piece or be deliberately
   documented as dropped: `CEndurancePack::Draw` also drew the summon/fuel gauges and the worn
   gear, not just buffs. The status panel dropped the weapon/ammo slot and two dead buttons.
-- The drag-and-drop panels (quickbar, inventory) need a bridge first: `CDragNDropMgr` resolves
-  drop targets by legacy dialog type, so an RmlUi panel is invisible to it.
+- Drag-and-drop panels need the bridge (see "Skill bar + drag-and-drop bridge" below):
+  `CDragNDropMgr` resolves drop targets by legacy dialog type, so an RmlUi panel is invisible to
+  it until it declares a `drop-target`.
 - **Stylesheets measure in `dp`, never `px`** (font-effect widths excepted): the UI scale
   (`[VIDEO] UI_SCALE`, 75-200%) is the context's dp ratio, so a `px` length silently ignores it.
   C++ that positions in pixels multiplies by `RoseRmlLayout::GetScaleRatio()`.
@@ -61,8 +65,8 @@ VFS — no atlas re-cutting). Things that will bite:
   (`RoseRmlBuffBar::BuffVM`) must be registered once (`RegisterBuffStruct` guards it).
 
 **Skill bar + drag-and-drop bridge** (2026-09-24). `RoseRmlSkillBar` replaces both quickbars as
-a *view*: the legacy `CQuickBAR`s stay alive hidden and keep the F-key hotkeys (`Process` runs for
-hidden dialogs), the page and the hot-icon observers. The bridge is thin because every quickbar
+a *view*: the legacy `CQuickBAR`s stay alive hidden and keep the F-key hotkeys
+(`CQuickBAR::Process` has no visibility check, unlike `CTDialog::Process`), the page and the hot-icon observers. The bridge is thin because every quickbar
 drop command ends in `Send_cli_SET_HOTICON` and asks `CQuickBAR::GetMouseClickSlot` for the slot:
 a row declares `drop-target` (its legacy dialog type), `RoseRmlUi` ends a legacy drag there
 (`DragEnd`), and `GetMouseClickSlot` asks `SkillBarSlotAt` while UI2 is on. A release over any
@@ -229,7 +233,7 @@ on Wanted asks the price at once. The sell list allowed 31 items (`MAX_P_STORE_I
 30-slot dialog; capped at 30. The visited shop and the price form never toggle.
 
 **Crafting windows** (2026-09-26): **a hidden classic dialog does nothing per
-frame** -- `CTDialog::Update` (and each dialog's own `Update`/`Process`) returns while
+frame** -- `CTDialog::Update` (and most dialogs' own `Update`/`Process`) returns while
 `!IsVision()`, which also stops its command queue. Upgrading and crafting play their result
 animation in that per-frame code and only there apply the result to the bag
 (`CUpgradeDlgStateResult::Leave` -> `ApplyResultItemSet`, `CMakeStateResult::Update` ->
@@ -390,24 +394,30 @@ text itself was already UI2 (`SC_ShowNotifyMessage`). Not converted: the GM anno
 `CTargetMenu` / `CTargetObjectDLG` are dead code (never constructed).
 
 Linear gradients are implemented in the D3D9 backend without a shader, and `border-radius` needs no
-renderer support, so skins need no image files at all. Radial/conic gradients, blurred `box-shadow`,
-`filter` and `transform` are **not** implemented and will warn or do nothing. Full design notes,
-phase history, the authoring palette and the traps are in
-[doc/rmlui-evaluation.md](doc/rmlui-evaluation.md); client specifics are in the client `CLAUDE.md`.
+renderer support, so skins need no image files at all. Radial/conic gradients, blurred `box-shadow`
+and `filter` are **not** implemented and will warn or do nothing (`transform` is, see Minimap). Full
+design notes, phase history, the authoring palette and the traps are in
+[doc/rmlui-evaluation.md](../../../doc/rmlui-evaluation.md); the integration specifics (device,
+input, rendering, assets) are in the last section below.
 
 ## RmlUi UI Layer (`rmlui/`)
 
 CSS-authored panels, off by default (`[VIDEO] RMLUI=1` or `ROSE_RMLUI=1`). `/dps` then opens the
 RmlUi damage meter instead of `CDamageMeterPanel`; both consume the same `CDamageMeter` snapshot, so
 the data core is untouched and the two views A/B in place. Design notes and phase history:
-[doc/rmlui-evaluation.md](doc/rmlui-evaluation.md).
+[doc/rmlui-evaluation.md](../../../doc/rmlui-evaluation.md).
 
 | File | Role |
 |---|---|
-| `RoseRmlRenderer.*` | `Rml::RenderInterface` on D3D9(Ex) — synchronous, no batching |
+| `RoseRmlRenderer.*` | `Rml::RenderInterface` on D3D9(Ex) — one draw per `RenderGeometry` (no batching), CPU-side geometry, file textures decoded in `BeginFrame` under a 5 ms budget |
 | `RoseRmlSystem.*` | clock, logging, clipboard, `JoinPath` |
 | `RoseRmlUi.*` | context ownership, device lifetime, input bridge |
 | `RoseRmlDamageMeter.*` | the meter view + data-model bindings |
+| `RoseUi2.*` | the UI2 switch (`kReplacedDialogs` / `kReplacedWindows` / `kReplacedPieces`) |
+| `RoseRmlLayout.*` | panel positions, UI scale, lock |
+| `RoseRmlIcons.*` / `RoseRmlText.h` | TSI sprites as `<img>`; ANSI -> UTF-8 |
+| `RoseRmlMessageBox.*` | UI2 message box / prompts |
+| `RoseRml<Panel>.*` | one per UI2 panel or window |
 
 Hooks: `CGame::GameLoop` (init/shutdown), `CGameState::render_dev_ui` (the shared in-scene overlay
 point every state already calls — must be **outside** `beginSprite()/endSprite()`, the state guard
@@ -417,12 +427,14 @@ assumes it owns the device), `CGameState::ProcWndMsgInstant` (input, first refus
 
 **Device lifetime — the trap.** `resetScreen()` does **not** `Reset()` the device: `cleanup()` calls
 `SAFE_RELEASE(d3d_device)` and `initialize()` creates a *new* one, so a cached `IDirect3DDevice9*`
-goes stale. There are six `resetScreen()` call sites (four in `CApplication`, two in
-`coptiondlg.cpp`) and hooking them individually was got wrong twice. Correctness therefore rests on
+goes stale. There are seven `resetScreen()` call sites (five in `CApplication`, two in
+`coptiondlg.cpp`) plus `resetScreenIfNeeded()` on entering the game (`CGameStatePrepareMain`), and
+hooking them individually was got wrong twice. Correctness therefore rests on
 `Update()` comparing the engine's current device against ours each frame and rebuilding on change;
 the explicit hooks are only an optimisation. Both paths log. Note RmlUi does **not** re-request
-compiled geometry or shaders after a reset, so the renderer keeps CPU-side copies of vertex/index
-data and gradient ramps and refills them itself; `Rml::ReleaseTextures()` covers only textures.
+compiled geometry or shaders after a reset; geometry lives CPU-side only (drawn with
+`DrawIndexedPrimitiveUP`, nothing to rebuild) and the renderer rebuilds gradient ramps and textures
+itself in `CreateDeviceObjects`; `Rml::ReleaseTextures()` covers only textures.
 
 **Input arbitration — the other trap.** Consumption is decided by **panel geometry**, never by
 `Context::GetHoverElement()`. Each document's `<body>` must span the viewport (or `ElementHandle`
@@ -437,13 +449,15 @@ RGBA-ordered where D3D9 wants BGRA. `D3DPOOL_DEFAULT` textures cannot be locked,
 paths go via a `SYSTEMMEM` staging texture + `UpdateTexture`. Linear gradients are implemented
 without a shader: the gradient decorator sets each vertex's `tex_coord` to its element-local pixel
 position, so a `D3DTTFF_COUNT2` texture-coordinate transform onto a baked 256×1 ramp reproduces one
-exactly. Radial/conic gradients, blurred `box-shadow`, `filter` and `transform` are unimplemented and
-warn or no-op; `border-radius` needs no renderer support (RmlUi tessellates it).
+exactly. Radial/conic gradients, blurred `box-shadow` and `filter` are unimplemented and warn or
+no-op; `transform` goes through `SetTransform` (world = translation x transform); `border-radius` needs no renderer support (RmlUi tessellates it).
 
 **Assets.** `.rml`/`.rcss` load loose via `fopen` relative to the launch dir — the VFS bake never
 covers them, same as `UI_strID.ID`. That is deliberate: players edit them. Texture loading resolves
-**disk first, VFS second** so a player's file beats shipped art; `RoseRmlSystem::JoinPath` passes
+**disk first, VFS second** under `3ddata/rmlui/` only, so a player's file beats the skin's; game art
+resolves **VFS first**, disk second (run-time files such as clan marks), as the classic client does.
+`RoseRmlSystem::JoinPath` passes
 game-root paths (`3DDATA/...`) through untouched instead of resolving them against the document
-folder. Keep the RmlUi debugger visible while authoring — RCSS errors are otherwise completely
-silent, and a discarded declaration (e.g. `transition: … linear`, which is invalid; RmlUi has only
+folder. Keep the RmlUi debugger visible (or watch `[rmlui]` warnings in `client-*.log`) while
+authoring — on screen a discarded declaration (e.g. `transition: … linear`, which is invalid; RmlUi has only
 `linear-in`/`-out`/`-in-out`) looks exactly like one that works.

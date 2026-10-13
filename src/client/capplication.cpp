@@ -451,7 +451,7 @@ CApplication::ApplyWindowedClientResize() {
 
     m_bResizingEngine = true;
 
-    // RmlUi holds D3DPOOL_DEFAULT vertex/index buffers and textures which do not
+    // RmlUi holds D3DPOOL_DEFAULT textures and gradient ramps which do not
     // survive the reset below. 9Ex removed the alt-tab reset but NOT this one.
     RoseRmlUi::OnBeforeDeviceRebuild();
 

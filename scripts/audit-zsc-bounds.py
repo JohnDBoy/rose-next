@@ -50,7 +50,7 @@ Traps encoded here, each of which silently yields wrong numbers
 * **Mesh units depend on the ZMS version.** `zz_mesh_tool::load_mesh_minmax`
   applies `ZZ_XFORM_IN` (x0.01) to the header min/max for version < 7 only. So
   v7/v8 headers are metres (cm = value * 100) and v6 headers are already cm
-  (cm = value * 1). We ship 22 v6 meshes; treating them like v8 is a 100x error.
+  (cm = value * 1). We ship 11 v6 meshes; treating them like v8 is a 100x error.
 * **Part transforms chain through parents.** `CFixedPART::LoadVisible` links a
   part to its parent and sets a *relative* position, so a part's model-space
   transform is the composition up the chain. Applying only the part's own

@@ -5,7 +5,7 @@ survivors' shelter) from a 2017 band collab, at their **native** numbers. The ba
 and the survivors tell their story, Shimasaburo and Juri run shops (our Junon Polis
 tabs), Sarasa the storage. In via Jones (Junon Polis), out via the SECONDWALL
 mascot. `scripts/import-shibuya.py` (`--stage 1-7`, `--dry-run`, `--verify`,
-`--selftest`). **The tribute (2026-09-29, in progress)** turns it into a level
+`--selftest`). **The tribute (2026-09-29)** turns it into a level
 60-80 zone: stage 4 imports the Deaders (twelve monsters at their Jrose ids with
 our stats, their AI rebuilt from Jrose's with our edits, the police guns, a
 15-skill kit through `import-monster-skills.py`), the Rot Tracker as a 5% rare

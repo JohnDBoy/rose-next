@@ -188,7 +188,7 @@ Worth running after any `import-*.py` that appends ZSC objects.
 
 * **Mesh units depend on the ZMS version.** `load_mesh_minmax` applies `ZZ_XFORM_IN`
   (×0.01) for version < 7 only, so v7/v8 headers are metres and v6 headers are already
-  cm. We ship 22 v6 meshes; treating them like v8 is a 100× error.
+  cm. We ship 11 v6 meshes; treating them like v8 is a 100× error.
 * **Part transforms chain through parents** — `CFixedPART::LoadVisible` sets a position
   *relative* to the parent. Using only the part's own transform happens to work for the
   cliff objects (identity parents) and is wrong in general.

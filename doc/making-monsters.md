@@ -108,7 +108,7 @@ row's col 16.
 - **Distances in conditions and actions are metres** (the loader multiplies by 100).
 - **Gate every cast on the target already being in range** (`c_target_within`). A
   cast ordered from further away makes the server chase first, and the client
-  abandons a remote cast that has not started within 5 s.
+  abandons a remote cast that has not started within 3 s.
 - **A cast waits for the swing in progress**: expect ~1-2 s between the order (and
   any shout attached to it) and the cast animation starting.
 - **AI speech (action 28) is server-driven** (2026-10-09): the overhead bubble is local
