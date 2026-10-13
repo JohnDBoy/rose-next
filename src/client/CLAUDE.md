@@ -156,6 +156,7 @@ When `GetPetMode() >= 0`, combat state is split between the rider avatar and the
 - `ActionInFighting` case 21 and the rider-side `ActionBow` / `ActionGun` attack frames must skip `Hitted()` / projectile spawning when `GetPetMode() >= 0 && !IsPET()`. The rider's attack motion is visual only; the cart/castle gear is the source of truth for hit timing.
 - The first mounted attack after `Drive Cart` can fail if the player attacks before moving even once. Root cause: cart runtime movement state was only being fully primed by mounted move flow. `CreateCart` and `SetCMD_PET_ATTACK` now copy the rider's move speed / move mode into the cart up front so the first attack can immediately path toward the target.
 - `CObjCART::Get_fAttackSPEED()` falls back to the rider's `stats.attack_speed` (then a hard 100 default) because the cart's own `stats.attack_speed` is never synced from the server. A 0 attack speed produces motion speed 0 → NaN bone transforms → `zz_octree` min <= max assertion crash.
+- **A stop on the rider does not reach the mount by itself.** `CObjAI::SetCMD_STOP`'s forward to the pet (`SetCMD_PET_STOP`) sits inside `#if defined(_GBC)`, which no build defines, so code that stops a rider must stop the cart too (`Stop_Cart()`). Sleep/faint (`CEnduranceSkill`, `interface/cenduranceproperty.cpp`) do since 2026-10-13: before, a stunned castle-gear rider kept the gear's attack order and the self-looping avatar attack motion swung at nothing (`queued presentation miss ... queue 0` every swing) until the next order.
 
 ### Cart / Castle Gear Visual Loading
 

@@ -1072,6 +1072,12 @@ CEnduranceSkill::CreateEnduranceEntity(CObjCHAR* pObjCHAR,
                 if (m_pObjCHAR->m_bCastingSTART)
                     m_pObjCHAR->Casting_END();
                 m_pObjCHAR->SetCMD_STOP();
+                // A rider's attack runs on its cart / castle gear, and SetCMD_STOP's
+                // forward to the pet is compiled out (#if _GBC), so stop the mount
+                // too -- or it keeps its attack order and the local avatar's
+                // self-looping attack motion swings at nothing until a new order.
+                if (m_pObjCHAR->GetPetMode() >= 0)
+                    m_pObjCHAR->Stop_Cart();
             }
         } break;
 
@@ -1086,6 +1092,12 @@ CEnduranceSkill::CreateEnduranceEntity(CObjCHAR* pObjCHAR,
                 if (m_pObjCHAR->m_bCastingSTART)
                     m_pObjCHAR->Casting_END();
                 m_pObjCHAR->SetCMD_STOP();
+                // A rider's attack runs on its cart / castle gear, and SetCMD_STOP's
+                // forward to the pet is compiled out (#if _GBC), so stop the mount
+                // too -- or it keeps its attack order and the local avatar's
+                // self-looping attack motion swings at nothing until a new order.
+                if (m_pObjCHAR->GetPetMode() >= 0)
+                    m_pObjCHAR->Stop_Cart();
             }
         } break;
     }
