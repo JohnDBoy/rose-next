@@ -447,6 +447,19 @@ CObjCHAR::IsPresentedDead() const {
 
 void
 CObjCHAR::MarkPendingCombatSwingProjectileSpawned() {
+    // A cart / castle gear fires its own bullet, but its swing is tracked on the
+    // rider (see ClearPendingCombatSwingPresentation). Forward, or the rider never
+    // learns the bullet is in flight: a sleep/faint, a pre-empting cast or the
+    // orphaned-swing sweep would then discard the event the bullet still owns, and
+    // the shot lands with no digit. A mount is never itself a tracker, so the
+    // recursion is one level deep.
+    if (this->IsPET()) {
+        CObjCHAR* pRider = ((CObjCART*)this)->GetParent();
+        if (pRider) {
+            pRider->MarkPendingCombatSwingProjectileSpawned();
+        }
+    }
+
     if (m_dwPendingCombatSwingEventId == 0 || !m_bPendingCombatSwingProjectile) {
         return;
     }
