@@ -1,0 +1,223 @@
+# CLAUDE.md — Zone warp and terrain streaming (client)
+
+Moved from src/client/CLAUDE.md, which keeps a short summary. The code also lives in
+`io_terrain.cpp`, `system/` and `cfilesystemtriggervfs.cpp`.
+
+### Zone Warp / Terrain Streaming
+
+Zone changes (`CGameStateWarp` → `CTERRAIN::LoadZONE` / `FreeZONE`) and per-frame streaming in `SetCenterPosition` are sensitive to stale state. Containers below are **zone-local**; if they survive a teleport the client keeps loading/freeing old-zone terrain for many frames after warp. `ResetStreamingState()` (called from `FreeZONE` after `SubMAP(MOVE_UPDATE_ALL)`) clears all of them.
+
+**Load / unload queues**
+- `m_LoadOneMapData` — deferred per-map loads drained by `SetCenterPosition()`, one map per `kMinMapLoadIntervalMs` (150 ms) via `m_dwLastMapLoadTick`. Never replace with a frame-count gate — at 60 fps the old `% 5` drain produced visible post-stop hitches for several seconds.
+- `m_DirtyMapList` — recycle list of freed `CMAP*` entries.
+- **`FreeDirtyMAP()` is dead code and its 150 ms budget protects nothing.** The intent was two-phase teardown (mark `MAP_DIRTY`, clear later), but `CMAP::Free()` calls `ClearFromNZIN()` inline and `ClearFromNZIN()` ends with `m_nUseMODE = MAP_EMPTY` — so nothing is ever `DIRTY` and the `IsDirty()` scan can never match. The real teardown cost is paid inside `DrainPendingUnloads` (below), which is where the cap actually lives. Do not cite `kMinDirtyFreeIntervalMs` as protecting unloads.
+
+**Map-level hysteresis (curve-back prevention)**
+- Map unloads are deferred, not immediate: `DeferSubMAP` pushes doomed cells onto `m_PendingUnloadList`; `DrainPendingUnloads(dwNow)` commits them only when the player is > `kMapUnloadHysteresisRadius` (2) maps away OR `kMapUnloadGraceMs` (3 s) has elapsed.
+- `DrainPendingUnloads` commits **at most one map per `kMinDirtyFreeIntervalMs`** (`m_dwLastUnloadTick`). A teardown is expensive and synchronous — `ClearFromNZIN()` unregisters all 256 patches, deletes every fixed object/effect/sound in the cell and frees the 257 heightfield rows — and a diagonal crossing makes up to five cells eligible at once, on the same frames the load path is already hitching. Zone teardown bypasses this: `FreeZONE` calls `SubMAP(MOVE_UPDATE_ALL)` then `ResetStreamingState()`.
+- `AddMAP` fast-path: if the target cell is still pending unload, `CancelPendingUnload` removes the entry and **skips the disk-load enqueue entirely**. Do not re-enqueue loads for cells that are still live.
+- `DoActualUnload` is the only place that calls `pMAP->Free()` + nulls `m_pMAPS` for deferred unloads. The old direct `SubMAP` path only runs on zone teardown.
+
+**Patch keep-alive (camera-rotation prevention)**
+- `CPatchManager::Delete_UnvisiblePatch` uses `kPatchEvictGraceFrames` = 30 frames (~0.5 s at 60 fps; `m_wLastViewFRAME` is `uint16_t`; subtract with wrap-safe arithmetic). Do not evict on `m_wLastViewFRAME != view_frame` — that re-introduces free-look stutter.
+- `Update_VisiblePatchManager(nMappingX, nMappingY)` runs the proximity pass (`Update_VisiblePatch`) after frustum culling so nearby terrain stays in-scene regardless of camera angle. Free-look (right-click drag) rotates yaw + pitch and can reveal many quadrants at once — without proximity keep-alive each re-entering patch pays `InsertToScene` = walk `m_FixObjLIST` + `m_EffectLIST`.
+- Ring radius is `kProximityRingRadius` = 12 (~452 patches via `g_pCRange->GetStartIndex(12)`). The earlier 22 covered 1513 points (~66% of the 48×48 grid), stamped every ring patch's `m_wLastViewFRAME` to the current frame every frame, and so defeated the eviction grace — `resPatch` pinned at 2304 and FPS collapsed in open zones. Any raise above 12 should be measured against `ring=` on the Scene HUD line and `resPatch`.
+- First-time proximity inserts are capped at `kMaxProximityInsertsPerFrame` = 4 so teleport warm-up cannot itself cause a burst. Frustum-visible patches are never budget-gated (must render this frame or you get holes).
+- `CPatchManager::s_nRingStampsThisFrame` counts ring hits per frame (both stamp and budgeted insert). Reset in `CTERRAIN::SetCenterPosition` next to `CMAP_PATCH::s_nInsertThisFrame`; surfaced on the HUD as `ring=` in the Scene: line.
+- `CPatchManager::GetFrustumPatchCount()` exposes `m_nSubPATCH` (patches selected by the quadtree frustum pass after `CalculateViewFrustumCulling`). Surfaced on the HUD as `sub=` on the same Scene: line so `sub` vs `resPatch` distinguishes real frustum set from proximity keep-alive + eviction-grace overhang. If `sub ≈ resPatch` in an open zone, the frustum isn't rejecting and the location is content-bound (not a streaming bug).
+
+**Object cull bounds (`MakeAABBFromObject`) — never trust the ZSC box**
+- Fixed objects live or die with their owning patch: `CMAP::AddObject` assigns an object to whichever patch holds its **pivot**, and `CMAP_PATCH::RemoveFromScene` pulls every object on that patch out of the engine scene. A patch is 10 m square, so nearly every building overhangs its own patch — that is what `m_AABBMin`/`m_AABBMax`, `CompareSizePath2Obj`, `ExPatchEnable` and the `m_ExPatchList[85]` global fallback exist for.
+- **The bounding box cached in the ZSC is broken data in every file in the game.** The exporter scaled only X into world units (cm) and left Y and Z in mesh units, so the stored box is ~100× too thin and ~100× too short. Muris' `ORT01CLIFF01L` registered as a 336 m × 4.0 m × 1.1 m ribbon on the ground instead of a 336 m × 396 m × 114 m wall, so a camera turn evicted the patch and deleted the whole wall mid-screen. Retail Junon has the same defect (its planet vessel is off by 970 m), so this is not an import artefact.
+- `MakeAABBFromObject` therefore asks the **engine** for the world AABB it already derives from real mesh min/max — `getVisibleWorldMinMax` → `CObjFIXED::GetWorldMinMax`, root node only — and keeps the cached box only as a fallback. Do not "optimise" this back to `pModel->m_BBMin`.
+- Valid at map-load time because `loadMesh` reads the ZMS header min/max **eagerly** (`load_mesh_minmax`), independent of lazy geometry loading, and `loadVisible` sets `ZZ_BV_OBB` before `add_runit` so every part has an OBB immediately. `update_bvolume`'s internal `scene_refresh()` is a no-op while the node is out of scene.
+- Root-node-only is complete: **zero** `LIST_CNST_*` / `LIST_DECO_*` objects have more than one parentless part (all multi-root models are character equipment, built from `CCharPART`), and `CObjFIXED::InsertToScene` only inserts the root anyway.
+- **This adds an engine export, so `rosenext.exe` and `znzin.dll` must deploy as a pair** — a new exe against an old DLL will not start. Use `scripts/ab-build.ps1`.
+- The far-insert near/far test in `Update_VisiblePatchManager` measures to the patch's own `m_aabb` footprint, **not** `m_AABBMin`. That corner is `+1e8` for object-less patches and, with correct bounds, one large object drags it hundreds of metres off the patch being decided.
+- `ViewCullingFunc` loops `i < 4` — near, far, left, right, **never top or bottom** — so vertical FOV culls nothing and the commented-out z comparisons in `CompareSizePath2Obj` are not worth restoring on their own. Residual known gap: an object fitting inside its patch's 10 m footprint while towering over local terrain never gets `ExPatchEnable` and is still culled by a terrain-only z.
+- `scripts/audit-zsc-bounds.py` verifies all of this from the data side. Full record: [doc/zsc-bounding-boxes.md](../../doc/zsc-bounding-boxes.md).
+
+**Patch index staleness (latent; exposed by the proximity pass)**
+- `CPatchManager::m_ppPATCH[48×48]` holds patch pointers for the current 3×3 map set. It is populated only by `ReOrginazationPatch` and does **not** track per-frame map-slot rotation in `SetCenterPosition`. The frustum path reads only `m_ppQuadPatchManager[3][3]` (which `UpdatePatchManager` refreshes), so this was latent until proximity was wired in.
+- After any map-slot change the stale entries point into `CMAP::m_PATCH` storage that `CMAP::Free()` has `ZeroMemory`'d — deref yields a zeroed `CMAP_PATCH` with a null vtable, and the first virtual call (`InsertToScene` → `RegisterToNZIN`) crashes.
+- `m_bPatchIndexDirty` flag on `CTERRAIN` is set by `SetMapPTR` and `DoActualUnload`; `SetCenterPosition` calls `ReOrginazationPatch` lazily when dirty, just before `Update_VisiblePatchManager`. **Any future code that directly reads `m_ppPATCH` must run after this refresh.**
+
+**Chunk prefetch (`CMapFilePrefetcher`, `io_terrain.cpp`)**
+- Background worker at `THREAD_PRIORITY_BELOW_NORMAL` that reads-and-discards the files `CMAP::Load` will need, warming the OS cache. Requested from `AddMAP` when a cell is enqueued; invalidated by a generation counter on zone change / disable. Toggle with `[VIDEO] MAP_PREFETCH=0`.
+- **It reads through the VFS, not loose files.** The original version `fopen`'d loose `<map>.HIM/.TIL/.IFO` paths, which exist only on a loose dev install — a deployed client has no loose `3ddata\MAPS` at all, so every open failed into `if (!f) continue;` and the whole mitigation was a silent no-op in the build that ships. If you change the read path, verify against a *packed* deploy.
+- The worker owns a **private** `VHANDLE` from `OpenVFS("data.idx", "r")`, opened on the main thread in `EnsureStarted()` (`CVFS::Open` writes global CRT state via `_set_fmode`) before the thread exists. `OpenVFS` does `new CVFS_Manager`, so it shares no mutable state with the engine's handle; the index maps it reads are filled at mount and never written again. Mode is `"r"`, not `"mr"` — the plain-`FILE*` branch makes `vfread` an `fseek`+`fread`, warming the cache with no `MapViewOfFile` churn in a 32-bit address space.
+- It warms six files per cell, not three: `.HIM`, `.TIL`, `.IFO`, `<x>_<y>_PlaneLightingMap.dds`, and the two `LightMap\*.lit`. **The lightmap DDS is 131–350 KB — over ten times the rest of the cell combined**, so the original three-extension list covered under a tenth of the bytes. It is read by the *engine's* separate memory-mapped handle, but warming still works: both are views of the same `rose.vfs` and Windows backs the file cache and the mapped section with the same physical pages.
+- `pfHit=satisfied/attempted` on the HUD's `Stream:` line is the honesty check. Non-zero attempted with zero satisfied means the worker runs but resolves nothing.
+
+**Buffered VFS reads (`CFileSystemTriggerVFS`)**
+- `Read()` keeps a 32 KB sequential read-ahead buffer, and **`m_lLogicalPos` — not the underlying `VFileHandle` — is the authoritative file position.** `Tell()` must return it (after a refill the handle sits up to 32 KB ahead), `Seek()` moves it and deliberately does *not* invalidate the buffer (so the `.IFO` lump walk's Tell→Seek→read→Seek-back stays free), and `IsEOF()` compares it against `vfgetsize`. `Seek` mirrors `vfseek`'s clamping to `[0, size]`-and-succeed. `OpenFile`/`CloseFile` must reset both — these objects are **pooled and reused** by `CVFSManager`, so stale buffer state would be served as the next file's content.
+- Why: every typed reader (`ReadFloat`, `ReadInt32`, `ReadByte`, …) funnels into `Read()`, which previously issued one `::vfread` — a `memset` plus an `fseek`+`fread` CRT round trip — per call, for as little as one byte. Terrain parses scalar-by-scalar, so a 19 KB `.HIM` was ~4,900 such calls. Measured against the shipped `rose.vfs`, warm cache: `.HIM` **2.88 ms → 0.057 ms (51×)**, `.TIL` 0.26 → 0.011 (24×), a 22 KB `.lit` **3.22 ms → 0.068 ms (47×)**. That was the bulk of the `him=3.2` and `lit=4.0` phases on the `MapIO:` row.
+- **If you touch this, re-run `vfs_buffer_tests`** (`src/tests/vfs_buffer/`). It compiles the real `cfilesystemtriggervfs.cpp` translation unit — not a copy — and checks it against raw `VOpenFile`/`vfread` ground truth over 6 real files: full sequential scalar passes, 4,000 random seek/read ops each, all three seek origins, over-seek clamping, EOF short reads with zero-fill, and pooled re-open (~917k assertions). It needs real game data, so run it from a deployed game dir or pass one:
+  ```
+  bin\release\vfs_buffer_tests.exe C:\path\to\game
+  ```
+  With no `data.idx` present it prints `SKIP` and returns 0, so it is safe to run unconditionally after a build. Verified to fail loudly: reintroducing the old `Tell()` (returning `vftell` instead of `m_lLogicalPos`) trips 147k assertions immediately.
+
+**Frame-hitch campaign, 2026-08-28 — where it ended up**
+
+Worst frame on a fixed Muris walking route, measured with `[VIDEO] FRAME_SPIKE_LOG_MS`:
+
+| | worst frame | spikes >20 ms |
+|---|---|---|
+| start | 139.6 ms | 17 |
+| + motion parser bulk-read | 120.5 ms | ~13 |
+| + DDS mip chains shipped | 30.7 ms | 5 |
+| + mesh read buffering, mips corrected | 21.9 ms | 2 |
+| final (warm cache) | none over 20 ms | 0 |
+| **validated at 60 Hz, vsync on** | **21.4 ms, no interval missed** | **3** |
+
+At 60 Hz the same route reports `avg` of exactly **16.7 ms** on every spike, and the worst frame is 21.4 ms with nothing approaching 33.3. A single genuinely missed interval in a 30-frame window would move the average to 17.3, so the 20.6–21.4 ms readings are profiler/present-queue jitter rather than dropped frames. `flush` is **0.0–1.5 ms** because `manager_update` gets `frame_ms²` as its allowance and at 16.7 ms frames that is enough to pre-load almost everything — 4–5 ms of useful loading per frame in the idle time, and essentially nothing force-flushed at render. The streaming design works as intended once the frame has room.
+
+Three separate causes, none of them the streaming dials everyone reaches for first, and each found only by narrowing the measurement one level at a time. Both remaining spikes sit ~4x the 5 ms average and neither has a dominant phase; the largest single identifiable cost left is `g_pTerrain->SetCenterPosition()` at **9.3 ms** (`logic[terr=9.3]` with `flush=2.6`), which is pure streaming bookkeeping and loads nothing.
+
+**`SetCenterPosition` turned out to be the map-cell read, not patch bookkeeping.** Two samples of `logic[terr=9.3]` / `[terr=9.5]` sent me to split `Update_VisiblePatchManager` into five passes; that found nothing, because the expensive work is on the boundary-crossing path (`AddOneMap`, `AddMAP`, `ReOrginazationPatch`) which only runs when the player enters a new map cell. Instrumenting *that* showed the cost is `AddOneMap` — the map cell disk read, at 1.3-7.5 ms, which the `MapIO:` row had been reporting as `last map load` all along. It is already throttled to one per 150 ms (`kMinMapLoadIntervalMs`) and no longer pushes a frame over 20 ms now that everything around it is cheap. Nothing to fix; it is inherent I/O, already paced.
+
+Two measurement traps this campaign hit, both worth remembering:
+
+- **An intermittent cost needs the intermittent path instrumented.** Wrapping the every-frame function found `terr=0.1` with all five sub-passes at 0.0 and looked like the problem had vanished.
+- **A cold OS page cache inflates `tex[read=]` roughly tenfold** (0.0-0.8 ms warm, 5.4-5.8 ms cold) and with it every frame total. The first run after a re-bake is not comparable with anything. `MAP_PREFETCH` warms map chunks but not textures.
+
+**A total-frame-time threshold cannot compare streaming across framerates.** `FRAME_SPIKE_LOG_MS` fires on the frame total, so the population it samples changes with the framerate: at 60 Hz vsync a frame carrying 4 ms of flush totals ~17 ms and never crosses a threshold of 20, while the same frame uncapped totals ~17 ms against a 3 ms average and looks enormous. That produced a confident, wrong conclusion here — that high framerates starve the resource amortiser — from a 60 Hz run logged at 20 ms against uncapped runs logged at 15. Compared like-for-like at the same chunk arrival, warm cache, same threshold, `flush` is 3.8-5.0 ms uncapped at ~300 fps and 4.0 ms capped at 144: no difference. Use `STREAM_SPIKE_LOG_MS`, which triggers on flush time, when the question is about streaming.
+
+**Measure at the framerate players will actually see.** The whole campaign was run with `VSYNC=0` at 200-330 fps, which is right for *diagnosis* — it exposes CPU cost that a vsync wait would otherwise hide inside `present`. It is wrong for *judging severity*: at 60 Hz the budget is 16.67 ms, so a 17.7 ms frame drops one interval and a 40.8 ms frame drops three, while the same frames look minor against a 3.3 ms average. Validate with `VSYNC=1`.
+
+With vsync on, read the spike log differently: every in-budget frame measures ~16.7 ms because the wait sits inside `present`, so totals cluster at 16.7 / 33.3 / 50 and a `FRAME_SPIKE_LOG_MS` of **20** catches exactly the frames that missed an interval. A large `present` there is the vsync wait and is expected — check `present[mgr= slp=]` before reading anything into it. The amortiser also gets a *bigger* per-frame allowance at 60 fps (`manager_update` is handed `frame_ms²`), so streaming is better amortised than the uncapped numbers suggest; the uncapped measurements are pessimistic for streaming and accurate for CPU spikes.
+
+Method note worth keeping: every round of this overturned the previous round's conclusion. The streaming log blamed terrain; the frame log said `netin`; the packet timer said spawn; the spawn timer said motion loading; the motion split said the file parse, not I/O. **Do not act on the first phase that looks large** — split it until the thing you are looking at has one cause.
+
+**Chunk-display hitch — the resolved picture**
+
+The felt "stutter when new terrain appears" was never chunk file I/O (`MapIO` load is ~2-3 ms). It was resource creation forced at first render, and it had **two independent causes** that needed opposite fixes. Measured lead time (frames between a node being queued and force-flushed) is what separates them — see `getLoadPathCount(4/5)`.
+
+| | terrain meshes | textures |
+|---|---|---|
+| lead time | **1 frame** | **207-309 frames** |
+| cost each | ~0.1 ms | **~2.8 ms** |
+| why it stalled | 256 patches entered the scene in one frame, rendered the next | `load_weight` = 1 ms/KB, so a 350 KB lightmap scored 350 and sat behind the `t > time_weight` gate ~70+ frames |
+| fix | cap patch inserts (`[VIDEO] TERRAIN_INSERTS_PER_FRAME`) | wall-clock load budget (`[VIDEO] LOAD_BUDGET_US`) |
+
+Result: 255-node / 12-46 ms spikes became 23-47-node / 4-6 ms, and at 60 Hz vsync those fit inside the frame budget entirely. The residual outlier (~35 ms) is one insert batch happening to pull in 12 new textures at once — lower `TERRAIN_INSERTS_PER_FRAME` to trade horizon fill-in speed for a smaller worst case.
+
+**Do not try to fix the terrain half with the loading budget** (and vice versa). Terrain has no lead time to exploit; textures have plenty. That mismatch cost several wrong fixes.
+
+**Terrain patch insert budget (`[VIDEO] TERRAIN_INSERTS_PER_FRAME`, default 24, 0 = uncapped)**
+- Caps *first-time* frustum inserts of patches beyond `kNearInsertRadius` (6000 units / 60 m) in `CPatchManager::Update_VisiblePatchManager`. Nearer patches are never deferred — a hole at your feet is worse than distant pop-in — and a newly loaded map cell is >= 160 m away by construction, so the cap only bites at the far edge where fog covers it.
+- Already-resident patches are unaffected: `Insert_VisiblePatch` only does work when `m_wLastViewFRAME == 0`, otherwise it just restamps. The sibling proximity path has always been budgeted (`kMaxProximityInsertsPerFrame` = 4); only the frustum path was uncapped, on the reasoning "must render this frame or you get holes" — true for near patches, not for an arriving chunk.
+- What actually costs the frame is the **textures** an inserted batch drags in via `loadTerrainMaterial`, not the meshes. That is why this dial has more effect than its name suggests.
+
+**Amortised loading budget (`[VIDEO] LOAD_BUDGET_US`, default 2000)**
+- The engine's lazy entrance line exists so resources load over several frames instead of at first render. It never worked: `zz_manager::update` subtracted the **entire accumulated budget** on a successful load instead of the item's own weight, so `t` fell to ~0, `t > time_weight` failed, and the loop exited — **one node per manager per update**.
+- Meanwhile `CPatchManager` inserts up to 4 patches/frame from the proximity ring and an *unbounded* number from the frustum pass. 4 in, 1 out: the queue could never catch up, a whole map chunk's **255 terrain meshes** backed up, and `zz_terrain_block::before_render()` (which flushes unconditionally) paid for all of them in one frame. Measured in-game at **12–46 ms per spike**, with `terrain=255 mesh=0 tex=1..35` and `ins=0` — i.e. the patches had been inserted on *earlier* frames, so this was never an insert-burst problem.
+- Fixed by **bypassing the weight accounting entirely** when a budget is set and pacing the loop on a wall-clock slice shared across managers (`zz_manager::begin_load_budget`, reset per frame in `zz_system::manager_update`).
+- **Charging per-item weight instead of the whole accumulator was tried first and was not enough** — worth knowing, because it looks like the obvious fix. The accumulator accrues `1 + total/10` ticks per frame (~24 at 130 fps → `t` = 5 ms), a terrain mesh has `load_weight` **1**, so the `t > time_weight` gate still stopped after **~4 loads/frame** — exactly the proximity ring's 4 inserts/frame. Break-even, so bursts never drained, and raising `LOAD_BUDGET_US` changed nothing because the budget was never the binding constraint. The weight model cannot be tuned into correctness: it is "1 ms per KB" (`load_byte_per_msec = 1000`) and a flat `1` for procedurally generated terrain meshes that read no file at all.
+- `LOAD_BUDGET_US=0` restores the exact old behaviour — that is the A/B switch. The budget is only consumed when there is a backlog (`update()` early-returns on empty lines), so steady-state play pays nothing.
+- `zz_time` is **unsigned**: the weight subtraction is clamped, because a wrap there hands out an effectively infinite budget.
+
+**Debugging**
+- The `MapIO:` HUD row gives last/worst wall-clock ms for a single `CMAP::Load` and a single unload, plus a phase breakdown (`him`/`til`/`ifo`/`lit`/`quad`). Use it instead of the `Logic:` line's `terr=` — that is a 30-frame average, and with loads gated to one per 150 ms most frames contain none, so a 30 ms spike averages away to nothing.
+- The `Flush:` row measures `zz_manager::flush_entrance` — resource loads forced to happen synchronously at first-render time rather than being amortised by the lazy entrance line. This is the cost of **displaying** new terrain as opposed to reading its files, it runs inside `beginScene()`, and it therefore lands in the `Time:` line's `shadow=` slot rather than `logic=`.
+- **Three instrumentation traps, all hit in practice — respect them when adding counters here:**
+  - A "worst since zone entry" peak **saturates during the zone-in burst** (35–50 ms is normal there) and is then useless for anything you do afterwards. Hence `/perfreset`, which re-zeroes `Flush: peak` and `MapIO: worst`.
+  - A per-frame value is **unreadable**: the event lasts one frame at 130 fps. Hence `recent`, a ~4 s sliding hold (bigger spike replaces at once, otherwise it expires and re-baselines) with an age so you know whether you are looking at something that just happened.
+  - Neither of the above helps if you are busy playing. Hence the **spike log**: with `[VIDEO] STREAM_SPIKE_LOG_MS=4` (the threshold doubles as the switch; **0 = off, the default**), any frame spending ≥ that many ms in `flush_entrance` writes a `Flush spike:` line to `client.log`, rate-limited to 4/s and independent of the debug HUD. Collect by playing, read afterwards. Too chatty to leave on.
+  - **`lazyq`/`lazyterr` in that line are sampled after the render phase has already drained the queue**, so they read ~0 during the very spikes they appear to explain. Read `leadavg`/`leadmax` instead — measured at the flush itself. This misreading cost a whole debugging round.
+  - **A diagnostic scoped to one subsystem is silent for every other cause, and silence reads as health.** `STREAM_SPIKE_LOG_MS` fires only when `flush_entrance` was expensive, so a hitch from the packet drain, object Proc, the shadow pass or a GPU stall produced no line at all and looked exactly like a smooth frame. That is what `FRAME_SPIKE_LOG_MS` below is for.
+
+**Whole-frame spike log (`[VIDEO] FRAME_SPIKE_LOG_MS`, 0 = off, the default)**
+
+Triggers on **total frame time** rather than on any one subsystem, and prints that frame's own phase split. Start here when hunting an unexplained hitch; `STREAM_SPIKE_LOG_MS` then narrows down whatever it points at.
+
+```
+Frame spike: 47.3 ms (avg 8.1) | netin=0.3 logic=2.1 scnupd=1.2 shadow=31.9 render=8.4
+ui=1.1 present=1.9 oth=0.4 | logic[obj=1.4 terr=0.2 fx=0.3 uiupd=0.1]
+| flush=30.2ms/258n [terrain=255 mesh=0 tex=3 mat=0 other=0] | suppressed=0
+```
+
+- Lives in `FrameProfiler.cpp` (`EmitSpike`/`NoteSpike`), threshold pushed in from `winmain.cpp` at startup and logged there so an inactive diagnostic cannot be mistaken for a quiet session.
+- **The 250 ms rate limiter keeps the *worst* frame of each window, not the first, and emission is deferred to the end of the window to make that possible.** Keeping the first is the obvious implementation and it is actively misleading: in the very first capture it reported a 24 ms frame and discarded a >=104 ms one that landed 250 ms later, so the headline number was the least interesting frame of the burst. `others=N` counts the rest of the window. A hitch log that drops the biggest hitch is worse than no log, because it looks like evidence.
+- **`pkt[n= worst= ]` breaks the drain down further**: how many packets the frame handled, and the single most expensive one's type and cost. `n` high with a small `worst` is packet volume; `n` low with a large `worst` is one handler doing something enormous — measured, that is the case here. Types print in hex so they grep straight against `src/common/net_prototype.h`; `scripts/decode-packet-type.py --log <client.log>` annotates a whole capture. Note client→server and server→client share the id space (`0x0796` is both `CLI_STOP` and `GSV_STOP`), and the log only ever reports received packets, so the inbound name is the right reading.
+**Character spawn was a motion-parser problem (fixed)**
+
+Walking through Muris produced 20-100 ms frames whose cost split across two buckets, which is why neither the streaming log nor the packet timer found it alone. Chased to the bottom, the chain was: `GSV_NPC_CHAR`/`GSV_MOB_CHAR` handler -> `CObjCHAR::CreateCHAR` -> `LoadModelNODE` -> `Get_MOTION(0)` -> lazy ZMO load. Measured 10-26 ms **per new NPC type**; repeat spawns of a loaded type are free, and `skel` (0.4-1.2 ms) and `::loadModel` (0.1-0.4 ms) were never the problem.
+
+The cost was not I/O. `zz_motion::load` read the frame section **one float at a time**, and every `zz_vfs::read_float` bottoms out in `zz_vfs_pkg::read_`, which calls `vftell` then `vfread` — both `__stdcall` exports of `triggervfs.dll` — behind a virtual dispatch. A 30-bone, 200-frame motion is ~24,000 floats, so ~48,000 cross-DLL calls, plus up to four `is_a()` type-chain walks per channel *per frame*. It now sizes the frame section from the channel types, reads it in one call via `zz_fast_reader`, and switches on the stored `channel_type` the way `update_mesh` always did.
+
+Things that will bite:
+
+- **This is an engine change: deploy `rosenext.exe` and `znzin.dll` as a pair.**
+- `zz_fast_reader` (written 2011) had **no users at all** before this. It also had a `new[]`/scalar-`delete` mismatch, harmless for `char` but fixed since it is now a hot path.
+- **The bulk read is padded, not strict** (`load_padded`). The old field-by-field reader could not fail: a short file left stale values and carried on, so a truncated motion was a visibly wrong animation. Failing hard would turn that into an NPC that never spawns — a cosmetic fault promoted to a functional one. Zeros are at least deterministic.
+- **`ZZ_CTYPE_NORMAL` shares the position channel class and has therefore always been scaled and `ZZ_XFORM_IN`'d like a position.** Odd, preserved deliberately — that commit was a speed change, not a behaviour change.
+- **A quat is laid out `x,y,z,w` but the file stores `w,x,y,z`.** Reading a rotation as one 4-float block into the quat silently rotates every bone. Read the components individually.
+- Our `.vfs` is **not** encrypted (`pack.rs` never sets `is_encrypted`), so `zz_vfs_pkg::read_`'s encrypted branch is dead here. Be aware it rebuilds a 4 KB crypt table **and heap-allocates a `std::string`, per call** — against an encrypted archive the old per-float reader would have been catastrophic rather than merely slow.
+
+- **`spawn[n= skel= mot= load= parts= bone= rest=]`** breaks one `CObjCHAR::CreateCHAR` into its steps, accumulated per frame. Spawn cost lands in **two** buckets and neither log alone reveals it: the skeleton, motion and materials have `load_weight == 0` so they load inline inside the packet handler (charged to `pkt`), while the meshes and textures are queued and then force-flushed at render (charged to `flush`, under `shadow`). This is what found the motion parser above — `mot` was 90%+ of every spawn and is now 0.1–0.5 ms.
+
+**Texture create, not texture I/O** (`tex[n= read= create=]` on the spike line)
+
+Once character spawn was fixed, every remaining spike was `shadow` = flush = textures. The split says the file read is ~0.1 ms per texture and `D3DXCreateTextureFromFileInMemoryEx` is everything else — and it is not a fixed overhead: one session measured **0.20 ms and 11.13 ms per texture**, a 55x spread.
+
+`zz_renderer_d3d.cpp` carries a note from the original team that names the mechanism: a 512x512 DXT1 costs **0.729 ms at miplevel 1 and 57 ms at miplevel 2**. Same file, same size — the cost is D3DX *generating* a mip chain instead of copying the file's, which for a DXT source means decompress, box-filter and recompress per level. No D3DX flag avoids the recompress, so this cannot be tuned away in the renderer.
+
+`INIT.LUA` asks for 3 mip levels (`setMipmapLevel(3)`, which the gutterless lightmap atlas requires — see the root `CLAUDE.md`). A file that ships its own chain is a cheap copy; a file with none has to have one built at load.
+
+**1257 of 11427 shipped DDS files have no mip chain**, and the distribution is damning: `ELDEON` 99% (208/210) and `ORO` 70% (103/148) — both our own imports — against `MAPS` 9.9% and `AVATAR` 4.3%. Muris is Eldeon, which is why the test route hits it hardest. 819 of the 1257 are DXT-compressed, so regenerating them offline needs a DXT encoder (`texconv`/DirectXTex, or a `squish`-style crate if it goes in `src/pipeline`, which is the right home for a bake-time concern). Those files are 193.6 MB and full chains add roughly a third, so **re-check `rose.vfs` against the 2 GB rollover limit after such a bake**.
+
+Ruled out statically before any of this: `PERFORMANCE=4` indexes `c_iPeformances {5,4,3,2,1}` to quality level 1, which leaves `texture_loading_format` 0 and `tex->get_format()` at `ZZ_FMT_UNKNOWN` — D3DX reads that as "keep the file's format" — and `texture_loading_scale` 0, so there is **no format conversion and no rescale**. Both were better suspects than they turned out to be.
+
+`r_d3d: slow texture create` in **`error.txt`** (not `client.log` — it is a `ZZ_LOG`) names any create over 2 ms with its path, `src_mips` and `req_mips`. An in-game capture settled it past correlation: **196 of 196 slow creates had `src_mips=1`**, no exceptions, costing 1300 ms across 163 distinct files in one short session.
+
+Fixed in the data by `scripts/add-dds-mipmaps.py`, which rebuilds every chainless DDS through the already-vendored `thirdparty/directxtex-2020.9.30/texconv.exe`. 1256 files, 193.6 MB -> 259.1 MB. Its docstring carries the reasoning and the traps (`-dx9` is mandatory or the client silently cannot load the file; backups live outside `data/` because `pack.rs` has no extension filter and would bake a `.bak` into the archive).
+
+Result, same route: texture create went from **100.1 ms to 1.5 ms** for a comparable batch (66.8 -> 1.5 ms for the identical 6 textures on one frame), slow creates from **196 to 2**, and the worst frame in the session from **139.6 ms to 30.7 ms**. The two survivors are the 1024x1024 sky textures at 7.0 and 2.4 ms, now with `src_mips=11` — the honest cost of a texture that size, not a defect.
+
+**`vfgetdata()` is a trap — do not use it.** It looks like a free whole-file pointer and returns `pVFH->pData + pVFH->iAllocOffset` with no null check, while `vfread` checks `pData` precisely because it is legitimately NULL for a handle whose data was never preloaded. For such a handle it hands back a small **non-NULL** garbage pointer that passes any sanity test and faults on first use. `zz_vfs_pkg_buffered` was written against it and killed the client a second after the window appeared; it now owns its buffer and fills it with one ordinary `read_`. Note `error.txt` still showed the *previous* session throughout, because the engine log is buffered — `client.log` is what showed startup stopping right after `Init_DEVICE`.
+
+**Lightmap atlases are excluded, and that was learned the hard way.** The first run converted 354 of them and produced a dark wash on map objects that appeared at distance and vanished as you walked in — a lightmap multiplies into object colour, so bleeding between the atlas's gutterless cells reads exactly like that. The engine still caps loads at 3 levels, but those levels now come from texconv's default FANT filter, whose support reaches past one texel, instead of D3DX's strict 2x2 box. The root `CLAUDE.md` already warned that chains are unsafe for these; the script now skips anything under a `LIGHTMAP` path, and `--restore-excluded` puts back files a newly added exclusion says should never have been touched.
+
+**This grew the archive past what was then the rollover threshold.** `rose.vfs` was 1.93 GB against `pack.rs`'s `VFS_MAX_BYTES`, which was 1.90 GB while the offset field was signed; it is 4.2 GB now. Whenever the archive does pass it, the bake produces `rose.vfs` **and `rose_2.vfs`**, and every `rose*.vfs` must ship alongside `data.idx`. See `scripts/CLAUDE.md` on the .vfs offset limit; the failure mode for a missing second archive is a Lua parse error at startup that points nowhere near the cause.
+- **`netin` is four unrelated jobs** — the Win32 pump, `g_GameDATA.Update()`, `g_pNet->Proc()` and `ProcInput()` — and it turned out to be one of the largest spike phases in practice (48-201 ms in-game, `flush=0`). The `netin[msg/gdat/pkt/inp]` group splits it. Packet handlers run synchronously inside `g_pNet->Proc()`, so anything a packet triggers — a zone change, a large inventory update — is charged to `pkt` rather than to the phase that does the work.
+- **The phase values are that frame alone**, not the HUD's 30-frame mean. `FrameProfiler::End` accumulates into a per-frame bucket which `EndFrame` folds into the window total — the whole reason the log exists is that a hitch is one frame and the averaged HUD row cannot hold it.
+- **`flush=` is sampled from `CGameStateMain::Update`, not from `EndFrame`, and that ordering is load-bearing.** The engine rolls its per-frame flush counters over in `zz_system::sleep()`, which `swapBuffers()` calls — i.e. *before* `FrameProfiler::EndFrame()` runs. Sampling them in the profiler would read a clean zero on every spike frame and quietly exonerate streaming for hitches it caused. Hence `FrameProfiler::CaptureFlushStats()`, called after the render and before `endScene()`.
+- **`flush=` is a whole-frame total and does not belong to any one phase.** Force-loads happen in at least three places: the octree's within-50 m distance pass (`zz_scene_octree::update_distance`, reached from `updateSceneEx()` — so it lands in **scnupd**), `zz_terrain_block::before_render()` under `beginScene()` (**shadow**), and the render pass. A large `flush=` therefore says streaming was involved but not which phase paid for it — read it *against* the phase values, not instead of them. Sampling after the render is what makes it a complete total.
+- Frames that never reach that call (lost focus with `BACKGROUND_RENDER=0`, or `beginScene()` returning false) report `flush=unsampled`, deliberately not `flush=0.0` — "no data" and "no flush work" are different findings.
+- **Run with `VSYNC=0` while hunting.** With vsync on, the frame cap is paid inside `present`, which inflates it on every frame and masks the real cost of everything else.
+- `oth` = total minus the bracketed phases. A large `oth` is a real finding — work inside the frame that no bracket covers — not measurement noise.
+- Streaming diagnostics use `LOG_INFO`, **not `LogString`**. `LogString` reports every line as `Debug` regardless of its `LOG_NORMAL`/`LOG_DEBUG_` argument (`log.h`'s `OutputString` hardcodes it), and the client initialises the logger at `Info` — so a `LogString` diagnostic never reaches `client.log`. Anything you add that needs to be readable must use the `LOG_*` macros.
+- Logs around `LoadZONE` / `FreeZONE` report queued-load and dirty-map counts; they must return to 0 after zone teardown.
+**Loading-screen cache warming (`[VIDEO] CACHE_WARM_MB`, 0 = off, the default)**
+
+A zone load leaves the OS page cache cold for everything that zone has not touched yet, and a cold cache inflates `tex[read=]` roughly 10x (0.0-0.8 ms warm vs 5.4-5.8 cold). Warming reads whole groups of archive files start to finish on the prefetcher's worker thread while the loading screen is up, purely so the *first* in-game access to any of them costs no disk read.
+
+**Measured, cold cache, same five-zone route, warming on vs off:**
+
+| | per-texture read, in-game | per-texture read, zone transition | frames > 20 ms |
+|---|---|---|---|
+| on (two runs) | 0.135 / 0.142 ms | 0.475 ms | 6, 6 |
+| off | 0.503 ms | 0.445 ms | 10 |
+
+**The gain is entirely in-game, and there is none at the zone transition.** That inversion is the important part and it is structural, not a tuning failure: the warm is kicked off from `LoadZONE`, the same moment that zone's own texture burst begins, so it can never get ahead of it. What it does buy is the streaming seconds later, once you are walking around — 3.7x on the mean, 6-7x on the median. **Do not reach for warming to shorten a loading screen**; two rounds of work went into the transition case before this measurement showed it was unreachable.
+
+The corollary for measurement: **every run before this one had warming on**, so none of them could say whether the feature did anything. A/B against *off* was the only test that mattered and it was the last one run. Default is now on at 300 MB.
+
+**The zone's own map directory is warmed too, on a weaker rationale.** A five-zone cold-cache run showed every in-game frame at 8-20 ms, but each zone *transition* spent 45-88 ms reading 130-211 textures -- 0.2-0.65 ms each against 0.04-0.3 ms for in-game batches, i.e. reading cold. The cause was a gap in what was warmed: `3DDATA\MAPS` holds **5562 DDS files totalling 1017 MB**, more than every other tree combined, and none of it was covered. Warming a whole continent is not the answer either (Junon alone is 423 MB, most of it zones the player is not in); the zone's own directory is 18 MB at the median and 67 MB at the worst, so it is queued first and costs almost nothing. It comes from the `.ZON` path's parent, so new zones need no code change.
+
+Five groups are queued per zone, most zone-specific first: the zone's own `3DDATA\MAPS\<continent>\<zone>`, then `3DDATA\TERRAIN\TILES\<area>`, `3DDATA\<area>`, and finally the shared `3DDATA\NPC` and `3DDATA\MOTION`. `<area>` is the continent directory taken from the zone's own map path (`ZONE_FILE()`'s third component), not a table, so a new continent needs no code change. Junon warms 5989 files / 279 MB.
+
+Things that will bite:
+
+- **It shares the map-cell prefetcher's worker thread but is a separate feature with a separate switch, and conflating the two silently disables it.** The warm loop originally used `ShouldProcessGeneration`, which tests `m_bEnabled` — the `MAP_PREFETCH` flag, off by default. Warming therefore aborted on its very first candidate name and logged `done (0 file(s))`, which reads as "nothing matched" rather than "never ran". Use `ShouldContinueWarm`, which tests stop + generation only.
+- **Map cells always win.** `DoWarmSlice` runs only when the map-cell queue is empty, does at most 24 files, and returns to re-check the queue — so a cell queued mid-warm waits one slice, not a whole group. Getting that backwards would turn a first-visit optimisation into a permanent regression.
+- **Completing a scan and being cancelled mid-scan are different, and `m_WarmedPrefixes` is never cleared.** Marking a cancelled prefix as warmed retires it for the session having read nothing. Startup crosses several zones in quick succession (`FreeZONE(0)` -> `FreeZONE(4)` -> the real one), each bumping the generation, so *every* group got retired instantly.
+- **The budget is charged per zone, not per session, and that distinction is the whole feature.** As a session-lifetime cap it spent everything on the first zone: a cold-boot run warmed Junon to 279 MB of 300, then warping to Oro got its tile group and 144 of 391 object files before the cap stopped it, and a third zone would have got nothing. The counter now resets on zone change; `m_WarmedPrefixes` still suppresses re-warming `NPC`/`MOTION`, so a later zone only pays for what it actually introduces. Exhaustion logs which groups were skipped rather than truncating silently.
+- **Measuring it needs a cold page cache, and rebooting is not the only way.** A second run reads everything from RAM whether or not warming is on, so an A/B without an eviction step returns "no difference" regardless of how well it works. `just purge-cache` (`scripts/purge-page-cache.ps1`) drops the standby list in about a second, which is the part of a reboot that matters here; it prints the before/after so a purge that did nothing cannot pass for one that worked.
+- **`tex[read=]` is not pure disk I/O, so it has a floor warming cannot remove.** It spans `vfs_thread->open()` plus `read(..., forcing=true)`, and the forcing read does the file read *inline on the calling thread* under `cs_`, a critical section shared with the engine's VFS worker. Most of the residual is lock wait and buffer allocation. Cold-vs-warm still moves it by 3.7x, so it remains a usable signal — just do not expect it to approach zero.
+- **A page-cache warm has no number of its own.** Its effect shows up as `MapIO`/`Flush` going down, never as a metric that says "warming worked". The `Warm:` HUD row reports files/MB read this session so you can tell it ran at all — cumulative, since a warmed group is deliberately never redone.
+- Verify the group contents independently of the client by parsing `data.idx` directly; the per-group counts printed at startup should match a prefix count over the FAT exactly (213 / 1949 / 1784 / 2043 for Junon). That is what proved the reader was pulling the intended set rather than merely running.
+
+- If post-warp hitches come back, check queue sizes first. If free-look hitches come back, check whether the proximity pass is still running (`Update_VisiblePatch` called from `Update_VisiblePatchManager`) and whether `m_bPatchIndexDirty` is being refreshed.

@@ -153,8 +153,10 @@ file before working in that area.
 - **UI2 / RmlUi** -- `src/client/rmlui/CLAUDE.md`: every UI2 panel and window, traps
   and performance rules (`dp` not `px`; no nested auto-sized flex; a replaced classic
   dialog is never shown or hidden, and classic code checks it via `IT_MGR::IsDlgOpened`).
-- **Client** -- `src/client/CLAUDE.md`: combat presentation, terrain streaming, client
-  features (summons, inspector, quest icons, damage meter, chat links, item preview).
+- **Client** -- `src/client/CLAUDE.md`: combat presentation, summon control, model nodes,
+  dummy indices, device and screen modes, logging; its index points to `terrain/` (zone warp
+  and terrain streaming), `interface/` (CNameBox, summon info, inspector, chat links, item
+  preview, damage meter) and `event/` (NPC quest icons).
 - **Game server** -- `src/sho_gameserver/CLAUDE.md`: combat flow, AI guards, summons,
   walkability (.MOV), relay warps (`Recv_cli_RELAY_REPLY` honours only the destination
   the server sent), party size.
