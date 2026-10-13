@@ -365,6 +365,15 @@ Things that will bite:
 
 - If post-warp hitches come back, check queue sizes first. If free-look hitches come back, check whether the proximity pass is still running (`Update_VisiblePatch` called from `Update_VisiblePatchManager`) and whether `m_bPatchIndexDirty` is being refreshed.
 
+### Terrain Streaming Performance
+
+Chunk-display hitches are **resource creation at first render**, not chunk file I/O. The client `CLAUDE.md` has the full picture; the two things to know before touching it:
+
+- **Measure lead time, not queue depth.** Frames between a resource being queued and being force-loaded is what tells you which fix applies. Terrain meshes measured **1 frame** (no amortiser can help — cap the inserts, `[VIDEO] TERRAIN_INSERTS_PER_FRAME`); textures measured **200-300 frames** (the amortiser had slack and wasted it — `[VIDEO] LOAD_BUDGET_US`). Applying either fix to the other problem does nothing.
+- **A map tile that is allocated but not `MAP_USING` next to the player crashed the client** (2026-09-18, walking towards the Skaaj lighthouse; `GetViewFrustumEq` on `this = 0x22C0`, i.e. NULL plus the member offset). `ClearAllQuadPatchManager()` nulled the nine neighbour pointers but not `m_isUse`, and `UpdatePatchManager()` only rewrote the flag for a NULL or in-use neighbour, so a freed, dirty or still-loading slot kept last frame's TRUE beside a NULL pointer, and the next cull wrote through it. Both sites now clear the flag. The one unexplained Karkia crash of 2026-09-09 was preceded by the same `DeferredFreeMAP` teardown and is very likely this bug.
+- Diagnostics are opt-in: `[VIDEO] STREAM_SPIKE_LOG_MS` (0 = off) plus the `MapIO:`/`Flush:` debug-HUD rows and `/perfreset`.
+- **`STREAM_SPIKE_LOG_MS` only fires on streaming time**, so a hitch from any other phase writes nothing and is indistinguishable from a smooth frame. `[VIDEO] FRAME_SPIKE_LOG_MS` (0 = off) triggers on *total* frame time and logs that frame's own phase split (`netin/logic/scnupd/shadow/render/ui/present/oth` + the logic sub-slots + the flush counters), which is what names a non-streaming hitch. Reach for it first; the streaming log narrows down what it finds. Run with `VSYNC=0` while hunting, or the vsync wait in `present` masks everything.
+
 ## Overhead Name Drawing (`CNameBox`)
 
 Names are drawn inside the sprite batch that `CGameStateMain::Render_GameMENU` opens around `g_pViewMSG->Draw()`, so `drawFont`'s `bUseSprite` argument must be **true** there. The `false` overload takes a branch that calls `begin_sprite` itself and asserts no batch is active (`zz_font_d3d.cpp:165`); calling it inside the batch corrupts the sprite state and the damage shows up later as an unrelated `sprite_began()` assert at `zz_font_d3d.cpp:312`. Debug probes using the screen-coordinate overload are therefore not safe here.

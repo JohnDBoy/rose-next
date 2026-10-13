@@ -1,0 +1,204 @@
+# CLAUDE.md — Engine (src/engine)
+
+Rendering-device, culling, depth, lightmap and asset-loading rules. Loaded when a
+file under src/engine/ is read; the root CLAUDE.md index points here.
+
+### Rendering Device (Direct3D 9Ex)
+The client runs on a **Direct3D 9Ex** device when available, falling back to plain D3D9. The payoff is that alt-tab, lock, UAC and RDP no longer lose the device — previously each cost a full invalidate → reset → reload-every-texture-from-VFS cycle that also threw on failure.
+
+Consequences worth knowing before touching rendering:
+- **`D3DPOOL_MANAGED` is illegal on a 9Ex device** and has been removed from everything we compile. New resources go in `D3DPOOL_DEFAULT` and must survive `invalidate_device_objects()` / `restore_device_objects()`. `D3DPOOL_SYSTEMMEM` is still legal — use it for anything that genuinely needs `LockRect`, since DEFAULT textures cannot be locked.
+- A DEFAULT-pool buffer that is locked every frame needs `D3DUSAGE_DYNAMIC` + `D3DLOCK_DISCARD`; a plain DEFAULT buffer locked per-frame stalls the pipeline. Conversely `D3DLOCK_DISCARD` is illegal on a non-dynamic buffer.
+- `S_PRESENT_OCCLUDED` and `S_PRESENT_MODE_CHANGED` are **success** codes — a plain `FAILED()` test misses them. Occlusion must throttle, never reset. An occlusion log line is *not* a black screen: a skipped present leaves the previous front buffer on screen, so the throttle costs a dropped frame, never a blank one.
+- Under 9Ex `TestCooperativeLevel()` is deprecated and always returns `S_OK`; use `CheckDeviceState()`, and only after a present returns something unusual.
+- **Fullscreen is borderless by default** — a windowed device covering the monitor, so nothing ever hands display-mode ownership back and forth. The legacy exclusive device is `[VIDEO] EXCLUSIVE_FULLSCREEN=1` (or `ROSE_EXCLUSIVE_FULLSCREEN=1`); it produced brief full-screen black flashes mid-game that borderless removes by construction. In borderless the backbuffer is **always** the monitor size — anything else is stretched by D3D and drifts UI hit-testing.
+- **`_fill_fullscreen_mode_ex()`'s `D3DDISPLAYMODEEX` must mirror the present parameters exactly** (`Format` = `BackBufferFormat` even though that is `A8R8G8B8`, `RefreshRate` = `FullScreen_RefreshRateInHz` even when that is 0). The runtime cross-checks them and returns `D3DERR_INVALIDCALL` — and the fallback ladder then hands back a working Ex device via plain `CreateDevice`, so **only the log tells you**. Read `error.txt` after any device-creation change.
+- Force the legacy path for A/B testing with `[VIDEO] D3D9EX=0` in `rose-next.ini` or `ROSE_NO_D3D9EX=1` in the environment — and confirm via the log, since a toggle that silently does nothing gives a false negative.
+- The **depth-stencil format is negotiated at device creation**, not fixed — see "Depth Buffer Precision" below before touching format selection in `initialize()`.
+
+`[VIDEO] VSYNC=0` uncaps the framerate — but vsync is **not** the only limiter, contrary to what this line used to say. `zz_system::sleep()`, reached from `swapBuffers()`, enforces `max_framerate` with `::Sleep()`. It does not bind in practice only because `data/SCRIPTS/INIT.LUA:39` calls `setFramerateRange(15, 1000)`; the `src/` default is **60**, so grepping `src/` alone gives the wrong answer — the same trap as `setMipmapLevel` and `setLazyBufferSize`. Note `sleep()` also runs `manager_update()`, the resource amortiser, so the client's `present` phase has never been GPU wait alone: measured, real Present is 0.2–0.4 ms and the rest was the amortiser plus a per-frame yield. Full design notes, the D3DX9 upgrade rationale, the rejected `FLIPEX` work and the remaining gaps are in [doc/d3d9ex-migration.md](doc/d3d9ex-migration.md).
+
+### Missing Assets Must Degrade, Not Kill (Engine/VFS)
+
+An asset referenced by the data but absent from the baked `.vfs` used to be **fatal anywhere in the game** — four independent defects sat on that one path, each masking the next. All are fixed; the contract now is *a missing file logs once and the object renders without that part*. Keep it that way:
+
+- **Never pass a string-ish class through `ZZ_LOG`'s varargs.** `zz_slash_converter`'s first and only member is `char _str[ZZ_MAX_STRING]` and its `operator const char*()` applies at ordinary call sites but **not** through `...`, so `ZZ_LOG("%s", converter)` copies the buffer onto the stack and `%s` consumes the first four *characters* as a pointer. Always `.get()`. (`zz_string` survives only by luck — it stores a `char*` first.)
+- `zz_vfs_pkg::open` must null-check `fp_` **before** using it. `VOpenFile` legitimately returns NULL for a file in neither a package nor on disk, and `zz_assertf` is compiled out in release.
+- A failed load must be **recorded**, not retried. `zz_mesh::load` sets `load_permanently_failed` (and `set_path` only clears it when the path actually changes, since `loadMesh` calls `set_path` on every attempt). `CFileLIST::Get_DATA` sets `tagFileDATA::m_bLoadFailed` — that covers motions and materials, but **not meshes**: `loadMesh` always hands back the spawned node, so `CMeshLIST::Load_FILE` reports success even for a file that will never load. Without the engine-side flag a single missing mesh produced 2.26M retries and a 447 MB `error.txt`.
+- `zz_manager` must **drop** a terminally failed node, not re-queue it. `zz_node::is_load_terminally_failed()` (overridden by `zz_mesh`) distinguishes "file is missing" from "not ready yet"; without it `update()` pops and re-pushes the node every frame for the life of the process, `update()` never hits its both-lines-empty early return, and since `push()` does a linear `find()` the cost is O(n²) per update in the number of missing meshes.
+- `zz_manager::update`'s entrance loop also bounds failed re-inserts per update. The failure branch re-queues without decrementing `entrance_time_accumulated`, so an unloadable node otherwise spins forever *within a single update*. Note this only became a *hard* freeze once the retry throttling above was fixed — removing accidental throttling can expose a latent spin.
+
+### Cull Bounds Come From Geometry, Not From The ZSC (Client/Engine)
+
+Every ZSC object record caches a model-space AABB, and **it is wrong in every ZSC in
+the game**: the exporter scaled only X into world units (cm) and left Y and Z in mesh
+units, so the stored box is ~100x too thin and ~100x too short. Retail Junon has it too,
+so it is not an import artefact. Muris' canyon walls registered as a 336 m x 4.0 m x
+1.1 m ribbon on the ground instead of a 336 m x 396 m x 114 m wall; because fixed
+objects live or die with their terrain patch, turning the camera pushed the ribbon out
+of the frustum and `RemoveFromScene()` deleted the whole wall mid-screen. 222 of the
+1388 map objects in `data/` under-cover by more than 20 m, the worst by 970 m (Junon
+Polis' planet vessel).
+
+It only ever mattered because we re-enabled patch culling: the original
+`ViewCullingFunc` had its condition commented out around an unconditional `return 0`,
+so every patch was "fully inside" every frame and the boxes were inert. *Re-enabling
+dead code promotes its inputs from decorative to load-bearing* — the same shape as the
+missing-asset retry storm below.
+
+`CMAP_PATCH::MakeAABBFromObject` now asks the engine for the world AABB it already
+derives from real mesh min/max (`getVisibleWorldMinMax` -> `CObjFIXED::GetWorldMinMax`),
+keeping the cached box only as a fallback. This is safe at map-load time because
+`loadMesh` reads the ZMS header min/max **eagerly**, independent of lazy geometry
+loading, and `loadVisible` builds each part's OBB before the object is ever inserted
+into the scene.
+
+Things that will bite:
+
+- **The client now imports a new engine export, so `rosenext.exe` and `znzin.dll` must
+  be deployed as a pair.** A new exe against an old DLL will not start. `scripts/ab-build.ps1`
+  exists for this constraint.
+- **Mesh units depend on the ZMS version.** `load_mesh_minmax` applies `ZZ_XFORM_IN`
+  (x0.01) for version < 7 only, so v7/v8 headers are metres and v6 headers are already
+  cm. We ship 22 v6 meshes.
+- `ViewCullingFunc` tests only **four** frustum planes (near, far, left, right — never
+  top or bottom), so vertical FOV culls nothing and the commented-out z comparisons in
+  `CompareSizePath2Obj` are not worth restoring on their own.
+- A narrow residual remains: an object that fits inside its patch's 10 m footprint but
+  towers over local terrain never gets `ExPatchEnable` and is still culled by a
+  terrain-only z. See the doc for why the obvious one-line fix is insufficient.
+
+`scripts/audit-zsc-bounds.py` is the verification tool: read-only by default, it
+re-derives the correct box from ZMS headers plus part transforms, proves the axis-scale
+signature per file, ranks objects whose geometry escapes their stored box, flags boxes
+that are corruptly *over*sized, and reports missing mesh files. Run it after any
+`import-*.py` that appends ZSC objects. Full record in
+[doc/zsc-bounding-boxes.md](doc/zsc-bounding-boxes.md).
+
+### Depth Buffer Precision (Engine)
+
+The device used a **16-bit depth buffer** (`D3DFMT_D16`, hardcoded), and the avatar
+camera's near plane is **1 m** against a far plane of 800 m (`LIST_CAMERA` columns 5
+and 6, multiplied by 100 into cm by `ApplyCameraOption`, then by `ZZ_SCALE_IN` into
+engine metres). Resolvable depth separation is `z^2*(f-n)/(n*f*2^bits)`, which at 16
+bits is 3.8 cm at 50 m, 15 cm at 100 m and **61 cm at 200 m** — so any two surfaces
+mounted closer than that collapsed into one depth bucket and z-fought. On screen it
+read as black bands crawling across a distant object and resolving cleanly as you
+walked in, because the loser of the fight is usually an unlit interior or backside.
+It did not reproduce in the xadet map editor, which is XNA and defaults to Depth24.
+
+`initialize()` now probes `D24S8 -> D24X8 -> D16` with `CheckDeviceFormat` +
+`CheckDepthStencilMatch` and stores the winner in `depthstencil_format`. 24 bits is
+256x finer, which pushes the onset past the far plane for any realistic mounting gap.
+
+Things that will bite:
+
+- **The near plane is the whole story; the far plane is nearly irrelevant.** With
+  `f >> n` the expression collapses to `z^2/(n*2^bits)`. Pulling the far plane from
+  800 m in to 250 m changes precision by 0.4%; raising the near plane from 1 m to 5 m
+  improves it 5x. Reach for `n` or for bit depth, never for `f`.
+- **Only the log tells you which format you got.** `r_d3d: depth-stencil format = N`
+  — 75 is D24S8, 77 is D24X8, 80 is the old D16. A probe that silently falls back
+  looks exactly like a fix that did not work. Same trap as the D3D9Ex toggle.
+- `DEPTH_STENCIL_FORMAT` is now only the fallback seed. Every consumer reads the
+  member `depthstencil_format`, including the offscreen z-surface in
+  `restore_device_objects()` — that site used the macro directly and would otherwise
+  have silently disagreed with the device.
+- The FSAA check validates the sample type against the **backbuffer and the depth
+  format**. Checking only the backbuffer was harmless while the depth format was a
+  constant and is not once it varies: a mismatch fails device creation outright
+  rather than degrading to no FSAA.
+- Nothing in the engine touches the stencil buffer (no stencil render states, `Clear`
+  never passes `D3DCLEAR_STENCIL`), so D24X8 is as good as D24S8. Both are probed
+  because driver support for the two is not identical.
+- Force the old buffer for A/B testing with `[VIDEO] DEPTH24=0` in `rose-next.ini` or
+  `ROSE_NO_DEPTH24=1` in the environment — and confirm via the log.
+- There is **no depth bias anywhere**. `zz_renderer_d3d::set_depthbias` is declared
+  and defined but never called, and would not work if it were: D3D9's
+  `D3DRS_DEPTHBIAS` takes a float bit-pattern, so its `int` parameter turns any small
+  value into a denormal ~= 0. Do not reach for it to paper over a z-fight.
+
+Which assets were affected: the failure needs two mesh parts of one object stacked
+closer than the depth resolution. The recognisable family is shop signs, statues, and
+the `road01`/`road01top` overlay pairs — that naming convention is the real tell, and
+Junon Polis has the most of them.
+
+A one-off scan for part pairs whose world AABBs overlap widely on two axes and by
+under 25 cm on the third flagged 70 of the 14618 map objects. **Treat that as
+corroboration for why only a few assets showed the artefact, not as a predictor**, and
+do not rebuild it as a tool: an AABB overlap is not a surface separation (the boxes of
+a concave part overlap where the surfaces do not), the thresholds were chosen to fit
+the reported case rather than derived, and at 24 bits the separation that still fights
+is under ~0.3 cm at any distance we draw — two orders of magnitude below what that
+scan measured. If a similar artefact ever survives the format check in the log,
+measure real mesh-surface separation; the AABB proxy will mislead you.
+
+To confirm a suspected z-fight from data alone, with no rebuild:
+`scripts/set-camera-near-plane.py` raises the near plane across all six `LIST_CAMERA`
+rows (`--dry-run` / `--verify` / `--restore`). Precision scales with `n` but onset
+*distance* only with `sqrt(n)`, so 1 -> 5 moves the artefact out ~2.2x rather than
+removing it — a partial retreat is the confirming signal, not a weak result. The
+follow camera's minimum distance is 1.0 m, so a 5 m near plane clips the avatar at
+full zoom-in; that is expected, not a second bug. It writes no sidecar next to the
+STB on purpose, since `pack.rs` would bake one into the `.vfs`.
+
+### Object Lightmaps Are A Gutterless Atlas (Engine)
+
+Each map-object *part* gets one cell of a shared lightmap texture — `OBJECT_128_0.DDS`
+is a 4x4 grid of 128 px cells — and `SetLightMap` addresses it with a UV transform
+applied in the vertex shader (`(uv + cell_xy) / grid_n`). There is **no padding between
+cells**, so mipmapping, which knows nothing about the grid, would blend a part's
+lighting with its neighbours' at low enough mip levels.
+
+It cannot happen, and the reason is one line of Lua: `data/SCRIPTS/INIT.LUA:33` calls
+`setMipmapLevel(3)`, which caps every texture at three mip levels. A 512 px atlas only
+ever gets 512 -> 256 -> 128, and across every atlas we ship the smallest cell stays at
+8x8 texels — bleeding needs cells under about 2. **Grepping `src/` alone says the
+opposite**, because the DDS files do carry full mip chains down to 1x1 and the C++
+defaults do not cap anything; this is the same trap as `setLazyBufferSize`.
+
+So: treat `mipmap_level = -1` (load the file's full chain) as unsafe for lightmapped
+map objects. `setDisplayQualityLevel` levels 3 and 4 set exactly that — level 5 escapes
+it only by disabling lightmaps outright. If it ever did appear it would be a flat,
+uniform brightness shift over a whole part with neighbouring parts of the same object
+drifting out of agreement, never bands and never a sharp onset; it is also
+self-limiting, since the mip level tracks screen size and a cell only falls under a
+texel once the part is a couple of pixels across.
+
+### Transparency Antialiasing (Engine, 2026-09-29)
+
+MSAA only smooths polygon edges; an alpha-tested cut-out (fences, leaves, railings)
+is decided once per pixel and shimmers at any MSAA level. The client now uses
+NVIDIA's D3D9 **transparency supersampling**: `D3DRS_ADAPTIVETESS_Y = 'SSAA'`
+while alpha test is on, detected with `CheckDeviceFormat(..., (D3DFORMAT)'SSAA')`.
+The alpha test then runs per MSAA sample at the same threshold, so edges get the
+MSAA level's smoothing (4x = 5 steps, 8x = 9) and nothing solid changes. The hook
+is in `zz_renderer_d3d::enable_alpha_test`, which every alpha-test toggle goes
+through. Options > Graphics > "See-through edges" switches it live (no restart);
+ini `[VIDEO] TRANSPARENCY_AA` (1 on, the default; 0 off; 2 = NVIDIA alpha-to-coverage,
+ini-only, for comparison). `error.txt` logs `r_d3d: transparency AA ...` with the
+driver's answer.
+
+Things that will bite:
+
+- **Not alpha-to-coverage, on purpose.** ROSE's ZSC alpha flags are unreliable
+  (other ROSE devs hit it adding A2C): 96% of materials are alpha-tested, some
+  textures carry a specular mask in alpha, some are blended for no reason. A2C
+  turns every alpha value into partial coverage and dithers those; supersampling
+  keeps the alpha test's own keep/drop decision, so it needs no exception list.
+- **Never inside a sprite batch.** `init_sprite_state` enables alpha test for every
+  2D batch, and supersampling reads glyph/icon textures at sub-pixel offsets:
+  every piece of classic text blurred. The hook skips it while `_sprite_began`
+  (which also covers the inspector/preview panes' mid-batch 3D) and
+  `draw_sprite_ex` clears it. UI2 is unaffected: `RoseRmlRenderer::ApplyRenderState`
+  disables alpha test for every pass.
+- **NVIDIA only, needs MSAA.** AMD/Intel drivers answer no and nothing runs (AMD's
+  own D3D9 hack is A2C only); DXVK/Proton do not implement the render state. The
+  support probe runs whenever MSAA is on, even with the feature off, so the
+  checkbox can switch it live; the mode (1 vs 2) applies on the next device.
+- Cost is per-sample shading of alpha-tested 3D pixels only (fixed-function, cheap);
+  not measured on low-end NVIDIA yet -- the alpha is the benchmark.
+- A full-mip-chain experiment for the same shimmer was reverted: it changed nothing
+  visible (8x anisotropic already covered texture minification). Its patch and the
+  one useful part -- pinning object lightmaps at 3 mip levels, which quality presets
+  3/4 currently break -- are in `build/full-mips/`.

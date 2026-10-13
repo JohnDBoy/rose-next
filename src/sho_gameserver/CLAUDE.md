@@ -220,3 +220,12 @@ opens the walkability grid and logs a warning. This is the server-side form of t
 - Same C++ conventions as client: `C` class prefix, `m_` members, `g_` globals
 - Precompiled headers: `stdafx.h`
 - Server-specific prefixes: `gs_` for gameserver modules, `srv_` for server-common
+
+## Warp And Party Rules
+
+- **`Recv_cli_RELAY_REPLY` now honours only the destination the server last
+  sent** (`classUSER::m_bRelayPENDING`). Before, any client could warp anywhere
+  through that packet. Every server-side recall already goes through
+  `Send_gsv_RELAY_REQ`, which records it.
+- A new party holds `party level / 5 + 4` members: the draw's party starts at level
+  5 (`CParty::Raise_PartyLEV`) so it fits five.
