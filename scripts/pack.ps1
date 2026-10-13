@@ -85,13 +85,15 @@ try {
     # Stray non-game files get baked into the .vfs. pack.rs walks the data tree
     # filtering only *hidden* entries -- no extension filter at all -- so a .bak
     # a script left behind, or a sidecar written next to its STB, ships inside
-    # rose.vfs. A .bak is never legitimate here and is a hard error; other
+    # rose.vfs. A .bak is never legitimate here and is a hard error -- also a
+    # named one (.bak-x / .bak_x / .bak2), since some scripts write those
+    # (add-item-icon.py's ITEM1.TSI.bak-icons, import-oro-fate.py); other
     # strays only warn, because ~30 balance sidecars currently live beside their
     # tables on purpose and blocking every bake over them would be worse than
     # the leak. Check, do not rely on discipline.
     $strays = Get-ChildItem $input_dir -Recurse -File -Force -ErrorAction SilentlyContinue |
               Where-Object { -not $_.Name.StartsWith('.') }
-    $baks = @($strays | Where-Object { $_.Extension -eq '.bak' })
+    $baks = @($strays | Where-Object { $_.Extension -match '^\.bak($|[-_0-9])' })
     if ($baks.Count -gt 0) {
         foreach ($b in $baks) {
             Write-Host ("  stray backup: {0}" -f $b.FullName.Substring($input_dir.Length + 1))

@@ -23,7 +23,7 @@ the recompress, so this cannot be tuned away in the renderer.
 
 data/SCRIPTS/INIT.LUA asks for 3 mip levels via setMipmapLevel(3), and that cap
 is load-bearing -- object lightmaps are a gutterless atlas and a deeper chain
-would bleed between neighbouring cells (see the root CLAUDE.md). Taking 3 levels
+would bleed between neighbouring cells (see src/engine/CLAUDE.md). Taking 3 levels
 from a file that ships its own chain is a cheap copy. Building 3 levels for a
 file that ships none is the expensive path, and it is pure waste: the same work,
 on every client, on every load, forever.
@@ -134,8 +134,9 @@ TRAPS
   it leaves no level deeper than the engine loads for display quality 3-4 to
   reach.
 - **A full chain is roughly a third larger.** The no-mip files total ~194 MB, so
-  expect ~65 MB of growth. rose.vfs has a hard 2 GB limit whose failure mode is
-  silent and extremely confusing (see the root CLAUDE.md), so re-check the
+  expect ~65 MB of growth. A .vfs has a hard 4 GB offset limit (the packer rolls
+  over to rose_2.vfs at 4.2 GB) whose failure mode is silent and extremely
+  confusing (see scripts/CLAUDE.md, "The .vfs Offset Limit"), so re-check the
   archive size after the next bake.
 - Since data/ is gitignored, this docstring is the only committed record of the
   change. Put new reasoning here, not just in a commit message.
@@ -143,6 +144,7 @@ TRAPS
 
 import argparse
 import collections
+import os
 import pathlib
 import struct
 import subprocess
@@ -223,7 +225,7 @@ def is_excluded(path, allow_lightmaps=False):
     Object lightmaps are a **gutterless atlas**: each map-object part owns one
     cell of a shared texture and SetLightMap addresses it with a UV transform, so
     there is no padding between cells and a filter that knows nothing about the
-    grid blends a part's lighting into its neighbours'. The root CLAUDE.md spells
+    grid blends a part's lighting into its neighbours'. src/engine/CLAUDE.md spells
     this out and says a full chain is unsafe for them.
 
     That was the original reasoning, and it named texconv's *default FANT filter,
@@ -710,7 +712,7 @@ def main():
     else:
         print("NOTE: mip brightness was NOT sampled (no block-format files in this "
               "batch, or Pillow missing) -- run --verify to check the whole set")
-    print("\nRe-bake the VFS, then check rose*.vfs against the 2 GB limit.")
+    print("\nRe-bake the VFS (pack.ps1 verifies the archive and rolls over at 4.2 GB).")
     return 0 if not failed else 1
 
 
