@@ -304,7 +304,7 @@ class MainWindow(QMainWindow):
                 if ext not in EDITORS:
                     raise ValueError("No editor for %s files yet" % ext)
                 doc_cls, ed_cls = EDITORS[ext]
-                ed = ed_cls(doc_cls(path, encoding or "latin-1"), self.workspace, self.open_doc_for)
+                ed = ed_cls(doc_cls(path, encoding or doc_cls.DEFAULT_ENCODING), self.workspace, self.open_doc_for)
                 doc = ed.doc
             except Exception as e:
                 QApplication.restoreOverrideCursor()
@@ -636,7 +636,10 @@ class MainWindow(QMainWindow):
         for item in sess.get("files", []):
             p = item.get("path")
             if p and os.path.exists(p) and self.workspace and norm(p).startswith(norm(self.workspace.root)):
-                self.open_path(p, encoding=item.get("encoding"), activate=False, state=item.get("state"))
+                enc = item.get("encoding")
+                if enc == "latin-1" and p.lower().endswith(".stl"):
+                    enc = None      # sessions saved before STL defaulted to UTF-8
+                self.open_path(p, encoding=enc, activate=False, state=item.get("state"))
         cur = sess.get("current")
         if cur and norm(cur) in self.editors:
             self.tabs.setCurrentWidget(self.editors[norm(cur)])
@@ -647,7 +650,8 @@ class MainWindow(QMainWindow):
         files = []
         for i in range(self.tabs.count()):
             ed = self.tabs.widget(i)
-            files.append({"path": ed.doc.path, "encoding": ed.doc.encoding, "state": ed.view_state()})
+            enc = ed.doc.encoding if ed.doc.encoding != type(ed.doc).DEFAULT_ENCODING else None
+            files.append({"path": ed.doc.path, "encoding": enc, "state": ed.view_state()})
         cur = self.current_editor()
         self.settings.setValue("session", json.dumps({"files": files, "current": cur.doc.path if cur else None}))
 

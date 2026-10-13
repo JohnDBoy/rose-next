@@ -5,9 +5,9 @@ a stylesheet cannot show a column's game index above its name, tint a cell that
 differs from disk, or mark search hits, and those three things are most of what
 makes a 4,000 x 87 table readable.
 """
-from PyQt6.QtCore import QModelIndex, QPoint, QRect, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QModelIndex, QPoint, QRect, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QKeySequence, QPainter, QPen, QPolygon
-from PyQt6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QHeaderView,
+from PyQt6.QtWidgets import (QAbstractButton, QAbstractItemDelegate, QAbstractItemView, QHeaderView,
                              QLineEdit, QStyle, QStyledItemDelegate, QTableView)
 
 from . import icons, theme
@@ -152,6 +152,9 @@ class RowHeader(QHeaderView):
     def set_label_width(self, w):
         self.label_width = w
         self.updateGeometry()
+        # QTableView re-lays out its headers only on this signal; without it a
+        # live toggle changed nothing until the next resize
+        self.geometriesChanged.emit()
         self.viewport().update()
 
     def sizeHint(self):
@@ -219,9 +222,42 @@ class GridView(QTableView):
         self.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.setShowGrid(True)
         self.setCornerButtonEnabled(False)
+        self._corner_text = ""
+        self._corner = self.findChild(QAbstractButton)
+        if self._corner is not None:
+            self._corner.installEventFilter(self)
         self.setFont(theme.ui_font(9.2))
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.verticalScrollBar().setSingleStep(ROW_HEIGHT)
+
+    def set_corner_text(self, text):
+        """A title over the row header, so a row-name gutter is labelled like a
+        column instead of looking like a stray copy of one."""
+        self._corner_text = text
+        if self._corner is not None:
+            self._corner.update()
+
+    def eventFilter(self, obj, ev):
+        if obj is self._corner and ev.type() == QEvent.Type.Paint:
+            t = theme.current()
+            p = QPainter(obj)
+            r = obj.rect()
+            p.fillRect(r, QColor(t.bg_raised))
+            p.setPen(QColor(t.border))
+            p.drawLine(r.topRight(), r.bottomRight())
+            p.drawLine(r.bottomLeft(), r.bottomRight())
+            if self._corner_text:
+                p.setFont(theme.ui_font(8.8, QFont.Weight.DemiBold))
+                p.setPen(QColor(t.text_dim))
+                body = r.adjusted(RowHeader.GUTTER + 4, 6, -8, -6)
+                p.drawText(body, int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom),
+                           p.fontMetrics().elidedText(self._corner_text, Qt.TextElideMode.ElideRight, body.width()))
+                p.setFont(theme.ui_font(7.6))
+                p.setPen(QColor(t.text_faint))
+                p.drawText(body, int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop), "from the string table")
+            p.end()
+            return True
+        return super().eventFilter(obj, ev)
 
     def center_on(self, idx):
         """Bring ``idx`` to the vertical middle; horizontally, only scroll as far

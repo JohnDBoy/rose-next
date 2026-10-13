@@ -1481,8 +1481,15 @@ an `EditorBase` subclass + one line in `app.EDITORS` and `workspace.KINDS`. **Th
 STL slot 1 only** (`CStringManager::GetLanguageIDInGame`: the Windows charset picks the
 slot, and ANSI lands on `LANGUAGE_USA` = 1); slots 0/2/3/4 are Korean, Japanese, Chinese
 Traditional/Simplified by the client's `LANGUAGE_TYPE`, mostly English copies here, and the
-studio hides them by default. Their bytes are **UTF-8** (every non-ASCII entry in all 33
-files decodes strictly) while slot 1 is latin-1, so a latin-1 view of slot 0 is mojibake. Test it headless with
+studio hides them by default. **STL text is UTF-8 in every slot, slot 1 included**: the client
+runs each string through `CLocalizing::UTF8ToMBCS` on load (`CP_UTF8` -> wide -> the Windows
+code page, in `CStringManager::LoadTypeTable`), so a UTF-8 `…` shows as `…` in game (checked on
+the Amulet Necklace tooltip, 2026-10-13) and a latin-1 `é` would be garbage. All 72,970 strings
+in our 33 STLs decode strictly as UTF-8; write new STL text as UTF-8. **STB cells are read raw**
+(no conversion) and mix codecs: 5,112 non-ASCII cells are UTF-8 (Korean labels in
+`LIST_TERRAIN_OBJECT_*`/`LIST_CNST_*`, AI_S, PRODUCT ...) and 535 are cp949 (the map editor's
+`TileLookup_Type_*`, LIST_EVENT), so decode **per cell** (`devstudio.documents.cell_codec`),
+never with one codec per file. Test it headless with
 `QT_QPA_PLATFORM=offscreen` plus `QT_QPA_FONTDIR=C:/Windows/Fonts` (without the font dir
 every glyph is a box) and `widget.grab()`. Details: its README.
 

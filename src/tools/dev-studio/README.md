@@ -22,9 +22,10 @@ instead (anything that holds `3DDATA`).
   column's name (the editor column number is in the tooltip). Row names come
   only from the companion `<NAME>_S.STL`, through whichever column holds its
   keys (found by matching cells against the STL, not hardcoded). They are
-  shown on their own only when they add something: LIST_WEAPON gets them,
-  LIST_NPC does not (its column 0 already says the same), FILE_AI has no STL.
-  The `T` button toggles them per tab.
+  **off by default** -- most rows repeat column 0, so an untitled name column
+  read as a ghost copy of it -- and the `T` button turns on a titled
+  "In-game name" column (remembered), which shows where the two differ
+  (LIST_FOOT 152: `Red Santa Boots` in the table, `Santa Boots` in game).
 - **Filter.** Rows can be filtered across all columns or one column. `#123`
   jumps to row 123, and there is a toggle to hide empty rows. Sorting (on the
   column header's context menu) only changes the view, never the file.
@@ -34,9 +35,21 @@ instead (anything that holds `3DDATA`).
   picks a slot from the Windows charset (`CStringManager::GetLanguageIDInGame`)
   and a Western install lands on slot 1. The other four (Korean, Japanese,
   Chinese Traditional/Simplified, named after the client's `LANGUAGE_TYPE`)
-  stay hidden behind the globe button. Each slot is read and written in its
-  own encoding: English is latin-1, the others UTF-8. Descriptions are edited
-  in the inspector, which links back to the STB rows that use the key.
+  stay hidden behind the globe button. **STL text is UTF-8 in every slot**: the
+  client decodes each string with `CP_UTF8` on load
+  (`CLocalizing::UTF8ToMBCS`), so the studio reads and writes UTF-8 and the
+  status bar warns about an entry that is not (the game would garble it;
+  re-typing it fixes it). Descriptions are edited in the inspector, which
+  links back to the STB rows that use the key.
+- **STB text encodings, per cell.** The client reads STB cells raw, and one
+  table can mix three codecs: latin-1 English, UTF-8 (5,112 cells -- Korean
+  labels such as LIST_TERRAIN_OBJECT_*'s `큰나무01`) and cp949 (535 cells --
+  the map editor's TileLookup tables, LIST_EVENT). Each cell is sniffed on its
+  own (strict UTF-8 first, then cp949 only if it yields Hangul/CJK) and an
+  edit is written back in the codec the cell already had; new Korean in a
+  latin-1 cell is stored as UTF-8. The status bar names a cell's codec when it
+  is not latin-1. Every non-ASCII string in `data/` decodes and re-encodes to
+  the same bytes.
 - **Editing.** Undo and redo cover every change. Copy and paste use
   tab-separated text, so they work with Excel. Delete clears a cell. A cell
   that differs from the file on disk is tinted, with a marker in its corner.

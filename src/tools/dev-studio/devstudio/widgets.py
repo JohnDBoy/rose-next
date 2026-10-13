@@ -66,6 +66,34 @@ def chip(text="", modified=False):
     return lab
 
 
+class ElidedLabel(QLabel):
+    """A one-line label that shortens itself with an ellipsis instead of
+    widening its parent (TileLookup column names run to 80 characters)."""
+
+    def __init__(self, text="", parent=None):
+        super().__init__(parent)
+        self._full = ""
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.setMinimumWidth(20)
+        self.setText(text)
+
+    def setText(self, text):
+        self._full = text
+        self.setToolTip(text if len(text) > 30 else self.toolTip())
+        self._elide()
+
+    def full_text(self):
+        return self._full
+
+    def _elide(self):
+        w = max(10, self.width())
+        super().setText(self.fontMetrics().elidedText(self._full, Qt.TextElideMode.ElideRight, w))
+
+    def resizeEvent(self, ev):
+        super().resizeEvent(ev)
+        self._elide()
+
+
 class SearchField(QLineEdit):
     """A line edit with a search glyph, a clear button and Escape-to-clear."""
     escaped = pyqtSignal()

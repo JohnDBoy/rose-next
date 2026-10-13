@@ -219,6 +219,8 @@ class StlInspector(QFrame):
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        # never wider than the panel: long names elide instead of scrolling sideways
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         body = QWidget()
         body.setObjectName("InspectorBody")
         lay = QVBoxLayout(body)
@@ -729,7 +731,14 @@ class StlEditor(EditorBase):
         s = self.current_source()
         if not s.isValid():
             return ""
-        return "Entry %d  ·  %s" % (s.row(), self.doc.key(s.row()))
+        note = ""
+        enc = self.doc.slot_enc[self.slot]
+        bad = [f for f in range(self.doc.nfields) if self.doc.field_codec(s.row(), f, self.slot) != enc]
+        if bad:
+            codec = self.doc.field_codec(s.row(), bad[0], self.slot)
+            note = "  ·  %s is %s, not %s: the game will garble it; re-type it to fix" % (
+                self.doc.field_names[bad[0]].lower(), ENCODING_NAMES.get(codec, codec), ENCODING_NAMES.get(enc, enc))
+        return "Entry %d  ·  %s%s" % (s.row(), self.doc.key(s.row()), note)
 
     def view_state(self):
         s = self.current_source()

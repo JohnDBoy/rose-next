@@ -54,6 +54,60 @@ def decode_label(b):
     return b.decode("latin-1")
 
 
+def _cjk(ch):
+    """Characters a cp949 double-byte pair stands for: Hangul, Hanja, kana,
+    full-width forms, and the Greek/Cyrillic/symbol rows (LIST_TERRAIN_OBJECT_ODD
+    names a pillar "Pillar - Π")."""
+    o = ord(ch)
+    return (0xAC00 <= o <= 0xD7A3 or 0x3130 <= o <= 0x318F or 0x4E00 <= o <= 0x9FFF
+            or 0x3000 <= o <= 0x30FF or 0xFF00 <= o <= 0xFFEF or 0x0370 <= o <= 0x04FF
+            or 0x2000 <= o <= 0x26FF or 0x3200 <= o <= 0x33FF)
+
+
+def cell_codec(b, default="latin-1"):
+    """The codec one string was written in. Our data mixes three in the same
+    table: latin-1 English, UTF-8 (5,112 STB cells: Korean labels kept by the
+    later editors, typographic quotes) and cp949 (535 cells: the map editor's
+    TileLookup tables, LIST_EVENT). Each is sniffed strictly -- latin-1 accents
+    almost never form valid UTF-8, and cp949 is accepted only when every
+    non-ASCII character it yields is Hangul/CJK. A ``default`` of UTF-8 (STL
+    text) sniffs the same way, so bytes that are *not* valid UTF-8 still show
+    readably and can be flagged; any other default (a file reopened as cp949 or
+    Shift-JIS) is used as-is."""
+    if default not in ("latin-1", "utf-8") or not any(x > 127 for x in b):
+        return default
+    try:
+        b.decode("utf-8")
+        return "utf-8"
+    except UnicodeDecodeError:
+        pass
+    try:
+        s = b.decode("cp949")
+        if all(ord(ch) < 128 or _cjk(ch) for ch in s):
+            return "cp949"
+    except UnicodeDecodeError:
+        pass
+    return "latin-1"
+
+
+def encode_like(value, old, default="latin-1"):
+    """Encode an edit. STL text (``default`` UTF-8) is always written as UTF-8:
+    the client decodes every STL string with CP_UTF8, so that is the file's
+    contract and an edit repairs a string that broke it. STB cells, which the
+    client reads raw, keep the codec they had; a new non-ASCII value goes to
+    latin-1 if it fits, else UTF-8. Raises ValueError with a readable message."""
+    if default == "utf-8":
+        enc = "utf-8"
+    else:
+        enc = cell_codec(old, default)
+        if enc == default == "latin-1" and not _fits(value, "latin-1"):
+            enc = "utf-8"
+    try:
+        return value.encode(enc)
+    except UnicodeEncodeError as e:
+        raise ValueError("'%s' cannot be stored as %s" % (value[e.start:e.end], ENCODING_NAMES.get(enc, enc)))
+
+
 def is_number(s):
     s = s.strip()
     if not s:
@@ -61,6 +115,14 @@ def is_number(s):
     if s[0] in "+-":
         s = s[1:]
     return s.replace(".", "", 1).isdigit()
+
+
+def _fits(value, enc):
+    try:
+        value.encode(enc)
+        return True
+    except UnicodeEncodeError:
+        return False
 
 
 def _backup_once(path):
@@ -173,6 +235,7 @@ class StbDocument(Document):
     the middle, because every other table, script and the C++ address rows by
     number. Rows are appended at the end, or cleared."""
     kind = "stb"
+    DEFAULT_ENCODING = "latin-1"    # the client reads STB cells raw, no conversion
     cellsChanged = pyqtSignal(int, int, int, int)      # r0, c0, r1, c1 inclusive
     rowsAboutToBeAppended = pyqtSignal(int, int)
     rowsAppended = pyqtSignal()
@@ -204,7 +267,15 @@ class StbDocument(Document):
         return self.stb.d[r][c]
 
     def text(self, r, c):
-        return self.stb.d[r][c].decode(self.encoding, "replace")
+        return self.decode(self.stb.d[r][c])
+
+    def decode(self, b):
+        """Cells are decoded one by one (see ``cell_codec``): a table-wide codec
+        turned the UTF-8 큰나무 of LIST_TERRAIN_OBJECT_JPT into mojibake."""
+        return b.decode(cell_codec(b, self.encoding), "replace")
+
+    def cell_codec(self, r, c):
+        return cell_codec(self.stb.d[r][c], self.encoding)
 
     def colname(self, c):
         return self._colnames[c] if c < len(self._colnames) else ""
@@ -215,7 +286,7 @@ class StbDocument(Document):
     def row_text(self, r):
         t = self._row_text.get(r)
         if t is None:
-            t = "\x1f".join(x.decode(self.encoding, "replace") for x in self.stb.d[r]).lower()
+            t = "\x1f".join(self.decode(x) for x in self.stb.d[r]).lower()
             self._row_text[r] = t
         return t
 
@@ -229,23 +300,8 @@ class StbDocument(Document):
 
     def row_title(self, r):
         """A heading for the row: its STL name, else its first cell."""
-        return self.row_label(r) or (self.stb.d[r][0].decode(self.encoding, "replace").strip()
+        return self.row_label(r) or (self.decode(self.stb.d[r][0]).strip()
                                      if self.stb.d[r] else "")
-
-    def labels_informative(self):
-        """True when the STL names say something the first column does not: in
-        LIST_NPC they mostly repeat column 0, in LIST_WEAPON column 0 is blank."""
-        seen = same = 0
-        for r in range(self.rows):
-            lab = self.row_label(r)
-            if not lab:
-                continue
-            seen += 1
-            if lab.strip() == self.stb.d[r][0].decode(self.encoding, "replace").strip():
-                same += 1
-            if seen >= 600:
-                break
-        return seen > 0 and same < 0.8 * seen
 
     def string_key(self, r):
         if self.key_col is None:
@@ -275,12 +331,9 @@ class StbDocument(Document):
         self.labelsChanged.emit()
 
     # ---------------------------------------------------------- editing
-    def encode(self, value):
-        try:
-            b = value.encode(self.encoding)
-        except UnicodeEncodeError as e:
-            raise ValueError("'%s' cannot be stored as %s" % (value[e.start:e.end],
-                                                              ENCODING_NAMES.get(self.encoding, self.encoding)))
+    def encode(self, value, old=b""):
+        """A cell keeps the codec it had (``encode_like``)."""
+        b = encode_like(value, old, self.encoding)
         if len(b) > 0xFFFF:
             raise ValueError("A cell holds at most 65,535 bytes")
         return b
@@ -292,8 +345,8 @@ class StbDocument(Document):
         for r, c, v in changes:
             if not (0 <= r < self.rows and 0 <= c < self.cols):
                 continue
-            new = self.encode(v)
             old = self.stb.d[r][c]
+            new = self.encode(v, old)
             if new != old:
                 cells.append((r, c, old, new))
         if cells:
@@ -376,22 +429,23 @@ def _has_hangul(s):
 
 
 def _detect_slot_encoding(rows, default):
-    """Our STLs keep English in slot 1 as latin-1, and Korean (slot 0), Japanese
-    (2) and Chinese (3, 4) as **UTF-8** -- every non-ASCII entry of those slots
-    decodes strictly, across all 33 files. Latin-1 accents almost never form
-    valid UTF-8, so a slot whose non-ASCII entries (nearly) all decode is shown
-    and edited as UTF-8; a Korean dump's cp949 slot is recognised by its Hangul.
-    Anything else uses the document encoding."""
-    if default != "latin-1":
+    """**STL text is UTF-8 in every slot.** The client runs each string through
+    ``CLocalizing::UTF8ToMBCS`` on load (``CStringManager::LoadTypeTable``:
+    CP_UTF8 -> wide -> the Windows code page), so the eight English entries
+    holding a UTF-8 "…" show a clean "…" in game (checked on the Amulet
+    Necklace tooltip, 2026-10-13), and a latin-1 "é" would show as garbage.
+    All 10,278 non-ASCII strings in our 33 STLs decode strictly as UTF-8. The
+    one exception kept: a slot that is mostly cp949 Hangul (a Korean dump) is
+    read as cp949. A file reopened with another codec uses that codec."""
+    if default != "utf-8":
         return default
     nonascii = [f for row in rows for f in row if any(b > 127 for b in f)][:600]
     if len(nonascii) < 2:
         return default
-    ok8 = hangul = 0
+    hangul = 0
     for f in nonascii:
         try:
             f.decode("utf-8")
-            ok8 += 1
             continue
         except UnicodeDecodeError:
             pass
@@ -400,11 +454,7 @@ def _detect_slot_encoding(rows, default):
                 hangul += 1
         except UnicodeDecodeError:
             pass
-    if ok8 >= 0.9 * len(nonascii):
-        return "utf-8"
-    if hangul >= 0.8 * len(nonascii):
-        return "cp949"
-    return default
+    return "cp949" if hangul >= 0.8 * len(nonascii) else default
 
 
 def _script_label(rows, enc):
@@ -477,13 +527,14 @@ class StlDocument(Document):
     """A string table. Entries are addressed by *key* by everything else, so
     unlike an STB row an entry can be added at the end or removed."""
     kind = "stl"
+    DEFAULT_ENCODING = "utf-8"      # the client's contract: see _detect_slot_encoding
     entriesChanged = pyqtSignal(int, int)
     entriesAboutToBeInserted = pyqtSignal(int, int)
     entriesInserted = pyqtSignal()
     entriesAboutToBeRemoved = pyqtSignal(int, int)
     entriesRemoved = pyqtSignal()
 
-    def __init__(self, path, encoding="latin-1"):
+    def __init__(self, path, encoding="utf-8"):
         super().__init__(path, encoding)
         self.stl = Stl(self.path, encoding)
         self.slot_enc = [_detect_slot_encoding(rows, encoding) for rows in self.stl.langs]
@@ -520,7 +571,11 @@ class StlDocument(Document):
         return self.stl.keys[e][1]
 
     def field(self, e, f, slot):
-        return self.stl.langs[slot][e][f].decode(self.slot_enc[slot], "replace")
+        b = self.stl.langs[slot][e][f]
+        return b.decode(cell_codec(b, self.slot_enc[slot]), "replace")
+
+    def field_codec(self, e, f, slot):
+        return cell_codec(self.stl.langs[slot][e][f], self.slot_enc[slot])
 
     def raw_field(self, e, f, slot):
         return self.stl.langs[slot][e][f]
@@ -596,13 +651,9 @@ class StlDocument(Document):
         return max((i for _, i in self.stl.keys), default=-1) + 1
 
     # ---------------------------------------------------------- editing
-    def encode_for(self, slot, value):
-        enc = self.slot_enc[slot]
-        try:
-            return value.encode(enc)
-        except UnicodeEncodeError as e:
-            raise ValueError("'%s' cannot be stored as %s"
-                             % (value[e.start:e.end], ENCODING_NAMES.get(enc, enc)))
+    def encode_for(self, slot, value, old=b""):
+        """Per entry, like an STB cell: keep the codec the text had."""
+        return encode_like(value, old, self.slot_enc[slot])
 
     def targets(self, e, f, slot):
         """An edit applies to every slot that shares this block on disk and still
@@ -613,8 +664,8 @@ class StlDocument(Document):
     def set_field(self, e, f, slot, value):
         edits = []
         for s in self.targets(e, f, slot):
-            new = self.encode_for(s, value)
             old = self.stl.langs[s][e][f]
+            new = self.encode_for(s, value, old)
             if new != old:
                 edits.append((e, f, s, old, new))
         if edits:

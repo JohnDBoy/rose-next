@@ -178,6 +178,8 @@ class StbInspector(QFrame):
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        # never wider than the panel: long names elide instead of scrolling sideways
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         body = QWidget()
         body.setObjectName("InspectorBody")
         self.grid = QVBoxLayout(body)
@@ -202,7 +204,7 @@ class StbInspector(QFrame):
         mono = theme.mono_font(8.2)
         for c in range(self.doc.cols):
             name = self.doc.colname(c) or "Column %d" % c
-            lab = QLabel(name)
+            lab = widgets.ElidedLabel(name)
             lab.setObjectName("Dim")
             lab.setToolTip("%s\nGame column %d · editor column %d" % (name, c, c + 1))
             num = QLabel(str(c))
@@ -322,7 +324,7 @@ class StbEditor(EditorBase):
         bl.addStretch(1)
         bl.addWidget(widgets.text_button("rows-plus", "Append rows", self.append_rows))
         bl.addWidget(widgets.vline())
-        self.labels_btn = widgets.tool_button("text", "Show row names", self._toggle_labels, checkable=True)
+        self.labels_btn = widgets.tool_button("text", "Show row names", self._labels_clicked, checkable=True)
         bl.addWidget(self.labels_btn)
         self.insp_btn = widgets.tool_button("panel-right", "Toggle row inspector", self._inspector_toggled,
                                             checkable=True, shortcut_text="Ctrl+I")
@@ -379,9 +381,10 @@ class StbEditor(EditorBase):
         self._size_labels()
 
     def _size_labels(self):
-        """Row names come only from the companion STL. They are shown on their
-        own when they add something (LIST_WEAPON, whose column 0 is blank) and
-        left off when they would repeat column 0 (LIST_NPC); the toggle is per tab."""
+        """Row names come only from the companion STL, and are **off until the
+        user turns them on** (``T``; remembered). Showing them automatically when
+        "enough" differed from column 0 read as a ghost copy of column 0 in
+        LIST_FOOT, where two names in three are the same."""
         doc = self.doc
         fm = QFontMetrics(theme.ui_font(9.0))
         w = 0
@@ -401,12 +404,17 @@ class StbEditor(EditorBase):
         if not self._labels_decided:
             self._labels_decided = True
             self.labels_btn.blockSignals(True)
-            self.labels_btn.setChecked(bool(w) and doc.labels_informative())
+            self.labels_btn.setChecked(bool(w) and self.settings().value("stb/row_names", False, type=bool))
             self.labels_btn.blockSignals(False)
         self._toggle_labels(self.labels_btn.isChecked() and bool(w))
 
     def _toggle_labels(self, on):
         self.view.verticalHeader().set_label_width(self._label_width if on else 0)
+        self.view.set_corner_text("In-game name" if on and self._label_width else "")
+
+    def _labels_clicked(self, on):
+        self.settings().setValue("stb/row_names", on)
+        self._toggle_labels(on and bool(self._label_width))
 
     def activated(self):
         self.refresh_strings()
@@ -717,7 +725,10 @@ class StbEditor(EditorBase):
             return ""
         c = s.column()
         name = self.doc.colname(c)
-        return "Row %d  ·  Col %d (editor %d)%s" % (s.row(), c, c + 1, "  ·  " + name if name else "")
+        codec = self.doc.cell_codec(s.row(), c)
+        return "Row %d  ·  Col %d (editor %d)%s%s" % (
+            s.row(), c, c + 1, "  ·  " + name if name else "",
+            "  ·  cell text is %s" % ENCODING_NAMES.get(codec, codec) if codec != self.doc.encoding else "")
 
     def view_state(self):
         s = self.current_source()
