@@ -83,7 +83,9 @@ src/
 │   │                   # flags broken LIST_NPC rows (server refusal, CHR/ZSC/mesh/texture/motion);
 │   │                   # opens foreign dumps too: text codec picked per file (src/text.rs, roselib
 │   │                   # is EUC-KR-only + rejects legacy I_NUM STLs), CJK fonts from Windows; --check
-│   └── quest-editor/    # CLI + egui wizard: Hunt/Fetch quests + NPC dialog givers (see its PROGRESS.md)
+│   ├── quest-editor/    # CLI + egui wizard: Hunt/Fetch quests + NPC dialog givers (see its PROGRESS.md)
+│   └── dev-studio/      # Python/PyQt6 (not a cargo member): Rose Dev Studio, GUI editor over
+│                       # scripts/rosefmt -- STB + STL so far; `just studio`; see its README.md
 ├── rmlui/               # (in client/) RmlUi integration: D3D9 backend, system iface, panels
 ├── lib_util/            # C++ utility library
 └── triggervfs/          # Virtual filesystem
@@ -1466,6 +1468,23 @@ on Windows (the console device); `LIST_STRING_S.STL` has five language slots on
 one block, and a writer that does not keep the sharing quadruples the file; the
 retail `LNGTB_*.LTB` count bytes where `ULNGTB_*.LTB` count wide chars; an empty
 LTB cell can carry a stale non-zero position; `Stb.s()` does not strip.
+
+### Rose Dev Studio (`src/tools/dev-studio/`, 2026-10-13)
+
+A Python/PyQt6 desktop editor over `rosefmt` (`just studio`), the foundation of a GUI
+"dev studio": STB and STL editing so far, one format at a time after that. It **imports**
+the codecs and never re-implements one; every save re-reads its own bytes and refuses on
+mismatch, backs the original up once per session to `build/dev-studio/backups/` (never a
+`.bak` under `data/`), and writes through a hidden `.tmp` + rename. STB rows are ids, so
+rows are appended or cleared, never deleted. A new format = a `Document` over its codec +
+an `EditorBase` subclass + one line in `app.EDITORS` and `workspace.KINDS`. **The client reads
+STL slot 1 only** (`CStringManager::GetLanguageIDInGame`: the Windows charset picks the
+slot, and ANSI lands on `LANGUAGE_USA` = 1); slots 0/2/3/4 are Korean, Japanese, Chinese
+Traditional/Simplified by the client's `LANGUAGE_TYPE`, mostly English copies here, and the
+studio hides them by default. Their bytes are **UTF-8** (every non-ASCII entry in all 33
+files decodes strictly) while slot 1 is latin-1, so a latin-1 view of slot 0 is mojibake. Test it headless with
+`QT_QPA_PLATFORM=offscreen` plus `QT_QPA_FONTDIR=C:/Windows/Fonts` (without the font dir
+every glyph is a box) and `widget.grab()`. Details: its README.
 
 ### Data Repair Tooling
 

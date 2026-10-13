@@ -65,5 +65,9 @@ create-account email password access="0":
 purge-cache:
     pwsh -File {{SCRIPTS}}/purge-page-cache.ps1
 
+# Open Rose Dev Studio, the STB/STL editor (optionally with files to open)
+studio *files:
+    pythonw {{ROOT}}/src/tools/dev-studio/run.pyw {{files}}
+
 # Create distribution
 # TODO: Refactor dist script
