@@ -773,7 +773,7 @@ before writing. It rewrites only the twelve position bytes of a record. Across 6
 zone rows it found 612 fighting pairs in 25 map folders (Union War, Golden
 Colosseum, Junon Polis, Sikuku Prison, Junon Cartel and Forgotten Temple B1 carry
 almost all; field maps are clean) and moved 594 records, most by 1.5-2 cm, none by
-more than 7.5 cm. Applied 2026-09-22, not yet validated in game. Run it after any
+more than 7.5 cm. Applied 2026-09-22, validated in game. Run it after any
 `import-*.py` that brings in map files, then bake.
 
 Things that will bite:
@@ -1145,7 +1145,7 @@ Their docstrings carry the reasoning and record what was deliberately left alone
 
 ### Oro Is The 667 Build's Oro (2026-09-13)
 
-The RoseZA-era Oro was removed (`scripts/remove-oro.py`, everything moved to `build/oro-removal/`, `--restore`) and the 667 test client's version imported (`scripts/import-oro-667.py`: `--selftest --dry-run --verify --revert`, undo in `build/oro-667/`). Ten zones: 14 Colosseum (walkable, empty), 71 Muris, 72 Portal Room, 73 Portal Temple, 78/79 Wasteland, 80 Oasis Shrine, 81 Ruins Path, 83 Golden Ring (`ODGR01`), 85 Fossil Sanctuary (`ODFS01`). 667 itself deleted the old Wreckage, Golden Ring 01-03 and Gates of Muris. **No quests** by decision; the fate system, the Jones/Nova travel legs (`QP401.QSD` now holds only those two triggers) and the Muris shops stay. Not yet validated in game.
+The RoseZA-era Oro was removed (`scripts/remove-oro.py`, everything moved to `build/oro-removal/`, `--restore`) and the 667 test client's version imported (`scripts/import-oro-667.py`: `--selftest --dry-run --verify --revert`, undo in `build/oro-667/`). Ten zones: 14 Colosseum (walkable, empty), 71 Muris, 72 Portal Room, 73 Portal Temple, 78/79 Wasteland, 80 Oasis Shrine, 81 Ruins Path, 83 Golden Ring (`ODGR01`), 85 Fossil Sanctuary (`ODFS01`). 667 itself deleted the old Wreckage, Golden Ring 01-03 and Gates of Muris. **No quests** by decision; the fate system, the Jones/Nova travel legs (`QP401.QSD` now holds only those two triggers) and the Muris shops stay. Validated in game (2026-10-13); small adjustments still to come.
 
 Things that will bite:
 
@@ -1158,7 +1158,7 @@ Things that will bite:
 - 667's warp rows 178-180 collide with live Karkia gates (`GATE_REMAP` → 187/188/193). Cactus 2181 is a 667 "interactive object" NPC we cannot run (147 points removed). Bryll 2100 and Alana 2121 are placed mute (dialog file in no readable dump); the twelve fate vassals speak only once a fate is chosen — by design, not a defect (`scripts/audit-oro-idle-dialog.py` is the lua4-driven survey).
 - Drop columns come from RoseZA's rows (tables 773-851, empty in every dump we own -- RoseZA never authored them, and 667 keeps per-monster drops inline in its own LIST_NPC cols 88-102 against its own item numbering); the 19 new species got free tables 852-870. **Oro drops are authored by `scripts/add-oro-drops.py` (2026-09-16)**, the Karkia recipe in one script: it relocates the legacy tables squatting on Oro's zone rows (71/78/79/81/83/85 were the Eldeon Ikaness/Sikuku tables and the Junon town NPCs' -- a drop-table id and a zone id share one namespace), fills one table per species from the family materials `scripts/import-oro-materials.py` brings in from RoseZA (Asper Fang, Snapper Beak, Devourer Plate ...; 273/274 are *not* free rows, the STL still names them Archangel/Archdevil Feather and drop tables 63-71 reference them), and sets col 20 to 80 and money to 15 like Karkia. The lv240 armour (drop-only since the armour pass, and dropped by nothing until now) is Oro's signature: body/cap from the Fossil Sanctuary's field buckets, gauntlets/boots from its four kings at the same ~36% a Karkia boss pays a mythical -- never above it, Karkia is meant to have the better loot. `--simulate` prints the rates; `--restore` is cell-level for both STBs.
 
-### Skaaj Is Jrose's Cat-Folk Island (imported 2026-09-18, not yet validated in game)
+### Skaaj Is Jrose's Cat-Folk Island (imported 2026-09-18, validated in game)
 
 Jrose zone 79 (スカ, planet 5): a small tropical town, eleven cat-folk NPCs on the
 `ronya` skeleton, butterflies and clownfish for spawns, no monsters, no drops. Jrose
@@ -1192,7 +1192,7 @@ key LZON100. Things that will bite:
   `EM79-12.CON`) and is dropped. Our `LIST_NPC.CHR` holds orphan "noname" entries at
   1753-1759 that `import_characters` would keep; the importer clears them first.
 
-### SHIBUYA Is Jrose's SECONDWALL Collab (imported 2026-09-28, not yet validated in game)
+### SHIBUYA Is Jrose's SECONDWALL Collab (imported 2026-09-28, validated in game)
 
 Jrose zones 126 (SHIBUYA, a Tokyo street walk) and 127 (Live House SEVEN, the
 survivors' shelter) from a 2017 band collab, at their **native** numbers. The band
@@ -1236,7 +1236,7 @@ ids there too. **Re-running `--stage 3` rebuilds the band's
   non-zero key with a NULL name, so the second handed NULL to `_strcmpi` -- a CRT
   invalid-parameter fail-fast. `Add_FILE` now returns 0 for an empty name.
 
-### Cave Of Ulverick Is RoseZA's Spider Dungeon, Opened Up (imported 2026-10-04/05, not yet validated in game)
+### Cave Of Ulverick Is RoseZA's Spider Dungeon, Opened Up (imported 2026-10-04/05, validated in game)
 
 RoseZA's party instance under Desert of the Dead (map `JZC01`, its zone rows 90-94),
 imported as our **open zone 34** by `scripts/import-ulverick.py` (`--stage 1-5`,
@@ -1518,7 +1518,7 @@ Our `data/` is a translated iROSE dump with gaps; the reference dumps in `C:\Use
   Angel of Junon 1208 (Sunshine Coast, a placeholder model standing in the sea) -- were **erased**
   on 2026-10-13 (row, STL key, CHR entry and placement; `fix-spawned-npc-gaps.py` item 7). Built
   on `rosedata` + `rosefmt`; nothing is parsed in it. `--zone N`, `--json`.
-- `scripts/fix-spawned-npc-gaps.py` (2026-10-12, not yet validated in game) — closes the audit's
+- `scripts/fix-spawned-npc-gaps.py` (2026-10-12, validated in game) — closes the audit's
   first findings. **Sikuku Elite Fighter 562** (Turak's SummonMaster) has no CHR entry in *any* dump,
   but our rows 540/1708 are the same monster with a model: 562 gets a copy of 540's entry.
   **[Astronomer] Boyren 1175** (placed in Mount Eruca) exists in no dump and had no model column at
@@ -1554,7 +1554,7 @@ Our `data/` is a translated iROSE dump with gaps; the reference dumps in `C:\Use
 - `scripts/fix-target-marks.py` + `scripts/fix-monster-marks.py` — the icon beside a focused monster's name is `TARGETMARK.DDS` cell `NPC_TYPE` (LIST_NPC col 27, used as-is). Retail meaning, pinned by 667's labelled names: 1 Basic, 2 Guard, 3 Fighter, 4 Warrior, 5 Ranger (bow), 6 Hunter (crossbow), 7 Magician (staff), 8/9/10 Leader/Captain/Sub-boss (bronze/silver/gold star), 11 King (crown), 16 Elite (skull — ours: unique bosses). Our sheet had the crown blanked and muddy art; the first script rebuilds it from 667 (+ Jrose's 12-14), uncompressed so neighbouring cells stay exact. The second applies a reviewed per-row table (89 rows, 2026-10-07: kings → crown, unique bosses → skull, normal-strength monsters wearing stars → role, shooters → bow/staff, stars graded by HP) and refuses rows that changed since review; re-run it after an import that rewrites LIST_NPC. **Compare image cells by bytes** — `ImageChops.difference(...).getbbox()` on RGBA looks at alpha only.
 - `scripts/fix-coplanar-object-overlaps.py` — separates map-object **placements** whose faces are exactly coplanar (the camera-move wall flicker); see "Coplanar Placements Flicker" above. Position bytes only, ordinals untouched, manifest in `build/coplanar-overlaps/`.
 - `scripts/audit-lightmap-index.py` — read-only crash audit of every zone's object lightmap index files (`x_y/LightMap/*.lit`), 3 s for the whole game. `CMAP::LoadLightMapINFO` checks nothing: an entry for an absent IFO lump dereferences NULL, an ordinal past the lump reads past the heap array, a part outside the model indexes past `m_pHNODES`/`m_pLightMapMaterial`, a grid width of 0 divides by zero. It also grades records `CMAP::AddObject` drops for lying outside their chunk (their object slot goes to the next object, which then receives the dropped entry) and flags entries **baked for another mesh** than the record now holds (the tga name carries the mesh) — the trace of a map edited in the editor after its bake, since the editor never renumbers entries. Run it after any import that brings map files and after editing a map in xadet. First run (2026-10-03): 3 crash-class entries, all retail bugs present in every reference client (JD04 32_34; Goblin Cave B1 JZ01_1 31_30 and 32_31, shifted by records inserted after the bake), fixed by `scripts/fix-lightmap-index.py` (reviewed `FIXES` table, each move checked against the baked mesh names; backups in `build/lightmap-index/`, `--dry-run`/`--verify`/`--restore`; client-only data, re-bake). Left as INFO: 21 retail objects sit on or past their chunk's far edge and are simply missing in game. **Desert of the Dead (zone 29) was missing 561 of its 1006 decorations and all 6 buildings**: our `LIST_DECO_JD.ZSC` / `LIST_CNST_JD.ZSC` were an older cut of the same tables (every object we had is identical in ruff/139/Evo/Jrose/QQ), so the map's records named empty objects and the client created nothing. Fixed 2026-10-04 by `scripts/fill-zsc-gaps.py` (see below).
-- `scripts/fill-zsc-gaps.py` — fills the ZSC objects a zone places but our table leaves empty (default zone 29; `--zone N` for others), from ruff, taking an object only if the 139/Evo/Jrose/QQ witnesses agree. Writes empty slots only (other zones on the same table keep their bytes), remaps dummy-point **effect indices** into our effect list (never verbatim: the client indexes it unchecked), and copies missing `.eft` chains — JD04 needed 7 `.eft` plus a `.ZMS`/`.ZMO` mesh effect; the meshes and textures were already here. `--dry-run`/`--verify`/`--restore`, backups in `build/zsc-gaps/`; client-only, re-bake. Confirm with `audit-lightmap-index.py --zone N`: each `.lit` entry names the mesh it was baked for, so a clean audit proves the ids landed on the right models. Not yet validated in game.
+- `scripts/fill-zsc-gaps.py` — fills the ZSC objects a zone places but our table leaves empty (default zone 29; `--zone N` for others), from ruff, taking an object only if the 139/Evo/Jrose/QQ witnesses agree. Writes empty slots only (other zones on the same table keep their bytes), remaps dummy-point **effect indices** into our effect list (never verbatim: the client indexes it unchecked), and copies missing `.eft` chains — JD04 needed 7 `.eft` plus a `.ZMS`/`.ZMO` mesh effect; the meshes and textures were already here. `--dry-run`/`--verify`/`--restore`, backups in `build/zsc-gaps/`; client-only, re-bake. Confirm with `audit-lightmap-index.py --zone N`: each `.lit` entry names the mesh it was baked for, so a clean audit proves the ids landed on the right models. Validated in game.
 - `scripts/relight-zone.py` — bakes the ground and object lightmaps of an **existing** zone (made or edited in the map editor) with the map generator's bakers; artist guide in [doc/relighting-maps.md](doc/relighting-maps.md). Every look setting is exposed (`settings` lists them), saved per map in `scripts/mapgen/relight/<FOLDER>.json` (commit it: `data/` is not in git). Originals go to `build/relight/<FOLDER>/` on the first bake, so `restore` always returns to them; each bake is checked with the audit's rules and rolled back on any crash-class entry. Refuses generated `MAPGEN*` zones (their lighting is in the layout). Re-bake the VFS afterwards; servers do not read lightmaps.
 - `scripts/restore-warp-gates.py` — re-inserts `LUMP_TERRAIN_WARP` (type 10) objects into map `.IFO`s. `WARP.STB` is usually fine; the missing piece is the trigger object the player walks into, often replaced by a dead `warpbox` event object whose trigger exists in no QSD. **Also check the landing point**: gate 43 (Desert of the Dead -> Anima Lake) needed `WARP-JD04-JG03` put back into `JG03.ZON`, which the server reads (restart it). Covers Eldeon and, since 2026-10-04, Junon gates 40/43. Has a `--selftest` that proves the container rewrite is byte-identical before it touches anything; originals in `build/warp-gates/`, `--restore`.
 - `scripts/upgrade-skill-icons.py` — **our `SKILL01-03.DDS` came DXT5-compressed** (every
