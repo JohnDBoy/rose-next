@@ -38,6 +38,10 @@ from the mammoth's, so the fight's rhythm changes a little -- intended.
 Undo is per CHR entry and per STB cell (manifest in build/dreadnaught-model/),
 never a whole-file copy, so --restore cannot revert another script's later edit
 to either file. `data/` is gitignored, so this file is the record.
+
+The donors 373/374 were erased on 2026-10-13 (erase-dead-npc-rows.py: no column-0
+name, nothing spawns them). With the donors gone the copy cannot be redone, so a
+run only checks that 375/376 are still on the trample skeleton.
 """
 
 import argparse
@@ -89,6 +93,14 @@ def plan(chr_, stb):
     chr_todo, stb_todo, problems = {}, {}, []
     for row, donor in sorted(DONOR.items()):
         src, dst = chr_.chars[donor], chr_.chars[row]
+        if src is None and not any(stb.get(donor, c).strip() for c in range(stb.cols)):
+            # erase-dead-npc-rows.py erased the donors (nothing spawns 373/374) once
+            # this repair had copied them: the target is what is left to check.
+            if DONOR_SKELETON not in skel_path(chr_, dst):
+                problems.append("donor %d was erased and %d is not on the %s skeleton: %r -- "
+                                "cannot repair from it any more" % (donor, row, DONOR_SKELETON.decode(),
+                                                                     skel_path(chr_, dst)))
+            continue
         if DONOR_SKELETON not in skel_path(chr_, src):
             problems.append("CHR %d (donor) is not on the %s skeleton: %r"
                             % (donor, DONOR_SKELETON.decode(), skel_path(chr_, src)))

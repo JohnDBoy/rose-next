@@ -10,7 +10,7 @@ every broken link with the place that reaches it:
     REGEN / MOB lump of every chunk of every zone row ─┐
     AI actions that spawn or morph into a monster ─────┤  (Change_CHAR, Create_PET,
                                                         │   CallToAttack, Summon, SummonMaster*)
-    LIST_NPC row ─ not blank; AI row -> .aip on disk; hands -> LIST_WEAPON / LIST_SUBWPN.ZSC
+    LIST_NPC row ─ has a name; AI row -> .aip on disk; hands -> LIST_WEAPON / LIST_SUBWPN.ZSC
     LIST_NPC.CHR entry ─ present; skeleton in range and on disk
     PART_NPC.ZSC models ─ in range, with parts; every mesh and texture on disk;
                           part motion paths on disk
@@ -24,6 +24,18 @@ the model). WARN is what degrades with a log line (a texture, a motion clip,
 an effect or an AI file that is not there; a hand item past its table, which
 logs on every launch). The exit status is 1 when there is any ERROR, so
 pack.ps1 can refuse to bake on one.
+
+**A row exists only if column 0 has a name.** That cell is the server's
+NPC_NAME, `get_cstr` returns nullptr for a blank one, and every spawn path
+(`RegenCharacter` for regen and summons, `Change_CHAR`, the placements in
+`zonefile.cpp`) refuses the row on it, silently. Until 2026-10-13 this audit
+called a row blank only when it had no name *and* no model, so a row with a
+model, stats and an STL name but a blank column 0 passed while the server
+refused it: the Junon Ent under 73 Sunshine Coast spawn points and the Woopie
+Hooligans seven AI files summon (fix-nameless-npc-rows.py). Such a row is an
+ERROR wherever it is reached -- it is evidently meant to spawn. A row with
+neither name nor model is retail padding: WARN in a spawn lump (eleven known),
+ERROR when an AI action reaches it.
 
 Every case here is one that was found by hand first: the Ghost Seed's
 Change_CHAR into blank rows 2734-2738, the Basilisk Captain's missing CHR
@@ -173,7 +185,12 @@ class Audit:
         return self.npc.s(i, NPC_NAME_COL).strip()
 
     def row_blank(self, i):
+        """Neither name nor model: retail padding."""
         return not (self.npc.get(i, NPC_NAME_COL).strip() or self.npc.get(i, NPC_MON_COL).strip())
+
+    def row_refused(self, i):
+        """No column-0 name: the server's NPC_NAME is null and every spawn path refuses the row."""
+        return not self.npc.get(i, NPC_NAME_COL).strip()
 
     def ai_file(self, i):
         """The .aip a row's AI column names, or (None, why)."""
@@ -247,6 +264,11 @@ class Audit:
             else:
                 self.add("WARN", i, "blank LIST_NPC row in a spawn lump (the server refuses it: a dead spawn slot)")
             return
+        if self.row_refused(i):
+            self.add("ERROR", i, "LIST_NPC col 0 (name) is blank although the row has a model (%s): the server's "
+                     "NPC_NAME is null, so every spawn path refuses it silently"
+                     % self.npc.s(i, NPC_MON_COL).strip())
+            return
         # AI
         path, why = self.ai_file(i)
         if why:
@@ -316,7 +338,8 @@ def main():
         done = set()
         while queue:
             i = queue.pop()
-            if i in done or not 0 <= i < audit.npc.rows or audit.row_blank(i):
+            # a refused row never spawns, so its AI never runs
+            if i in done or not 0 <= i < audit.npc.rows or audit.row_refused(i):
                 continue
             done.add(i)
             path, _why = audit.ai_file(i)
@@ -337,7 +360,7 @@ def main():
     events = oro.Stb(oro.rel_path(DATA, oro.EVENT_STB_REL))
     con_rows = {os.path.basename(events.s(r, oro.EVENT_FILE_COL)).lower() for r in range(events.rows)}
     for i, con in sorted(placed.items()):
-        if not 0 <= i < audit.npc.rows or audit.row_blank(i):
+        if not 0 <= i < audit.npc.rows or audit.row_refused(i):     # reported by check_npc
             continue
         if audit.npc.s(i, oro.NPC_TYPE_COL).strip() != "999":
             audit.add("ERROR", i, "placed as an NPC but LIST_NPC type is %r, not 999: the server skips the placement silently"

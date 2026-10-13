@@ -97,19 +97,26 @@ def npc_problem(rows, idx):
     empty cell. A row with a name but no .mon is reported separately: the client
     cannot build a model for it either, but it may be a deliberate invisible
     entity, so it is left alone unless --include-modelless is given.
+
+    A row with a .mon but no name is refused the same way -- the guard reads the
+    name cell only. This check used to require both blank, so it passed rows
+    like the Woopie Hooligans (306-308) that every summon of theirs was refused
+    on (2026-10-13; audit-spawned-npcs.py had the same gap).
     """
     if idx < 1 or idx >= len(rows):
         return "out of range"
     name, mon = rows[idx]
-    if not name and not mon:
+    if not name.strip() and not mon.strip():
         return "BLANK ROW"
+    if not name.strip():
+        return "NO NAME (mon=%r)" % mon
     if not mon:
         return "no .mon model (name=%r)" % name
     return None
 
 
 def is_fatal(why):
-    return why in ("out of range", "BLANK ROW")
+    return bool(why) and (why in ("out of range", "BLANK ROW") or why.startswith("NO NAME"))
 
 
 # --------------------------------------------------------------------------- #

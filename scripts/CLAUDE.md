@@ -115,8 +115,35 @@ Our `data/` is a translated iROSE dump with gaps; the reference dumps in `C:\Use
   WARN (34 of them on 2026-10-13, the Desert of the Dead's EM29-*.con among them; left for custom dialogs).
   The two other stubs it found -- [Vicious Captain] Ruven 1125 (Eucar) and [Cosmic Vassal] Little
   Angel of Junon 1208 (Sunshine Coast, a placeholder model standing in the sea) -- were **erased**
-  on 2026-10-13 (row, STL key, CHR entry and placement; `fix-spawned-npc-gaps.py` item 7). Built
+  on 2026-10-13 (row, STL key, CHR entry and placement; `fix-spawned-npc-gaps.py` item 7).
+  **A row exists only if LIST_NPC col 0 has a name** -- the server's `NPC_NAME`, null for a blank
+  cell, and every spawn path (regen, AI and skill summons, `Change_CHAR`, placements) refuses on it,
+  silently. The audit first called a row blank only with no name *and* no model, so a complete row
+  with an STL name but a blank col 0 passed while the server refused it (2026-10-13: the Junon Ent
+  under 73 Sunshine Coast points, the Woopie Hooligans; now an ERROR wherever reached). The GM item
+  browser's "the server refuses /mon: no table name" is the same rule, not a /mon-only quirk. Built
   on `rosedata` + `rosefmt`; nothing is parsed in it. `--zone N`, `--json`.
+- `scripts/fix-nameless-npc-rows.py` (2026-10-13) — names the four rows live content reached
+  that the server refused for a blank col 0. **322 is the Junon Ent** (`NPC/etc/ent`, a tree
+  creature), not Mr. Cannie (that is 299, `mrcan`): it borrowed 299's STL key, retail's mistake,
+  and gets "Junon Ent" with its own key LNPC0322; it brings back all 73 Sunshine Coast summer-event
+  points (each also lists 323/324, blank here and in every iROSE dump -- 667/RoseZA's "Mr. Large
+  Cannie/Baggie" -- left out by choice). **306-308 Woopie Hooligan** (lv 35/75/105) are retail's
+  dormant seasonal event, not the low-level Woopies (101-103, 205): seven AI files spawn them on
+  death when **[Event Info] Judy (1201)'s NPC var 0 == 1** (var 0 == 3 is the Cherry Smouly event,
+  309-313), each tier from monsters of its level -- hence a Vulcan dropping one. Nothing sets the
+  variable; a GM starts it with `/npc 1201 var 0 1`. Cell-level undo in `build/nameless-npc-rows/`.
+- `scripts/erase-dead-npc-rows.py` (2026-10-13) — **erases the other 219 rows the GM item browser
+  called broken** (it showed 223; now 0): rows the server can never spawn (blank col 0, no model,
+  level 0, junk HP, no CHR entry) -- 206 nothing references, 13 only dead content does (Zombie 253 via
+  QP103 trigger 122-04, whose REWD_008 it removes; 678/679 via CL_SEED.AIP, loaded by no FILE_AI row;
+  741-750 via GHOST_M3.AIP, whose only user GhostSeed 704 never spawns -- `audit-ai-monster-refs.py`
+  strips those actions afterwards). Fully erased per the house rule (cells, CHR hole, STL key) except
+  an **STL key a surviving row shares stays** (12 of 55: 226/227 carry monster 41's, 298 Mr Baggie's,
+  373/374 the Dreadnaughts'). Cleaning the references matters because an erased row looks free and
+  importers pick free rows by hand. Refuses a listed row that can spawn now or any live reference
+  (re-scans maps, AI, QSD, summon skills); cell-level undo in `build/erase-dead-npc-rows/`.
+  `fix-dreadnaught-model.py` lost its donors 373/374 to it and now only checks 375/376's skeleton.
 - `scripts/fix-spawned-npc-gaps.py` (2026-10-12, validated in game) — closes the audit's
   first findings. **Sikuku Elite Fighter 562** (Turak's SummonMaster) has no CHR entry in *any* dump,
   but our rows 540/1708 are the same monster with a model: 562 gets a copy of 540's entry.
@@ -386,7 +413,10 @@ Things that will bite:
 beside the `.aip`, because `pack.ps1` hard-errors on a `.bak` under `data/`. Run
 it after any `import-*.py` that brings in AI files. It found 278 dangling
 references in 45 files: Oro (2236/2237, 3001-3003), Karkia's ghosts and Flower
-Garden, and three pre-existing retail ones.
+Garden, and three pre-existing retail ones. Since 2026-10-13 a row with a `.mon`
+but a **blank name** is fatal too (the server's guard reads the name cell only;
+the check used to need both blank and passed the Woopie Hooligans): it stripped
+GHOST_M3's ten Change_CHARs and CL_SEED's two summons after the erase below.
 
 **The same rule holds for skills.** AI action 24 carries a `short` skill id at
 offset 10 and nothing validated it either: RoseZA's `OR_THORNIE.AIP` (Fearsome
