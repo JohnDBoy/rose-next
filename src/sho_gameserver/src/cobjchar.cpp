@@ -909,6 +909,19 @@ CObjCHAR::SetCMD_ATTACK(int iTargetObject) {
 
 bool
 CObjCHAR::UsesProjectileAttackPresentation() {
+    // A riding player attacks with the mount's arms, not the hand weapon: the
+    // client fires PAT_BULLET from the arms (CObjCHAR::FireBulletWithPetWeapon),
+    // and speed / range / power already switch to them (CObjAVT, the same
+    // MOVE_MODE test). Keying this on the hand weapon tagged a shooting castle
+    // gear's shots MeleeHitFrame, so a stun mid-flight discarded the shot's digit.
+    if (this->IsUSER()) {
+        CObjAVT* pAVT = static_cast<CObjAVT*>(this);
+        if (pAVT->GetCur_MOVE_MODE() > MOVE_MODE_RUN) {
+            const int arms = pAVT->m_RideITEM[RIDE_PART_ARMS].m_nItemNo;
+            return arms > 0 && PAT_BULLET(arms) > 0;
+        }
+    }
+
     const int weapon = this->Get_R_WEAPON();
     return weapon > 0 && WEAPON_BULLET_EFFECT(weapon) > 0;
 }
