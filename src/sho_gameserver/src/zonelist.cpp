@@ -93,12 +93,19 @@ CZoneLIST::InitZoneLIST(char* szBaseDIR) {
             continue;
 
         // TODO:: if ( nz is checked !!!
-        m_ppThreadZONE[nZ] = new CZoneTHREAD(false);
+        // Created suspended and resumed once loaded, like the IOCP threads. Started
+        // running, the thread entered Execute() from inside the classTHREAD constructor:
+        // before CZoneTHREAD's own constructor had set m_pEvent (the debug heap's
+        // 0xBAADF00D at the first WaitFor), while Init() was still filling the regen
+        // lists, and possibly before Terminated was cleared (the zone then had no thread).
+        m_ppThreadZONE[nZ] = new CZoneTHREAD(true);
         if (!m_ppThreadZONE[nZ]->Init(szBaseDIR, nZ)) {
-            // Invalid Zone !!!
+            // Invalid Zone !!! (Free -> Terminate resumes it, so it exits unrun.)
             m_ppThreadZONE[nZ]->Free();
             SAFE_DELETE(m_ppThreadZONE[nZ]);
+            continue;
         }
+        m_ppThreadZONE[nZ]->Resume();
     }
 
     for (nZ = 1; nZ < m_nZoneCNT; nZ++) {
