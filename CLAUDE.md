@@ -222,7 +222,7 @@ Alt+left-click an equipment item (any inventory/bank/store `CSlot` icon, or a ch
 
 ### Debugging a Client Crash or Freeze
 
-The client has **no unhandled-exception filter and no minidump writer**, so a crash leaves `error.txt` ending with a clean `log: end.` and nothing else. Use `scripts/debug-client-crash.ps1` (servers up first): it hash-verifies `bin/<config>` PDBs against the deployed binaries, forces windowed mode, restores `rose-next.ini` afterwards, and writes `!analyze -v` + all thread stacks + a full `.dmp` on the access violation.
+The client installs `CrashHandler` (`src/client/CrashHandler.cpp`, from `winmain.cpp`): an unhandled exception writes `crash-<stamp>.txt` + `crash-<stamp>.dmp` in the game folder, and a vectored handler covers heap-corruption fail-fasts. Anything that runs no handler (see the fail-fast bullet below) leaves only `error.txt` ending with a clean `log: end.`. For those, and to catch a crash live, use `scripts/debug-client-crash.ps1` (servers up first): it hash-verifies `bin/<config>` PDBs against the deployed binaries, forces windowed mode, restores `rose-next.ini` afterwards, and writes `!analyze -v` + all thread stacks + a full `.dmp` on the access violation.
 
 - cdb has **no working-directory switch** and the debuggee inherits the caller's, so it must launch from the game dir — otherwise the client can't find `rose.vfs` and exits early, looking exactly like "it didn't crash".
 - **No crash dump despite `CrashHandler` means a fail-fast**: a CRT invalid

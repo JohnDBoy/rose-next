@@ -24,7 +24,11 @@ offset tables from scratch. The tag itself is a u8-length string, not a varint.
 is often an ASCII digit (id 304 -> ``30 01 00 00``, and ``0x30`` is ``'0'``), so
 ``LSEL\\d+`` reads ``LSEL304`` as ``LSEL3040``. Parse the table.
 
-Encoding: ours is latin-1; see ``stb`` for the foreign ones. Block 0 of
+Encoding: the ``encoding`` argument defaults to latin-1, which round-trips any
+bytes, but our STL text is UTF-8 in every slot (the client converts it with
+``CLocalizing::UTF8ToMBCS``; see src/tools/dev-studio/CLAUDE.md) -- pass
+``encoding="utf-8"`` to read or write non-ASCII text. See ``stb`` for the
+foreign dumps' encodings. Block 0 of
 ``LIST_SKILL_S.STL`` is real Korean for most keys -- English is block 1.
 
 Round-trips byte for byte on every STL we ship.
