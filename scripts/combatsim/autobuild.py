@@ -42,7 +42,8 @@ BEST_REFINES = (                   # best in slot is also well refined
 )
 
 PROFILES = {
-    111: dict(w=dict(STR=5, DEX=2), wt=(211, 212)),
+    # a Soldier has no shield yet, so it swings two-handed (one-handed + shield is the Knight)
+    111: dict(w=dict(STR=5, DEX=2), wt=(221, 222, 223)),
     121: dict(w=dict(STR=5, DEX=1, SENSE=1), wt=(211, 212), shield=True),
     122: dict(w=dict(STR=5, SENSE=2), wt=(221, 222, 223)),
     211: dict(w=dict(INT=5, SENSE=3, CON=2), wt=(242, 241)),
