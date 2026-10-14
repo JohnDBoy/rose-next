@@ -37,6 +37,8 @@ from .sim import Simulation
 
 DEFAULT_SKILLS = [11, 12, 16, 19, 20, 21, 7001]   # column default (migrations 0001/0002)
 SHOT_SLOT0 = 132                                  # INVENTORY_SHOT_ITEM0
+BAG_SLOT0 = {0: 12, 1: 42, 2: 72}                 # first slot of the equipment / use / etc.
+                                                  # bag pages (INVENTORY_ITEM_INDEX_0 ...)
 PAGE = 30                                         # MAX_LEARNED_SKILL_PER_PAGE
 NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]{2,15}$")
 EMAIL_RE = re.compile(r"^[A-Za-z0-9@._-]{1,30}$")
@@ -121,7 +123,12 @@ def _q(s):
     return "'" + str(s).replace("'", "''") + "'"
 
 
-def build_sql(gd, build, account, password, name, access, replace):
+def bag_page(itype):
+    """t_InvTYPE of an item type: equipment (1-9, 14), use items (10), etc (11-13)."""
+    return 1 if itype == 10 else 2 if itype in (11, 12, 13) else 0
+
+
+def build_sql(gd, build, account, password, name, access, replace, extra_items=()):
     if not NAME_RE.match(name):
         raise SystemExit("character name: 3-16 letters/digits, starting with a letter")
     if not EMAIL_RE.match(account):
@@ -153,6 +160,15 @@ def build_sql(gd, build, account, password, name, access, replace):
     shot = SHOT_BY_WEAPON.get(wtype)
     if shot is not None and build.ammo:
         items.append((SHOT_SLOT0 + shot, 12, build.ammo, 0, 0, 0, 0, False, False, 999))
+    # extra items for a test: (item type, row, quantity) into the bag
+    used = {}
+    for itype, no, qty in extra_items:
+        page = bag_page(itype)
+        slot = BAG_SLOT0[page] + used.get(page, 0)
+        used[page] = used.get(page, 0) + 1
+        dur = gd.item_durability(itype, no) if page == 0 else 0
+        items.append((slot, itype, no, 0, 0, max(0, min(127, int(dur))), 1000 if page == 0 else 0,
+                      False, False, qty))
 
     spare = max(0, total_bonus_points(build.level) - build.points_spent())
     stats = {k: build.stats[k] for k in STAT_KEYS}
@@ -207,8 +223,8 @@ def default_server_toml():
 
 
 def seed(gd, build, account, password, name, access=2048, replace=False, dry_run=False,
-         server_toml=None):
-    sql, summary = build_sql(gd, build, account, password, name, access, replace)
+         server_toml=None, extra_items=()):
+    sql, summary = build_sql(gd, build, account, password, name, access, replace, extra_items)
     if dry_run:
         return sql, summary
     run_sql(sql, server_toml or default_server_toml())

@@ -92,6 +92,8 @@ def main():
     sd.add_argument("--access", type=int, default=2048, help="access_level (2048 = GM)")
     sd.add_argument("--replace", action="store_true", help="delete a character of that name first")
     sd.add_argument("--dry-run", action="store_true", help="print the SQL, write nothing")
+    sd.add_argument("--item", action="append", default=[], metavar="TYPE:ROW[:QTY]",
+                    help="an extra item in the bag (item type 1-14, row; repeatable)")
 
     ai = sub.add_parser("ai", help="print a monster's AI file as readable rules")
     ai.add_argument("--mob", required=True, help="LIST_NPC row or name")
@@ -162,8 +164,12 @@ def main():
             print(f"{row:>6}  {name}{extra}")
     elif a.cmd == "seed":
         from combatsim.seed import seed
+        extra = []
+        for spec in a.item:
+            parts = [int(x) for x in spec.split(":")]
+            extra.append((parts[0], parts[1], parts[2] if len(parts) > 2 else 1))
         sql, summary = seed(gd, Build.load(a.build), a.account, a.password, a.name, a.access,
-                            a.replace, a.dry_run, a.server_toml)
+                            a.replace, a.dry_run, a.server_toml, extra_items=extra)
         print(sql or f"seeded: {summary}")
     elif a.cmd in ("scenarios", "seed-scenarios"):
         import json
