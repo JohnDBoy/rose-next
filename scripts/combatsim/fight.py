@@ -13,6 +13,10 @@ every player hit or miss (and every harmful status), the STOP pattern on its tim
 while it stands idle. A skill it orders is cast when its current motion ends (cast
 clip = LIST_NPC.CHR slot nMotion, action clip = slot nMotion+1); afterwards it
 attacks again, restores its previous command or stops, by SKILL_ACTION_MODE.
+
+The player's summons (skill type 14) are the same machine on the player's side (Mob
+with an owner): their own AI file, stats scaled by CObjSUMMON::SetCallerOBJ, out when
+the fight starts and called again when they die. The monster's AI can turn on them.
 """
 import random
 
@@ -251,6 +255,18 @@ class Log:
         self.player_disabled_ms = 0
         self.respawns = 0         # survival runs: fresh monsters
         self.suicides = 0
+        # the player's summons
+        self.s_skills = {}        # summon AI skill row -> dict(orders, casts, landed, ...)
+        self.s_skill_samples = {}
+        self.s_unsim = {}         # summon AI actions not simulated
+        self.s_swings = self.s_hits = self.s_dmg = 0   # s_dmg: swings + skills
+        self.s_samples = []
+        self.s_calls = 0          # summons called again during the fight
+        self.s_deaths = 0
+        self.ms_dmg = 0           # the monster's damage to summons
+        self.ms_swings = 0        # the monster's swings at summons
+        self.s_swing_t = []       # (first, last) summon swing start ms
+        self.m_on_summon_ms = 0   # time the monster spends on a summon
 
     def skill(self, row):
         return self.skills.setdefault(row, dict(casts=0, landed=0, dmg=0, states=0,
@@ -260,26 +276,369 @@ class Log:
         return self.m_skills.setdefault(row, dict(orders=0, casts=0, landed=0, dmg=0,
                                                   states=0, state_tries=0))
 
+    def s_skill(self, row):
+        return self.s_skills.setdefault(row, dict(orders=0, casts=0, landed=0, dmg=0,
+                                                  states=0, state_tries=0))
+
+
+MOB_ANI_ATTACK = 2            # datatype.h, monster attack slot in LIST_NPC.CHR
+FOLLOW_DISTANCE = 350         # CObjSUMMON::Proc: where a summon rests from its owner (cm)
+
+
+class Mob:
+    """An NPC under its AI file: the monster the player fights, or one of the player's
+    summons (`owner` set). Both run the same CObjAI command machine -- attack / stop /
+    skill orders, cast and action clips, SKILL_ACTION_MODE -- and the same AI patterns;
+    a summon's "owner" conditions and actions (AICOND 21/22/18, AIACT 31) are live.
+
+    This object is also the view ai.Brain reads: `m` (itself), `m_target`, `distance`,
+    `t`, `rng`, `candidates()`, `status_flags()`, `ai_action()` and the owner hooks.
+    """
+
+    def __init__(self, fight, unit, row, ai, owner=None, skill=None):
+        self.f, self.u, self.row, self.ai = fight, unit, row, ai
+        self.owner, self.skill = owner, skill
+        self.enemy = owner is None
+        self.a = Actor(unit)
+        self.brain = Brain(ai, self) if ai else None
+        self.rng = fight.rng
+        lg = fight.log
+        self.skill_log = lg.m_skill if self.enemy else lg.s_skill
+        self.unsim = lg.ai_unsim if self.enemy else lg.s_unsim
+        self.reset(fight.p if self.enemy else None)
+
+    def reset(self, target):
+        self.cmd = "attack" if target is not None else "stop"   # m_wCommand
+        self.target = target
+        self.before = self.cmd    # m_wBeforeCMD
+        self.todo = None          # (Skill, nMotion) ordered, not started
+        self.active = None        # (Skill, nMotion, self_cast) from cast start to release
+        self.phase = "swing" if target is not None else "idle"
+        self.clip = None          # last clip set (m_pCurMOTION)
+        self.stop_check = -10 ** 9
+        self.created_only = False
+
+    # ---- the view ai.Brain reads
+    @property
+    def m(self):
+        return self.u
+
+    @property
+    def m_target(self):
+        return self.target
+
+    @property
+    def distance(self):
+        return self.f.distance
+
+    @property
+    def t(self):
+        return self.f.t
+
+    @property
+    def has_owner(self):
+        return self.owner is not None
+
+    def owner_has_target(self):
+        """AICOND_22: the owner's Get_TARGET() -- the player fights the monster throughout."""
+        return self.owner is not None and self.owner.hp > 0 and self.f.m.hp > 0
+
+    def owner_distance(self):
+        return FOLLOW_DISTANCE
+
+    def candidates(self):
+        """AI_FindFirstOBJ in this fight: the characters hostile to this one, alive, in
+        the order the sector walk is assumed to meet them (the player first)."""
+        return self.f.foes(self)
+
+    def status_flags(self, who, kind):
+        return self.f.status_flags(who, kind)
+
+    def motion(self, slot):
+        return self.f.sim.npc_motion(self.row, slot)
+
+    # ---- command machine (CObjAI)
+    def alive_target(self):
+        t = self.target
+        return t if t is not None and t.hp > 0 else None
+
+    def swing(self):
+        """Start_ATTACK on the current target: damage at frame 0 of the attack clip."""
+        mot = self.motion(MOB_ANI_ATTACK)
+        tgt = self.target
+        self.phase = "swing"
+        self.clip = mot
+        self.a.set_motion(mot, self.u.total_aspd / 100.0)
+        if mot is None or not mot.attack_frames or tgt is None or tgt.hp <= 0:
+            return
+        self.f.swing_started(self, tgt)
+        dmg, crit = F.normal_attack(self.rng, self.u, tgt, mot.attack_frames)
+        self.f.swing_landed(self, tgt, dmg, crit)
+
+    def next(self):
+        """RealProc when the motion ends, or on an idle tick."""
+        if self.phase == "cast":
+            self.skill_action()
+            return
+        if self.cmd == "attack":
+            if self.alive_target() is not None:
+                self.swing()
+                return
+            self.stop()
+            return
+        if self.cmd in ("skill_obj", "skill_self") and self.todo:
+            self.skill_start()
+            return
+        # CMD_STOP: ProcCMD_STOP -> SetCMD_STOP (target cleared), then Do_StopAI
+        self.cmd, self.target, self.phase = "stop", None, "idle"
+        self.a.motion = None
+
+    def on_motion_end(self):
+        if self.f.p.hp <= 0 or self.f.m.hp <= 0 or self.u.hp <= 0:
+            self.a.motion = None
+            return
+        self.next()
+
+    def idle_tick(self):
+        if self.cmd == "stop":
+            self.stop_ai()
+        if self.cmd != "stop":
+            self.next()
+
+    def tick(self, ms):
+        lg = self.f.log
+        disabled = self.u.st.disabled()
+        if disabled:
+            if self.enemy:
+                lg.monster_disabled_ms += ms
+        elif self.a.motion is None:
+            self.idle_tick()        # no AI file: it simply attacks again
+        else:
+            self.a.advance(ms, self.on_motion_end)
+        if self.enemy:
+            if self.cmd == "stop" and self.phase == "idle" and not self.u.st.disabled():
+                lg.m_idle_ms += ms
+            elif self.target is not None and self.target is not self.f.p:
+                lg.m_on_summon_ms += ms
+
+    def stop(self):
+        """CObjAI::SetCMD_STOP: refused while a skill is active (__BLOCK_WHEN_SKILL)."""
+        if self.active:
+            return False
+        self.cmd, self.target, self.phase = "stop", None, "idle"
+        self.todo = None
+        self.a.motion = None                # Set_MOTION(GetANI_Stop())
+        return True
+
+    def disable(self):
+        """UpdateIngSTATUS for sleep/faint -> Del_ActiveSKILL + CObjAI::SetCMD_STOP."""
+        self.active = self.todo = None
+        if self.brain:
+            self.cmd, self.target = "stop", None
+        self.phase = "idle"
+        self.a.motion = None
+
+    # ---- AI hooks
+    def ai_run(self, pattern, dest=None, damage=0):
+        i = self.brain.run(pattern, dest, damage)
+        if i is not None and self.enemy:
+            k = (pattern, i)
+            self.f.log.ai_events[k] = self.f.log.ai_events.get(k, 0) + 1
+
+    def damaged(self, dest, dmg):
+        """CObjMOB::Do_DamagedAI -> CAI_FILE::AI_WhenDAMAGED (cai_file.cpp:687)."""
+        if self.brain is None or self.u.hp <= 0 or self.u.st.disabled():
+            return
+        if self.alive_target() is not None and self.ai.damaged_rate < F.R(self.rng, 100):
+            return
+        if self.enemy:
+            self.f.log.ai_damaged += 1
+        self.ai_run(DAMAGED, dest, dmg)
+
+    def stop_ai(self):
+        """CObjMOB::Do_StopAI: the STOP pattern, at most once per iSecond."""
+        if self.brain is None or self.u.st.disabled():
+            return
+        if self.f.t - self.stop_check < self.ai.stop_ms:
+            return
+        self.stop_check = self.f.t
+        if self.enemy:
+            self.f.log.ai_stop += 1
+        self.ai_run(STOP)
+
+    def ai_action(self, act, prm):
+        n = act.n
+        if self.created_only and n != 35:
+            return
+        if n == 35:
+            self.brain.set_var(act.f["var"], act.f["op"], act.f["value"])
+        elif n == 24:
+            self.order_skill(act.f, prm)
+        elif n in (6, 12, 13, 15, 19) or (n == 31 and self.owner is not None):
+            if n == 6:
+                foes = self.candidates()
+                who = foes[0] if foes and self.distance <= act.f["dist"] else None
+            elif n == 31:                   # F_AIACT31: the owner's target, if hostile
+                who = self.f.m
+            else:
+                who = {12: prm.near, 19: prm.near, 13: prm.find, 15: prm.dest}[n]
+            if who is not None and who.hp > 0:
+                self.order_attack(who)
+        elif n == 0:
+            self.stop()
+        elif n == 23:                       # Add_DAMAGE(Get_HP() + 1)
+            self.u.hp = 0
+            if self.enemy:
+                self.f.log.suicides += 1
+        elif n not in HARMLESS_ACTS:
+            self.unsim[n] = self.unsim.get(n, 0) + 1
+
+    def order_attack(self, who):
+        """SetCMD_RUNnATTACK -> CObjAI::SetCMD_ATTACK (replaces an order not yet cast)."""
+        if self.active:
+            return
+        if self.cmd == "attack" and self.target is who:
+            return
+        self.cmd, self.target, self.todo = "attack", who, None
+
+    def order_skill(self, f, prm):
+        """F_AIACT24 -> CObjMOB::SetCMD_Skill2OBJ / SetCMD_Skill2SELF."""
+        if self.u.st.disabled() or self.u.st.is_set(_DUMB):
+            return
+        sk = self.f.sim.m_skill(f["skill"])
+        if sk is None:                      # F_AIACT24 refuses a blank LIST_SKILL row
+            return
+        if f["target"] == 2:
+            if self.active:
+                return
+            self.before, self.cmd = self.cmd, "skill_self"
+        else:
+            who = prm.find if f["target"] == 0 else self.alive_target()
+            if who is None or who.hp <= 0 or self.active:
+                return
+            if (self.todo and self.todo[0].row == sk.row and self.cmd == "skill_obj"
+                    and self.target is who):
+                return                      # the same order again
+            self.before, self.cmd, self.target = self.cmd, "skill_obj", who
+        self.todo = (sk, f["motion"])
+        self.skill_log(sk.row)["orders"] += 1
+
+    def skill_start(self):
+        """Do_SKILL, first half: the casting clip (slot nMotion) if nMotion != 0."""
+        sk, motion = self.todo
+        self.todo = None
+        selfc = self.cmd == "skill_self"
+        if not selfc and self.alive_target() is None:
+            self.cmd = "stop"
+            self.next()
+            return
+        self.active = (sk, motion, selfc)
+        self.skill_log(sk.row)["casts"] += 1
+        if motion:
+            clip = self.motion(motion)
+            self.phase = "cast"
+            if clip is not None:
+                self.clip = clip
+                self.a.set_motion(clip, sk.casting_speed())
+                return
+            # Set_MOTION fails on an unmapped slot (or nMotion -1): no cast clip plays
+        self.skill_action()
+
+    def skill_action(self):
+        """Do_SKILL, second half: the action clip (slot nMotion+1) and Skill_START at
+        its frame 0, then SKILL_ACTION_MODE decides the next command."""
+        sk, motion, selfc = self.active
+        clip = self.motion(motion + 1)
+        if clip is not None:
+            self.clip = clip                # else the current clip plays on (Set_MOTION fails)
+        self.phase = "action"
+        self.a.set_motion(self.clip, sk.action_speed())
+        f, me = self.f, self.u
+        tgt = None if selfc else self.alive_target()
+        rec = self.skill_log(sk.row)
+        t, ok = sk.type, True
+        if t in (3, 4, 5, 6, 19):
+            if tgt is not None and f.pass_filter(sk, tgt, me):
+                hit = self.clip.attack_frames if self.clip else 0
+                dmg = self.skill_hit(sk, rec, hit, tgt)
+                if t == 19:
+                    if dmg:                 # the drain lands on the caster, at its own INT
+                        f.apply_states(sk, tgt, me, rec, speller_int=me.get_int)
+                else:
+                    f.apply_states(sk, me, tgt, rec)
+        elif t in (7, 17):                  # around the caster (m_PosGOTO = m_PosCUR)
+            if f.sim.cast_distance(sk, selfc) <= sk.scope:
+                for c in self.candidates():
+                    if f.pass_filter(sk, c, me):
+                        self.skill_hit(sk, rec, 1, c)
+                        if f.pass_filter(sk, c, me):
+                            f.apply_states(sk, me, c, rec)
+        elif t in (8, 12):
+            if f.pass_filter(sk, me, me):
+                f.apply_states(sk, me, me, rec)
+        elif t in (9, 11, 13):
+            if tgt is not None and f.pass_filter(sk, tgt, me):
+                f.apply_states(sk, me, tgt, rec)
+        elif t == 10:
+            if not selfc:
+                ok = False                  # Skill_START: type 10 at a target fails
+            elif f.pass_filter(sk, me, me):
+                f.apply_states(sk, me, me, rec)
+        elif t == 14:
+            self.unsim["summon skill"] = self.unsim.get("summon skill", 0) + 1
+        elif t != 20:
+            ok = False
+        self.active = None                  # Del_ActiveSKILL
+        if not ok:
+            self.cmd = self.before if selfc else "stop"
+        elif sk.action_mode == 1:           # SA_ATTACK
+            self.cmd = "attack"
+        elif sk.action_mode == 2:           # SA_RESTORE
+            b = self.before
+            self.cmd = "stop" if b in ("skill_obj", "skill_self") else b
+        else:                               # SA_STOP (0 or blank)
+            self.cmd = "stop"
+
+    def skill_hit(self, sk, rec, hit_cnt, tgt):
+        dmg = F.skill_damage(self.rng, self.u, tgt, sk, hit_cnt)
+        tgt.st.clear(_SLEEP)
+        if dmg:
+            rec["landed"] += 1
+            rec["dmg"] += dmg
+            lg = self.f.log
+            (lg.m_skill_samples if self.enemy else lg.s_skill_samples) \
+                .setdefault(sk.row, []).append(dmg)
+            if not self.enemy:
+                lg.s_dmg += dmg
+            elif tgt is self.f.p:
+                lg.m_skill_dmg += dmg
+            else:
+                lg.ms_dmg += dmg
+            tgt.hp -= dmg
+        self.f.hit_reaction(self, tgt, dmg)
+        return dmg
+
 
 class Fight:
     def __init__(self, sim, rng=None, immortal_monster=False, max_seconds=600):
         self.sim, self.gd = sim, sim.gd
         self.rng = rng or random.Random()
         self.p = sim.make_player()
-        self.m = sim.make_monster()
         # survival runs: a monster that would die is replaced by a fresh one (_respawn),
         # so its HP-driven AI phases repeat the way they do fight after fight
         self.immortal = immortal_monster
         rate = sim.stats.rate_use_mp
         self.cost = {sk.row: sk.mp_cost(rate) for sk in sim.rotation}
         self.min_cost = min(self.cost.values()) if self.cost else None
+        self.cost.update({sk.row: sk.mp_cost(rate) for sk in sim.summons})
         self.hp_trace = []        # (ms, hp) every 2 s, for survival extrapolation
         self.max_ms = max_seconds * 1000
         self.log = Log()
-        self.pa, self.ma = Actor(self.p), Actor(self.m)
+        self.pa = Actor(self.p)
         self.t = 0
         self.p_state = "idle"     # idle | attack | cast | action
         self.p_pending = None     # skill being cast
+        self.p_summon_slot = None  # which summon a summon cast refills
         self.last_cast = {}       # skill row -> accept time
         self.last_any_cast = -10 ** 9
         self.spacing = sim.build.skill_spacing
@@ -287,22 +646,91 @@ class Fight:
         self.regen_acc = 0
         self.last_potion = {"hp": -10 ** 9, "mp": -10 ** 9}
         self.potion_run = {}      # "hp"/"mp" -> dict(total, acc_value, tot_time, acc_time, stb)
-        # monster command state (CObjAI m_wCommand / target / m_nToDoSkillIDX / active skill)
         self.ai = sim.ai
-        self.brain = Brain(sim.ai, self) if sim.ai else None
         self.distance = sim.distance
-        self._reset_monster_cmd()
+        self.summons = [None] * len(sim.summons)   # one slot per summon the build keeps up
+        self.enemy = Mob(self, sim.make_monster(), sim.npc_row, sim.ai)
 
-    def _reset_monster_cmd(self):
-        self.m_cmd = "attack"     # attack | stop | skill_obj | skill_self
-        self.m_target = self.p
-        self.m_before = "attack"  # m_wBeforeCMD
-        self.m_todo = None        # (Skill, nMotion) ordered, not started
-        self.m_active = None      # (Skill, nMotion, self_cast) from cast start to release
-        self.m_phase = "swing"    # swing | cast | action | idle
-        self.m_clip = None        # last clip set on the monster (m_pCurMOTION)
-        self.stop_check = -10 ** 9
-        self.created_only = False
+    @property
+    def m(self):
+        return self.enemy.u
+
+    @property
+    def ma(self):
+        return self.enemy.a
+
+    # ------------------------------------------------------------ who is who
+    def live_summons(self):
+        return [s for s in self.summons if s is not None and s.u.hp > 0]
+
+    def foes(self, mob):
+        if mob.enemy:
+            return [u for u in [self.p] + [s.u for s in self.live_summons()] if u.hp > 0]
+        return [self.m] if self.m.hp > 0 else []
+
+    def mob_of(self, unit):
+        if unit is self.enemy.u:
+            return self.enemy
+        for s in self.summons:
+            if s is not None and s.u is unit:
+                return s
+        return None
+
+    def allied(self, a, b):
+        """Is_ALLIED: the player and its summons on one side, the monster on the other."""
+        return (a is self.m) == (b is self.m)
+
+    def pass_filter(self, sk, target, caster):
+        """Skill_IsPassFilter (cobjchar.cpp:1318) for an NPC caster: no party, no clan
+        (SKILL_CLASS_FILTER, LIST_SKILL col 7); summons are OBJ_MOB, the player is a user."""
+        if target.hp <= 0:
+            return False
+        own = target is caster
+        ally = self.allied(target, caster)
+        user = target.is_user
+        return {0: own, 1: own, 2: False, 3: ally, 4: not user, 5: not ally,
+                6: user and not ally, 7: user, 8: True, 10: not ally and not user
+                }.get(sk.target_filter, False)
+
+    # ------------------------------------------------------------ blows between NPCs
+    def swing_started(self, mob, tgt):
+        lg = self.log
+        if not mob.enemy:
+            lg.s_swings += 1
+            lg.s_swing_t[1:] = [self.t]
+            if not lg.s_swing_t[:1]:
+                lg.s_swing_t = [self.t, self.t]
+        elif tgt is not self.p:
+            lg.ms_swings += 1
+        elif tgt is self.p:
+            lg.m_swings += 1
+            lg.m_swing_t[1:] = [self.t]
+            if not lg.m_swing_t[:1]:
+                lg.m_swing_t = [self.t, self.t]
+
+    def swing_landed(self, mob, tgt, dmg, crit):
+        lg = self.log
+        tgt.st.clear(_SLEEP)                # Apply_DAMAGE wakes the target, hit or miss
+        if dmg:
+            if not mob.enemy:
+                lg.s_hits += 1
+                lg.s_dmg += dmg
+                lg.s_samples.append(dmg)
+            elif tgt is self.p:
+                lg.m_hits += 1
+                lg.m_crits += crit
+                lg.m_dmg += dmg
+                lg.m_samples.append(dmg)
+            else:
+                lg.ms_dmg += dmg
+            tgt.hp -= dmg
+        self.hit_reaction(mob, tgt, dmg)
+
+    def hit_reaction(self, mob, tgt, dmg):
+        """Apply_DAMAGE -> the target's Do_DamagedAI with the attacker, hit or miss."""
+        other = self.mob_of(tgt)
+        if other is not None and other is not mob:
+            other.damaged(mob.u, dmg)
 
     # ------------------------------------------------------------ player decisions
     def _skill_ready(self, sk):
@@ -333,6 +761,12 @@ class Fight:
         if self.swings_since_skill < self.spacing and self._can_swing():
             self._player_swing()
             return
+        # a summon that died is called again first
+        for i, sk in enumerate(self.sim.summons):
+            if self.summons[i] is None and self._skill_ready(sk):
+                self.p_summon_slot = i
+                self._skill_start(sk)
+                return
         for sk in self.sim.rotation:
             if self._skill_ready(sk):
                 self._skill_start(sk)
@@ -364,7 +798,7 @@ class Fight:
             lg.p_dmg += dmg
             lg.p_samples.append(dmg)
             self.m.hp -= dmg
-        self._m_damaged(dmg)
+        self.enemy.damaged(self.p, dmg)
 
     def _skill_start(self, sk):
         """Do_SKILL first half: pay, then cast motion (or straight to the action)."""
@@ -389,6 +823,10 @@ class Fight:
         self.p_state, self.p_pending = "action", None
         self.pa.set_motion(act, sk.action_speed())
         rec = self.log.skill(sk.row)
+        if sk.type == 14:                   # SKILL_TYPE_14: the summon appears
+            self._summon(sk, self.p_summon_slot)
+            self.p_summon_slot = None
+            return
         if sk.is_damage():
             hit_cnt = 1 if sk.type in (7, 17) else (act.attack_frames if act else 1)
             dmg = F.skill_damage(self.rng, self.p, self.m, sk, hit_cnt)
@@ -398,19 +836,34 @@ class Fight:
                 rec["dmg"] += dmg
                 self.log.skill_samples.setdefault(sk.row, []).append(dmg)
                 self.m.hp -= dmg
-            self._m_damaged(dmg)
+            self.enemy.damaged(self.p, dmg)
         # Skill_ChangeIngSTATUS runs after the damage for 3/4/5/6, on its own for 9/13;
         # 8/10/12 are self-cast
         target = self.p if sk.type in SELF_TYPES else self.m
-        self._apply_states(sk, self.p, target, rec)
+        self.apply_states(sk, self.p, target, rec)
 
-    def _apply_states(self, sk, caster, target, rec, speller_int=None):
+    def _summon(self, sk, slot):
+        """Skill_START type 14: a CObjSUMMON of LIST_SKILL col 28, stats scaled by
+        SetCallerOBJ; its CREATED pattern runs (only AI variables matter here)."""
+        if slot is None:
+            return
+        mob = Mob(self, self.sim.make_summon(sk), self.sim.summon_row(sk),
+                  self.sim.summon_ai(sk), owner=self.p, skill=sk)
+        self.summons[slot] = mob
+        self.log.s_calls += 1
+        if mob.brain:
+            mob.created_only = True
+            mob.ai_run(CREATED)
+            mob.created_only = False
+
+    def apply_states(self, sk, caster, target, rec, speller_int=None):
         """Skill_ApplyIngSTATUS for each state slot of the skill (cobjchar.cpp:1411)."""
         if target.hp <= 0:
             return
         gd = self.gd
-        if sk.harm and target is self.m:
-            self._m_damaged(0)              # SKILL_HARM: Do_DamagedAI(pSpeller, 0)
+        mob = self.mob_of(target)
+        if sk.harm and mob is not None and not self.allied(caster, target):
+            mob.damaged(caster, 0)          # SKILL_HARM: Do_DamagedAI(pSpeller, 0)
         cint = caster.get_int if speller_int is None else speller_int
         for n, stb_row in enumerate(sk.states):
             ab, flat, rate = sk.ability[n]
@@ -442,12 +895,8 @@ class Fight:
                 target.refresh()
             if ing in (_SLEEP, _FAINT):
                 # UpdateIngSTATUS -> Del_ActiveSKILL + CObjAI::SetCMD_STOP
-                if target is self.m:
-                    self.m_active = self.m_todo = None
-                    if self.brain:
-                        self.m_cmd, self.m_target = "stop", None
-                    self.m_phase = "idle"
-                    self.ma.motion = None
+                if mob is not None:
+                    mob.disable()
                 else:
                     self.pa.motion = None
                     self.p_state, self.p_pending = "idle", None
@@ -459,98 +908,6 @@ class Fight:
             return
         self._player_next()
 
-    # ------------------------------------------------------------ monster
-    def _m_alive_target(self):
-        t = self.m_target
-        return t if t is not None and t.hp > 0 else None
-
-    def _monster_swing(self):
-        mot = self.sim.m_attack_motion
-        self.m_phase, self.m_target = "swing", self.p
-        self.m_clip = mot
-        self.ma.set_motion(mot, self.m.total_aspd / 100.0)
-        if mot is None or not mot.attack_frames or self.p.hp <= 0:
-            return
-        lg = self.log
-        lg.m_swings += 1
-        lg.m_swing_t[1:] = [self.t]
-        if not lg.m_swing_t[:1]:
-            lg.m_swing_t = [self.t, self.t]
-        dmg, crit = F.normal_attack(self.rng, self.m, self.p, mot.attack_frames)
-        self.p.st.clear(_SLEEP)             # Apply_DAMAGE wakes the target, hit or miss
-        if dmg:
-            lg.m_hits += 1
-            lg.m_crits += crit
-            lg.m_dmg += dmg
-            lg.m_samples.append(dmg)
-            self.p.hp -= dmg
-
-    def _monster_next(self):
-        """RealProc when the monster's motion ends, or on an idle tick."""
-        if self.m_phase == "cast":
-            self._m_skill_action()
-            return
-        if self.m_cmd == "attack":
-            if self._m_alive_target() is not None:
-                self._monster_swing()
-                return
-            self._m_stop()
-            return
-        if self.m_cmd in ("skill_obj", "skill_self") and self.m_todo:
-            self._m_skill_start()
-            return
-        # CMD_STOP: ProcCMD_STOP -> SetCMD_STOP (target cleared), then Do_StopAI
-        self.m_cmd, self.m_target, self.m_phase = "stop", None, "idle"
-        self.ma.motion = None
-
-    def _on_monster_motion_end(self):
-        if self.p.hp <= 0 or self.m.hp <= 0:
-            self.ma.motion = None
-            return
-        self._monster_next()
-
-    def _m_idle_tick(self):
-        if self.m_cmd == "stop":
-            self._m_stop_ai()
-        if self.m_cmd != "stop":
-            self._monster_next()
-
-    def _m_stop(self):
-        """CObjAI::SetCMD_STOP: refused while a skill is active (__BLOCK_WHEN_SKILL)."""
-        if self.m_active:
-            return False
-        self.m_cmd, self.m_target, self.m_phase = "stop", None, "idle"
-        self.m_todo = None
-        self.ma.motion = None               # Set_MOTION(GetANI_Stop())
-        return True
-
-    # ---- AI hooks
-    def _ai_run(self, pattern, dest=None, damage=0):
-        i = self.brain.run(pattern, dest, damage)
-        if i is not None:
-            k = (pattern, i)
-            self.log.ai_events[k] = self.log.ai_events.get(k, 0) + 1
-
-    def _m_damaged(self, dmg):
-        """CObjMOB::Do_DamagedAI -> CAI_FILE::AI_WhenDAMAGED (cai_file.cpp:687)."""
-        if self.brain is None or self.m.hp <= 0 or self.m.st.disabled():
-            return
-        if self._m_alive_target() is not None \
-                and self.ai.damaged_rate < F.R(self.rng, 100):
-            return
-        self.log.ai_damaged += 1
-        self._ai_run(DAMAGED, self.p, dmg)
-
-    def _m_stop_ai(self):
-        """CObjMOB::Do_StopAI: the STOP pattern, at most once per iSecond."""
-        if self.brain is None or self.m.st.disabled():
-            return
-        if self.t - self.stop_check < self.ai.stop_ms:
-            return
-        self.stop_check = self.t
-        self.log.ai_stop += 1
-        self._ai_run(STOP)
-
     def status_flags(self, who, kind):
         """Get_MagicSTATUS & FLAG_ING_BAD (0) / FLAG_ING_GOOD (1) / any (2), by each
         state's STATE_PRIFITS_LOSSES."""
@@ -561,155 +918,25 @@ class Fight:
                 return True
         return False
 
-    def ai_action(self, act, prm):
-        n = act.n
-        if self.created_only and n != 35:
-            return
-        lg = self.log
-        if n == 35:
-            self.brain.set_var(act.f["var"], act.f["op"], act.f["value"])
-        elif n == 24:
-            self._m_order_skill(act.f, prm)
-        elif n in (6, 12, 13, 15, 19):
-            if n == 6:
-                who = self.p if self.distance <= act.f["dist"] else None
-            else:
-                who = {12: prm.near, 19: prm.near, 13: prm.find, 15: prm.dest}[n]
-            if who is self.p and self.p.hp > 0:
-                self._m_order_attack()
-        elif n == 0:
-            self._m_stop()
-        elif n == 23:                       # Add_DAMAGE(Get_HP() + 1)
-            self.m.hp = 0
-            lg.suicides += 1
-        elif n not in HARMLESS_ACTS:
-            lg.ai_unsim[n] = lg.ai_unsim.get(n, 0) + 1
-
-    def _m_order_attack(self):
-        """SetCMD_RUNnATTACK -> CObjAI::SetCMD_ATTACK (replaces an order not yet cast)."""
-        if self.m_active:
-            return
-        if self.m_cmd == "attack" and self.m_target is self.p:
-            return
-        self.m_cmd, self.m_target, self.m_todo = "attack", self.p, None
-
-    def _m_order_skill(self, f, prm):
-        """F_AIACT24 -> CObjMOB::SetCMD_Skill2OBJ / SetCMD_Skill2SELF."""
-        m = self.m
-        if m.st.disabled() or m.st.is_set(_DUMB):
-            return
-        sk = self.sim.m_skill(f["skill"])
-        if sk is None:                      # F_AIACT24 refuses a blank LIST_SKILL row
-            return
-        if f["target"] == 2:
-            if self.m_active:
-                return
-            self.m_before, self.m_cmd = self.m_cmd, "skill_self"
-        else:
-            who = prm.find if f["target"] == 0 else self._m_alive_target()
-            if who is not self.p or self.p.hp <= 0 or self.m_active:
-                return
-            if (self.m_todo and self.m_todo[0].row == sk.row and self.m_cmd == "skill_obj"
-                    and self.m_target is self.p):
-                return                      # the same order again
-            self.m_before, self.m_cmd, self.m_target = self.m_cmd, "skill_obj", self.p
-        self.m_todo = (sk, f["motion"])
-        self.log.m_skill(sk.row)["orders"] += 1
-
-    def _m_skill_start(self):
-        """Do_SKILL, first half: the casting clip (slot nMotion) if nMotion != 0."""
-        sk, motion = self.m_todo
-        self.m_todo = None
-        selfc = self.m_cmd == "skill_self"
-        if not selfc and self._m_alive_target() is None:
-            self.m_cmd = "stop"
-            self._monster_next()
-            return
-        self.m_active = (sk, motion, selfc)
-        self.log.m_skill(sk.row)["casts"] += 1
-        if motion:
-            clip = self.sim.m_motion(motion)
-            self.m_phase = "cast"
-            if clip is not None:
-                self.m_clip = clip
-                self.ma.set_motion(clip, sk.casting_speed())
-                return
-            # Set_MOTION fails on an unmapped slot (or nMotion -1): no cast clip plays
-        self._m_skill_action()
-
-    def _m_skill_action(self):
-        """Do_SKILL, second half: the action clip (slot nMotion+1) and Skill_START at
-        its frame 0, then SKILL_ACTION_MODE decides the next command."""
-        sk, motion, selfc = self.m_active
-        clip = self.sim.m_motion(motion + 1)
-        if clip is not None:
-            self.m_clip = clip              # else the current clip plays on (Set_MOTION fails)
-        self.m_phase = "action"
-        self.ma.set_motion(self.m_clip, sk.action_speed())
-        p, m = self.p, self.m
-        rec = self.log.m_skill(sk.row)
-        t, ok = sk.type, True
-        if t in (3, 4, 5, 6, 19):
-            if not selfc and self.sim.pass_filter(sk, p, m):
-                hit = self.m_clip.attack_frames if self.m_clip else 0
-                dmg = self._m_skill_hit(sk, rec, hit)
-                if t == 19:
-                    if dmg:                 # the drain lands on the caster, at its own INT
-                        self._apply_states(sk, p, m, rec, speller_int=m.get_int)
-                else:
-                    self._apply_states(sk, m, p, rec)
-        elif t in (7, 17):                  # around the caster (m_PosGOTO = m_PosCUR)
-            if (self.sim.cast_distance(sk, selfc) <= sk.scope
-                    and self.sim.pass_filter(sk, p, m)):
-                self._m_skill_hit(sk, rec, 1)
-                if self.sim.pass_filter(sk, p, m):
-                    self._apply_states(sk, m, p, rec)
-        elif t in (8, 12):
-            if self.sim.pass_filter(sk, m, m):
-                self._apply_states(sk, m, m, rec)
-        elif t in (9, 11, 13):
-            if not selfc and self.sim.pass_filter(sk, p, m):
-                self._apply_states(sk, m, p, rec)
-        elif t == 10:
-            if not selfc:
-                ok = False                  # Skill_START: type 10 at a target fails
-            elif self.sim.pass_filter(sk, m, m):
-                self._apply_states(sk, m, m, rec)
-        elif t == 14:
-            self.log.ai_unsim["summon skill"] = self.log.ai_unsim.get("summon skill", 0) + 1
-        elif t != 20:
-            ok = False
-        self.m_active = None                # Del_ActiveSKILL
-        if not ok:
-            self.m_cmd = self.m_before if selfc else "stop"
-        elif sk.action_mode == 1:           # SA_ATTACK
-            self.m_cmd = "attack"
-        elif sk.action_mode == 2:           # SA_RESTORE
-            b = self.m_before
-            self.m_cmd = "stop" if b in ("skill_obj", "skill_self") else b
-        else:                               # SA_STOP (0 or blank)
-            self.m_cmd = "stop"
-
-    def _m_skill_hit(self, sk, rec, hit_cnt):
-        dmg = F.skill_damage(self.rng, self.m, self.p, sk, hit_cnt)
-        self.p.st.clear(_SLEEP)
-        if dmg:
-            rec["landed"] += 1
-            rec["dmg"] += dmg
-            self.log.m_skill_samples.setdefault(sk.row, []).append(dmg)
-            self.log.m_skill_dmg += dmg
-            self.p.hp -= dmg
-        return dmg
-
     def _respawn(self):
         """Survival runs: the monster that would have died is replaced by a fresh one."""
-        self.m = self.sim.make_monster()
-        self.ma = Actor(self.m)
-        if self.brain:
-            self.brain = Brain(self.ai, self)
-        self._reset_monster_cmd()
+        self.enemy = Mob(self, self.sim.make_monster(), self.sim.npc_row, self.ai)
         self.log.respawns += 1
-        self._monster_swing()
+        self.enemy.swing()
+        for s in self.live_summons():       # their target is gone; the STOP pattern finds
+            s.reset(None)                   # the new one
+
+    def _spawn_summons(self):
+        """The build's summons are out when the fight starts (called before the pull)."""
+        for i, sk in enumerate(self.sim.summons):
+            self._summon(sk, i)
+        self.log.s_calls = 0
+
+    def _drop_dead_summons(self):
+        for i, s in enumerate(self.summons):
+            if s is not None and s.u.hp <= 0:
+                self.summons[i] = None
+                self.log.s_deaths += 1
 
     # ------------------------------------------------------------ upkeep
     def _regen(self, ms):
@@ -803,14 +1030,16 @@ class Fight:
     # ------------------------------------------------------------ run
     def run(self):
         lg = self.log
-        if self.brain:
+        e = self.enemy
+        if e.brain:
             # the monster spawned before the pull: only its CREATED-pattern AI variables
             # are still in effect when the fight starts
-            self.created_only = True
-            self._ai_run(CREATED)
-            self.created_only = False
+            e.created_only = True
+            e.ai_run(CREATED)
+            e.created_only = False
+        self._spawn_summons()
         self._player_next()           # both open on the first tick in range
-        self._monster_swing()
+        e.swing()
         while True:
             if self.m.hp <= 0 and self.immortal and self.p.hp > 0:
                 self._respawn()
@@ -834,20 +1063,18 @@ class Fight:
                     d = lg.debuff_ms if self.gd.state_harmful(stb) else lg.monster_buff_ms
                     d[ing] = d.get(ing, 0) + TICK_MS
                 self.m.st.proc(TICK_MS)
+            for s in self.live_summons():
+                if s.u.st.ticks:
+                    s.u.st.proc(TICK_MS)
             if self.p.st.disabled():
                 lg.player_disabled_ms += TICK_MS
             else:
                 self.pa.advance(TICK_MS, self._on_player_motion_end)
             if self.m.hp > 0:
-                if self.m.st.disabled():
-                    lg.monster_disabled_ms += TICK_MS
-                elif self.ma.motion is None:
-                    self._m_idle_tick()     # no AI file: it simply attacks again
-                else:
-                    self.ma.advance(TICK_MS, self._on_monster_motion_end)
-                if (self.m_cmd == "stop" and self.m_phase == "idle"
-                        and not self.m.st.disabled()):
-                    lg.m_idle_ms += TICK_MS
+                self.enemy.tick(TICK_MS)
+            for s in self.live_summons():
+                s.tick(TICK_MS)
+            self._drop_dead_summons()
             if self.p.hp > 0:
                 self._regen(TICK_MS)
                 self._potions(TICK_MS)

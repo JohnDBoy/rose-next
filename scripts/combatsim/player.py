@@ -128,6 +128,8 @@ class Build:
         # normal swings the player throws between two skills; 0 = cast whenever one is
         # ready (spam). Older builds have none: 0, the behaviour they were checked with.
         self.skill_spacing = int(d.get("skill_spacing", 0))
+        # summon skill rows (one entry per summon kept out; a row may repeat)
+        self.summons = [int(x) for x in d.get("summons", [])]
         self.buffs = [dict(skill=int(b["skill"]), caster_int=int(b.get("caster_int", 0)),
                            caster_level=int(b.get("caster_level", 0)))
                       for b in d.get("buffs", [])]
@@ -144,7 +146,7 @@ class Build:
             union=self.union, stats=dict(self.stats),
             equip={s: it.to_json() for s, it in self.equip.items() if it.id},
             ammo=self.ammo, skills=list(self.skills), rotation=list(self.rotation),
-            skill_spacing=self.skill_spacing,
+            skill_spacing=self.skill_spacing, summons=list(self.summons),
             buffs=[dict(b) for b in self.buffs], potions=dict(self.potions),
             notes=self.notes)
 
@@ -233,6 +235,8 @@ class StatBlock:
         gd, b = self.gd, self.b
         L = b.level
         psv_add, psv_rate, from_value, stat_rates = self._passives()
+        # CUserDATA::GetMax_SummonCNT: 50 + the summon passives (Summon Mastery ...)
+        self.summon_capacity = 50 + psv_add[62]     # AT_PSV_SUMMON_MOB_CNT
 
         add = [0] * AT["MAX"]
         add[AT["PSV_ATK_POW_NO_WEAPON"]:AT["AFTER_PASSIVE_SKILL"]] = \

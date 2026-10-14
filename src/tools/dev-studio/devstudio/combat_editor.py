@@ -23,7 +23,7 @@ from combatsim import ASSUMPTIONS, GameData
 from combatsim import catalog as C
 from combatsim.autobuild import PROFILES, con_floor, make_build, skill_points, skills_cost
 from combatsim.data import JOBS, SHOT_BY_WEAPON
-from combatsim.player import BASE_STATS, STAT_KEYS, auto_stats, total_bonus_points
+from combatsim.player import BASE_STATS, STAT_KEYS, StatBlock, auto_stats, total_bonus_points
 
 from . import theme, widgets
 from .documents import REPO_ROOT
@@ -460,6 +460,23 @@ class CombatEditor(EditorBase):
         self.buff_add.activated.connect(self._buff_add)
         v.addWidget(self.buff_add)
 
+        # summons
+        section("Summons", v)
+        v.addWidget(dim("Called before the pull and called again when one dies; each runs "
+                        "its own AI. Capacity is 50 plus the summon passives.", "Hint"))
+        row = QHBoxLayout()
+        self.l_cap = widgets.chip("")
+        row.addWidget(self.l_cap)
+        row.addStretch(1)
+        v.addLayout(row)
+        self._sum_widgets = []
+        self.sum_box = QVBoxLayout()
+        self.sum_box.setSpacing(4)
+        v.addLayout(self.sum_box)
+        self.sum_add = combo()
+        self.sum_add.activated.connect(self._sum_add)
+        v.addWidget(self.sum_add)
+
         # potions
         section("Potions", v)
         self.e_pot_on = QCheckBox("Drink potions (off by default: vials skew balance)")
@@ -615,6 +632,12 @@ class CombatEditor(EditorBase):
         self.t_dmg = self._table(["Attack", "Per fight", "Lands", "Crit", "Per hit",
                                   "DPS", "MP", "Cooldown", "Debuff lands"])
         self.res.addWidget(self.t_dmg)
+        self.t_sum = self._table(["Summon", "Swings", "Lands", "Per hit", "DPS", "HP", "ATK",
+                                  "DEF", "Deaths"])
+        self.res.addWidget(self.t_sum)
+        self.l_sum = dim("")
+        self.l_sum.setWordWrap(True)
+        self.res.addWidget(self.l_sum)
         self.l_debuffs = dim("")
         self.l_debuffs.setWordWrap(True)
         self.res.addWidget(self.l_debuffs)
@@ -705,6 +728,7 @@ class CombatEditor(EditorBase):
             self._fill_rotation(b)
             self.e_spacing.setValue(b.skill_spacing)
             self._fill_buffs(b)
+            self._fill_summons(b)
             self.e_pot_on.setChecked(b.potions["enabled"])
             for kind, (cb, th) in self.e_pot.items():
                 i = cb.findData(b.potions[kind])
@@ -734,6 +758,7 @@ class CombatEditor(EditorBase):
         b.skill_spacing = self.e_spacing.value()
         b.buffs = [dict(skill=w.rank.row(), caster_int=w.cint.value(), caster_level=0)
                    for w in self._buff_widgets if w.rank.row()]
+        b.summons = [w.rank.row() for w in self._sum_widgets if w.rank.row()]
         b.potions["enabled"] = self.e_pot_on.isChecked()
         for kind, (cb, th) in self.e_pot.items():
             b.potions[kind] = cb.currentData() or 0
@@ -762,7 +787,8 @@ class CombatEditor(EditorBase):
         self.l_points.setToolTip("Stats cost more points than the level grants" if over else
                                  f"{have - spent:,} unspent")
         # skill points: learned skills plus the rotation (a skill cast must be learned)
-        spent, have = skills_cost(self.gd, b.skills + b.rotation), skill_points(self.gd, b.level)
+        spent = skills_cost(self.gd, b.skills + b.rotation + b.summons)
+        have = skill_points(self.gd, b.level)
         self.l_sp.setText(f"Skill points {spent:,} / {have:,}")
         over = spent > have
         self.l_sp.setObjectName("ChipModified" if over else "Chip")
@@ -772,6 +798,21 @@ class CombatEditor(EditorBase):
                              "unspent")
         self.l_sp.style().unpolish(self.l_sp)
         self.l_sp.style().polish(self.l_sp)
+        # summon capacity: CUserDATA::GetMax_SummonCNT vs NPC_NEED_SUMMON_CNT of each
+        try:
+            cap = StatBlock(self.gd, b).summon_capacity
+        except Exception:   # noqa: BLE001 -- a half-edited build must not break the form
+            cap = 50
+        npc = self.gd.stb("LIST_NPC")
+        used = sum(npc.i(self.gd.sk(r, 28), 21) for r in b.summons)
+        self.l_cap.setText(f"Summon capacity {used:,} / {cap:,}")
+        over = used > cap
+        self.l_cap.setObjectName("ChipModified" if over else "Chip")
+        self.l_cap.setToolTip("Over capacity: the game refuses the last call(s); the "
+                              "simulation leaves them out" if over else
+                              "Summon Mastery / Employ Troops raise the capacity")
+        self.l_cap.style().unpolish(self.l_cap)
+        self.l_cap.style().polish(self.l_cap)
         self.l_points.style().unpolish(self.l_points)
         self.l_points.style().polish(self.l_points)
 
@@ -906,13 +947,50 @@ class CombatEditor(EditorBase):
         del b.buffs[self._buff_widgets.index(w)]
         self.doc.set_data(b.to_json(), "Remove buff", merge=False)
 
+    # ------------------------------------------------------------------ summons
+    def _fill_summons(self, b):
+        if self._unchanged("summons", (b.job, tuple(b.summons))):
+            return
+        gd = self.gd
+        widgets.clear_layout(self.sum_box)
+        self._sum_widgets = []
+        for row in b.summons:
+            w = self._row_widget(gd, row, on_change=lambda _i: self._commit("Summon rank"),
+                                 on_remove=self._sum_remove)
+            self.sum_box.addWidget(w)
+            self._sum_widgets.append(w)
+        self.sum_add.blockSignals(True)
+        self.sum_add.clear()
+        choices = catalog(gd, "summon_skills", b.job)
+        self.sum_add.addItem("Add a summon…" if choices else "This class has no summons", 0)
+        for r, name, detail, _ in choices:
+            self.sum_add.addItem(f"{name}  —  {detail}", r)
+        self.sum_add.blockSignals(False)
+        self.sum_add.setEnabled(bool(choices))
+
+    def _sum_add(self, i):
+        row = self.sum_add.itemData(i)
+        self.sum_add.setCurrentIndex(0)
+        if not row:
+            return
+        b = self._gather()
+        first = self.gd.sk(row, 1) or row       # the rank the build has learned, else top
+        row = next((r for r in b.skills if (self.gd.sk(r, 1) or r) == first), row)
+        b.summons.append(row)
+        self.doc.set_data(b.to_json(), "Add summon", merge=False)
+
+    def _sum_remove(self, w):
+        b = self._gather()
+        del b.summons[self._sum_widgets.index(w)]
+        self.doc.set_data(b.to_json(), "Remove summon", merge=False)
+
     # ------------------------------------------------------------------ class / auto
     def _job_changed(self):
         if self._loading:
             return
         b = self._gather()
-        # passives and rotation belong to the old class
-        b.skills, b.rotation = [], []
+        # passives, rotation and summons belong to the old class
+        b.skills, b.rotation, b.summons = [], [], []
         self.doc.set_data(b.to_json(), "Class", merge=False)
 
     def _auto_build(self, gear="average"):
@@ -1026,8 +1104,27 @@ class CombatEditor(EditorBase):
             lb.setText(big)
             ls.setText(sub)
 
+        sm = r["summons"]
+        self.t_sum.setVisible(bool(sm))
+        self.l_sum.setVisible(bool(sm))
+        if sm:
+            rows = [[f"{u['name']} ({u['skill']} {u['rank']})", "", "", "", "",
+                     f"{u['hp']:,}", u["atk"], u["df"], ""] for u in sm["units"]]
+            rows.append(["All summons", f"{sm['swings']:.1f}", f"{sm['land']:.0%}",
+                         f"{sm['per_hit']:,.0f}", f"{sm['dps']:,.0f}", "", "", "",
+                         f"{sm['deaths']:.2f}"])
+            self._fill(self.t_sum, rows)
+            bits = [f"capacity {sm['used']}/{sm['capacity']}",
+                    f"the monster is on them {sm['monster_on_them']:.0%} of the fight and "
+                    f"hits them for {sm['taken']:,.1f}/s"]
+            bits += [f"they cast {k['name']} {k['casts']:.1f}/fight" for k in sm["skills"]]
+            if sm["unsimulated"]:
+                bits.append("not simulated: " + ", ".join(
+                    f"{k} {v:.1f}/fight" for k, v in sm["unsimulated"]))
+            self.l_sum.setText("Summons: " + " · ".join(bits))
         rate("dps", f"{r['dps']:,.0f}",
-             f"normal {r['dps_auto']:,.0f} · skills {r['dps_skill']:,.0f}")
+             f"normal {r['dps_auto']:,.0f} · skills {r['dps_skill']:,.0f}"
+             + (f" · summons {r['dps_summon']:,.0f}" if r["summons"] else ""))
         heal = r["regen_hps"] + r["potion_hps"]
         rate("dtps", f"{r['dtps']:,.0f}",
              (f"normal {r['dtps_auto']:,.0f} · skills {r['dtps_skill']:,.0f} · "

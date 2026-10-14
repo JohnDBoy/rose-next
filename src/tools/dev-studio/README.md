@@ -61,8 +61,9 @@ instead (anything that holds `3DDATA`).
   as a tab. The left side edits the build: stats with a bonus-point counter,
   every equipment slot with its refine grade and gem or option, ammo, passive
   ranks, a rotation of damage skills and debuffs in priority order, buffs kept up
-  (with the caster's INT for party buffs; Cleric buffs are left out), and
-  potions (off by default). **Auto-build** fills it for the class and level:
+  (with the caster's INT for party buffs; Cleric buffs are left out), summons
+  (against the class's summon capacity; each runs its own AI), and potions (off
+  by default). **Auto-build** fills it for the class and level:
   **Average gear** (what a typical player runs -- their class's armour set of the
   newest tier, a better weapon and body, low refines; only those upgrades carry a
   prefix) or

@@ -114,6 +114,20 @@ def class_skill_lists(gd, job):
     return passives, actives
 
 
+def summon_skills(gd, job):
+    """(row, name, detail, None) for the job's summon skills (type 14), top rank: what
+    each calls (LIST_SKILL col 28) and the capacity it takes (LIST_NPC col 21)."""
+    out = []
+    npc = gd.stb("LIST_NPC")
+    for first, r in sorted(class_skills(gd, job).items()):
+        if gd.sk(r, 5) != 14 or gd.sk(r, 28) <= 0:
+            continue
+        row = gd.sk(r, 28)
+        out.append((r, gd.name("LIST_SKILL", r),
+                    f"calls {gd.name('LIST_NPC', row)}, capacity {npc.i(row, 21)}", None))
+    return out
+
+
 def skill_ranks(gd, row):
     """Every rank row of the skill `row` belongs to, lowest first."""
     first = gd.sk(row, 1) or row

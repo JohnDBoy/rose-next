@@ -1,0 +1,69 @@
+{
+  "name": "SimArtisan Warrior 150",
+  "job": 422,
+  "level": 150,
+  "female": false,
+  "union": 0,
+  "stats": {
+    "STR": 15,
+    "DEX": 172,
+    "INT": 15,
+    "CON": 224,
+    "CHARM": 10,
+    "SENSE": 167
+  },
+  "equip": {
+    "cap": {
+      "id": 741,
+      "durability": 60
+    },
+    "body": {
+      "id": 128,
+      "durability": 62
+    },
+    "back": {
+      "id": 71,
+      "durability": 60
+    },
+    "arms": {
+      "id": 641,
+      "durability": 65
+    },
+    "foot": {
+      "id": 642,
+      "durability": 67
+    },
+    "weapon": {
+      "id": 715,
+      "durability": 67
+    }
+  },
+  "ammo": 328,
+  "skills": [
+    2020,
+    2040,
+    2050,
+    2060,
+    2090,
+    2100,
+    2110,
+    2130,
+    2140,
+    2160
+  ],
+  "rotation": [],
+  "skill_spacing": 0,
+  "summons": [
+    2360,
+    2360
+  ],
+  "buffs": [],
+  "potions": {
+    "enabled": false,
+    "hp": 0,
+    "hp_below": 50,
+    "mp": 0,
+    "mp_below": 30
+  },
+  "notes": "In-game summon test (scenarios.json): auto-attacks only, the summon called before each pull; no CTRL+click orders."
+}

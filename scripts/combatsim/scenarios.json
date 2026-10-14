@@ -1,5 +1,5 @@
 {
-  "about": "In-game checks of the combat simulator: each scenario is a build seeded as a GM character (combat-sim.py seed-scenarios) and a monster spawned with /mon <row> 1. Scenarios 1-4 use monsters whose AI casts no skill and summons nothing while fighting (death-only summons are fine); 5-6 check the monster AI: skills cast from the 'damaged' pattern.",
+  "about": "In-game checks of the combat simulator: each scenario is a build seeded as a GM character (combat-sim.py seed-scenarios) and a monster spawned with /mon <row> 1. Scenarios 1-4 use monsters whose AI casts no skill and summons nothing while fighting (death-only summons are fine); 5-6 check the monster AI: skills cast from the 'damaged' pattern. 7-9 check player summons (no CTRL+click orders) and live on account simsummon@local: the client shows 5 characters per account.",
   "scenarios": [
     {
       "id": 1,
@@ -58,6 +58,36 @@
       "character": "SimChamp",
       "play": "Auto-attack only, 8-10 kills. No skills, no buffs, no potions. Rest to full HP between pulls.",
       "note": "ed_shaman.aip: casts 3056 (type 17, magic, power 120, silences: state 30) from its 'damaged' pattern, ~2.5 casts per fight at ~410 damage; action mode 2 resumes the attack. Its 'call for help' finds nobody when spawned alone."
+    },
+    {
+      "id": 7,
+      "title": "Summon: Scout + Call Hawk",
+      "build": "builds/test-scout-hawk-120.json",
+      "mob": 384,
+      "account": "simsummon@local",
+      "character": "SimHawk",
+      "play": "Call the summon before each pull (skill bar slot 1) and let it come to you; then auto-attack only, 8-10 kills. No other skills, no buffs, no potions, no CTRL+click. If the summon dies, call it again before the next pull.",
+      "note": "Hawk (NPC 890) predicted ~7.8 swings/fight, 97% land, ~130 per hit; the Lunar Keeper turns on it ~23% of the time."
+    },
+    {
+      "id": 8,
+      "title": "Summon: Artisan + 2 Employ Warriors (a full summon bar)",
+      "build": "builds/test-artisan-merc-150.json",
+      "mob": 2684,
+      "account": "simsummon@local",
+      "character": "SimMerc",
+      "play": "Call the summon before each pull (skill bar slot 1) and let it come to you; then auto-attack only, 8-10 kills. No other skills, no buffs, no potions, no CTRL+click. If the summon dies, call it again before the next pull.",
+      "note": "Mercenary Warrior (NPC 860) predicted ~8.7 swings/fight, 95% land, ~87 per hit; the Hellhound hits it ~24/s, 29% of the fight."
+    },
+    {
+      "id": 9,
+      "title": "Summon: Mage + 3 Phantom Swords (damage floor)",
+      "build": "builds/test-mage-sword-180.json",
+      "mob": 1561,
+      "account": "simsummon@local",
+      "character": "SimSword",
+      "play": "Call the summon before each pull (skill bar slot 1) and let it come to you; then auto-attack only, 8-10 kills. No other skills, no buffs, no potions, no CTRL+click. If the summon dies, call it again before the next pull.",
+      "note": "Phantom Sword (NPC 830) predicted ~16 per landed hit against DEF 641: the low end of Get_BasicDAMAGE. 1561 may cast 3549 now and then."
     }
   ]
 }

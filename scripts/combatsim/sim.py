@@ -40,6 +40,10 @@ ASSUMPTIONS = [
     "not simulated. A stunned or sleeping player acts again the moment the state ends.",
     "Survival runs: a monster that would die is replaced at once by a fresh one (full HP, "
     "no debuffs, AI reset), so HP-triggered AI phases repeat.",
+    "Summons are called before the pull and stand by the player (same distance to the "
+    "monster, 3.5 m from their owner); the player calls a dead one again before anything "
+    "else in the rotation. The monster's target searches meet the player first, then the "
+    "summons. Summons do not wander, follow or walk.",
     "Potions: drunk the moment HP/MP drops under the threshold, at most every 500 ms "
     "per kind (the client's delay; the server enforces no cooldown).",
     "Arithmetic is double precision; the server uses 32-bit float, so a result sitting "
@@ -82,6 +86,8 @@ class Simulation:
             self.notes.append("monster has no attack motion: it never deals damage")
         elif not self.m_attack_motion.attack_frames:
             self.notes.append("monster attack clip has no event trailer: it deals no damage")
+        self._npc_motions, self._summon_ai = {}, {}
+        self._summons(build)
         # CObjMOB::Get_AttackRange: NPC_ATK_RANGE + NPC_SCALE/100 * 120
         n = self.npc
         self.m_range = int(n.range + n.scale / 100.0 * 120)
@@ -148,10 +154,71 @@ class Simulation:
 
     def m_motion(self, slot):
         """CCharDATA::GetMOTION for the monster: None for an unmapped or invalid slot."""
-        if slot not in self._m_motions:
-            self._m_motions[slot] = self.gd.npc_motion(self.npc_row, slot) \
+        return self.npc_motion(self.npc_row, slot)
+
+    def npc_motion(self, row, slot):
+        """CCharDATA::GetMOTION for any NPC row (the monster, a summon)."""
+        k = (row, slot)
+        if k not in self._npc_motions:
+            self._npc_motions[k] = self.gd.npc_motion(row, slot) \
                 if 0 <= slot < MAX_MOB_ANI else None
-        return self._m_motions[slot]
+        return self._npc_motions[k]
+
+    # ------------------------------------------------------------ summons
+    def _summons(self, build):
+        """build.summons -> the summon Skills kept out, within CUserDATA::GetMax_SummonCNT
+        (the client refuses a call past it: CSkillManager::CheckSummonCapacity)."""
+        gd, st = self.gd, self.stats
+        self.summons = []
+        used = 0
+        for row in build.summons:
+            sk = gd.skill(row)
+            npc = self.summon_row(sk)
+            if sk.type != 14 or npc <= 0:
+                self.notes.append(f"{sk.name} (#{row}) is not a summon skill: ignored")
+                continue
+            need = gd.stb("LIST_NPC").i(npc, 21)     # NPC_NEED_SUMMON_CNT
+            if used + need > st.summon_capacity:
+                self.notes.append(f"{sk.name}: summon capacity {st.summon_capacity} is full "
+                                  f"({used} used, it needs {need}): left out")
+                continue
+            used += need
+            self.summons.append(sk)
+            self.p_cast_motion[row] = (gd.file_motion(st.weapon_motion_type, sk.ani_casting,
+                                                      build.female) if sk.ani_casting else None)
+            self.p_action_motion[row] = gd.file_motion(st.weapon_motion_type, sk.ani_action,
+                                                       build.female)
+            ai = self.summon_ai(sk)
+            if ai is None:
+                self.notes.append(f"{sk.name}: its NPC has no AI file -- it never attacks")
+            elif not (ai.action_kinds((1, 3)) & {6, 12, 13, 15, 19, 24, 31}):
+                self.notes.append(f"{sk.name}: its AI never attacks or casts")
+        self.summon_used = used
+
+    def summon_row(self, sk):
+        return self.gd.sk(sk.row, 28)                 # SKILL_SUMMON_PET
+
+    def summon_ai(self, sk):
+        row = self.summon_row(sk)
+        if row not in self._summon_ai:
+            self._summon_ai[row] = AI.load_for_npc(self.gd, row)
+        return self._summon_ai[row]
+
+    def make_summon(self, sk):
+        """CObjMOB::Init + CObjSUMMON::SetCallerOBJ (cobjnpc.cpp:635): the NPC row scaled by
+        the summon skill's rank and the owner's level. Level, INT and SENSE are the owner's
+        level; critical stays NPC_LEVEL*0.6 and attack speed NPC_ATK_SPEED."""
+        n = self.gd.npc(self.summon_row(sk))
+        L, OL = sk.level, self.build.level
+        hp = max(1, int(n.hp_col * (L + 16) * (OL + 85) / 2600.0))
+        c = Combatant(n.name, OL,
+                      int(n.atk * (L + 22) * (OL + 100) / 4000.0),
+                      int(n.hit * (L + 30) * (OL + 50) / 3200.0),
+                      int(n.df * (L + 30) * (OL + 80) / 4400.0),
+                      int(n.res * (L + 24) * (OL + 90) / 3600.0),
+                      int(n.avoid * (L + 22) * (OL + 90) / 3400.0),
+                      int(n.level * 0.6), n.aspd, hp, 100, OL, OL, bool(n.magic), False)
+        return c
 
     def m_skill(self, row):
         """The Skill an AI action names, or None when F_AIACT24 would refuse it."""
@@ -166,17 +233,6 @@ class Simulation:
                     sk = None
             self._m_skills[row] = sk
         return self._m_skills[row]
-
-    def pass_filter(self, sk, target, caster):
-        """Skill_IsPassFilter for a monster caster: no party, no clan; allied only with
-        itself in a 1v1 fight (SKILL_CLASS_FILTER, LIST_SKILL col 7)."""
-        if target.hp <= 0:
-            return False
-        own = target is caster
-        user = target.is_user
-        return {0: own, 1: own, 2: False, 3: own, 4: not user, 5: not own,
-                6: user and not own, 7: user, 8: True, 10: not own and not user
-                }.get(sk.target_filter, False)
 
     # ------------------------------------------------------------ combatants
     def make_player(self):
@@ -277,7 +333,33 @@ class Report:
                 p_skill += s["dmg"]
         self.dps_auto = p_auto * 1000 / tot_ms
         self.dps_skill = p_skill * 1000 / tot_ms
-        self.dps = self.dps_auto + self.dps_skill
+        self.dps_summon = sum(f.s_dmg for f in fights) * 1000 / tot_ms
+        self.dps = self.dps_auto + self.dps_skill + self.dps_summon
+        # the player's summons
+        ssw = sum(f.s_swings for f in fights)
+        self.s_swings = ssw / n if n else 0
+        self.s_land = sum(f.s_hits for f in fights) / ssw if ssw else 0
+        self.s_hit_dmg = (sum(sum(f.s_samples) for f in fights)
+                          / max(1, sum(len(f.s_samples) for f in fights)))
+        self.s_deaths = sum(f.s_deaths for f in fights) / n if n else 0
+        self.s_calls = sum(f.s_calls for f in fights) / n if n else 0
+        self.s_taken = sum(f.ms_dmg for f in fights) * 1000 / tot_ms
+        self.ms_swings = sum(f.ms_swings for f in fights) / n if n else 0
+        self.s_samples = [d for f in fights for d in f.s_samples]
+        self.s_swing_s = [(f.s_swing_t[1] - f.s_swing_t[0]) / 1000 / (f.s_swings - 1)
+                          for f in fights if f.s_swings >= 4]
+        self.m_on_summon = sum(f.m_on_summon_ms for f in fights) / tot_ms
+        self.s_skills = {}
+        for f in fights:
+            for row, a in f.s_skills.items():
+                d = self.s_skills.setdefault(row, dict.fromkeys(a, 0))
+                for k in a:
+                    d[k] += a[k]
+        self.s_unsim = {}
+        for f in fights:
+            for k, v in f.s_unsim.items():
+                self.s_unsim[k] = self.s_unsim.get(k, 0) + v
+        self.s_unsim = {k: v / n for k, v in self.s_unsim.items()}
 
         msw = sum(f.m_swings for f in fights)
         mhi = sum(f.m_hits for f in fights)
@@ -406,6 +488,7 @@ class Report:
             surv_projected=self.surv_projected, surv_cap=self.surv_cap,
             oom=statistics.median(self.oom) if self.oom else None,
             dps=self.dps, dps_auto=self.dps_auto, dps_skill=self.dps_skill, dtps=self.dtps,
+            dps_summon=self.dps_summon, summons=self._summon_summary(),
             regen_hps=self.regen_hps, regen_mps=self.regen_mps, potion_hps=self.potion_hps,
             mp_per_s=self.mp_per_s, potions_on=b.potions["enabled"], potions=self.potions,
             player=block(p, pm), monster=block(m, mm),
@@ -424,6 +507,34 @@ class Report:
             player_states=[[_label(k), v] for k, v in self.player_states.items()],
             monster_buffs=[[_label(k), v] for k, v in self.monster_buffs.items()],
             notes=list(s.notes), text=self.text())
+
+    def _summon_summary(self):
+        """The build's summons: their stats as called, and how they fought."""
+        s = self.sim
+        if not s.summons:
+            return None
+        units = []
+        for sk in s.summons:
+            u = s.make_summon(sk)
+            mot = s.npc_motion(s.summon_row(sk), 2)
+            units.append(dict(
+                name=u.name, skill=sk.name, rank=sk.level, row=sk.row,
+                npc=s.summon_row(sk), level=u.level, hp=u.max_hp, atk=u.total_atk,
+                hit=u.total_hit, df=u.get_def, res=u.get_res, avoid=u.get_avoid,
+                crit=u.get_crit, aspd=u.total_aspd,
+                swing_ms=mot.duration_ms(u.total_aspd / 100.0) if mot else None))
+        gd = s.gd
+        skills = [dict(row=r, name=gd.skill(r).name, casts=a["casts"] / self.n,
+                       land=a["landed"] / a["casts"] if a["casts"] else None,
+                       per_hit=a["dmg"] / a["landed"] if a["landed"] else 0,
+                       state_land=a["states"] / a["state_tries"] if a["state_tries"] else None)
+                  for r, a in sorted(self.s_skills.items())]
+        return dict(units=units, capacity=s.stats.summon_capacity, used=s.summon_used,
+                    dps=self.dps_summon, swings=self.s_swings, land=self.s_land,
+                    per_hit=self.s_hit_dmg, deaths=self.s_deaths, calls=self.s_calls,
+                    taken=self.s_taken, monster_on_them=self.m_on_summon, skills=skills,
+                    unsimulated=[[AI.ACT_LABEL.get(k, str(k)), v]
+                                 for k, v in sorted(self.s_unsim.items(), key=str)])
 
     def _m_skill_rows(self):
         gd, out = self.sim.gd, []
@@ -503,11 +614,37 @@ class Report:
                 parts.append(f"state lands {a['states'] / a['state_tries']:.0%}")
             parts.append(f"{sk.mp_cost(st.rate_use_mp)} MP, {sk.reload_ms / 1000:.1f} s cd")
             w(f"  {sk.name} (#{row}): " + ", ".join(x for x in parts if x))
-        w(f"  DPS {self.dps:.0f}  (normal {self.dps_auto:.0f} + skills {self.dps_skill:.0f})")
+        w(f"  DPS {self.dps:.0f}  (normal {self.dps_auto:.0f} + skills {self.dps_skill:.0f}"
+          + (f" + summons {self.dps_summon:.0f})" if s.summons else ")"))
         if self.debuff_uptime:
             w("  debuff uptime on the monster: " + ", ".join(
                 f"{ING_LABEL.get(k, ING_NAME.get(k, k))} {v:.0%}" for k, v in self.debuff_uptime.items()))
         w("")
+        sm = self._summon_summary()
+        if sm:
+            w(f"Summons (capacity {sm['used']}/{sm['capacity']}; out when the fight starts, "
+              f"called again when they die)")
+            for u in sm["units"]:
+                w(f"  {u['name']} ({u['skill']} rank {u['rank']}, NPC {u['npc']}): level "
+                  f"{u['level']}  HP {u['hp']}  ATK {u['atk']}  HIT {u['hit']}  DEF {u['df']}  "
+                  f"RES {u['res']}  AVOID {u['avoid']}  CRIT {u['crit']}  ASPD {u['aspd']}"
+                  + (f"  ({u['swing_ms']} ms per swing)" if u["swing_ms"] else ""))
+            w(f"  together: {sm['swings']:.1f} swings/fight, lands {sm['land']:.0%}, "
+              f"{sm['per_hit']:.0f} per landed hit, {sm['dps']:.0f} DPS")
+            for k in sm["skills"]:
+                w(f"  cast {k['name']} (#{k['row']}): {k['casts']:.1f}/fight"
+                  + (f", lands {k['land']:.0%}" if k["land"] is not None
+                     and gd.skill(k["row"]).is_damage() else "")
+                  + (f", {k['per_hit']:.0f} per landed cast" if k["per_hit"] else "")
+                  + (f", state lands {k['state_land']:.0%}" if k["state_land"] is not None
+                     else ""))
+            w(f"  the monster hits them for {sm['taken']:.1f}/s and is on them "
+              f"{sm['monster_on_them']:.0%} of the fight; {sm['deaths']:.2f} deaths and "
+              f"{sm['calls']:.2f} calls per fight")
+            if sm["unsimulated"]:
+                w("  their AI did, not simulated, per fight: " + ", ".join(
+                    f"{k} {v:.1f}" for k, v in sm["unsimulated"]))
+            w("")
         w("Monster damage")
         w(f"  normal attack: lands {self.m_land:.0%}, crit {self.m_crit:.0%}, "
           f"{self.m_hit_dmg:.0f} per landed hit"

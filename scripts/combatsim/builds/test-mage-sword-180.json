@@ -1,0 +1,64 @@
+{
+  "name": "SimMage Sword 180",
+  "job": 221,
+  "level": 180,
+  "female": false,
+  "union": 0,
+  "stats": {
+    "STR": 15,
+    "DEX": 15,
+    "INT": 300,
+    "CON": 145,
+    "CHARM": 10,
+    "SENSE": 200
+  },
+  "equip": {
+    "cap": {
+      "id": 71,
+      "durability": 56
+    },
+    "body": {
+      "id": 71,
+      "durability": 67
+    },
+    "back": {
+      "id": 954,
+      "durability": 45
+    },
+    "arms": {
+      "id": 71,
+      "durability": 46
+    },
+    "foot": {
+      "id": 71,
+      "durability": 79
+    },
+    "weapon": {
+      "id": 1452,
+      "durability": 90
+    }
+  },
+  "ammo": 0,
+  "skills": [
+    820,
+    840,
+    860,
+    870
+  ],
+  "rotation": [],
+  "skill_spacing": 0,
+  "summons": [
+    1180,
+    1180,
+    1180
+  ],
+  "buffs": [],
+  "potions": {
+    "enabled": false,
+    "hp": 0,
+    "hp_below": 50,
+    "mp": 0,
+    "mp_below": 30
+  },
+  "notes": "In-game summon test (scenarios.json): auto-attacks only, the summon called before each pull; no CTRL+click orders."
+}

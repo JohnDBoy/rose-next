@@ -102,7 +102,7 @@ ASSUMED_COND = {
     30: "the monster spawned when the fight started",
 }
 # actions the fight carries out; anything else that fires is counted as "not simulated"
-SIMULATED_ACTS = {0, 6, 12, 13, 15, 19, 23, 24, 35}
+SIMULATED_ACTS = {0, 6, 12, 13, 15, 19, 23, 24, 31, 35}
 HARMLESS_ACTS = {1, 2, 7, 17, 21, 22, 25, 26, 27, 28, 29, 31, 32, 33, 34}
 
 
@@ -232,14 +232,15 @@ def ability(u, t):
 
 
 class Brain:
-    """Evaluates one monster's patterns. `fight` supplies the world:
+    """Evaluates one NPC's patterns. `view` (fight.Mob) supplies the world:
 
-        fight.m, fight.p          the monster and the player (Combatants)
-        fight.m_target            the monster's current target (fight.p or None)
-        fight.distance            cm between them
-        fight.t                   ms since the fight began
-        fight.rng
-        fight.ai_action(rec, param)   carries out one action
+        view.m                    the NPC itself (a Combatant)
+        view.m_target             its current target, or None
+        view.candidates()         the hostile characters AI_FindFirstOBJ can meet
+        view.distance             cm between the fighters
+        view.t, view.rng
+        view.has_owner, view.owner_has_target(), view.owner_distance()   summons
+        view.status_flags(who, kind), view.ai_action(rec, param)
     """
 
     def __init__(self, ai, fight):
@@ -247,15 +248,15 @@ class Brain:
         self.var = {}
 
     # ---------------------------------------------------------------- characters
-    def _found(self, dist, allied, lo, hi):
-        """AI_FindFirstOBJ(d) in 1v1: only the player can be there, and it is never
-        allied with a monster; level difference is monster minus player."""
+    def _matches(self, dist, allied, lo, hi):
+        """AI_FindFirstOBJ(d) walk: the hostile characters within `dist` whose level
+        difference (this NPC minus them) is in [lo, hi], in walk order. An allied search
+        finds nothing: no other monsters, and a summon's owner is not modelled as one."""
         f = self.f
-        p, m = f.p, f.m
-        if allied or p.hp <= 0 or f.distance > dist:
-            return None
-        diff = m.level - p.level
-        return p if lo <= diff <= hi else None
+        if allied or f.distance > dist:
+            return []
+        lv = f.m.level
+        return [c for c in f.candidates() if c.hp > 0 and lo <= lv - c.level <= hi]
 
     # ---------------------------------------------------------------- conditions
     def cond(self, c, prm):
@@ -267,17 +268,17 @@ class Brain:
         if n == 1:
             return not a["give"] and prm.damage >= a["damage"]
         if n in (2, 27):
-            who = self._found(a["dist"], a["allied"], a["lv_lo"], a["lv_hi"])
-            cnt = 1 if who else 0
-            if who:
-                prm.near = who
-            if n == 2:
-                if who and cnt >= a["num"]:
-                    prm.find = who
+            found = self._matches(a["dist"], a["allied"], a["lv_lo"], a["lv_hi"])
+            if found:
+                prm.near = found[0]         # all stand at the same distance
+            if n == 2:                      # returns at the wChrNum-th match
+                k = max(1, a["num"])
+                if len(found) >= k:
+                    prm.find = found[k - 1]
                     return True
                 return False
             prm.find = prm.near
-            return check_op(a["op"], cnt, a["num"])
+            return check_op(a["op"], len(found), a["num"])
         if n == 3:
             return 0 >= a["dist"]
         if n == 4:
@@ -295,9 +296,9 @@ class Brain:
         if n == 7:
             return f.rng.randrange(100) < a["pct"]
         if n == 8:
-            who = self._found(a["dist"], a["allied"], a["lv_lo"], a["lv_hi"])
-            if who:
-                prm.find = prm.near = who
+            found = self._matches(a["dist"], a["allied"], a["lv_lo"], a["lv_hi"])
+            if found:
+                prm.find = prm.near = found[0]
                 return True
             return False
         if n == 9:
@@ -324,15 +325,19 @@ class Brain:
             return check_op(a["op"], 0, a["value"])
         if n == 20:
             return check_op(a["op"], ability(m, a["ab"]), a["value"])
+        if n == 18:                               # distance to owner
+            return f.has_owner and check_op(a["op"], f.owner_distance(), a["dist"])
         if n == 21:
-            return True                           # no owner
+            return not f.has_owner                # "has no owner"
+        if n == 22:
+            return f.has_owner and f.owner_has_target()
         if n == 26:
             return a["x"] >= 1 and a["y"] <= 1    # reversed in the server, as ported
         if n == 28:
             return check_op(a["op"], self.var.get(a["var"], 0), a["value"])
         if n == 30:
             return f.t // 1000 >= a["sec"]
-        # 0, 14, 17, 18, 19, 22, 23, 24, 25, 29, 31+: false in a 1v1 fight
+        # 0, 14, 17, 19, 23, 24, 25, 29, 31+: false in this fight
         return False
 
     # ---------------------------------------------------------------- running

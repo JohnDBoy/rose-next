@@ -117,29 +117,36 @@ def fights(hits, casts, player=None, player_hp=None):
         player = guess_player(hits, player_hp)
         if player is None:
             return None, []
+    # The player's summons: whatever else hits the monsters the player hits (a GM-spawned
+    # test monster fights nobody else). Their swings ("s") and the monster's swings at
+    # them ("ms") join the fight; a summon's kill closes it like the player's.
+    opp = {d for _t, _k, a, d, *_ in hits if a == player}
+    allies = {a for _t, _k, a, d, *_ in hits if d in opp and a != player and a not in opp}
     # The server hands a dead monster's object id to the next spawn, so a kill closes
     # that id's fight and its next event opens a new one.
     out, gen = {}, {}
     for h in sorted(hits):
         t, kind, a, d, ev, dmg, hp, leth = h
-        if a == player:
-            mob = d
-        elif d == player:
-            mob = a
+        if a == player or a in allies:
+            mob, side = d, ("p" if a == player else "s")
+        elif d == player or d in allies:
+            mob, side = a, ("m" if d == player else "ms")
         else:
             continue
+        if mob == player or mob in allies:
+            continue
         key = (mob, gen.get(mob, 0))
-        f = out.setdefault(key, dict(mob=mob, p=[], m=[], casts=[]))
-        f["p" if a == player else "m"].append(h)
-        if a == player and leth:
+        f = out.setdefault(key, dict(mob=mob, p=[], m=[], s=[], ms=[], casts=[]))
+        f[side].append(h)
+        if side in ("p", "s") and leth:
             gen[mob] = gen.get(mob, 0) + 1
     res = []
     for f in out.values():
         if not f["p"]:
             continue
-        ev = sorted(f["p"] + f["m"])
+        ev = sorted(f["p"] + f["m"] + f["s"] + f["ms"])
         f["start"], f["end"] = ev[0][0], ev[-1][0]
-        f["killed"] = any(h[7] for h in f["p"])
+        f["killed"] = any(h[7] for h in f["p"] + f["s"])
         res.append(f)
     res.sort(key=lambda f: f["start"])
     return player, res
@@ -372,6 +379,38 @@ def compare(gd, sim, path, since=None, player=None, n=1000, until=None, exclude=
                     _rate_flag(landed_slots, tries, sim_rate))
         for f in fs:
             f["m_skill"] = sum(x[4] for x in m_dmg if f["start"] - 1 <= x[0] <= f["end"] + 1)
+    # the player's summons
+    ssw = [h for f in fs for h in f["s"] if h[1] == "swing"]
+    if ssw or rep.s_swings:
+        w("")
+        sl = [h[5] for h in ssw if h[5] > 0]
+        row("summon swings", f"{len(ssw) / len(fs):.1f}/fight ({len(ssw)})",
+            f"{rep.s_swings:.1f}/fight", _count_flag(len(ssw), len(fs), rep.s_swings))
+        if ssw:
+            row("  lands", f"{len(sl) / len(ssw):.0%} ({len(sl)}/{len(ssw)})",
+                f"{rep.s_land:.0%}", _rate_flag(len(sl), len(ssw), rep.s_land))
+        sx = rep.s_samples
+        if sl:
+            row("  damage per landed hit (mean)", f"{statistics.mean(sl):.0f}",
+                f"{statistics.mean(sx):.0f}" if sx else "-", _mean_flag(sl, sx) if sx else "")
+            row("  p10 / p50 / p90", f"{_pct(sl, .1)}/{_pct(sl, .5)}/{_pct(sl, .9)}",
+                f"{_pct(sx, .1)}/{_pct(sx, .5)}/{_pct(sx, .9)}" if sx else "-")
+        siv = []
+        for f in fs:
+            ts = [h[0] for h in f["s"] if h[1] == "swing"]
+            if len(ts) >= 4:
+                siv.append((ts[-1] - ts[0]) / (len(ts) - 1))
+        if siv and rep.s_swing_s:
+            exp = statistics.mean(rep.s_swing_s)
+            row("  seconds per swing (mean of fights)", f"{statistics.mean(siv):.2f}",
+                f"{exp:.2f}", "ok" if abs(statistics.mean(siv) - exp) < 0.15 * exp
+                else "CHECK (walking stretches it)")
+        msw_s = [h for f in fs for h in f["ms"] if h[1] == "swing"]
+        row("monster swings at the summons", f"{len(msw_s) / len(fs):.1f}/fight ({len(msw_s)})",
+            f"{rep.ms_swings:.1f}/fight", _count_flag(len(msw_s), len(fs), rep.ms_swings))
+        sk_kills = sum(1 for f in fs if any(h[7] for h in f["s"]))
+        if sk_kills:
+            w(f"   the summon landed the killing blow in {sk_kills} of {len(fs)} fights")
     # kills
     ttk = [f["end"] - f["start"] + 1 for f in fs if f["killed"]]
     if ttk:
@@ -385,8 +424,11 @@ def compare(gd, sim, path, since=None, player=None, n=1000, until=None, exclude=
         p_dmg = sum(h[5] for h in f["p"])
         taken = sum(h[5] for h in f["m"])
         sk_taken = f.get("m_skill", 0)
+        s_dmg = sum(h[5] for h in f["s"])
         w(f"  {i:>2}. mob {f['mob']}: {f['end'] - f['start'] + 1:.0f} s, "
           f"{'killed' if f['killed'] else 'not killed'}, dealt {p_dmg}, taken {taken}"
           + (f" + {sk_taken} from skills" if sk_taken else "")
-          + f", {len(f['p'])} hits out / {len(f['m'])} in")
+          + f", {len(f['p'])} hits out / {len(f['m'])} in"
+          + (f"; summon dealt {s_dmg} in {len(f['s'])} hits, took {len(f['ms'])}"
+             if f["s"] or f["ms"] else ""))
     return "\n".join(L)

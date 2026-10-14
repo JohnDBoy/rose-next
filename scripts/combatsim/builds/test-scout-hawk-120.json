@@ -1,0 +1,62 @@
+{
+  "name": "SimScout Hawk 120",
+  "job": 322,
+  "level": 120,
+  "female": false,
+  "union": 0,
+  "stats": {
+    "STR": 15,
+    "DEX": 214,
+    "INT": 15,
+    "CON": 95,
+    "CHARM": 10,
+    "SENSE": 130
+  },
+  "equip": {
+    "cap": {
+      "id": 641,
+      "durability": 60
+    },
+    "body": {
+      "id": 541,
+      "durability": 65
+    },
+    "back": {
+      "id": 938,
+      "durability": 125
+    },
+    "arms": {
+      "id": 541,
+      "durability": 65
+    },
+    "foot": {
+      "id": 541,
+      "durability": 65
+    },
+    "weapon": {
+      "id": 681,
+      "durability": 64
+    }
+  },
+  "ammo": 320,
+  "skills": [
+    1420,
+    1440,
+    1450,
+    1480
+  ],
+  "rotation": [],
+  "skill_spacing": 0,
+  "summons": [
+    1720
+  ],
+  "buffs": [],
+  "potions": {
+    "enabled": false,
+    "hp": 0,
+    "hp_below": 50,
+    "mp": 0,
+    "mp_below": 30
+  },
+  "notes": "In-game summon test (scenarios.json): auto-attacks only, the summon called before each pull; no CTRL+click orders."
+}

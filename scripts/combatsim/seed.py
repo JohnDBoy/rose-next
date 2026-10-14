@@ -42,6 +42,10 @@ NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]{2,15}$")
 EMAIL_RE = re.compile(r"^[A-Za-z0-9@._-]{1,30}$")
 
 
+# zuly a test character starts with: some skills cost money (Employ Warrior: 5,000 a call)
+TEST_MONEY = 1_000_000
+
+
 def find_psql():
     if os.environ.get("PGBIN"):
         p = os.path.join(os.environ["PGBIN"], "psql.exe")
@@ -128,11 +132,12 @@ def build_sql(gd, build, account, password, name, access, replace):
     st, p = sim.stats, sim.make_player()
     pw, salt = password_hash(password)
 
-    learned = list(build.skills) + list(build.rotation) \
+    learned = list(build.skills) + list(build.rotation) + list(build.summons) \
         + [b["skill"] for b in build.buffs if not b["caster_int"]]
     skills, placed = skill_slots(gd, learned)
     hot = [{"type": 0, "skill_slot": 0} for _ in range(64)]
-    bar = [r for r in list(build.rotation) + [b["skill"] for b in build.buffs] if r in placed]
+    bar = [r for r in list(build.summons) + list(build.rotation)
+           + [b["skill"] for b in build.buffs] if r in placed]
     for i, r in enumerate(bar[:8]):
         hot[i] = {"type": 3, "skill_slot": placed[r]}
 
@@ -167,11 +172,12 @@ def build_sql(gd, build, account, password, name, access, replace):
     lines.append(
         "INSERT INTO character (account_email, name, gender_id, job_id, level, hp, mp, "
         "max_hp, max_mp, str, dex, intt, con, cha, sen, stat_points, skill_points, "
-        "union_id, skills, hotbar) VALUES ("
+        "union_id, skills, hotbar, money) VALUES ("
         f"{_q(account)}, {_q(name)}, {1 if build.female else 0}, {build.job}, {build.level}, "
         f"{p.max_hp}, {p.max_mp}, {p.max_hp}, {p.max_mp}, {stats['STR']}, {stats['DEX']}, "
         f"{stats['INT']}, {stats['CON']}, {stats['CHARM']}, {stats['SENSE']}, {spare}, 0, "
-        f"{build.union}, {_q(json.dumps(skills))}::jsonb, {_q(json.dumps(hot))}::jsonb) "
+        f"{build.union}, {_q(json.dumps(skills))}::jsonb, {_q(json.dumps(hot))}::jsonb, "
+        f"{TEST_MONEY}) "
         "RETURNING id INTO cid;")
     for slot, itype, no, gem, grade, dur, life, appr, sock, qty in items:
         lines.append(

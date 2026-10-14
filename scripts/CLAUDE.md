@@ -651,6 +651,15 @@ each of which was wrong in someone's head:
   then stands idle until an AI pattern re-targets it. A stun or sleep does the same
   (`SetCMD_STOP` clears the target). An attack order given before a pending cast starts
   replaces it.
+- **A player summon is a monster row on the player's side** (LIST_SKILL col 28; capacity
+  50 + Summon Mastery / Employ Troops vs LIST_NPC col 21, checked only by the client). Its
+  stats are rescaled at the call by `CObjSUMMON::SetCallerOBJ` from the skill rank and the
+  owner's level (HP from `NPC_HP` alone, not level x HP); its level, INT and SENSE are the
+  owner's, critical stays `NPC_LEVEL*0.6`. No lifetime or HP drain any more. It runs its
+  own AI file: combat summons attack the owner's target from their STOP pattern (every
+  1 s); the Butterfly never swings, it only casts an accuracy debuff. The monster turns on
+  a summon only through its own AI ("attack the attacker" when the summon hits it). The
+  sim runs the enemy and the summons through one controller (`fight.Mob`).
 - **Monster skills can dwarf monster swings**: Goblin Sword (1403, lv 92) self-casts Flame
   Hawk for ~580 against a level-92 Knight whose normal hits from it are ~37 -- 85% of the
   damage it deals.
@@ -663,7 +672,11 @@ build; `seed` does one build); `scenarios` prints the predictions; `compare-trac
 client-<date>.log --scenario N` reads the client's CombatTrace lines (`[LOG]
 LEVEL=debug`; one-second timestamps, crits unflagged) and flags any measure more than 3
 standard errors off the sim. Scenarios 1-4 use monsters that never cast; 5-6 (SimKnight,
-SimChamp) check the AI against casters. Monster skill damage reaches the log only as
+SimChamp) check the AI against casters; 7-9 (SimHawk, SimMerc, SimSword, on account
+`simsummon@local`: **the character select shows 5 characters per account**, a 6th is
+unreachable) check player summons -- `compare-trace` takes whatever else hits the player's monsters as the summon
+(a GM-spawned monster fights nobody else). Seeded characters get 1,000,000 zuly (Employ
+Warrior costs 5,000 a call) and their summons on the hotbar first. Monster skill damage reaches the log only as
 `GSV_DAMAGE_OF_SKILL` lines (server ids, `value` = damage, `success_bits` = states landed)
 -- the client sometimes abandons presenting one ("cast abandoned") but the server applied
 it. `--since/--until` cut one character's run out of a shared log; `--exclude N ...` drops
@@ -678,7 +691,11 @@ and skill measure within noise of the sim. Scenario 4 (SimArtisan, Weapon Resear
 76% for the old server. Scenarios 5-6 (monster AI, 20 kills): Goblin Sword's self-cast
 Flame Hawk 1.55 casts/fight vs 1.71 predicted, 584 vs 582 damage; Elder Sikuku's 3056 415
 vs 412 damage, silence landed 40% vs 38%; monster seconds-per-swing (casts and stops
-included) within 0.15 s.
+included) within 0.15 s. Scenarios 7-9 (player summons, 25 kills: 1 Hawk, 2 Mercenary
+Warriors, 3 Phantom Swords): summon swings/fight, land rate, damage spread and the
+monster's swings at them all within noise (Hawk 128 vs 130, Warrior 87 vs 87, Sword 16 vs
+16 per hit). Known gap: at the pull a summon can land the first hit and draw the monster
+for a swing (~1/fight); the sim starts with the monster on the player.
 The GUI runs the engine in `combatsim/worker.py` (a process, not a thread: pure Python
 holds the GIL); `Report.summary()` is what crosses the pipe.
 
