@@ -31,6 +31,10 @@ RECOVERY_MS = 2000            # GameStaticConfig::RECOVERY_RATE_TIME
 # (CSkillCommandDelay::m_dwCastingTimeDelay, skillcommanddelay.cpp) -- the client wins.
 SKILL_DELAY_MS = max(500, 1000)
 POTION_DELAY_MS = 500         # client useitemdelay.h (the server enforces none)
+# heal / mana skills in the rotation are cast only when the player needs them
+HEAL_BELOW = 0.60             # HP share under which a heal (Healing, Cure) goes out
+MANA_BELOW = 0.40             # MP share under which a mana skill (Mana Blood) goes out,
+MANA_HP_ABOVE = 0.60          # ... and only while HP is above this share
 # grinding: after a kill the player sits (CMD_SIT) when it is low, until it is topped up
 REST_BELOW = (0.50, 0.30)     # HP, MP share under which it rests before the next pull
 REST_UNTIL = (0.90, 0.80)
@@ -284,7 +288,7 @@ class Log:
 
     def skill(self, row):
         return self.skills.setdefault(row, dict(casts=0, landed=0, dmg=0, states=0,
-                                                state_tries=0, dot=0, drain=0))
+                                                state_tries=0, dot=0, drain=0, heal=0))
 
     def m_skill(self, row):
         return self.m_skills.setdefault(row, dict(orders=0, casts=0, landed=0, dmg=0,
@@ -763,6 +767,12 @@ class Fight:
             return False
         if sk.hp_cost() and self.p.hp <= sk.hp_cost():
             return False
+        kind = sk.restores()
+        if kind == "hp":
+            return self.p.hp < HEAL_BELOW * self.p.max_hp
+        if kind == "mp":
+            return (self.p.mp < MANA_BELOW * self.p.max_mp
+                    and self.p.hp - sk.hp_cost() > MANA_HP_ABOVE * self.p.max_hp)
         if not sk.is_damage():
             # a pure (de)buff is recast only when one of its states has dropped off
             who = self.p if sk.type in SELF_TYPES else self.m
@@ -866,9 +876,12 @@ class Fight:
                     rec["drain"] += self.p.hp - hp0
                 return
         # Skill_ChangeIngSTATUS runs after the damage for 3/4/5/6, on its own for 9/13;
-        # 8/10/12 are self-cast
-        target = self.p if sk.type in SELF_TYPES else self.m
+        # 8/10/12 are self-cast, and a heal (11) is cast on the player itself
+        target = self.p if sk.type in SELF_TYPES or sk.restores() else self.m
+        hp0, mp0 = self.p.hp, self.p.mp
         self.apply_states(sk, self.p, target, rec)
+        if sk.restores():
+            rec["heal"] += (self.p.hp - hp0) + (self.p.mp - mp0)
 
     def _summon(self, sk, slot):
         """Skill_START type 14: a CObjSUMMON of LIST_SKILL col 28, stats scaled by
@@ -931,8 +944,20 @@ class Fight:
             rec["states"] += 1
 
     def _on_player_motion_end(self):
-        if self.p.hp <= 0 or self.m.hp <= 0 or self.p.st.disabled():
+        if self.p.hp <= 0 or self.p.st.disabled():
             self.pa.motion = None
+            return
+        if self.m.hp <= 0:
+            # no monster (between grinding pulls): only a heal / mana skill if needed
+            self.pa.motion = None
+            if self.p_state == "cast":
+                self._skill_action(self.p_pending)
+                return
+            self.p_state = "idle"
+            for sk in self.sim.rotation:
+                if sk.restores() and self._skill_ready(sk):
+                    self._skill_start(sk)
+                    return
             return
         self._player_next()
 

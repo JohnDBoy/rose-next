@@ -359,7 +359,7 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summon
                 want[first] = ("passive", ranks)
         elif sk.is_damage() and sk.power <= 0:
             continue                    # no SKILL_POWER: Double Scratch, never used
-        elif sk.type not in NON_COMBAT_TYPES or (
+        elif sk.restores() or sk.type not in NON_COMBAT_TYPES or (
                 summons and sk.type == 14
                 and (summons["skills"] is None or first in summons["skills"])):
             need = [w for w in sk.need_weapon if w]
@@ -473,17 +473,21 @@ def auto_rotation(gd, rows):
     belong in the build's buffs."""
     from .data import ING
     useful = {ING[k] for k in USEFUL_DEBUFFS}
-    debuffs, damage = [], []
+    debuffs, damage, heals = [], [], []
     for r in rows:
         sk = gd.skill(r)
         if sk.is_passive():
+            continue
+        if sk.restores():               # cast only when needed: first in line
+            heals.append((sk.restores() != "hp", -sk.reload_ms, r))
             continue
         if sk.is_damage():
             if sk.power > 0:            # a damage skill with no power is never cast
                 damage.append((-sk.power, r))
         elif sk.type in (9, 13) and any(st and gd.state_type(st) in useful for st in sk.states):
             debuffs.append((-sk.power, r))
-    return [r for _, r in sorted(debuffs)] + [r for _, r in sorted(damage)]
+    return ([r for *_, r in sorted(heals)] + [r for _, r in sorted(debuffs)]
+            + [r for _, r in sorted(damage)])
 
 
 def fill_summons(gd, b, allowed=None):

@@ -343,7 +343,8 @@ class Report:
         for f in fights:
             for row, s in f.skills.items():
                 a = self.skills.setdefault(row, dict(casts=0, landed=0, dmg=0, states=0,
-                                                     state_tries=0, dot=0, drain=0))
+                                                     state_tries=0, dot=0, drain=0,
+                                                     heal=0))
                 for k in a:
                     a[k] += s[k]
                 p_skill += s["dmg"] + s["dot"]
@@ -634,6 +635,9 @@ class Report:
                 parts.append(f"poison/burn {a['dot'] / self.n:.0f} damage/fight")
             if a["drain"]:
                 parts.append(f"drains {a['drain'] / self.n:.0f} HP/fight back")
+            if a["heal"]:
+                parts.append(f"restores {a['heal'] / self.n:.0f} "
+                             f"{(sk.restores() or 'hp').upper()}/fight")
             parts.append(f"{sk.mp_cost(st.rate_use_mp)} MP, {sk.reload_ms / 1000:.1f} s cd")
             w(f"  {sk.name} (#{row}): " + ", ".join(x for x in parts if x))
         w(f"  DPS {self.dps:.0f}  (normal {self.dps_auto:.0f} + skills {self.dps_skill:.0f}"

@@ -458,6 +458,17 @@ class Skill:
     def is_passive(self):
         return self.type == 15
 
+    def restores(self):
+        """"hp" / "mp" for a heal or mana skill a player casts on itself -- type 10 (self) or
+        11 (a friend, so itself too) with no state, only an instant AT_HP / AT_MP gain
+        (Healing, Cure, Mana Blood) -- else None."""
+        if self.type not in (10, 11) or any(self.states):
+            return None
+        for ab, flat, rate in self.ability:
+            if flat or rate:
+                return {16: "hp", 17: "mp"}.get(ab)
+        return None
+
 
 class NpcRow:
     def __init__(self, gd, row):
