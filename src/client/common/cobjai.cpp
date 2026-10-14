@@ -411,6 +411,41 @@ CObjAI::ProcSkillAction(CObjCHAR* pTarget) {
 }
 
 //--------------------------------------------------------------------------------
+/// The command a skill saves in m_wBeforeCMD, for SA_RESTORE to put back.
+///
+/// A player's attack walk is CMD_MOVE with the monster as target on this client
+/// (Recv_gsv_ATTACK -> SetCombatAttackIntent), but CMD_ATTACK on the server. After a
+/// restoring skill the server went back to CMD_ATTACK and walked on to the monster,
+/// broadcasting nothing; this client put back a CMD_MOVE whose goal the cast had
+/// reset to where the player stood, and stopped. The player then fought 10-15 m
+/// from where the server had them, each side's monster chasing its own copy, and
+/// the gap showed as the monster teleporting once the fight broke off (2026-10-15,
+/// a slowed Ikaness Worker: `avatar swing sync: self_drift 994` for 40 s). Save
+/// what the server saved. A walk to a spot has no target and a walk to an NPC an
+/// NPC target, so a player in CMD_MOVE on a monster is only ever an attack walk.
+//--------------------------------------------------------------------------------
+
+WORD
+CObjAI::CommandToRestoreAfterSkill() {
+    switch (m_wCommand) {
+        case CMD_SKILL2SELF:
+        case CMD_SKILL2OBJ:
+        case CMD_SKILL2POS:
+            return CMD_STOP;
+        case CMD_MOVE:
+            if (this->IsUSER()) {
+                CObjCHAR* pTarget = (CObjCHAR*)(this->Get_TargetOBJ());
+                if (pTarget && pTarget->IsA(OBJ_MOB)) {
+                    return CMD_ATTACK;
+                }
+            }
+            return m_wCommand;
+        default:
+            return m_wCommand;
+    }
+}
+
+//--------------------------------------------------------------------------------
 /// class : CObAI
 /// @param
 /// @brief  : ��ų������ ���ο� ���� ����
@@ -1051,16 +1086,7 @@ CObjAI::SetCMD_Skill2SELF(short nSkillIDX) {
     //----------------------------------------------------------------------------------------------------
     /// @brief ������ ���� ����
     //----------------------------------------------------------------------------------------------------
-    switch (m_wCommand) {
-        case CMD_SKILL2SELF:
-        case CMD_SKILL2OBJ:
-        case CMD_SKILL2POS:
-            m_wBeforeCMD = CMD_STOP;
-            break;
-        default:
-            m_wBeforeCMD = m_wCommand;
-            break;
-    }
+    m_wBeforeCMD = this->CommandToRestoreAfterSkill();
 
     m_wCommand = CMD_SKILL2SELF;
 
@@ -1147,16 +1173,7 @@ CObjAI::SetCMD_Skill2OBJ(WORD wSrvDIST,
     //----------------------------------------------------------------------------------------------------
     /// @brief ������ ���� ����
     //----------------------------------------------------------------------------------------------------
-    switch (m_wCommand) {
-        case CMD_SKILL2SELF:
-        case CMD_SKILL2OBJ:
-        case CMD_SKILL2POS:
-            m_wBeforeCMD = CMD_STOP;
-            break;
-        default:
-            m_wBeforeCMD = m_wCommand;
-            break;
-    }
+    m_wBeforeCMD = this->CommandToRestoreAfterSkill();
 
     /// CObjCHAR *pDestCHAR = g_pObjMGR->Get_ClientCharOBJ( iServerTarget, true );
     CObjCHAR* pDestCHAR = CSkillManager::GetSkillTarget(iServerTarget, nSkillIDX);
@@ -1266,20 +1283,11 @@ CObjAI::SetCMD_Skill2POS(const D3DVECTOR& PosGOTO, short nSkillIDX) {
     //----------------------------------------------------------------------------------------------------
     /// @brief ������ ���� ����
     //----------------------------------------------------------------------------------------------------
-    switch (m_wCommand) {
-        case CMD_SKILL2SELF:
-        case CMD_SKILL2OBJ:
-        case CMD_SKILL2POS:
-            m_wBeforeCMD = CMD_STOP;
-            break;
-        default:
-            m_wBeforeCMD = m_wCommand;
-            break;
-    }
+    m_wBeforeCMD = this->CommandToRestoreAfterSkill();
 
     // A position skill lands on a spot and drops the target, but the SA_RESTORE
     // action mode will put CMD_ATTACK back and needs it (see m_iRestoreTargetIDX).
-    m_iRestoreTargetIDX = (CMD_ATTACK == m_wCommand) ? this->Get_TargetIDX() : 0;
+    m_iRestoreTargetIDX = (CMD_ATTACK == m_wBeforeCMD) ? this->Get_TargetIDX() : 0;
 
     m_nToDoSkillIDX = nSkillIDX;
 

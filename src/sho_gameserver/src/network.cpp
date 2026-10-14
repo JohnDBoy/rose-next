@@ -97,7 +97,8 @@ build_char_move_packet(CObjCHAR& character) {
     char_move_builder.add_target_id(character.Get_TargetIDX());
     char_move_builder.add_target_pos(&target_pos);
     char_move_builder.add_target_distance(::distance(character.m_PosCUR, character.m_PosGOTO));
-    char_move_builder.add_move_speed(character.total_move_speed());
+    character.m_nBroadcastMoveSpeed = character.total_move_speed();
+    char_move_builder.add_move_speed(character.m_nBroadcastMoveSpeed);
     char_move_builder.add_move_mode(move_mode);
     const auto pak = char_move_builder.Finish();
 
@@ -117,7 +118,8 @@ build_char_move_attack_packet(CObjCHAR& character) {
     char_move_builder.add_target_id(character.Get_TargetIDX());
     char_move_builder.add_target_pos(&target_pos);
     char_move_builder.add_target_distance(::distance(character.m_PosCUR, character.m_PosGOTO));
-    char_move_builder.add_move_speed(character.total_move_speed());
+    character.m_nBroadcastMoveSpeed = character.total_move_speed();
+    char_move_builder.add_move_speed(character.m_nBroadcastMoveSpeed);
     char_move_builder.add_move_mode(move_mode);
     const auto pak = char_move_builder.Finish();
 

@@ -330,6 +330,54 @@ CObjCHAR::Send_gsv_MOVE() {
     return send_packet_nearby(*this, pak);
 }
 
+// A client learns a monster's move speed only from a move packet, but the server
+// often starts or restarts a move silently: a chase begins a tick after its packet
+// went out, a monster re-closes on a target that stepped out of range, a slow lands
+// or wears off. An Ikaness Worker slowed by skill 988 the moment it began chasing
+// had its packet sent at 500 and ran at 260 on the server: for 14 s every client
+// ran it at 500, 34 m ahead, and the move home that ended the chase jumped it 30 m
+// back (2026-10-15). So every tick, a moving monster whose speed differs from the
+// last one sent gets the speed applied and its move sent again. Only a chase and a
+// plain move are re-sent; a move packet for any other command (running away) would
+// send the client after the target instead. Players are left out: their own client
+// walks them and gets GSV_SPEED_CHANGED.
+void
+CObjCHAR::Resync_MoveSPEED() {
+    if (this->IsUSER() || !(this->Get_STATE() & CS_BIT_MOV)) {
+        return;
+    }
+
+    const uint16_t nSpeed = this->total_move_speed();
+    if (nSpeed == m_nBroadcastMoveSpeed) {
+        return;
+    }
+
+    const WORD wCommand = this->Get_COMMAND();
+    const bool bSend = CMD_ATTACK == wCommand || CMD_MOVE == wCommand;
+    LogString(LOG_DEBUG_,
+        "CombatTrace server move speed resync: obj %d %s speed sent %d -> %d moving at %.0f command %d\n",
+        this->Get_INDEX(),
+        bSend ? "sent" : "not sent (command)",
+        (int)m_nBroadcastMoveSpeed,
+        (int)nSpeed,
+        m_fCurMoveSpeed,
+        (int)wCommand);
+
+    if (!bSend) {
+        m_nBroadcastMoveSpeed = nSpeed;
+        return;
+    }
+
+    this->Start_MOVE(nSpeed);
+
+    if (CMD_ATTACK == wCommand) {
+        Packet p = build_char_move_attack_packet(*this);
+        send_packet_nearby(*this, p);
+    } else {
+        this->Send_gsv_MOVE();
+    }
+}
+
 //-------------------------------------------------------------------------------------------------
 bool
 CObjCHAR::Send_gsv_ATTACK(int iTargetObject) {
@@ -2066,6 +2114,8 @@ CObjCHAR::Proc(void) {
     if (this->Get_HP() > 0 && this->m_IngSTATUS.GetFLAGs()) {
         this->Proc_IngSTATUS(dwPassTIME);
     }
+
+    this->Resync_MoveSPEED();
 
     // 현재 동작의 남은 프레임을 계산...
     wRamainFRAME = m_pCurMOTION->Get_ReaminFRAME(m_iCurMotionFRAME);

@@ -66,6 +66,45 @@ CommandName(WORD wCommand) {
     }
     return "?";
 }
+
+/// A monster stays a trace subject this long after it stops qualifying. A fight
+/// that breaks off -- the player walks away, the monster loses its target and walks
+/// home -- is where a position jump shows, and by then neither target points at the
+/// other (2026-10-15: an Ikaness Worker left the trace on its walk home, and the
+/// jump the player saw went unlogged).
+const DWORD kCombatTraceLingerMs = 20000;
+
+struct RecentTraceSubject {
+    int iClientIndex;
+    DWORD dwUntil;
+};
+RecentTraceSubject s_RecentTraceSubjects[8] = {};
+
+bool
+IsRecentTraceSubject(int iClientIndex, DWORD dwNow) {
+    for (const RecentTraceSubject& entry : s_RecentTraceSubjects) {
+        if (entry.iClientIndex == iClientIndex && entry.dwUntil > dwNow) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void
+RememberTraceSubject(int iClientIndex, DWORD dwNow) {
+    RecentTraceSubject* pSlot = &s_RecentTraceSubjects[0];
+    for (RecentTraceSubject& entry : s_RecentTraceSubjects) {
+        if (entry.iClientIndex == iClientIndex) {
+            pSlot = &entry;
+            break;
+        }
+        if (entry.dwUntil < pSlot->dwUntil) {
+            pSlot = &entry;
+        }
+    }
+    pSlot->iClientIndex = iClientIndex;
+    pSlot->dwUntil = dwNow + kCombatTraceLingerMs;
+}
 } // namespace
 
 //--------------------------------------------------------------------------------
@@ -424,8 +463,13 @@ CObjCHAR::IsCombatTraceSubject() {
     }
     const int iAvatarServer = g_pObjMGR->Get_ServerObjectIndex(g_pAVATAR->Get_INDEX());
     const int iOwnServer = g_pObjMGR->Get_ServerObjectIndex(this->Get_INDEX());
-    return (iAvatarServer && this->Get_TargetIDX() == iAvatarServer)
-        || (iOwnServer && g_pAVATAR->Get_TargetIDX() == iOwnServer);
+    const DWORD dwNow = g_GameDATA.GetGameTime();
+    if ((iAvatarServer && this->Get_TargetIDX() == iAvatarServer)
+        || (iOwnServer && g_pAVATAR->Get_TargetIDX() == iOwnServer)) {
+        RememberTraceSubject(this->Get_INDEX(), dwNow);
+        return true;
+    }
+    return IsRecentTraceSubject(this->Get_INDEX(), dwNow);
 }
 
 bool

@@ -93,6 +93,10 @@ public:
 
     bool is_pvp_enabled();
 
+    // The move speed the last move packet told clients (Resync_MoveSPEED).
+    uint16_t m_nBroadcastMoveSpeed = 0;
+    void Resync_MoveSPEED();
+
 private:
     void Adjust_HEIGHT() { /* nop */
     }

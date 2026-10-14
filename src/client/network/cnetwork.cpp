@@ -1024,6 +1024,31 @@ CNetwork::recv_damage_event(Packet& p) {
     }
 }
 
+namespace {
+// Debug: a move order for a monster in the local fight, with the speed it carries
+// and how far this client's copy is from the goal against the server's own. The
+// client learns a monster's speed only from these, so a slow that lands or wears
+// off mid-chase shows here as a speed change, or does not (2026-10-15).
+void
+TraceReceivedMove(CObjCHAR* character, const char* kind, int target_id, int move_speed,
+    int server_dist, const D3DVECTOR& to) {
+    if (!Log::level_enabled(Rose::Common::LogLevel::Debug) || !character->IsCombatTraceSubject()) {
+        return;
+    }
+    LogString(LOG_DEBUG_,
+        "CombatTrace move received: obj %d %s target %d speed %d (was %d) server_dist %d client_dist %d command %d state 0x%x\n",
+        character->Get_INDEX(),
+        kind,
+        target_id,
+        move_speed,
+        (int)character->stats.move_speed,
+        server_dist,
+        CD3DUtil::distance((int)character->Get_CurPOS().x, (int)character->Get_CurPOS().y, (int)to.x, (int)to.y),
+        (int)character->Get_COMMAND(),
+        (unsigned int)character->Get_STATE());
+}
+} // namespace
+
 void
 CNetwork::recv_char_move(Packet& p) {
     const Packets::CharacterMove* req = p.packet_data()->data_as_CharacterMove();
@@ -1036,14 +1061,17 @@ CNetwork::recv_char_move(Packet& p) {
         return;
     }
 
-    character->stats.move_speed = req->move_speed();
-    character->m_btMoveMODE = static_cast<int8_t>(req->move_mode());
-    character->m_bRunMODE = req->move_mode() != Packets::CharacterMoveMode::Walk;
-
     D3DVECTOR to;
     to.x = req->target_pos()->x();
     to.y = req->target_pos()->y();
     to.z = req->target_pos()->z();
+
+    TraceReceivedMove(character, "move", req->target_id(), req->move_speed(),
+        req->target_distance(), to);
+
+    character->stats.move_speed = req->move_speed();
+    character->m_btMoveMODE = static_cast<int8_t>(req->move_mode());
+    character->m_bRunMODE = req->move_mode() != Packets::CharacterMoveMode::Walk;
 
     character->SetCMD_MOVE(req->target_distance(), to, req->target_id());
 }
@@ -1060,14 +1088,17 @@ CNetwork::recv_char_move_attack(Packet& p) {
         return;
     }
 
-    character->stats.move_speed = req->move_speed();
-    character->m_btMoveMODE = static_cast<int8_t>(req->move_mode());
-    character->m_bRunMODE = req->move_mode() != Packets::CharacterMoveMode::Walk;
-
     D3DVECTOR to;
     to.x = req->target_pos()->x();
     to.y = req->target_pos()->y();
     to.z = req->target_pos()->z();
+
+    TraceReceivedMove(character, "move_attack", req->target_id(), req->move_speed(),
+        req->target_distance(), to);
+
+    character->stats.move_speed = req->move_speed();
+    character->m_btMoveMODE = static_cast<int8_t>(req->move_mode());
+    character->m_bRunMODE = req->move_mode() != Packets::CharacterMoveMode::Walk;
 
     character->SetCombatAttackIntent(req->target_id(), req->target_distance(), to);
 }

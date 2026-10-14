@@ -342,6 +342,7 @@ public:
     void SetSkillDelay(int iSkillIdx);
 
     void SetNewCommandAfterSkill(int iSkillNO);
+    WORD CommandToRestoreAfterSkill();
     int ProcSkillCastingAction(int iServerTarget, CObjCHAR* pTarget);
     int ProcSkillCastingLoop(CObjCHAR* pTarget);
     int ProcSkillAction(CObjCHAR* pTarget); ///< 실제 스킬 액션동작을 한다.

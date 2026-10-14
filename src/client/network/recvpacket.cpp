@@ -3533,6 +3533,16 @@ CRecvPACKET::Recv_gsv_CLEAR_STATUS() {
         DWORD dwResult = pObjCHAR->m_EndurancePack.GetStateFlag()
             & (~m_pRecvPacket->m_gsv_CLEAR_STATUS.m_dwStatusFLAG);
 
+        if (Log::level_enabled(Rose::Common::LogLevel::Debug) && pObjCHAR->IsCombatTraceSubject()) {
+            LogString(LOG_DEBUG_,
+                "CombatTrace status cleared: obj %d cleared 0x%x speed %d command %d state 0x%x\n",
+                pObjCHAR->Get_INDEX(),
+                (unsigned int)dwResult,
+                (int)pObjCHAR->stats.move_speed,
+                (int)pObjCHAR->Get_COMMAND(),
+                (unsigned int)pObjCHAR->Get_STATE());
+        }
+
         int iIndexA = 0;
         if (dwResult & FLAG_ING_HP) {
             pObjCHAR->Set_HP(m_pRecvPacket->m_gsv_CLEAR_STATUS.m_nAdjVALUE[iIndexA]);

@@ -134,6 +134,8 @@ Critical architecture: live combat damage is server-authored only. Client presen
 - **Non-USER mover (monster, NPC, summon)** with a `pTarget`: use `Goto_TARGET(pTarget, this->Get_AttackRange())` so the chase re-reads `pTarget->m_PosCUR` each tick via `Restart_MOVE` and follows the live player position, halting at the monster's own attack range where the server starts its swing.
 - **No target** (server-side move to a position): fall through to `Goto_POSITION()`.
 
+**A skill cast during a player's attack walk must restore an attack, not the walk (2026-10-15).** The server holds that walk as `CMD_ATTACK`; this client holds it as `CMD_MOVE` on the monster. A restoring (`SA_RESTORE`) skill cast mid-walk made the server go back to `CMD_ATTACK` and close the distance silently, while this client put back a move whose goal the cast had reset to where the player stood, and stopped. The player then fought 10-15 m from where the server had them (`avatar swing sync: self_drift 994` for a whole fight), each side's monster chasing its own copy of the player, and the monster "teleported" once the fight broke off. `CObjAI::CommandToRestoreAfterSkill` now saves `CMD_ATTACK` for a player in `CMD_MOVE` on an `OBJ_MOB`. A walk to a spot has no target and a walk to an NPC has an NPC target, so a player in `CMD_MOVE` on a monster is always an attack walk. Do not make that branch chase in `ProcCMD_MOVE` instead: a walk to a spot interrupted by a cast on a monster also comes back as `CMD_MOVE` on the monster (the cast set the target), and there the server stops.
+
 Do not collapse these paths. The historical bug: every mover used `AVT_CLICK_EVENT_RANGE` (1000) and called `SetCMD_STOP()` when crossing that ring, freezing brawlers ~10 m from the player while the server kept advancing them and landing real hits — visible as "monster suddenly stops, then resumes" with client HP > server HP. Sister bug if the non-USER path is changed to `Goto_POSITION()`: the chase walks to a stale snapshot of the player position at packet-arrival time and only re-aims when the next `gsv_ATTACK`/`gsv_MOVE` arrives, producing the kiting-to-first-position visual artefact.
 
 ### Attack Speed Presentation
@@ -448,7 +450,9 @@ type after `recv_packet` has already handled it. Server side, `SkillStatusTrace 
 buffing each other were 85% of the gameserver's debug log).
 
 **Remote command trace (2026-09-29)**, Debug only and only for a monster in the local fight
-(`CObjCHAR::IsCombatTraceSubject`: it targets the avatar, or the avatar targets it). Written to
+(`CObjCHAR::IsCombatTraceSubject`: it targets the avatar, or the avatar targets it, or did within
+the last 20 s -- the linger was added 2026-10-15 because a fight that breaks off is where a jump
+shows, and by then neither target points at the other). Written to
 explain a monster that stands still on screen while the server has it swinging, and the jump
 that follows:
 - `CombatTrace remote command: obj N <old> -> <new> state ... todo/active/casting/result queue
@@ -471,6 +475,14 @@ that follows:
   discards everything queued that is not a skill command with its result (a monster's held cast
   included).
 - `CombatTrace GSV_STOP received: obj N` -- the server as the cause of a stop.
+- `CombatTrace move received: obj N move|move_attack target T speed S (was W) server_dist
+  client_dist command state` -- each `CharacterMove` / `CharacterMoveAttack` for a traced
+  monster (2026-10-15). A monster's speed reaches the client only this way, so a slow shows as
+  `speed 260 (was 500)` when it lands and the reverse when it ends; `server_dist` against
+  `client_dist` is the two copies' gap at that moment. `CombatTrace status cleared: obj N
+  cleared 0xF` marks a status ending (`0x80` = slow). The server side is `CombatTrace server
+  move speed resync` (see the gameserver CLAUDE.md, "A Monster's Move Speed Must Reach The
+  Client").
 - `CombatTrace position snapped forward: obj N jump J client_dist C server_dist S` --
   `Adj_MoveSPEED` jumps a non-avatar that is more than a second of walking behind the server's
   copy (its computed catch-up speed is never applied); this is the visible "teleport".

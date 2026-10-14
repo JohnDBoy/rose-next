@@ -111,6 +111,29 @@ subtract from `stats.move_speed` directly. Client trace that named it: `CombatTr
 jumped ... move_speed 65444`. Validated 2026-09-29: three fights with the slow and the hawk
 used heavily, no jump.
 
+### A Monster's Move Speed Must Reach The Client (2026-10-15)
+
+A client learns a monster's move speed only from a move packet (`CharacterMove` /
+`CharacterMoveAttack`), but the server starts and restarts moves silently: a chase
+begins a tick *after* its packet went out, a monster re-closes on a target that
+stepped out of range (`ProcCMD_ATTACK` -> `Start_MOVE`, no broadcast), a slow lands
+or wears off. The repro: skill 988 slowed an Ikaness Worker (500 -> 260) in the same
+tick it was ordered to chase, so its packet said 500 while the server ran it at 260;
+for 14 s every client ran it 34 m ahead of the server's copy, and the move home that
+ended the chase jumped it 30 m back (`position snapped forward`). Hooking only "slow
+applied" and "slow expired" was tried first and missed it: at the apply the monster
+was not moving yet.
+
+The rule now: `build_char_move_packet` / `build_char_move_attack_packet` record the
+speed they sent in `CObjCHAR::m_nBroadcastMoveSpeed`, and `CObjCHAR::Proc` calls
+`Resync_MoveSPEED` every tick. A moving non-player whose `total_move_speed()` differs
+from that gets `Start_MOVE` at the new speed and its move re-sent: `CharacterMoveAttack`
+in `CMD_ATTACK`, `CharacterMove` in `CMD_MOVE`. Other commands are not re-sent, because
+a move packet carrying a target (running away) would make the client chase that target.
+Players are left out: their own client walks them and gets `GSV_SPEED_CHANGED`. Debug
+line: `CombatTrace server move speed resync`. Client side, `CombatTrace move received`
+logs each move packet for a monster in the local fight, with the speed it carries.
+
 ### A Junk NPC Row Must Degrade, Not Kill
 
 `CObjMOB::Init` derives max HP as `NPC_LEVEL * NPC_HP` and sizes the per-attacker saved-damage table (`m_SavedDAMAGED`, EXP/drop share) as `NPC_HP / 8 + 4` into a **short**. Three LIST_NPC rows (996 Moss Golem, 997 Nepenthes, 998 Turak — unspawned duplicates, HP column 7.9-13 million where the largest real value is 10,701) overflowed both: a negative max HP and a negative table size that `new[]` read as ~4 billion, so `/mon 996` killed the process with nothing in the log (2026-09-15). `ClampedMobMaxHP` (64-bit product clamped to `INT_MAX`) covers `Init` and `Change_CHAR`; `ClampedSavedDamageCNT` (table capped at 4096) covers `Init`, the only place the table is allocated. The rows stay as they are — the balance passes leave them alone on purpose — and the Eldeon Moss Golem that actually spawns is **1591**. `/mon` and `/mon2` (`cheatcmd.cpp`, `MobRowRefusalReason`) now refuse such rows with a whisper saying why — no model, level 0, or an HP column over 20,000 — so a tester summoning by number cannot get an invisible or absurd monster. Survey 2026-09-15: of 1,426 named rows, 646 are placed on a map and 111 more are reachable through AI summons; of the 669 unreachable, 212 have junk stats, 183 share a name with a live row, 302 are coherent unused retail/event content. Ids are load-bearing (drop tables, AI, quests, dialogs), so rows are never deleted or renumbered.
