@@ -349,7 +349,8 @@ class CombatEditor(EditorBase):
                  "The best item per slot at this level, well refined")):
             btn = QPushButton(text)
             btn.setToolTip(tip + ". Replaces stats, gear, skills and the rotation (debuffs, "
-                           "then damage skills, strongest first); keeps buffs and potions.")
+                           "then damage skills, strongest first) and potions (shop food, eaten below 70% "
+                           "HP / 50% MP); keeps buffs.")
             btn.clicked.connect(lambda _c=False, g=gear: self._auto_build(g))
             row.addWidget(btn, 1)
         v.addLayout(row)
@@ -482,7 +483,7 @@ class CombatEditor(EditorBase):
 
         # potions
         section("Potions", v)
-        self.e_pot_on = QCheckBox("Drink potions (off by default: vials skew balance)")
+        self.e_pot_on = QCheckBox("Eat / drink (auto-build: shop food -- vials skew balance)")
         self.e_pot_on.toggled.connect(lambda: self._commit("Potions"))
         v.addWidget(self.e_pot_on)
         g = QGridLayout()
@@ -1035,7 +1036,7 @@ class CombatEditor(EditorBase):
         b = self._gather()
         nb = make_build(self.gd, b.job, b.level, b.female, gear)
         nb.name = b.name
-        nb.buffs, nb.potions = b.buffs, b.potions
+        nb.buffs = b.buffs                  # potions become food, like a player's
         if not nb.summons:                  # a summoner's auto-build fills its own bar
             nb.summons = b.summons
         self.doc.set_data(nb.to_json(), f"Auto-build ({gear})", merge=False)

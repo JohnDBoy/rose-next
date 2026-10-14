@@ -73,7 +73,9 @@ instead (anything that holds `3DDATA`).
   the monster first, then damage skills, strongest first) with "auto-attacks
   between skills" at 0 for casters (they spam) and 1 for everyone else. A
   Bourgeois also learns its summons and Employ Troops and fills its summon bar
-  (strongest first). Buffs and potions are left alone. The skill-point chip
+  (strongest first). Potions become food (fruit, juice, cooked dishes: the
+  best a shop sells, eaten below 70% HP / 50% MP; vials and waters heal too fast
+  to be fair). Buffs are left alone. The skill-point chip
   splits passives from actives (an action learned only counts once it is in the
   build: test builds made before 2026-10-14 list passives only). A chip under
   "Passive skills" counts skill points used against the level's total. Item names carry

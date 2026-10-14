@@ -31,6 +31,10 @@ RECOVERY_MS = 2000            # GameStaticConfig::RECOVERY_RATE_TIME
 # (CSkillCommandDelay::m_dwCastingTimeDelay, skillcommanddelay.cpp) -- the client wins.
 SKILL_DELAY_MS = max(500, 1000)
 POTION_DELAY_MS = 500         # client useitemdelay.h (the server enforces none)
+# grinding: after a kill the player sits (CMD_SIT) when it is low, until it is topped up
+REST_BELOW = (0.50, 0.30)     # HP, MP share under which it rests before the next pull
+REST_UNTIL = (0.90, 0.80)
+RECOVERY_RATE_SITTING = 100   # GameStaticConfig::RECOVERY_RATE_SITTING
 SELF_TYPES = (8, 10, 12)      # SKILL_TYPE_08/10/12: stat/status change on the caster
 
 # Which ING slot a buff or debuff on AT_x lands in; (raise, lower)
@@ -261,6 +265,8 @@ class Log:
         self.player_state_ms = {}  # monster-applied ing on the player -> ms
         self.player_disabled_ms = 0
         self.respawns = 0         # survival runs: fresh monsters
+        self.kills = 0            # monsters killed in a survival / grinding run
+        self.rest_ms = 0          # grinding: time spent sitting between pulls
         self.suicides = 0
         # the player's summons
         self.s_skills = {}        # summon AI skill row -> dict(orders, casts, landed, ...)
@@ -628,13 +634,18 @@ class Mob:
 
 
 class Fight:
-    def __init__(self, sim, rng=None, immortal_monster=False, max_seconds=600):
+    def __init__(self, sim, rng=None, immortal_monster=False, max_seconds=600, gap_ms=0):
         self.sim, self.gd = sim, sim.gd
         self.rng = rng or random.Random()
         self.p = sim.make_player()
         # survival runs: a monster that would die is replaced by a fresh one (_respawn),
         # so its HP-driven AI phases repeat the way they do fight after fight
         self.immortal = immortal_monster
+        # grinding: the next monster arrives `gap_ms` after a kill (the walk to it); HP,
+        # MP, cooldowns, states and summons carry over, and the player eats meanwhile
+        self.gap_ms = gap_ms
+        self.next_spawn = None
+        self.resting = False
         rate = sim.stats.rate_use_mp
         self.cost = {sk.row: sk.mp_cost(rate) for sk in sim.rotation}
         self.min_cost = min(self.cost.values()) if self.cost else None
@@ -988,8 +999,15 @@ class Fight:
             if self.immortal:
                 self.hp_trace.append((self.t, self.p.hp))
             con = self.sim.stats.cur["CON"]
-            hp = int((self.sim.stats.recover_hp + (con + 40) / 6.0) / 6.0)
-            mp = int((self.sim.stats.recover_mp + (con + 40) / 6.0) / 6.0)
+            st = self.sim.stats
+            if self.resting:            # CObjAI::Get_RecoverHP / MP(RECOVERY_RATE_SITTING)
+                hp = st.recover_hp + (con + 30) // 8 * (RECOVERY_RATE_SITTING + 3) // 10
+                mp = st.recover_mp + (con + 20) // 10 * RECOVERY_RATE_SITTING // 7
+            else:
+                hp = int((st.recover_hp + (con + 40) / 6.0) / 6.0)
+                mp = int((st.recover_mp + (con + 40) / 6.0) / 6.0)
+            if self.p.st.is_set(_POISON):
+                hp = 0                  # poisoned: no HP regen, standing or sitting
             gain = min(hp, self.p.max_hp - self.p.hp)
             self.p.hp += gain
             self.log.regen_hp += gain
@@ -1026,7 +1044,8 @@ class Fight:
             row = pot[kind]
             if not row or self.p.hp <= 0 or cur * 100 >= mx * pot[kind + "_below"]:
                 continue
-            if self.t - self.last_potion[kind] < POTION_DELAY_MS or kind in self.potion_run:
+            delay = max(POTION_DELAY_MS, int(pot.get("cooldown_s", 0) * 1000))
+            if self.t - self.last_potion[kind] < delay or kind in self.potion_run:
                 continue
             ui = gd.stb("LIST_USEITEM")
             status = ui.i(row, 24)
@@ -1081,8 +1100,26 @@ class Fight:
         e.swing()
         while True:
             if self.m.hp <= 0 and self.immortal and self.p.hp > 0:
-                self._respawn()
-            if self.m.hp <= 0:
+                if self.next_spawn is None and not self.resting:
+                    lg.kills += 1
+                    p = self.p
+                    if self.gap_ms and (p.hp < REST_BELOW[0] * p.max_hp
+                                        or p.mp < REST_BELOW[1] * p.max_mp):
+                        self.resting = True
+                    else:
+                        self.next_spawn = self.t + self.gap_ms
+                if self.resting:
+                    p = self.p
+                    lg.rest_ms += TICK_MS
+                    if (p.hp >= REST_UNTIL[0] * p.max_hp and p.mp >= REST_UNTIL[1] * p.max_mp):
+                        self.resting = False
+                        self.next_spawn = self.t + self.gap_ms
+                if self.next_spawn is not None and self.t >= self.next_spawn:
+                    self.next_spawn = None
+                    self._respawn()
+                    if self.gap_ms and not self.p.st.disabled() and self.p_state != "cast":
+                        self._player_next()     # it walked up: attack the new one
+            if self.m.hp <= 0 and not (self.immortal and self.p.hp > 0):
                 lg.result = "win"
                 break
             if self.p.hp <= 0:

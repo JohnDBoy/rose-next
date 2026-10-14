@@ -507,6 +507,43 @@ def fill_summons(gd, b, allowed=None):
     return out
 
 
+# Food (LIST_USEITEM type 312: fruit, juice, cooked dishes) heals slowly over time; most
+# players eat it while they fight. Vials, bottles and waters (type 311) are left out: they
+# heal too fast to be fair (user guidance, 2026-10-14).
+FOOD_TYPE = 312
+FOOD_HP_BELOW, FOOD_MP_BELOW = 70, 50
+
+
+def shop_items(gd):
+    """{(item type, row)} every NPC shop tab sells (LIST_NPC cols 21-24 -> LIST_SELL slots,
+    `type*1000+id`, or `type*100000+id` past id 999)."""
+    if getattr(gd, "_shop_items", None) is None:
+        npc, sell = gd.stb("LIST_NPC"), gd.stb("LIST_SELL")
+        out = set()
+        for r in range(npc.rows):
+            for c in range(21, 25):
+                t = npc.i(r, c)
+                if 0 < t < sell.rows:
+                    for cc in range(2, 50):
+                        v = sell.i(t, cc)
+                        if v > 0:
+                            out.add((v // 100000, v % 100000) if v >= 100000
+                                    else (v // 1000, v % 1000))
+        gd._shop_items = out
+    return gd._shop_items
+
+
+def best_food(gd, kind):
+    """The shop-sold food that restores the most HP (kind "hp") or MP ("mp")."""
+    ui = gd.stb("LIST_USEITEM")
+    want = 16 if kind == "hp" else 17         # USEITEM_ADD_DATA_TYPE: AT_HP / AT_MP
+    sold = shop_items(gd)
+    c = [(ui.i(r, 20), r) for r in range(1, ui.rows)
+         if ui.i(r, 4) == FOOD_TYPE and ui.i(r, 19) == want and ui.i(r, 24)
+         and (10, r) in sold]
+    return max(c)[1] if c else 0
+
+
 def con_floor(job):
     return MELEE_CON if job in MELEE_JOBS else OTHER_CON
 
@@ -566,6 +603,8 @@ def make_build(gd, job, level, female=False, gear="best"):
     if summoner:
         b.summons = fill_summons(gd, b, summoner["skills"])
     b.rotation = auto_rotation(gd, b.skills)
+    b.potions = dict(enabled=True, hp=best_food(gd, "hp"), hp_below=FOOD_HP_BELOW,
+                     mp=best_food(gd, "mp"), mp_below=FOOD_MP_BELOW)
     b.skill_spacing = 0 if job in SPAM_JOBS else SKILL_SPACING
     sp = (f"{spent['passive'] + spent['active']} skill points (passives {spent['passive']}, "
           f"actives {spent['active']}, {left} left)")

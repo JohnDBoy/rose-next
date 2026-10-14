@@ -15,6 +15,7 @@ Usage
     python scripts/combat-sim.py find npc "Grizzly"                 # npc|weapon|skill|...
     python scripts/combat-sim.py skills --job 221                   # rotation candidates
     python scripts/combat-sim.py ai --mob 1403                      # what a monster's AI does
+    python scripts/combat-sim.py sweep --job 122 221 --level 50 100   # balance sweep by icon
 
 Builds are JSON (see scripts/combatsim/builds/); the Rose Dev Studio "Combat
 Simulator" tab edits the same files.
@@ -94,6 +95,14 @@ def main():
 
     ai = sub.add_parser("ai", help="print a monster's AI file as readable rules")
     ai.add_argument("--mob", required=True, help="LIST_NPC row or name")
+
+    sw = sub.add_parser("sweep", help="auto-builds vs the spawned monsters of their level, "
+                                      "grouped by the monster's icon")
+    sw.add_argument("--job", type=int, nargs="+", required=True)
+    sw.add_argument("--level", type=int, nargs="+", required=True)
+    sw.add_argument("--band", type=int, default=5, help="monster levels within +/- this")
+    sw.add_argument("-n", type=int, default=80, help="fights per monster")
+    sw.add_argument("--json", help="also write every result here")
 
     sc = sub.add_parser("scenarios", help="predictions for the in-game test scenarios")
     sc.add_argument("-n", type=int, default=500)
@@ -206,6 +215,15 @@ def main():
                 print(f"skill {r_} {sk.name}: type {sk.type}, damage type {sk.damage_type}, "
                       f"power {sk.power}, action mode {sk.action_mode}, range {sk.distance}, "
                       f"area {sk.scope}, states {[x for x in sk.states if x]}")
+    elif a.cmd == "sweep":
+        import json
+        from combatsim import sweep
+        rows = sweep.run(gd, a.job, a.level, a.band, a.n,
+                         progress=lambda r: print(f"  {r['job']} {r['level']} vs {r['name']}",
+                                                  file=sys.stderr))
+        if a.json:
+            json.dump(rows, open(a.json, "w", encoding="utf-8"), indent=1)
+        print(sweep.text(gd, rows))
     elif a.cmd == "skills":
         for row, name, t in skill_choices(gd, a.job):
             sk = gd.skill(row)

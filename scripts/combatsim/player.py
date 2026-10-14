@@ -137,7 +137,9 @@ class Build:
         self.potions = dict(
             enabled=bool(p.get("enabled", False)),
             hp=int(p.get("hp", 0)), hp_below=int(p.get("hp_below", 50)),
-            mp=int(p.get("mp", 0)), mp_below=int(p.get("mp_below", 30)))
+            mp=int(p.get("mp", 0)), mp_below=int(p.get("mp_below", 30)),
+            # a longer reuse delay than the client's 500 ms, to try vials with a cooldown
+            cooldown_s=float(p.get("cooldown_s", 0)))
         self.notes = d.get("notes", "")
 
     def to_json(self):

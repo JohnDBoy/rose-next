@@ -12,6 +12,8 @@ AVT_ANI_ATTACK = 8            # datatype.h, avatar attack motion row in TYPE_MOT
 MOB_ANI_ATTACK = 2            # datatype.h, monster attack slot in LIST_NPC.CHR
 MAX_MOB_ANI = 11              # datatype.h: CCharDATA::GetMOTION returns NULL past it
 SURVIVAL_CAP_S = 300          # simulated seconds per survival run before projecting
+GRIND_S = 600                 # a grinding run: ten minutes of back-to-back kills
+GRIND_GAP_S = 5               # walking to the next monster
 
 # Everything the simulator decides that the server code does not.
 ASSUMPTIONS = [
@@ -286,6 +288,23 @@ class Simulation:
             surv = [Fight(self, rng, immortal_monster=True, max_seconds=SURVIVAL_CAP_S).run()
                     for _ in range(max(20, n // 10))]
         return Report(self, fights, surv)
+
+    def grind(self, runs=3, seconds=GRIND_S, gap_s=GRIND_GAP_S, seed=1):
+        """Grinding: `runs` stretches of `seconds` killing fresh copies of the monster back
+        to back, `gap_s` apart, HP / MP / cooldowns / summons carried over and food eaten as
+        the build says. A death ends its run."""
+        rng = random.Random(seed)
+        logs = [Fight(self, rng, immortal_monster=True, max_seconds=seconds,
+                      gap_ms=int(gap_s * 1000)).run() for _ in range(runs)]
+        t = sum(lg.end_ms for lg in logs) / 1000 or 1
+        kills = sum(lg.kills for lg in logs)
+        return dict(
+            seconds=t, kills=kills, kills_per_min=kills * 60 / t,
+            food_hp=sum(lg.potions["hp"] for lg in logs) / max(1, kills),
+            food_mp=sum(lg.potions["mp"] for lg in logs) / max(1, kills),
+            deaths=sum(1 for lg in logs if lg.result == "loss"), runs=runs,
+            rest_share=sum(lg.rest_ms for lg in logs) / 1000 / t,
+            died_after=[lg.end_ms / 1000 for lg in logs if lg.result == "loss"])
 
 
 def _label(ing):
