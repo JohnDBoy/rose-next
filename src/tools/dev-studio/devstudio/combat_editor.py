@@ -339,10 +339,20 @@ class CombatEditor(EditorBase):
         g.addWidget(self.e_female, 2, 1)
         g.setColumnStretch(1, 1)
         v.addLayout(g)
-        auto = QPushButton("Auto-build for this class and level")
-        auto.setToolTip("Replace stats, gear and passives with the best the level unlocks")
-        auto.clicked.connect(self._auto_build)
-        v.addWidget(auto)
+        row = QHBoxLayout()
+        row.addWidget(dim("Auto-build"))
+        for gear, text, tip in (
+                ("average", "Average gear",
+                 "What a typical player runs: older-tier median armour, current weapon (and "
+                 "body/back at higher levels), low refines"),
+                ("best", "Best in slot",
+                 "The best item per slot at this level, well refined")):
+            btn = QPushButton(text)
+            btn.setToolTip(tip + ". Replaces stats, gear and passives; keeps rotation, "
+                           "buffs and potions.")
+            btn.clicked.connect(lambda _c=False, g=gear: self._auto_build(g))
+            row.addWidget(btn, 1)
+        v.addLayout(row)
 
         # stats
         section("Stats", v)
@@ -869,12 +879,12 @@ class CombatEditor(EditorBase):
         b.skills, b.rotation = [], []
         self.doc.set_data(b.to_json(), "Class", merge=False)
 
-    def _auto_build(self):
+    def _auto_build(self, gear="average"):
         b = self._gather()
-        nb = make_build(self.gd, b.job, b.level, b.female)
+        nb = make_build(self.gd, b.job, b.level, b.female, gear)
         nb.name = b.name
         nb.buffs, nb.potions, nb.rotation = b.buffs, b.potions, b.rotation
-        self.doc.set_data(nb.to_json(), "Auto-build", merge=False)
+        self.doc.set_data(nb.to_json(), f"Auto-build ({gear})", merge=False)
 
     def _auto_stats(self):
         b = self._gather()
@@ -1057,7 +1067,7 @@ class CombatEditor(EditorBase):
         self.e_mob.selectAll()
 
 
-def new_build_file(gd, job, level, female=False):
+def new_build_file(gd, job, level, female=False, gear="average"):
     """Write an auto build under scripts/combatsim/builds/ and return its path."""
     BUILDS_DIR.mkdir(parents=True, exist_ok=True)
     stem = f"{JOBS.get(job, job).lower()}-{level}"
@@ -1066,7 +1076,7 @@ def new_build_file(gd, job, level, female=False):
     while path.exists():
         path = BUILDS_DIR / f"{stem}-{n}.json"
         n += 1
-    b = make_build(gd, job, level, female)
+    b = make_build(gd, job, level, female, gear)
     b.name = f"{JOBS.get(job, job)} {level}"
     b.save(str(path))
     return str(path)

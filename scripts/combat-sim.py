@@ -71,6 +71,8 @@ def main():
     nb.add_argument("--job", type=int, required=True)
     nb.add_argument("--level", type=int, required=True)
     nb.add_argument("--female", action="store_true")
+    nb.add_argument("--gear", choices=("average", "best"), default="average",
+                    help="average: what a typical player runs (default); best: best in slot")
     nb.add_argument("-o", "--out", required=True)
 
     f = sub.add_parser("find", help="search a table by in-game name")
@@ -131,7 +133,7 @@ def main():
         for n in sim.notes:
             print(f"! {n}")
     elif a.cmd == "new":
-        b = make_build(gd, a.job, a.level, a.female)
+        b = make_build(gd, a.job, a.level, a.female, a.gear)
         os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
         b.save(a.out)
         print(f"wrote {a.out}")

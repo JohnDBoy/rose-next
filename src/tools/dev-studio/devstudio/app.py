@@ -622,10 +622,15 @@ class MainWindow(QMainWindow):
         level, ok = QInputDialog.getInt(self, "New Combat Build", "Level", 100, 1, 240)
         if not ok:
             return
+        gears = ["Average gear (a typical player)", "Best in slot"]
+        g, ok = QInputDialog.getItem(self, "New Combat Build", "Gear", gears, 0, False)
+        if not ok:
+            return
+        gear = "best" if g == gears[1] else "average"
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             gd = game_data(self.workspace.root if self.workspace else None)
-            path = new_build_file(gd, job, level)
+            path = new_build_file(gd, job, level, gear=gear)
         finally:
             QApplication.restoreOverrideCursor()
         ed = self.open_path(path)

@@ -68,6 +68,9 @@ ITEM_TABLES = {
     10: "LIST_USEITEM", 11: "LIST_JEMITEM", 12: "LIST_NATURAL", 14: "LIST_PAT",
 }
 
+# CItem::GetItemRareType: the item types whose names take an STR_ITEMPREFIX word
+PREFIXED_TABLES = ("LIST_WEAPON", "LIST_BODY", "LIST_CAP", "LIST_ARMS", "LIST_FOOT")
+
 # Build slot -> (item type, equip index). EQUIP_IDX_* from datatype.h:302-318.
 SLOTS = {
     "face": (1, 1), "cap": (2, 2), "body": (3, 3), "back": (6, 4), "arms": (4, 5),
@@ -223,7 +226,35 @@ class GameData:
                 n = raw.decode("utf-8")          # STB cells mix codecs (Korean is UTF-8)
             except UnicodeDecodeError:
                 n = raw.decode("latin-1")
-        return n or f"#{row}"
+        n = n or f"#{row}"
+        if table in PREFIXED_TABLES:
+            pre = self.item_prefix(table, row)
+            if pre:
+                n = f"{pre} {n}"
+        return n
+
+    def item_prefix(self, table, row):
+        """CStringManager::GetItemName: weapons, bodies, caps, gloves and boots get the
+        STR_ITEMPREFIX word whose id sits in the column before the STL key (CItem::
+        GetItemRareType, col_count - 2): Demon, Dark, Golden, Elven, Saint, ..."""
+        s = self.stb(table)
+        pid = s.i(row, s.cols - 2)
+        if pid <= 0:
+            return ""
+        return self.prefixes().get(pid, "")
+
+    def prefixes(self):
+        if "_prefix" not in self._names:
+            out = {}
+            p = os.path.join(self.stb_dir, "STR_ITEMPREFIX.STL")
+            if os.path.exists(p):
+                stl = Stl(p, encoding="utf-8")
+                lang = 1 if len(stl.langs) > 1 else 0
+                for j, (k, _) in enumerate(stl.keys):
+                    if k.isdigit():
+                        out[int(k)] = stl.langs[lang][j][0].decode("utf-8", "replace").strip()
+            self._names["_prefix"] = out
+        return self._names["_prefix"]
 
     def item(self, itype, row):
         return self.stb(ITEM_TABLES[itype]), row
@@ -459,7 +490,7 @@ def find_rows(gd, table, query, limit=50):
     except re.error:
         rx = re.compile(re.escape(query), re.I)
     for r in range(1, s.rows):
-        n = names.get(r) or s.s(r, 0).strip()
+        n = gd.name(table, r) if (names.get(r) or s.s(r, 0).strip()) else ""
         if n and rx.search(n):
             out.append((r, n))
             if len(out) >= limit:

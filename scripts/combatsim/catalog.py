@@ -30,9 +30,9 @@ def items(gd, slot):
     for r in range(1, s.rows):
         if not s.occupied(r):
             continue
-        name = names.get(r) or s.s(r, 0).strip()
-        if not name:
+        if not (names.get(r) or s.s(r, 0).strip()):
             continue
+        name = gd.name(table, r)          # with the in-game prefix (Saint, Dark ...)
         lv = gd.item_req_level(itype, r)
         bonus = bonus_text([(t, v) for _, t, v in gd.item_add(itype, r)])
         if itype == 8:

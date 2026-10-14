@@ -62,7 +62,11 @@ instead (anything that holds `3DDATA`).
   every equipment slot with its refine grade and gem or option, ammo, passive
   ranks, a rotation of damage skills and debuffs in priority order, buffs kept up
   (with the caster's INT for party buffs; Cleric buffs are left out), and
-  potions (off by default). The right side picks a monster and shows how the
+  potions (off by default). **Auto-build** fills it for the class and level:
+  **Average gear** (what a typical player runs -- older-tier median armour, a
+  current weapon, low refines) or **Best in slot** (well refined); both put CON
+  near the level and leave rotation, buffs and potions alone. Item names carry
+  their in-game prefix (Saint, Dark ...). The right side picks a monster and shows how the
   fight goes over a few hundred simulated fights: win rate, time to kill, how
   long the character survives against an unkillable copy of the monster, HP and
   MP left, damage dealt and taken per second, both stat blocks, per-skill
