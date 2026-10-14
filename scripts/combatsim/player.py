@@ -125,6 +125,9 @@ class Build:
         self.ammo = int(d.get("ammo", 0))                    # LIST_NATURAL row
         self.skills = [int(x) for x in d.get("skills", [])]  # learned rows (passives count)
         self.rotation = [int(x) for x in d.get("rotation", [])]
+        # normal swings the player throws between two skills; 0 = cast whenever one is
+        # ready (spam). Older builds have none: 0, the behaviour they were checked with.
+        self.skill_spacing = int(d.get("skill_spacing", 0))
         self.buffs = [dict(skill=int(b["skill"]), caster_int=int(b.get("caster_int", 0)),
                            caster_level=int(b.get("caster_level", 0)))
                       for b in d.get("buffs", [])]
@@ -141,6 +144,7 @@ class Build:
             union=self.union, stats=dict(self.stats),
             equip={s: it.to_json() for s, it in self.equip.items() if it.id},
             ammo=self.ammo, skills=list(self.skills), rotation=list(self.rotation),
+            skill_spacing=self.skill_spacing,
             buffs=[dict(b) for b in self.buffs], potions=dict(self.potions),
             notes=self.notes)
 

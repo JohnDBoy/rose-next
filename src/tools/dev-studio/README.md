@@ -63,9 +63,16 @@ instead (anything that holds `3DDATA`).
   ranks, a rotation of damage skills and debuffs in priority order, buffs kept up
   (with the caster's INT for party buffs; Cleric buffs are left out), and
   potions (off by default). **Auto-build** fills it for the class and level:
-  **Average gear** (what a typical player runs -- older-tier median armour, a
-  current weapon, low refines) or **Best in slot** (well refined); both put CON
-  near the level and leave rotation, buffs and potions alone. Item names carry
+  **Average gear** (what a typical player runs -- their class's armour set of the
+  newest tier, a better weapon and body, low refines; only those upgrades carry a
+  prefix) or
+  **Best in slot** (well refined). Both put CON near the level, spend exactly the
+  skill points the level grants on a mix of passives and actives (own weapon
+  mastery first), and fill the rotation from the skills learned (debuffs that hit
+  the monster first, then damage skills, strongest first) with "auto-attacks
+  between skills" at 0 for casters (they spam) and 1 for everyone else; buffs
+  and potions are left alone. A chip under
+  "Passive skills" counts skill points used against the level's total. Item names carry
   their in-game prefix (Saint, Dark ...). The right side picks a monster and shows how the
   fight goes over a few hundred simulated fights: win rate, time to kill, how
   long the character survives fresh copies of the monster back to back, HP and

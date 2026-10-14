@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboB
 
 from combatsim import ASSUMPTIONS, GameData
 from combatsim import catalog as C
-from combatsim.autobuild import PROFILES, con_floor, make_build
+from combatsim.autobuild import PROFILES, con_floor, make_build, skill_points, skills_cost
 from combatsim.data import JOBS, SHOT_BY_WEAPON
 from combatsim.player import BASE_STATS, STAT_KEYS, auto_stats, total_bonus_points
 
@@ -343,13 +343,13 @@ class CombatEditor(EditorBase):
         row.addWidget(dim("Auto-build"))
         for gear, text, tip in (
                 ("average", "Average gear",
-                 "What a typical player runs: older-tier median armour, current weapon (and "
-                 "body/back at higher levels), low refines"),
+                 "What a typical player runs: the class armour set of the newest tier, a "
+                 "better weapon (and body/back at higher levels), low refines"),
                 ("best", "Best in slot",
                  "The best item per slot at this level, well refined")):
             btn = QPushButton(text)
-            btn.setToolTip(tip + ". Replaces stats, gear and passives; keeps rotation, "
-                           "buffs and potions.")
+            btn.setToolTip(tip + ". Replaces stats, gear, skills and the rotation (debuffs, "
+                           "then damage skills, strongest first); keeps buffs and potions.")
             btn.clicked.connect(lambda _c=False, g=gear: self._auto_build(g))
             row.addWidget(btn, 1)
         v.addLayout(row)
@@ -413,6 +413,11 @@ class CombatEditor(EditorBase):
 
         # passives
         section("Passive skills", v)
+        row = QHBoxLayout()
+        self.l_sp = widgets.chip("")
+        row.addWidget(self.l_sp)
+        row.addStretch(1)
+        v.addLayout(row)
         self.passive_box = QGridLayout()
         self.passive_box.setHorizontalSpacing(8)
         self.passive_box.setVerticalSpacing(4)
@@ -421,8 +426,19 @@ class CombatEditor(EditorBase):
 
         # rotation
         section("Rotation (priority order)", v)
-        v.addWidget(dim("Damage skills and debuffs, cast whenever off cooldown and affordable; "
-                        "a debuff is recast when it drops.", "Hint"))
+        v.addWidget(dim("Damage skills and debuffs, cast whenever off cooldown and affordable "
+                        "(1 s apart at least: the client's skill delay); a debuff is recast "
+                        "when it drops.", "Hint"))
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Auto-attacks between skills"))
+        self.e_spacing = spin(0, 9, 0, width=60)
+        self.e_spacing.setToolTip("Normal swings the character throws between two skills. "
+                                  "0 = cast whenever a skill is ready (spam, how most casters "
+                                  "play); the auto-build gives casters 0, everyone else 1.")
+        self.e_spacing.valueChanged.connect(lambda _v: self._commit("Skill spacing"))
+        row.addWidget(self.e_spacing)
+        row.addStretch(1)
+        v.addLayout(row)
         self.rot_box = QVBoxLayout()
         self.rot_box.setSpacing(4)
         v.addLayout(self.rot_box)
@@ -687,6 +703,7 @@ class CombatEditor(EditorBase):
             self.l_ammo.setEnabled(shot is not None)
             self._fill_passives(b)
             self._fill_rotation(b)
+            self.e_spacing.setValue(b.skill_spacing)
             self._fill_buffs(b)
             self.e_pot_on.setChecked(b.potions["enabled"])
             for kind, (cb, th) in self.e_pot.items():
@@ -714,6 +731,7 @@ class CombatEditor(EditorBase):
         b.skills = [rc.row() for rc in self.passive_rows.values() if rc.row()]
         b.skills += [r for r in self.doc.build().skills if r not in self._class_passive_rows]
         b.rotation = [w.rank.row() for w in self._rot_widgets if w.rank.row()]
+        b.skill_spacing = self.e_spacing.value()
         b.buffs = [dict(skill=w.rank.row(), caster_int=w.cint.value(), caster_level=0)
                    for w in self._buff_widgets if w.rank.row()]
         b.potions["enabled"] = self.e_pot_on.isChecked()
@@ -743,6 +761,17 @@ class CombatEditor(EditorBase):
         self.l_points.setObjectName("ChipModified" if over else "Chip")
         self.l_points.setToolTip("Stats cost more points than the level grants" if over else
                                  f"{have - spent:,} unspent")
+        # skill points: learned skills plus the rotation (a skill cast must be learned)
+        spent, have = skills_cost(self.gd, b.skills + b.rotation), skill_points(self.gd, b.level)
+        self.l_sp.setText(f"Skill points {spent:,} / {have:,}")
+        over = spent > have
+        self.l_sp.setObjectName("ChipModified" if over else "Chip")
+        self.l_sp.setToolTip(("More skill points than the level grants: the passives and "
+                              "rotation could not all be learned at these ranks") if over else
+                             f"Passives, learned actives and the rotation; {have - spent:,} "
+                             "unspent")
+        self.l_sp.style().unpolish(self.l_sp)
+        self.l_sp.style().polish(self.l_sp)
         self.l_points.style().unpolish(self.l_points)
         self.l_points.style().polish(self.l_points)
 
@@ -824,6 +853,9 @@ class CombatEditor(EditorBase):
         if not row:
             return
         b = self._gather()
+        # the rank the build has learned, else the top rank
+        first = self.gd.sk(row, 1) or row
+        row = next((r for r in b.skills if (self.gd.sk(r, 1) or r) == first), row)
         b.rotation.append(row)
         self.doc.set_data(b.to_json(), "Add to rotation", merge=False)
 
@@ -887,7 +919,7 @@ class CombatEditor(EditorBase):
         b = self._gather()
         nb = make_build(self.gd, b.job, b.level, b.female, gear)
         nb.name = b.name
-        nb.buffs, nb.potions, nb.rotation = b.buffs, b.potions, b.rotation
+        nb.buffs, nb.potions = b.buffs, b.potions
         self.doc.set_data(nb.to_json(), f"Auto-build ({gear})", merge=False)
 
     def _auto_stats(self):

@@ -622,6 +622,8 @@ each of which was wrong in someone's head:
   clip from `TYPE_MOTION[8][WEAPON_MOTION_TYPE]` -> `FILE_MOTION`. Damage lands when the
   swing *starts*, times the clip's attack-event frames. Skills pay MP at cast start and
   land on frame 0 of the action motion; cooldown is `RELOAD*200-100` ms from the cast.
+  Any two skills are at least **1 s** apart: the server's `SKILL_DELAY_TIME` is 500 ms but
+  the client's `CSkillCommandDelay` will not send a skill within 1000 ms of the last.
 - **MP cost is deducted by the server** (`Skill_UseAbilityValue`); INT does not reduce it,
   only `AT_SAVE_MP` items and the Save-MP passive.
 - **The second passive range** (`AT_PSV_RES/HIT/CRITICAL/AVOID/SHIELD_DEF`, 98-103) was

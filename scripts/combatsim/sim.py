@@ -22,7 +22,9 @@ ASSUMPTIONS = [
     "previous object loop took).",
     "Buffs are kept up for the whole fight (cast before the pull, refreshed between "
     "fights). Debuffs and damage skills are cast in the rotation's priority order "
-    "whenever they are off cooldown and affordable; a debuff is recast once it drops.",
+    "whenever they are off cooldown and affordable, at least 1 s apart (the client's "
+    "skill delay) and after the build's 'auto-attacks between skills'; a debuff is "
+    "recast once it drops.",
     "The player stands while fighting (standing regen) and is never mounted.",
     "Equipment is at full durability with life > 0; a gem/option on an item counts "
     "(the server needs it appraised or socketed).",

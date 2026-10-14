@@ -22,7 +22,10 @@ from .data import AT, ING
 
 TICK_MS = 100                 # gs_threadzone.cpp: _FRAME_PER_SECOND 10
 RECOVERY_MS = 2000            # GameStaticConfig::RECOVERY_RATE_TIME
-SKILL_DELAY_MS = 500          # gs_user.cpp SKILL_DELAY_TIME (any two casts)
+# Any two skills: the server refuses a cast within SKILL_DELAY_TIME (gs_user.cpp, 500 ms)
+# of the last, and the client will not even send one within 1000 ms of the last request
+# (CSkillCommandDelay::m_dwCastingTimeDelay, skillcommanddelay.cpp) -- the client wins.
+SKILL_DELAY_MS = max(500, 1000)
 POTION_DELAY_MS = 500         # client useitemdelay.h (the server enforces none)
 SELF_TYPES = (8, 10, 12)      # SKILL_TYPE_08/10/12: stat/status change on the caster
 
@@ -279,6 +282,8 @@ class Fight:
         self.p_pending = None     # skill being cast
         self.last_cast = {}       # skill row -> accept time
         self.last_any_cast = -10 ** 9
+        self.spacing = sim.build.skill_spacing
+        self.swings_since_skill = self.spacing  # the opener may be a skill
         self.regen_acc = 0
         self.last_potion = {"hp": -10 ** 9, "mp": -10 ** 9}
         self.potion_run = {}      # "hp"/"mp" -> dict(total, acc_value, tot_time, acc_time, stb)
@@ -324,20 +329,28 @@ class Fight:
         if self.p_state == "cast":
             self._skill_action(self.p_pending)
             return
+        # Build.skill_spacing: this many normal swings between two skills (if it can swing)
+        if self.swings_since_skill < self.spacing and self._can_swing():
+            self._player_swing()
+            return
         for sk in self.sim.rotation:
             if self._skill_ready(sk):
                 self._skill_start(sk)
                 return
         self._player_swing()
 
+    def _can_swing(self):
+        mot = self.sim.p_attack_motion
+        return (mot is not None and mot.attack_frames
+                and (self.sim.stats.shot is None or self.sim.build.ammo))
+
     def _player_swing(self):
         mot = self.sim.p_attack_motion
         self.p_state = "attack"
         self.pa.set_motion(mot, self.p.total_aspd / 100.0)
-        if mot is None or not mot.attack_frames:
+        if not self._can_swing():
             return
-        if self.sim.stats.shot is not None and not self.sim.build.ammo:
-            return
+        self.swings_since_skill += 1
         lg = self.log
         lg.p_swings += 1
         lg.p_swing_t[1:] = [self.t]
@@ -357,6 +370,7 @@ class Fight:
         """Do_SKILL first half: pay, then cast motion (or straight to the action)."""
         self.last_cast[sk.row] = self.t
         self.last_any_cast = self.t
+        self.swings_since_skill = 0
         cost = self.cost[sk.row]
         self.p.mp -= cost
         self.p.hp -= sk.hp_cost()
