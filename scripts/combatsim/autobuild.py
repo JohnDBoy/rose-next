@@ -19,8 +19,14 @@ SPAM_JOBS = (211, 221, 222)
 SKILL_SPACING = 1
 # classes played with their summons out: the auto-build learns the summon skills and the
 # capacity passive, and fills the summon bar (user guidance, 2026-10-14: a Bourgeois mixes
-# summons and attacking skills)
-SUMMONER_JOBS = (421,)
+# summons and attacking skills; a Scout gets the hawk among its attacks). `skills`: the
+# summon skills' first ranks (None = all of the class's); `priority`: bought before the
+# other actives, like the own weapon mastery among passives.
+SUMMONERS = {
+    421: dict(skills=None, priority=False),          # Bourgeois: all three, mixed in
+    322: dict(skills=(1711,), priority=False),       # Scout: Call Hawk (not Iron Skin)
+}
+SUMMONER_JOBS = tuple(SUMMONERS)
 AT_PSV_SUMMON_MOB_CNT = 62
 MELEE_JOBS = (111, 121, 122, 311, 321)
 
@@ -326,7 +332,7 @@ def _passive_fits(sk, wtype, summons=False):
     return False
 
 
-def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summons=False):
+def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summons=None):
     """The skill rows a typical player has learned: the server's points for `level`,
     one rank at a time, keeping passives near `share` of the points spent and buying
     the cheapest next rank in each kind -- so several skills climb together instead of
@@ -335,9 +341,9 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summon
     other passives. Ranks respect the server's prerequisites (Skill_
     CheckLearnedSKILL, cols 39-44) and ability requirements (cols 45-48: level, stats).
     Skips weapon masteries for other weapons, actives the weapon cannot use, crafting,
-    trade and other non-combat skills, heals, summons (unless `summons`: then the summon
-    skills count as actives and the summon capacity passive as useful), and skills no
-    rank of which costs points (not learned with points)."""
+    trade and other non-combat skills, heals, summons (unless `summons`, a SUMMONERS entry:
+    then its summon skills count as actives -- bought first when it says `priority` -- and
+    the summon capacity passive as useful), and skills no rank of which costs points."""
     sk_ = gd.sk
     groups = class_skills(gd, job)
     want = {}
@@ -347,11 +353,14 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summon
             continue
         sk = gd.skill(top)
         if sk.is_passive():
-            if any(f or rt for _, f, rt in sk.ability) and _passive_fits(sk, wtype, summons):
+            if any(f or rt for _, f, rt in sk.ability) and _passive_fits(sk, wtype,
+                                                                         bool(summons)):
                 want[first] = ("passive", ranks)
         elif sk.is_damage() and sk.power <= 0:
             continue                    # no SKILL_POWER: Double Scratch, never used
-        elif sk.type not in NON_COMBAT_TYPES or (summons and sk.type == 14):
+        elif sk.type not in NON_COMBAT_TYPES or (
+                summons and sk.type == 14
+                and (summons["skills"] is None or first in summons["skills"])):
             need = [w for w in sk.need_weapon if w]
             if not need or wtype in need or wtype // 10 in need:
                 want[first] = ("active", ranks)
@@ -373,6 +382,8 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summon
                 todo.append(g)
     core = {g for g, (kind, ranks) in want.items()
             if kind == "passive" and _own_mastery(gd.skill(ranks[-1]), wtype)}
+    if summons and summons["priority"]:
+        core |= {g for g in summons["skills"] or () if g in want}
     todo = list(core)
     while todo:
         for g in prereqs(todo.pop()):
@@ -441,12 +452,13 @@ def auto_rotation(gd, rows):
     return [r for _, r in sorted(debuffs)] + [r for _, r in sorted(damage)]
 
 
-def fill_summons(gd, b):
+def fill_summons(gd, b, allowed=None):
     """The summon bar a summoner keeps full: the learned summon skills, the one taking the
     most capacity (the strongest) first, one of each in turn until none fits
     (CUserDATA::GetMax_SummonCNT vs NPC_NEED_SUMMON_CNT, LIST_NPC col 21)."""
     npc = gd.stb("LIST_NPC")
-    kinds = sorted((r for r in b.skills if gd.sk(r, 5) == 14 and gd.sk(r, 28) > 0),
+    kinds = sorted((r for r in b.skills if gd.sk(r, 5) == 14 and gd.sk(r, 28) > 0
+                    and (allowed is None or (gd.sk(r, 1) or r) in allowed)),
                    key=lambda r: -npc.i(gd.sk(r, 28), 21))
     cap = StatBlock(gd, b).summon_capacity
     out, used, added = [], 0, True
@@ -514,11 +526,11 @@ def make_build(gd, job, level, female=False, gear="best"):
     for slot, it in b.equip.items():
         if it.id:
             it.grade = wg if slot == "weapon" else ag
-    summoner = job in SUMMONER_JOBS
+    summoner = SUMMONERS.get(job)
     b.skills, spent, left = spend_skill_points(gd, job, level, gd.weapon_type(w) if w else 0,
                                                b.stats, summons=summoner)
     if summoner:
-        b.summons = fill_summons(gd, b)
+        b.summons = fill_summons(gd, b, summoner["skills"])
     b.rotation = auto_rotation(gd, b.skills)
     b.skill_spacing = 0 if job in SPAM_JOBS else SKILL_SPACING
     sp = (f"{spent['passive'] + spent['active']} skill points (passives {spent['passive']}, "
