@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboB
 
 from combatsim import ASSUMPTIONS, GameData
 from combatsim import catalog as C
-from combatsim.autobuild import PROFILES, make_build
+from combatsim.autobuild import PROFILES, con_floor, make_build
 from combatsim.data import JOBS, SHOT_BY_WEAPON
 from combatsim.player import BASE_STATS, STAT_KEYS, auto_stats, total_bonus_points
 
@@ -878,7 +878,7 @@ class CombatEditor(EditorBase):
 
     def _auto_stats(self):
         b = self._gather()
-        b.stats = auto_stats(b.level, PROFILES.get(b.job, PROFILES[111])["w"])
+        b.stats = auto_stats(b.level, PROFILES.get(b.job, PROFILES[111])["w"], con_floor(b.job))
         self.doc.set_data(b.to_json(), "Spend stat points", merge=False)
 
     # ------------------------------------------------------------------ monster / running

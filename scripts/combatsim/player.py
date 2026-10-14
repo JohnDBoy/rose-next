@@ -56,10 +56,16 @@ def stat_point_cost(base, target):
     return sum(int(v * 0.2) for v in range(base, target))
 
 
-def auto_stats(level, weights):
-    """Spend a level's bonus points across stats in proportion to `weights`."""
+def auto_stats(level, weights, con_floor=0.0):
+    """Spend a level's bonus points: CON up to `con_floor` x level first (players run CON
+    about equal to their level, or 20-30% less -- more for melee), then the rest across
+    stats in proportion to `weights`."""
     st = dict(BASE_STATS)
     bp = total_bonus_points(level)
+    target = min(MAX_STAT, int(level * con_floor))
+    while st["CON"] < target and int(st["CON"] * 0.2) <= bp:
+        bp -= int(st["CON"] * 0.2)
+        st["CON"] += 1
     order = [k for k in STAT_KEYS if weights.get(k, 0) > 0]
     tot = sum(weights[k] for k in order) or 1
     while bp > 0 and order:

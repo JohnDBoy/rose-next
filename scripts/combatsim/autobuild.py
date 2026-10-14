@@ -8,10 +8,15 @@ from .data import AT, JOBS, SLOTS
 from .player import Build, auto_stats
 
 # stat weights and usable weapon types per job (the old balance-sim profiles)
+# CON as a share of level, spent before the weights: ROSE players run CON about equal to
+# their level or 20-30% less, melee nearer the top of that range
+MELEE_CON, OTHER_CON = 0.9, 0.75
+MELEE_JOBS = (111, 121, 122, 311, 321)
+
 PROFILES = {
-    111: dict(w=dict(STR=5, CON=3, DEX=2), wt=(211, 212)),
-    121: dict(w=dict(STR=5, CON=3, DEX=1, SENSE=1), wt=(211, 212), shield=True),
-    122: dict(w=dict(STR=5, CON=3, SENSE=2), wt=(221, 222, 223)),
+    111: dict(w=dict(STR=5, DEX=2), wt=(211, 212)),
+    121: dict(w=dict(STR=5, DEX=1, SENSE=1), wt=(211, 212), shield=True),
+    122: dict(w=dict(STR=5, SENSE=2), wt=(221, 222, 223)),
     211: dict(w=dict(INT=5, SENSE=3, CON=2), wt=(242, 241)),
     221: dict(w=dict(INT=5, SENSE=3, CON=2), wt=(242, 241)),
     222: dict(w=dict(INT=5, CHARM=2, CON=3), wt=(241, 242)),
@@ -133,11 +138,15 @@ def class_skills(gd, job):
     return groups
 
 
+def con_floor(job):
+    return MELEE_CON if job in MELEE_JOBS else OTHER_CON
+
+
 def make_build(gd, job, level, female=False):
     prof = PROFILES.get(job, PROFILES[111])
     b = Build(dict(name=f"{JOBS.get(job, job)} {level} (auto)", job=job, level=level,
                    female=female))
-    b.stats = auto_stats(level, prof["w"])
+    b.stats = auto_stats(level, prof["w"], con_floor(job))
     w = best_weapon(gd, level, prof["wt"], job)
     b.equip["weapon"].id = w
     for slot in ("cap", "body", "arms", "foot", "back"):
