@@ -28,6 +28,16 @@
       "account": "simtest@local",
       "character": "SimScout",
       "play": "Bow auto-attacks only, standing still at range. No skills, no buffs, no potions."
+    },
+    {
+      "id": 4,
+      "title": "Artisan gun: Weapon Research's critical (passive fix, 2026-10-14)",
+      "build": "builds/test-artisan-150.json",
+      "mob": 2684,
+      "account": "simtest@local",
+      "character": "SimArtisan",
+      "play": "Gun auto-attacks only, 6-8 kills. No skills, no buffs, no potions.",
+      "note": "Crit share of landed hits: ~89% with the server fix, ~76% on the old server (the second passive range was wiped). Needs the rebuilt sho_gameserver and LIST_SKILL from rebalance-artisan.py --profile gunsmith-v2."
     }
   ]
 }

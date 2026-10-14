@@ -494,9 +494,8 @@ class CombatEditor(EditorBase):
         self.e_n.valueChanged.connect(lambda: self.queue_run())
         bl.addWidget(self.e_n)
         self.e_fix = QCheckBox("Fix passive bugs")
-        self.e_fix.setToolTip("Show what the passives were meant to give: the server wipes "
-                              "PSV_RES/HIT/CRITICAL/AVOID/SHIELD_DEF and loses % stat "
-                              "passives at login")
+        self.e_fix.setToolTip("Show what the passives were meant to give: the server loses "
+                              "% STR..SEN passives at login (no skill uses one today)")
         self.e_fix.toggled.connect(lambda: self.queue_run(immediate=True))
         bl.addWidget(self.e_fix)
         self.e_auto = QCheckBox("Auto-run")

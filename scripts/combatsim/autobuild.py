@@ -100,8 +100,13 @@ def best_armor(gd, itype, level, only_type=None, job=None):
 def best_ammo(gd, shot, level):
     s = gd.stb("LIST_NATURAL")
     want = AMMO_TYPES.get(shot)
+    eff = gd.stb("LIST_EFFECT")
+    # NATURAL_BULLET_NO (col 17) is a LIST_EFFECT row whose col 11 is the projectile
+    # (EFFECT_BULLET_NORMAL); Nova/Vortex Bullet and Molten Shell name empty rows and
+    # fly invisible, so skip ammo without one
     c = [(s.i(r, 8), r) for r in range(1, s.rows)
-         if s.i(r, 4) == want and gd.item_req_level(12, r) <= level]
+         if s.i(r, 4) == want and gd.item_req_level(12, r) <= level
+         and eff.i(s.i(r, 17), 11)]
     return max(c)[1] if c else 0
 
 

@@ -35,9 +35,10 @@ shared with live server ATK, ASPD, movement, DEF, RES and carrying-capacity path
 Preserve these existing gameplay details when changing the formulas:
 
 - Mounted DEF/RES still include ordinary armour. Mounting replaces most ordinary
-  equipment bonuses, but retains its weight bonus and the first passive range.
-- The server's `Cal_BattleAbility` clears the second passive range. The preview
-  follows that behavior rather than rebuilding a different set from skill tables.
+  equipment bonuses, but retains its weight bonus and both passive ranges.
+- The server's `Cal_BattleAbility` used to clear the second passive range
+  (`AT_PSV_RES`..`AT_PSV_IMMUNITY`); since 2026-10-14 it keeps it, and the preview
+  reads those passives too rather than rebuilding them from skill tables.
 - Integer conversions include intermediate **short** stores. Do not replace the
   float expressions or move casts when extracting additional formulas.
 - `classUSER::UpdateAbility` calculates speed twice; its final fairy movement

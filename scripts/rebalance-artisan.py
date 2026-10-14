@@ -1,7 +1,30 @@
 """Give the Artisan something to do in a fight: speed and critical hits.
 
-    python scripts/rebalance-artisan.py --profile gunsmith
+    python scripts/rebalance-artisan.py --profile gunsmith-v2   (current)
+    python scripts/rebalance-artisan.py --profile gunsmith      (the first cut)
     python scripts/rebalance-artisan.py --restore
+
+2026-10-14: the critical never worked, and v2 retunes it
+--------------------------------------------------------
+Until 2026-10-14 the server's `CUserDATA::Cal_BattleAbility` zeroed the whole
+second passive range (`AT_PSV_RES`..`AT_PSV_IMMUNITY`, 98-103) on every stat
+recompute, so Weapon Research's `AT_PSV_CRITICAL` was dead on the server -- while
+the client, whose `Cal_BattleAbility` re-runs `InitPassiveSkill`, showed the bonus
+in the character window. The combat simulator found it (scripts/combatsim); the
+server now keeps that range like the first one.
+
+With the crit live, `gunsmith`'s +5..20% is too much. Measured on auto-built
+Artisans (scripts/combatsim/autobuild.py) with the server's own crit roll:
+
+    level        100    140    180    200    220
+    no passive   48%    74%    65%    69%   100%
+    +10% (v2)    54%    84%    75%    80%   100%
+    +20%         60%    95%    86%    92%   100%
+
++20% put levels 140-200 at 86-95%, a near-certain crit. v2 tops out at +10%: worth
+5-11 points through the levelling range and still short of the ceiling. Endgame
+gear already carries the class to 100% by 220 without any passive, so no value
+of this passive matters at cap.
 
 Same machinery as the other class passes: the sidecar holds the *vanilla* values
 plus the active profile name, so applying is idempotent and --restore always
@@ -32,7 +55,7 @@ rank). So a combat bonus can be *added* to the ranks the Artisan exclusively
 owns without touching what is already there:
 
     Craft Mastery    r6+   keeps MaxMP%,  adds  +6..20%  gun attack speed
-    Weapon Research  r11+  keeps CON,     adds  +5..20%  critical
+    Weapon Research  r11+  keeps CON,     adds  +3..10%  critical  (+5..20% in gunsmith)
 
 Both are back-loaded past their own class gates (`SKILL_AVAILBLE_CLASS_SET` is
 declared per rank -- see the note below), so the shared lower ranks are untouched
@@ -168,6 +191,12 @@ PROFILES = {
         # Artisan-exclusive from rank 11: critical, as a rate so it grows with
         # the SENSE this class already wants.
         2111: gated(AT_PSV_CRITICAL, lin(5, 20, 10), shared=10, total=20),
+    },
+    "gunsmith-v2": {
+        # As gunsmith, with Weapon Research's critical cut to +3..10% once the server
+        # actually applied it (see "2026-10-14" in the docstring).
+        2081: gated(AT_PSV_ATK_SPD_GUN, lin(6, 20, 5), shared=5, total=10),
+        2111: gated(AT_PSV_CRITICAL, lin(3, 10, 10), shared=10, total=20),
     },
 }
 

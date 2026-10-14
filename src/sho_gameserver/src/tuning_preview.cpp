@@ -47,7 +47,8 @@ classUSER::mounted_stats_input() {
     int bonuses[AT_MAX];
     std::copy(m_iAddValue, m_iAddValue + AT_MAX, bonuses);
     std::fill(bonuses, bonuses + AT_MONEY, 0);
-    std::fill(bonuses + AT_AFTER_PASSIVE_SKILL, bonuses + AT_MAX, 0);
+    std::fill(bonuses + AT_AFTER_PASSIVE_SKILL, bonuses + AT_PSV_RES, 0);
+    std::fill(bonuses + AT_AFTER_PASSIVE_SKILL_2ND, bonuses + AT_MAX, 0);
     accumulate_equipment_bonuses(m_Inventory.m_ItemEQUIP, parts, GetCur_UNION(), bonuses, true);
     in.level = GetCur_LEVEL();
     in.str = GetDef_STR() + bonuses[AT_STR] + m_PassiveAbilityFromRate[AT_STR - AT_STR];
@@ -60,9 +61,9 @@ classUSER::mounted_stats_input() {
     in.bonus_attack_speed = bonuses[AT_ATK_SPD];
     in.passive_def = bonuses[AT_PSV_DEF_POW];
     in.passive_res = bonuses[AT_PSV_RES];
-    // The second passive range is cleared by the server's Cal_BattleAbility.
-    in.passive_def_rate = AT_PSV_DEF_POW < AT_AFTER_PASSIVE_SKILL ? m_nPassiveRate[AT_PSV_DEF_POW] : 0;
-    in.passive_res_rate = AT_PSV_RES < AT_AFTER_PASSIVE_SKILL ? m_nPassiveRate[AT_PSV_RES] : 0;
+    // Both passive ranges survive Cal_BattleAbility (the second one only since 2026-10-14).
+    in.passive_def_rate = m_nPassiveRate[AT_PSV_DEF_POW];
+    in.passive_res_rate = m_nPassiveRate[AT_PSV_RES];
     for (int i = EQUIP_IDX_NULL + 1; i < MAX_EQUIP_IDX; ++i) {
         tagITEM item = m_Inventory.m_ItemEQUIP[i];
         if (!item.GetTYPE() || !item.GetLife())
@@ -85,7 +86,7 @@ classUSER::mounted_stats_input() {
     tagITEM shield = m_Inventory.m_ItemEQUIP[EQUIP_IDX_WEAPON_L];
     if (shield.GetHEADER() && shield.GetLife() && ITEM_TYPE(shield.GetTYPE(), shield.GetItemNO()) == 261) {
         in.shield_def = bonuses[AT_PSV_SHIELD_DEF];
-        in.shield_def_rate = AT_PSV_SHIELD_DEF < AT_AFTER_PASSIVE_SKILL ? m_nPassiveRate[AT_PSV_SHIELD_DEF] : 0;
+        in.shield_def_rate = m_nPassiveRate[AT_PSV_SHIELD_DEF];
     }
     in.base_overweight = Get_WeightRATE() >= WEIGHT_RATE_WALK;
     in.overweight = in.base_overweight;

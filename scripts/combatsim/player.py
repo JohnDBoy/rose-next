@@ -10,12 +10,12 @@ Ports (all server build, on foot -- mounted characters are out of scope):
 
 The steady state modelled is a character **after a login**: InitPassiveSkill has
 run, then Cal_BattleAbility, which is what every later stat recompute repeats.
-Two server bugs follow from that order, and the simulator reproduces them by
-default (`fix_passive_bugs=True` shows the intended numbers instead):
-  * the second passive range (AT_PSV_RES/HIT/CRITICAL/AVOID/SHIELD_DEF, 98..103)
-    is zeroed by Cal_BattleAbility, so those passives give nothing;
-  * percentage STR..SENSE passives are only computed in Skill_LEARN, so after a
-    login they give nothing either.
+One server bug follows from that order and the simulator reproduces it by default
+(`fix_passive_bugs=True` shows the intended numbers instead): percentage STR..SENSE
+passives are only computed in Skill_LEARN, so after a login they give nothing. No
+skill in the data uses one (2026-10-14). The other one -- Cal_BattleAbility zeroing
+the second passive range (AT_PSV_RES/HIT/CRITICAL/AVOID/SHIELD_DEF) -- was fixed
+on the server on 2026-10-14 and is no longer modelled.
 """
 import json
 
@@ -189,16 +189,8 @@ class StatBlock:
                         psv_rate[ab] += rate
                     else:
                         psv_add[ab] += flat
-        # Cal_BattleAbility zeroes [0, AT_MONEY) and [AT_AFTER_PASSIVE_SKILL, AT_MAX)
-        wiped = [i for i in range(AT["PSV_RES"], AT["AFTER_PASSIVE_SKILL_2ND"])
-                 if psv_add[i] or psv_rate[i]]
-        if wiped and not self.fix:
-            from .data import AT_NAME
-            self.notes.append("dead passive (server bug, second range wiped): "
-                              + ", ".join(f"{AT_NAME.get(i, i)} {psv_add[i]:+d}/"
-                                          f"{psv_rate[i]:+d}%" for i in wiped))
-            for i in wiped:
-                psv_add[i] = psv_rate[i] = 0
+        # Cal_BattleAbility keeps both passive ranges; it zeroed the second one
+        # (AT_PSV_RES..AT_PSV_IMMUNITY) until 2026-10-14, which killed Weapon Research's crit.
         if any(stat_rates.values()) and not self.fix:
             self.notes.append("dead passive (server bug, % stat passives lost at login): "
                               + ", ".join(f"{k} +{v}%" for k, v in stat_rates.items() if v))

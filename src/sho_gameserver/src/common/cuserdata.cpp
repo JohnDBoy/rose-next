@@ -198,13 +198,23 @@ CUserDATA::Cal_BattleAbility() {
 
     ::ZeroMemory(this->m_iAddValue, sizeof(int) * AT_MONEY);
     // ÆÐ½Ãºê º¸Á¤¿µ¿ª Á¦¿Ü..
+    // Skip the second passive range (AT_PSV_RES..AT_PSV_IMMUNITY) as well as the
+    // first: InitPassiveSkill fills both once at login and Skill_LEARN adds to them,
+    // so clearing it here -- as this did until 2026-10-14 -- killed those passives on
+    // every recompute (Weapon Research's crit). The client never lost them: its
+    // Cal_BattleAbility re-runs InitPassiveSkill, so it showed a crit the server
+    // did not apply.
     ::ZeroMemory(&this->m_iAddValue[AT_AFTER_PASSIVE_SKILL],
-        sizeof(int) * (AT_MAX - AT_AFTER_PASSIVE_SKILL));
+        sizeof(int) * (AT_PSV_RES - AT_AFTER_PASSIVE_SKILL));
+    ::ZeroMemory(&this->m_iAddValue[AT_AFTER_PASSIVE_SKILL_2ND],
+        sizeof(int) * (AT_MAX - AT_AFTER_PASSIVE_SKILL_2ND));
 
     ::ZeroMemory(this->m_nPassiveRate, sizeof(short) * AT_MONEY);
     // ÆÐ½Ãºê º¸Á¤¿µ¿ª Á¦¿Ü..
     ::ZeroMemory(&this->m_nPassiveRate[AT_AFTER_PASSIVE_SKILL],
-        sizeof(short) * (AT_MAX - AT_AFTER_PASSIVE_SKILL));
+        sizeof(short) * (AT_PSV_RES - AT_AFTER_PASSIVE_SKILL));
+    ::ZeroMemory(&this->m_nPassiveRate[AT_AFTER_PASSIVE_SKILL_2ND],
+        sizeof(short) * (AT_MAX - AT_AFTER_PASSIVE_SKILL_2ND));
 
     // ¾ÆÀÌÅÛ¿¡ ºÙÀº Ãß°¡ ´É·ÂÄ¡ °è»ê
     Cal_AddAbility(); // Ç×»ó ¾Õ¼­µµ·Ï !!!

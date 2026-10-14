@@ -622,10 +622,12 @@ each of which was wrong in someone's head:
   land on frame 0 of the action motion; cooldown is `RELOAD*200-100` ms from the cast.
 - **MP cost is deducted by the server** (`Skill_UseAbilityValue`); INT does not reduce it,
   only `AT_SAVE_MP` items and the Save-MP passive.
-- **Two passive families do nothing after a login**: `Cal_BattleAbility` zeroes the second
-  passive range (`AT_PSV_RES/HIT/CRITICAL/AVOID/SHIELD_DEF`, 98-103 -- Weapon Research's
-  crit), and percentage STR..SEN passives are only computed in `Skill_LEARN`. The sim
-  reproduces this; `--fix-passive-bugs` shows the intended numbers.
+- **The second passive range** (`AT_PSV_RES/HIT/CRITICAL/AVOID/SHIELD_DEF`, 98-103) was
+  zeroed by the server's `Cal_BattleAbility` on every recompute until 2026-10-14, so
+  Weapon Research's crit never applied -- while the client, whose `Cal_BattleAbility`
+  re-runs `InitPassiveSkill`, showed it. Percentage STR..SEN passives are still only
+  computed in `Skill_LEARN` (lost at login); no skill uses one, and the sim's
+  `--fix-passive-bugs` shows what they would give.
 - **A debuff's percentage is off the monster's *current* stat** (`CObjMOB` has no
   `Get_BaseAbilityValue`), so recasting an active debuff usually fails `IsEnableApplay`.
   Harmful states roll `SUCCESS*(LV*2+INT+20)/(RES*0.6+5+AVOID) > 1+rand(100)`.
@@ -647,7 +649,9 @@ server hands a dead monster's object id to the next spawn (a kill closes a fight
 `GSV_TARGET_SKILL` lines use server ids while damage, `projectile impact` and
 `SkillStatusTrace client effect` (success_bits = which state slots landed) use client ids.
 First run (2026-10-14, Champion/Mage/Scout, 16 kills): every damage, land, crit, swing
-and skill measure within noise of the sim.
+and skill measure within noise of the sim. Scenario 4 (SimArtisan, Weapon Research rank
+20) confirmed the passive-range fix: 94% of landed hits crit, against 89% predicted and
+76% for the old server.
 The GUI runs the engine in `combatsim/worker.py` (a process, not a thread: pure Python
 holds the GIL); `Report.summary()` is what crosses the pipe.
 
