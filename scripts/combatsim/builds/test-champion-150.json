@@ -1,0 +1,64 @@
+{
+  "name": "SimChampion 150",
+  "job": 122,
+  "level": 150,
+  "female": false,
+  "union": 0,
+  "stats": {
+    "STR": 262,
+    "DEX": 15,
+    "INT": 15,
+    "CON": 164,
+    "CHARM": 10,
+    "SENSE": 109
+  },
+  "equip": {
+    "cap": {
+      "id": 442,
+      "durability": 53
+    },
+    "body": {
+      "id": 38,
+      "grade": 4,
+      "durability": 64
+    },
+    "back": {
+      "id": 71,
+      "durability": 60
+    },
+    "arms": {
+      "id": 342,
+      "durability": 64
+    },
+    "foot": {
+      "id": 342,
+      "durability": 67
+    },
+    "weapon": {
+      "id": 624,
+      "grade": 7,
+      "gem": 364,
+      "durability": 70
+    }
+  },
+  "ammo": 0,
+  "skills": [
+    210,
+    230,
+    250,
+    270,
+    280,
+    290,
+    300
+  ],
+  "rotation": [],
+  "buffs": [],
+  "potions": {
+    "enabled": false,
+    "hp": 0,
+    "hp_below": 50,
+    "mp": 0,
+    "mp_below": 30
+  },
+  "notes": "Test scenario 1 (vs Hellhound, NPC 2684): auto-attacks only, no skills, no buffs. Weapon +7 with Diamond [4] (ATK +25), body +4."
+}

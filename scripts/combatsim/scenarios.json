@@ -1,0 +1,33 @@
+{
+  "about": "In-game checks of the combat simulator: each scenario is a build seeded as a GM character (combat-sim.py seed-scenarios) and a monster spawned with /mon <row> 1. The monsters were picked because their AI casts no skill and summons nothing while fighting (death-only summons are fine), so a normal-attack-only sim describes the whole fight.",
+  "scenarios": [
+    {
+      "id": 1,
+      "title": "Champion melee: normal attacks, refine and gem",
+      "build": "builds/test-champion-150.json",
+      "mob": 2684,
+      "account": "simtest@local",
+      "character": "SimChampion",
+      "play": "Auto-attack only. No skills, no buffs, no potions. Let the monster hit you."
+    },
+    {
+      "id": 2,
+      "title": "Mage skills and debuffs (Mild)",
+      "build": "builds/test-mage-180.json",
+      "mob": 1561,
+      "account": "simtest@local",
+      "character": "SimMage",
+      "play": "Cast Power Support and Hit Support on yourself before each pull (hotbar 5-6). Open with Mild, then Lightning Shock, Freezing Bolt, Magma Burn whenever each is ready (hotbar 1-4); auto-attack in between.",
+      "note": "Was 562 Sikuku Elite Fighter, which dies on spawn (an AI summon). 1561 Sikuku Gargoyle Hunter casts skill 3549 from its 'damaged' pattern; in the 2026-10-14 run it fired once and was interrupted by a stun, dealing nothing."
+    },
+    {
+      "id": 3,
+      "title": "Scout bow vs a magic caster",
+      "build": "builds/test-scout-120.json",
+      "mob": 384,
+      "account": "simtest@local",
+      "character": "SimScout",
+      "play": "Bow auto-attacks only, standing still at range. No skills, no buffs, no potions."
+    }
+  ]
+}

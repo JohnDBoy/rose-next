@@ -56,6 +56,20 @@ instead (anything that holds `3DDATA`).
 - **Command palette.** Ctrl+P opens a file; Ctrl+Shift+P (or a leading `>`)
   runs any menu command.
 - **Themes.** Dark and light.
+- **Combat Simulator.** **Tools > New Combat Build** (pick a class and level) or
+  **Open Combat Build** opens a character build from `scripts/combatsim/builds/`
+  as a tab. The left side edits the build: stats with a bonus-point counter,
+  every equipment slot with its refine grade and gem or option, ammo, passive
+  ranks, a rotation of damage skills and debuffs in priority order, buffs kept up
+  (with the caster's INT for party buffs; Cleric buffs are left out), and
+  potions (off by default). The right side picks a monster and shows how the
+  fight goes over a few hundred simulated fights: win rate, time to kill, how
+  long the character survives against an unkillable copy of the monster, HP and
+  MP left, damage dealt and taken per second, both stat blocks, per-skill
+  numbers and debuff uptime. **Fix passive bugs** shows what the passives were
+  meant to give. Runs happen on a worker thread and repeat after each edit
+  (**Auto-run**). The engine is `scripts/combatsim` (also a command-line tool,
+  `scripts/combat-sim.py`); see `scripts/CLAUDE.md` "Combat Simulator".
 
 ## Saving
 
@@ -98,6 +112,7 @@ Rules the studio enforces:
 | `workspace.py` | Scans the data folder, pairs STB and STL files, finds the key column, does reverse lookups. |
 | `grid.py` | The custom-painted grid: cell delegate, two-line column header, named row header, spreadsheet keys. |
 | `stb_editor.py`, `stl_editor.py` | The two editors and their inspectors. |
+| `build_doc.py`, `combat_editor.py` | Combat Simulator: a build JSON as a document (one whole-record undo command per edit) and its tab. `.json` opens here only if it is a build. |
 | `explorer.py`, `palette.py`, `welcome.py`, `widgets.py` | The shell's pieces. |
 | `theme.py`, `icons.py` | Every colour is a token of a `Theme`; the stylesheet and all custom painting read the same tokens. The icons are drawn on a 24-unit grid and tinted at render time. |
 
@@ -110,7 +125,7 @@ To add a format:
 
 ## Known gaps
 
-- Only STB and STL files are supported so far.
+- Only STB and STL files are supported so far (plus combat-simulator builds).
 - The studio does not know what the columns mean beyond their names, so it
   cannot tell you which table a column points into.
 - Find-and-replace across files is not built yet.

@@ -25,3 +25,11 @@ in our 33 STLs decode strictly as UTF-8; write new STL text as UTF-8. **STB cell
 never with one codec per file. Test it headless with
 `QT_QPA_PLATFORM=offscreen` plus `QT_QPA_FONTDIR=C:/Windows/Fonts` (without the font dir
 every glyph is a box) and `widget.grab()`. Details: its README.
+
+**Combat Simulator tab** (`combat_editor.py` over `scripts/combatsim`, 2026-10-14): a
+build JSON is a `BuildDocument` (`.json` opens only if it has job/level/stats); the
+engine runs on a `QThread` and stale results are dropped by a generation counter. A
+headless test must point `QSettings` at a scratch INI (`app.QSettings` and
+`editor_base.QSettings`), or it rewrites the user's session and recent files. Combo boxes
+there take `combo()` (min-contents sizing): a plain `QComboBox` sizes to its longest skill
+description and pushes the form wider than its pane.

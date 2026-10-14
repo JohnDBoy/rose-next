@@ -51,6 +51,8 @@ PATHS = {
     "sort": '<path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M17 20V4M13.5 7.5 17 4l3.5 3.5"/>',
     "link": '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
     "dot": '<circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>',
+    "swords": '<path d="M14.5 17.5 3.5 6.5V3.5h3l11 11M13 19l6-6M16 16l4 4M19 21l2-2"/>'
+              '<path d="M14.5 6.5 17.5 3.5h3v3l-3 3M5 14l4 4M7 17l-3 3M3 19l2 2"/>',
 }
 
 LOGO = ('<path d="M12 21.5v-6.5" stroke-width="1.8"/>'

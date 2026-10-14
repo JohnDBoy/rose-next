@@ -602,6 +602,55 @@ Full measurements and the rest of the balance plan are in
 [doc/balance-analysis.md](../doc/balance-analysis.md); `scripts/balance-sim.py`
 re-derives every number in it against the live STBs.
 
+### Combat Simulator (`scripts/combatsim/`, 2026-10-14)
+
+"How does this build fare against this monster": `python scripts/combat-sim.py run
+BUILD.json --mob <row|name>` (also `stats`, `new --job --level`, `find`, `skills`), or
+**Tools > New/Open Combat Build** in Rose Dev Studio (same JSON files, in
+`scripts/combatsim/builds/`). Monte Carlo over a tick-by-tick port of the zone loop;
+every formula carries its server `file:line`, and what the sim decides itself is printed
+under "Assumptions" with every report. Monster AI skills are not simulated yet (step 2).
+`balance-sim.py` predates it and misses the first bullet below. Facts it is built on,
+each of which was wrong in someone's head:
+
+- **`server.toml [game]` gives every player +70 ATK, +80 HIT, +35 attack speed**
+  (`classUSER::total_*`), monsters nothing. A percentage buff is taken off the stat
+  *without* them (`Get_BaseAbilityValue` -> `stats.*`).
+- **A normal swing lasts one attack motion**: `(frames-1)*1000 / (fps * aspd/100)` ms, the
+  clip from `TYPE_MOTION[8][WEAPON_MOTION_TYPE]` -> `FILE_MOTION`. Damage lands when the
+  swing *starts*, times the clip's attack-event frames. Skills pay MP at cast start and
+  land on frame 0 of the action motion; cooldown is `RELOAD*200-100` ms from the cast.
+- **MP cost is deducted by the server** (`Skill_UseAbilityValue`); INT does not reduce it,
+  only `AT_SAVE_MP` items and the Save-MP passive.
+- **Two passive families do nothing after a login**: `Cal_BattleAbility` zeroes the second
+  passive range (`AT_PSV_RES/HIT/CRITICAL/AVOID/SHIELD_DEF`, 98-103 -- Weapon Research's
+  crit), and percentage STR..SEN passives are only computed in `Skill_LEARN`. The sim
+  reproduces this; `--fix-passive-bugs` shows the intended numbers.
+- **A debuff's percentage is off the monster's *current* stat** (`CObjMOB` has no
+  `Get_BaseAbilityValue`), so recasting an active debuff usually fails `IsEnableApplay`.
+  Harmful states roll `SUCCESS*(LV*2+INT+20)/(RES*0.6+5+AVOID) > 1+rand(100)`.
+- **Potions: the server has no cooldown** (the client's 500 ms is the only one). Health/Mana
+  Vials heal over time through LIST_STATUS; the Vital/Spiritual Waters are instant.
+- Monsters have no HP regen; player regen runs every 2 s and is not paused in combat.
+
+**Checking it in game** (`scripts/combatsim/scenarios.json`): `combat-sim.py
+seed-scenarios --password X [--replace]` writes each test build into the dev DB as a GM
+character (all on account `simtest@local`; the client wants a password of 8+ characters;
+gear/refine/gem/ammo/skills/hotbar exactly as the
+build; `seed` does one build); `scenarios` prints the predictions; `compare-trace
+client-<date>.log --scenario N` reads the client's CombatTrace lines (`[LOG]
+LEVEL=debug`; one-second timestamps, crits unflagged) and flags any measure more than 3
+standard errors off the sim. Test monsters must not cast or summon while fighting: AIP
+action codes are the AIACT number **+1** (`0x19` = 24 use-skill; summons 0x15/0x25/0x26),
+and most field monsters cast a skill from their "damaged" pattern. Reading the log: the
+server hands a dead monster's object id to the next spawn (a kill closes a fight), and
+`GSV_TARGET_SKILL` lines use server ids while damage, `projectile impact` and
+`SkillStatusTrace client effect` (success_bits = which state slots landed) use client ids.
+First run (2026-10-14, Champion/Mage/Scout, 16 kills): every damage, land, crit, swing
+and skill measure within noise of the sim.
+The GUI runs the engine in `combatsim/worker.py` (a process, not a thread: pure Python
+holds the GIL); `Report.summary()` is what crosses the pipe.
+
 ### Monster Balance And The Level Gate
 
 Combat math lives in `src/common/calculation.cpp` (server-only, behind `#ifdef __SERVER`). Two properties dominate how hard content feels, and neither is obvious from the numbers in `LIST_NPC.STB`:

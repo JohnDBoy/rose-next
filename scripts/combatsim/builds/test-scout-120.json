@@ -1,0 +1,58 @@
+{
+  "name": "SimScout 120",
+  "job": 322,
+  "level": 120,
+  "female": false,
+  "union": 0,
+  "stats": {
+    "STR": 15,
+    "DEX": 214,
+    "INT": 15,
+    "CON": 95,
+    "CHARM": 10,
+    "SENSE": 130
+  },
+  "equip": {
+    "cap": {
+      "id": 641,
+      "durability": 60
+    },
+    "body": {
+      "id": 541,
+      "durability": 65
+    },
+    "back": {
+      "id": 938,
+      "durability": 125
+    },
+    "arms": {
+      "id": 541,
+      "durability": 65
+    },
+    "foot": {
+      "id": 541,
+      "durability": 65
+    },
+    "weapon": {
+      "id": 681,
+      "durability": 64
+    }
+  },
+  "ammo": 320,
+  "skills": [
+    1420,
+    1440,
+    1450,
+    1480
+  ],
+  "rotation": [],
+  "buffs": [],
+  "potions": {
+    "enabled": false,
+    "hp": 0,
+    "hp_below": 50,
+    "mp": 0,
+    "mp_below": 30
+  },
+  "notes": "Test scenario 3 (vs Lunar Keeper, NPC 384, a magic ranged attacker): bow auto-attacks only, no skills, no buffs."
+}

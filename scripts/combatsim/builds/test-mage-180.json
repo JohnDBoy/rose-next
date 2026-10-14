@@ -1,0 +1,74 @@
+{
+  "name": "SimMage 180",
+  "job": 221,
+  "level": 180,
+  "female": false,
+  "union": 0,
+  "stats": {
+    "STR": 15,
+    "DEX": 15,
+    "INT": 300,
+    "CON": 145,
+    "CHARM": 10,
+    "SENSE": 200
+  },
+  "equip": {
+    "cap": {
+      "id": 71,
+      "durability": 56
+    },
+    "body": {
+      "id": 71,
+      "durability": 67
+    },
+    "back": {
+      "id": 954,
+      "durability": 45
+    },
+    "arms": {
+      "id": 71,
+      "durability": 46
+    },
+    "foot": {
+      "id": 71,
+      "durability": 79
+    },
+    "weapon": {
+      "id": 1452,
+      "durability": 90
+    }
+  },
+  "ammo": 0,
+  "skills": [
+    820,
+    840,
+    860,
+    870
+  ],
+  "rotation": [
+    1040,
+    960,
+    990,
+    1070
+  ],
+  "buffs": [
+    {
+      "skill": 1030,
+      "caster_int": 0,
+      "caster_level": 0
+    },
+    {
+      "skill": 1230,
+      "caster_int": 0,
+      "caster_level": 0
+    }
+  ],
+  "potions": {
+    "enabled": false,
+    "hp": 0,
+    "hp_below": 50,
+    "mp": 0,
+    "mp_below": 30
+  },
+  "notes": "Test scenario 2 (vs Sikuku Elite Fighter, NPC 562): Power Support + Hit Support on self before each pull; rotation Mild, Lightning Shock, Freezing Bolt, Magma Burn as they come off cooldown, auto-attack in between."
+}

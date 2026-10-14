@@ -85,7 +85,8 @@ src/
 │   │                   # is EUC-KR-only + rejects legacy I_NUM STLs), CJK fonts from Windows; --check
 │   ├── quest-editor/    # CLI + egui wizard: Hunt/Fetch quests + NPC dialog givers (see its PROGRESS.md)
 │   └── dev-studio/      # Python/PyQt6 (not a cargo member): Rose Dev Studio, GUI editor over
-│                       # scripts/rosefmt -- STB + STL so far; `just studio`; see its README.md
+│                       # scripts/rosefmt -- STB + STL so far, plus the combat simulator
+│                       # tab (Tools menu); `just studio`; see its README.md
 ├── rmlui/               # (in client/) RmlUi integration: D3D9 backend, system iface, panels
 ├── lib_util/            # C++ utility library
 └── triggervfs/          # Virtual filesystem
@@ -166,7 +167,8 @@ file before working in that area.
   record), the .vfs size limit, item import (`--art-only --template-row`), monster
   spawns (never sum `limitCNT`), missing NPC/skill rows and AI audits (run
   `audit-spawned-npcs.py` after any import), buffs (percent off the pre-buff stat),
-  monster balance, and lessons from the zone imports. "I can't hit this monster" is
+  monster balance, the combat simulator (`scripts/combat-sim.py`; players get
+  server.toml's +70 ATK/+80 HIT/+35 ASPD), and lessons from the zone imports. "I can't hit this monster" is
   usually the level gate in `Get_SuccessRATE` (`src/common/calculation.cpp`), not
   HIT/AVOID. Before adding a monster, read `doc/making-monsters.md`.
 - **Rose Dev Studio** -- `src/tools/dev-studio/CLAUDE.md` (STL text is UTF-8; STB

@@ -262,6 +262,12 @@ QPushButton#ListItem:hover { background: $bg_hover; color: $text; }
 #Faint { color: $text_faint; }
 #Hint { color: $text_faint; padding: 2px 0; }
 #Card { background: $bg_raised; border: 1px solid $border; border-radius: 8px; }
+#SimTable { background: $bg_editor; alternate-background-color: $bg_alt; border: 1px solid $border; border-radius: 6px; }
+#SimTable QHeaderView::section {
+    background: $bg_raised; color: $text_dim; border: none; border-bottom: 1px solid $border;
+    padding: 5px 10px; font-weight: 600;
+}
+#SimTable::item { padding: 0 10px; }
 QDialog { background: $bg_side; }
 QMessageBox { background: $bg_side; }
 """)

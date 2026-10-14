@@ -1,5 +1,12 @@
 """Replay the server's combat math against the real STB data, to see where balance drifts.
 
+Superseded for single fights by scripts/combat-sim.py (scripts/combatsim/), which
+also models refines, gems, passives, buffs, debuffs, skills, motion timing, regen
+and potions. This harness still answers the level-curve questions, but its player
+model leaves out server.toml's per-player +70 ATK, +80 HIT and +35 attack speed
+(classUSER::total_*) and times swings with a guessed 1.4 s base instead of the
+weapon's attack motion -- read the doc/balance-analysis.md numbers with that in mind.
+
 Why this exists
 ---------------
 `data/` is gitignored, so nothing in the repo records what the numbers actually

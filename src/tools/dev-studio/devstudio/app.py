@@ -12,6 +12,8 @@ from PyQt6.QtWidgets import (QApplication, QFileDialog, QFrame, QHBoxLayout, QLa
                              QTabWidget, QVBoxLayout, QWidget)
 
 from . import icons, theme, widgets
+from .build_doc import BuildDocument
+from .combat_editor import BUILDS_DIR, CombatEditor, game_data, new_build_file
 from .documents import BACKUP_ROOT, ENCODINGS, REPO_ROOT, StbDocument, StlDocument
 from .explorer import Explorer
 from .palette import CommandPalette
@@ -28,6 +30,7 @@ APP_NAME = "Rose Dev Studio"
 EDITORS = {
     ".stb": (StbDocument, StbEditor),
     ".stl": (StlDocument, StlEditor),
+    ".json": (BuildDocument, CombatEditor),   # combat-simulator builds only (checked on open)
 }
 
 
@@ -217,6 +220,11 @@ class MainWindow(QMainWindow):
         self._action(v, "Next Tab", lambda: self._cycle_tab(1), "Ctrl+PgDown")
         self._action(v, "Previous Tab", lambda: self._cycle_tab(-1), "Ctrl+PgUp")
 
+        tm = mb.addMenu("&Tools")
+        self._action(tm, "New Combat Build…", self.new_combat_build, None, "swords")
+        self._action(tm, "Open Combat Build…", self.open_combat_build, None, "folder")
+        self._action(tm, "Show Combat Builds Folder", self.show_combat_builds, None, "folder")
+
         hm = mb.addMenu("&Help")
         self._action(hm, "About Rose Dev Studio", self.about, None, "info")
 
@@ -328,7 +336,12 @@ class MainWindow(QMainWindow):
         self.editors[key] = ed
         self.undo_group.addStack(doc.undo)
         t = theme.current()
-        ic = icons.icon("table", t.match, active=t.match) if doc.kind == "stb" else icons.icon("text", t.success, active=t.success)
+        if doc.kind == "stb":
+            ic = icons.icon("table", t.match, active=t.match)
+        elif doc.kind == "build":
+            ic = icons.icon("swords", t.accent, active=t.accent)
+        else:
+            ic = icons.icon("text", t.success, active=t.success)
         if index is None:
             i = self.tabs.addTab(ed, ic, doc.name)
         else:
@@ -594,6 +607,39 @@ class MainWindow(QMainWindow):
         n = sum(1 for e in self.editors.values() if e.doc.dirty)
         self.st_dirty.setText("%d unsaved" % n if n else "")
         self.a_save.setEnabled(bool(ed and ed.doc.dirty))
+
+    # ================================================================ combat simulator
+    def new_combat_build(self):
+        from PyQt6.QtWidgets import QInputDialog
+        from combatsim.data import JOBS
+        jobs = [(j, n) for j, n in JOBS.items() if j]
+        labels = ["%s  (%d)" % (n, j) for j, n in jobs]
+        pick, ok = QInputDialog.getItem(self, "New Combat Build", "Class", labels, 1, False)
+        if not ok:
+            return
+        job = jobs[labels.index(pick)][0]
+        level, ok = QInputDialog.getInt(self, "New Combat Build", "Level", 100, 1, 240)
+        if not ok:
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            gd = game_data(self.workspace.root if self.workspace else None)
+            path = new_build_file(gd, job, level)
+        finally:
+            QApplication.restoreOverrideCursor()
+        self.open_path(path)
+        self.toast("Build created", "success", os.path.relpath(path, REPO_ROOT))
+
+    def open_combat_build(self):
+        BUILDS_DIR.mkdir(parents=True, exist_ok=True)
+        path, _ = QFileDialog.getOpenFileName(self, "Open Combat Build", str(BUILDS_DIR),
+                                              "Combat builds (*.json)")
+        if path:
+            self.open_path(path)
+
+    def show_combat_builds(self):
+        BUILDS_DIR.mkdir(parents=True, exist_ok=True)
+        os.startfile(str(BUILDS_DIR))
 
     def show_backups(self):
         path = BACKUP_ROOT if BACKUP_ROOT.exists() else BACKUP_ROOT.parent
