@@ -1,0 +1,65 @@
+{
+  "name": "SimKnight 92",
+  "job": 121,
+  "level": 92,
+  "female": false,
+  "union": 0,
+  "stats": {
+    "STR": 184,
+    "DEX": 49,
+    "INT": 15,
+    "CON": 82,
+    "CHARM": 10,
+    "SENSE": 44
+  },
+  "equip": {
+    "cap": {
+      "id": 423,
+      "grade": 1
+    },
+    "body": {
+      "id": 323,
+      "grade": 1
+    },
+    "back": {
+      "id": 748,
+      "grade": 1
+    },
+    "arms": {
+      "id": 323,
+      "grade": 1
+    },
+    "foot": {
+      "id": 323,
+      "grade": 1
+    },
+    "weapon": {
+      "id": 540,
+      "grade": 3
+    },
+    "subwpn": {
+      "id": 335,
+      "grade": 1
+    }
+  },
+  "ammo": 0,
+  "skills": [
+    210,
+    220,
+    250,
+    270,
+    280,
+    290,
+    300
+  ],
+  "rotation": [],
+  "buffs": [],
+  "potions": {
+    "enabled": false,
+    "hp": 0,
+    "hp_below": 50,
+    "mp": 0,
+    "mp_below": 30
+  },
+  "notes": "In-game test build (scenarios.json): auto-attacks only, against a skill-casting monster."
+}

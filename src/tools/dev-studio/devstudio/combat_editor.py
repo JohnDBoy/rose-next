@@ -500,7 +500,7 @@ class CombatEditor(EditorBase):
         bl.addWidget(dim("Fights"))
         self.e_n = spin(20, 5000, 300, width=60)
         self.e_n.setToolTip("Monte Carlo fights per run (a survival run of a third as many "
-                            "is added against an unkillable copy of the monster)")
+                            "is added: fresh copies of the monster back to back)")
         self.e_n.valueChanged.connect(lambda: self.queue_run())
         bl.addWidget(self.e_n)
         self.e_fix = QCheckBox("Fix passive bugs")
@@ -542,8 +542,9 @@ class CombatEditor(EditorBase):
         tips = dict(
             win="Share of fights the player wins (monster dead before the player)",
             ttk="Seconds to kill the monster, median of the fights won",
-            surv="How long the player lasts against an unkillable copy of this monster, "
-                 "with the same rotation, regen and potions",
+            surv="How long the player lasts fighting fresh copies of this monster back to "
+                 "back (each one replaced the moment it dies), with the same rotation, regen "
+                 "and potions",
             hp="HP left at the end of a won fight (median)",
             mp="MP left at the end of a won fight (median)")
         for key, title in (("win", "Wins"), ("ttk", "Time to kill"), ("surv", "Survives"),
@@ -603,6 +604,9 @@ class CombatEditor(EditorBase):
         self.res.addWidget(self.l_debuffs)
 
         section("Monster damage", self.res)
+        self.t_mdmg = self._table(["Attack", "Per fight", "Lands", "Crit", "Per hit", "DPS",
+                                   "State lands", "Then"])
+        self.res.addWidget(self.t_mdmg)
         self.l_monster = QLabel()
         self.l_monster.setWordWrap(True)
         self.res.addWidget(self.l_monster)
@@ -993,7 +997,10 @@ class CombatEditor(EditorBase):
         rate("dps", f"{r['dps']:,.0f}",
              f"normal {r['dps_auto']:,.0f} · skills {r['dps_skill']:,.0f}")
         heal = r["regen_hps"] + r["potion_hps"]
-        rate("dtps", f"{r['dtps']:,.0f}", f"healing {heal:,.1f}/s (regen {r['regen_hps']:.1f}"
+        rate("dtps", f"{r['dtps']:,.0f}",
+             (f"normal {r['dtps_auto']:,.0f} · skills {r['dtps_skill']:,.0f} · "
+              if r["dtps_skill"] else "")
+             + f"healing {heal:,.1f}/s (regen {r['regen_hps']:.1f}"
              + (f", potions {r['potion_hps']:.1f})" if r["potions_on"] else ")"))
         oom = f" · out of skill MP at {r['oom']:.0f} s" if r["oom"] else ""
         rate("mps", f"{r['mp_per_s']:,.1f}", f"regen {r['regen_mps']:.1f}/s{oom}")
@@ -1026,14 +1033,41 @@ class CombatEditor(EditorBase):
         self.l_debuffs.setText(("Debuff uptime on the monster: "
                                 + ", ".join(f"{k} {v:.0%}" for k, v in up)) if up else "")
         self.l_debuffs.setVisible(bool(up))
-        dis = (f" · stunned or asleep {r['monster_disabled']:.0%} of the fight"
-               if r["monster_disabled"] else "")
+        mrows = [["Normal attack", f"{r['monster_swings']:.1f}", f"{r['m_land']:.0%}",
+                  f"{r['m_crit']:.0%}", f"{r['m_hit_dmg']:,.0f}", f"{r['dtps_auto']:,.0f}",
+                  "", ""]]
+        for sk in r["m_skills"]:
+            dmg = sk["damage"]
+            mrows.append([
+                f"{sk['name']} (#{sk['row']})", f"{sk['casts']:.1f}",
+                f"{sk['land']:.0%}" if sk["land"] is not None else "", "",
+                f"{sk['per_hit']:,.0f}" if dmg else "", f"{sk['dps']:,.0f}" if dmg else "",
+                f"{sk['state_land']:.0%}" if sk["state_land"] is not None else "",
+                {1: "attacks", 2: "resumes"}.get(sk["mode"], "stops")])
+        self._fill(self.t_mdmg, mrows)
+        parts = [f"{r['dtps']:,.0f} damage per second"]
+        if r["monster_disabled"]:
+            parts.append(f"stunned or asleep {r['monster_disabled']:.0%} of the fight")
+        if r["monster_idle"] > 0.005:
+            parts.append(f"stands idle (no target) {r['monster_idle']:.0%}")
+        if r["monster_buffs"]:
+            parts.append("its buffs: " + ", ".join(f"{k} {v:.0%}" for k, v in r["monster_buffs"]))
+        if r["player_states"]:
+            parts.append("on the player: " + ", ".join(
+                f"{k} {v:.0%}" for k, v in r["player_states"]))
+        ai = r["ai"]
+        if ai:
+            parts.append(f"AI {ai['file']}: damaged pattern {ai['damaged_runs']:.1f} runs/fight "
+                         f"(gate {ai['damaged_rate']}%)")
+            if ai["unsimulated"]:
+                parts.append("not simulated: " + ", ".join(
+                    f"{k} {v:.1f}/fight" for k, v in ai["unsimulated"]))
+        else:
+            parts.append("no AI file")
         pots = r["potions"]
-        self.l_monster.setText(
-            f"Lands {r['m_land']:.0%} of its swings, crits {r['m_crit']:.0%}, "
-            f"{r['m_hit_dmg']:,.0f} per landed hit — {r['dtps']:,.0f} damage per second{dis}."
-            + (f"  Potions per fight: HP {pots['hp']:.1f}, MP {pots['mp']:.1f}."
-               if r["potions_on"] else ""))
+        if r["potions_on"]:
+            parts.append(f"potions per fight: HP {pots['hp']:.1f}, MP {pots['mp']:.1f}")
+        self.l_monster.setText(" · ".join(parts))
         notes = r["notes"]
         self.l_warn.setText("\n".join("•  " + n for n in notes))
         self.l_warn.setVisible(bool(notes))

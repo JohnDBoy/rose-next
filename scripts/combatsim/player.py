@@ -275,6 +275,8 @@ class StatBlock:
         gatk = gd.grade(w.grade, 0) if wid else 0
         shot = SHOT_BY_WEAPON.get(wtype)
         self.wtype, self.shot = wtype, shot
+        # CObjAVT::Get_AttackRange: WEAPON_ATTACK_RANGE + scale(1.0)*120, or 70 + 120 bare
+        self.attack_range = (gd.weapon_range(wid) if wid else 70) + 120
         if shot is not None:
             q = gd.item_quality(12, b.ammo) if b.ammo else 0
             if not b.ammo:

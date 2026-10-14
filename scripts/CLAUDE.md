@@ -605,11 +605,13 @@ re-derives every number in it against the live STBs.
 ### Combat Simulator (`scripts/combatsim/`, 2026-10-14)
 
 "How does this build fare against this monster": `python scripts/combat-sim.py run
-BUILD.json --mob <row|name>` (also `stats`, `new --job --level`, `find`, `skills`), or
+BUILD.json --mob <row|name>` (also `stats`, `new --job --level`, `find`, `skills`, `ai
+--mob` = a monster's AI file as readable rules), or
 **Tools > New/Open Combat Build** in Rose Dev Studio (same JSON files, in
 `scripts/combatsim/builds/`). Monte Carlo over a tick-by-tick port of the zone loop;
 every formula carries its server `file:line`, and what the sim decides itself is printed
-under "Assumptions" with every report. Monster AI skills are not simulated yet (step 2).
+under "Assumptions" with every report. The monster runs its AI file (`combatsim/ai.py`
+over `rosefmt.aip`).
 `balance-sim.py` predates it and misses the first bullet below. Facts it is built on,
 each of which was wrong in someone's head:
 
@@ -634,6 +636,22 @@ each of which was wrong in someone's head:
 - **Potions: the server has no cooldown** (the client's 500 ms is the only one). Health/Mana
   Vials heal over time through LIST_STATUS; the Vital/Spiritual Waters are instant.
 - Monsters have no HP regen; player regen runs every 2 s and is not paused in combat.
+- **Monster AI in a fight is the DAMAGED pattern**: it runs on every player hit *or miss*
+  and on every `SKILL_HARM` status (so a damaging debuff runs it twice), never while the
+  monster is stunned or asleep, and -- once the monster has a target -- only when the
+  file's second header field (`iSecondOfAttackMove`, misnamed: a percent) passes
+  `rate >= rand()%100`. ATTACK-MOVE runs only while it chases; STOP only while it stands
+  in `CMD_STOP`, once per `iSecond`. Events are first-match-wins.
+- **A monster cast costs nothing and has no cooldown**: the only throttles are those odds,
+  one skill at a time, and its motions (cast clip = CHR slot `nMotion`, action clip
+  `nMotion+1`, damage at the action clip's frame 0). `SKILL_ACTION_MODE` (col 29) decides
+  what follows: 1 attack, 2 resume, **0/blank = stop and forget the target** -- the monster
+  then stands idle until an AI pattern re-targets it. A stun or sleep does the same
+  (`SetCMD_STOP` clears the target). An attack order given before a pending cast starts
+  replaces it.
+- **Monster skills can dwarf monster swings**: Goblin Sword (1403, lv 92) self-casts Flame
+  Hawk for ~580 against a level-92 Knight whose normal hits from it are ~37 -- 85% of the
+  damage it deals.
 
 **Checking it in game** (`scripts/combatsim/scenarios.json`): `combat-sim.py
 seed-scenarios --password X [--replace]` writes each test build into the dev DB as a GM
@@ -642,16 +660,23 @@ gear/refine/gem/ammo/skills/hotbar exactly as the
 build; `seed` does one build); `scenarios` prints the predictions; `compare-trace
 client-<date>.log --scenario N` reads the client's CombatTrace lines (`[LOG]
 LEVEL=debug`; one-second timestamps, crits unflagged) and flags any measure more than 3
-standard errors off the sim. Test monsters must not cast or summon while fighting: AIP
-action codes are the AIACT number **+1** (`0x19` = 24 use-skill; summons 0x15/0x25/0x26),
-and most field monsters cast a skill from their "damaged" pattern. Reading the log: the
+standard errors off the sim. Scenarios 1-4 use monsters that never cast; 5-6 (SimKnight,
+SimChamp) check the AI against casters. Monster skill damage reaches the log only as
+`GSV_DAMAGE_OF_SKILL` lines (server ids, `value` = damage, `success_bits` = states landed)
+-- the client sometimes abandons presenting one ("cast abandoned") but the server applied
+it. `--since/--until` cut one character's run out of a shared log; `--exclude N ...` drops
+fights by their "Per fight" number (a wandering monster joined). AIP record types are the AICOND/AIACT number **+1** (`0x19` = act 24
+use-skill; summons 0x15/0x25/0x26). Reading the log: the
 server hands a dead monster's object id to the next spawn (a kill closes a fight), and
 `GSV_TARGET_SKILL` lines use server ids while damage, `projectile impact` and
 `SkillStatusTrace client effect` (success_bits = which state slots landed) use client ids.
 First run (2026-10-14, Champion/Mage/Scout, 16 kills): every damage, land, crit, swing
 and skill measure within noise of the sim. Scenario 4 (SimArtisan, Weapon Research rank
 20) confirmed the passive-range fix: 94% of landed hits crit, against 89% predicted and
-76% for the old server.
+76% for the old server. Scenarios 5-6 (monster AI, 20 kills): Goblin Sword's self-cast
+Flame Hawk 1.55 casts/fight vs 1.71 predicted, 584 vs 582 damage; Elder Sikuku's 3056 415
+vs 412 damage, silence landed 40% vs 38%; monster seconds-per-swing (casts and stops
+included) within 0.15 s.
 The GUI runs the engine in `combatsim/worker.py` (a process, not a thread: pure Python
 holds the GIL); `Report.summary()` is what crosses the pipe.
 

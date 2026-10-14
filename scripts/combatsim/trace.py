@@ -30,6 +30,12 @@ RX_CAST = re.compile(TS + r".*CombatTrace GSV_TARGET_SKILL: caster (\d+) target 
 RX_IMPACT = re.compile(TS + r".*CombatTrace projectile impact: caster (\d+) target (\d+) skill (\d+)")
 RX_REG = re.compile(TS + r".*CombatTrace projectile cast registered: caster (\d+) target (\d+) "
                     r"skill (\d+)")
+# Every skill's damage as the server sent it (legacy packet; SERVER ids for both sides).
+# Monster skills reach the log only this way: the client may still abandon presenting
+# one ("skill payload cancelled ... cast abandoned"), but the server applied it.
+RX_DMG_SKILL = re.compile(TS + r".*CombatTrace GSV_DAMAGE_OF_SKILL: caster (\d+) target (\d+) "
+                          r"skill (\d+) type \d+ bullet \d+ damage -?\d+ value (\d+) hp_after "
+                          r"-?\d+ success_bits (\d+)")
 RX_EFFECT = re.compile(TS + r".*SkillStatusTrace client effect: caster (\d+) target (\d+) "
                        r"skill (\d+) type \d+ success_bits (\d+)")
 
@@ -38,13 +44,14 @@ def _t(s):
     return datetime.strptime(s, "%Y-%m-%d %H:%M:%S").timestamp()
 
 
-def parse(path, since=None):
+def parse(path, since=None, until=None):
     """hits [(t, kind, attacker, defender, event, damage, hp_after, lethal)] in client
     ids, and `sk`: casts (server ids), regs / impacts (client caster, server target),
     effects (client ids, success_bits = which state slots landed)."""
     hits, seen = [], set()
-    sk = dict(casts=[], regs=[], impacts=[], effects=[])
+    sk = dict(casts=[], regs=[], impacts=[], effects=[], dmg_skill=[])
     t0 = _t(since) if since else None
+    t1 = _t(until) if until else None
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             if "Trace" not in line:
@@ -54,7 +61,7 @@ def parse(path, since=None):
                 ts, a, d, ev, dmg, hp, leth = m.groups()
                 t = _t(ts)
                 key = (int(a), int(d), int(ev))
-                if (not t0 or t >= t0) and key not in seen:
+                if (not t0 or t >= t0) and (not t1 or t <= t1) and key not in seen:
                     seen.add(key)
                     hits.append((t, "swing", int(a), int(d), int(ev), int(dmg), int(hp),
                                  int(leth)))
@@ -64,17 +71,17 @@ def parse(path, since=None):
                 ts, a, d, ev, kind, dmg, hp = m.groups()
                 t = _t(ts)
                 key = (int(a), int(d), int(ev))
-                if (not t0 or t >= t0) and key not in seen:
+                if (not t0 or t >= t0) and (not t1 or t <= t1) and key not in seen:
                     seen.add(key)
                     hits.append((t, "event", int(a), int(d), int(ev), int(dmg), int(hp),
                                  1 if int(hp) <= 0 or int(hp) == -30000 else 0))
                 continue
             for name, rx in (("casts", RX_CAST), ("regs", RX_REG), ("impacts", RX_IMPACT),
-                             ("effects", RX_EFFECT)):
+                             ("effects", RX_EFFECT), ("dmg_skill", RX_DMG_SKILL)):
                 m = rx.match(line)
                 if m:
                     t = _t(m.group(1))
-                    if not t0 or t >= t0:
+                    if (not t0 or t >= t0) and (not t1 or t <= t1):
                         sk[name].append((t,) + tuple(int(x) for x in m.groups()[1:]))
                     break
     return hits, sk
@@ -174,9 +181,20 @@ def _rate_flag(k, n, p):
     return "ok" if z < 3 else f"MISMATCH ({z:.1f} SE)"
 
 
-def compare(gd, sim, path, since=None, player=None, n=1000):
-    hits, casts = parse(path, since)
+def _count_flag(k, fights, per_fight):
+    """Poisson check of an event count over whole fights."""
+    lam = fights * per_fight
+    if fights < 5 or lam < 3:
+        return "few samples"
+    z = abs(k - lam) / math.sqrt(lam)
+    return "ok" if z < 3 else f"MISMATCH ({z:.1f} SE)"
+
+
+def compare(gd, sim, path, since=None, player=None, n=1000, until=None, exclude=()):
+    hits, casts = parse(path, since, until)
     player, fs = fights(hits, casts, player, sim.make_player().max_hp)
+    # --exclude: fight numbers as "Per fight" prints them (another monster joined, ...)
+    fs = [f for i, f in enumerate(fs, 1) if i not in set(exclude)]
     rep = sim.run(n=n, seed=7, survival=False)
     L = []
     w = L.append
@@ -217,11 +235,11 @@ def compare(gd, sim, path, since=None, player=None, n=1000):
         ts = [h[0] for h in f["p"] if h[1] == "swing"]
         if len(ts) >= 4:
             iv.append((ts[-1] - ts[0]) / (len(ts) - 1))
-    if iv and sim.p_attack_motion:
-        exp = sim.p_attack_motion.duration_ms(sim.make_player().total_aspd / 100.0) / 1000
+    if iv and rep.p_swing_s:
+        exp = statistics.mean(rep.p_swing_s)
         row("  seconds per swing (mean of fights)", f"{statistics.mean(iv):.2f}", f"{exp:.2f}",
-            "ok" if abs(statistics.mean(iv) - exp) < 0.15 * exp else "CHECK (skills or "
-            "walking stretch it)")
+            "ok" if abs(statistics.mean(iv) - exp) < 0.15 * exp else "CHECK (walking or "
+            "human pauses stretch it)")
     # player skills: damage events are attributed through "projectile impact" (client
     # caster id); casts and debuffs through the server-id cast lines, mapped to the
     # player by matching "projectile cast registered" (client id) on time and skill
@@ -288,9 +306,6 @@ def compare(gd, sim, path, since=None, player=None, n=1000):
     mskill = [h[5] for f in fs for h in f["m"] if h[1] != "swing"]
     w("")
     row("monster swings", len(msw), f"{rep.m_swings_per_fight:.1f}/fight")
-    if mskill:
-        row("  monster skill hits (not simulated)", len(mskill),
-            f"{statistics.mean(mskill):.0f} avg", "excluded from the swing numbers")
     if msw:
         row("  lands", f"{len(mland) / len(msw):.0%} ({len(mland)}/{len(msw)})",
             f"{rep.m_land:.0%}", _rate_flag(len(mland), len(msw), rep.m_land))
@@ -305,11 +320,58 @@ def compare(gd, sim, path, since=None, player=None, n=1000):
         ts = [h[0] for h in f["m"] if h[1] == "swing"]
         if len(ts) >= 4:
             miv.append((ts[-1] - ts[0]) / (len(ts) - 1))
-    if miv and sim.m_attack_motion:
-        exp = sim.m_attack_motion.duration_ms(sim.make_monster().total_aspd / 100.0) / 1000
-        row("  seconds per swing (mean of fights)", f"{statistics.mean(miv):.2f}", f"{exp:.2f}",
-            "ok" if abs(statistics.mean(miv) - exp) < 0.15 * exp else "CHECK (debuffs/stuns "
-            "or walking stretch it)")
+    if miv and rep.m_swing_s:
+        exp = statistics.mean(rep.m_swing_s)
+        clip = sim.m_attack_motion.duration_ms(sim.make_monster().total_aspd / 100.0) / 1000
+        row("  seconds per swing (mean of fights)", f"{statistics.mean(miv):.2f}",
+            f"{exp:.2f}", ("ok" if abs(statistics.mean(miv) - exp) < 0.15 * exp
+                           else "CHECK (walking stretches it)")
+            + (f"  (clip alone {clip:.2f})" if abs(clip - exp) > 0.05 else ""))
+    # monster skills: GSV_DAMAGE_OF_SKILL lines (server ids). The player's server id is the
+    # target hit by skills from two or more casters (a monster is only ever hit by the
+    # player); the fight windows keep other players' fights out.
+    by_target = {}
+    for t, c, tg, skl, val, bits in casts["dmg_skill"]:
+        if lo <= t <= hi:
+            by_target.setdefault(tg, set()).add(c)
+    p_srv = max(by_target, key=lambda k: len(by_target[k]), default=None)
+    m_dmg = []
+    if p_srv is not None and len(by_target[p_srv]) >= 2:
+        m_dmg = [x for x in casts["dmg_skill"] if x[2] == p_srv and lo <= x[0] <= hi
+                 and any(f["start"] - 1 <= x[0] <= f["end"] + 1 for f in fs)]
+    sim_hits = sum(a["casts"] for r_, a in rep.m_skills.items() if gd.skill(r_).is_damage())
+    if m_dmg or sim_hits:
+        w("")
+        sim_pf = sim_hits / rep.n
+        row("monster skill casts (damage)", f"{len(m_dmg) / len(fs):.1f}/fight ({len(m_dmg)})",
+            f"{sim_pf:.1f}/fight", _count_flag(len(m_dmg), len(fs), sim_pf))
+        for skl in sorted({x[3] for x in m_dmg} | set(rep.m_skills)):
+            sk_ = gd.skill(skl)
+            g = [x for x in m_dmg if x[3] == skl]
+            a = rep.m_skills.get(skl)
+            row(f"  {sk_.name} (#{skl})", f"{len(g) / len(fs):.2f}/fight",
+                f"{a['casts'] / rep.n:.2f}/fight" if a else "not cast")
+            ml = [x[4] for x in g if x[4] > 0]
+            sx = rep.m_skill_samples.get(skl, [])
+            if g and a and a["casts"]:
+                sim_land = a["landed"] / a["casts"]
+                row("    lands", f"{len(ml) / len(g):.0%} ({len(ml)}/{len(g)})",
+                    f"{sim_land:.0%}", _rate_flag(len(ml), len(g), sim_land))
+            if ml:
+                row("    damage per landed cast (mean)", f"{statistics.mean(ml):.0f}",
+                    f"{statistics.mean(sx):.0f}" if sx else "-", _mean_flag(ml, sx) if sx else "")
+                row("    p10 / p50 / p90", f"{_pct(ml, .1)}/{_pct(ml, .5)}/{_pct(ml, .9)}",
+                    f"{_pct(sx, .1)}/{_pct(sx, .5)}/{_pct(sx, .9)}" if sx else "-")
+            slots = sum(1 for x in sk_.states if x)
+            if slots and g and a:
+                landed_slots = sum(bin(x[5]).count("1") for x in g)
+                tries = len(g) * slots
+                sim_rate = a["states"] / a["state_tries"] if a["state_tries"] else 0
+                row("    states landed on the player",
+                    f"{landed_slots / tries:.0%} ({landed_slots}/{tries})", f"{sim_rate:.0%}",
+                    _rate_flag(landed_slots, tries, sim_rate))
+        for f in fs:
+            f["m_skill"] = sum(x[4] for x in m_dmg if f["start"] - 1 <= x[0] <= f["end"] + 1)
     # kills
     ttk = [f["end"] - f["start"] + 1 for f in fs if f["killed"]]
     if ttk:
@@ -321,8 +383,10 @@ def compare(gd, sim, path, since=None, player=None, n=1000):
     w("Per fight:")
     for i, f in enumerate(fs, 1):
         p_dmg = sum(h[5] for h in f["p"])
-        m_dmg = sum(h[5] for h in f["m"])
+        taken = sum(h[5] for h in f["m"])
+        sk_taken = f.get("m_skill", 0)
         w(f"  {i:>2}. mob {f['mob']}: {f['end'] - f['start'] + 1:.0f} s, "
-          f"{'killed' if f['killed'] else 'not killed'}, dealt {p_dmg}, taken {m_dmg}, "
-          f"{len(f['p'])} hits out / {len(f['m'])} in")
+          f"{'killed' if f['killed'] else 'not killed'}, dealt {p_dmg}, taken {taken}"
+          + (f" + {sk_taken} from skills" if sk_taken else "")
+          + f", {len(f['p'])} hits out / {len(f['m'])} in")
     return "\n".join(L)

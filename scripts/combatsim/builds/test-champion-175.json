@@ -1,0 +1,61 @@
+{
+  "name": "SimChampion 175",
+  "job": 122,
+  "level": 175,
+  "female": false,
+  "union": 0,
+  "stats": {
+    "STR": 300,
+    "DEX": 15,
+    "INT": 15,
+    "CON": 157,
+    "CHARM": 10,
+    "SENSE": 169
+  },
+  "equip": {
+    "cap": {
+      "id": 40,
+      "grade": 2
+    },
+    "body": {
+      "id": 41,
+      "grade": 2
+    },
+    "back": {
+      "id": 1070,
+      "grade": 2
+    },
+    "arms": {
+      "id": 40,
+      "grade": 2
+    },
+    "foot": {
+      "id": 40,
+      "grade": 2
+    },
+    "weapon": {
+      "id": 121,
+      "grade": 4
+    }
+  },
+  "ammo": 0,
+  "skills": [
+    210,
+    230,
+    250,
+    270,
+    280,
+    290,
+    300
+  ],
+  "rotation": [],
+  "buffs": [],
+  "potions": {
+    "enabled": false,
+    "hp": 0,
+    "hp_below": 50,
+    "mp": 0,
+    "mp_below": 30
+  },
+  "notes": "In-game test build (scenarios.json): auto-attacks only, against a skill-casting monster."
+}

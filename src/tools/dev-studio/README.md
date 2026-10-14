@@ -68,9 +68,13 @@ instead (anything that holds `3DDATA`).
   near the level and leave rotation, buffs and potions alone. Item names carry
   their in-game prefix (Saint, Dark ...). The right side picks a monster and shows how the
   fight goes over a few hundred simulated fights: win rate, time to kill, how
-  long the character survives against an unkillable copy of the monster, HP and
+  long the character survives fresh copies of the monster back to back, HP and
   MP left, damage dealt and taken per second, both stat blocks, per-skill
-  numbers and debuff uptime. **Fix passive bugs** shows what the passives were
+  numbers and debuff uptime. The monster runs its AI file: the skills it casts
+  get their own rows (casts, damage, the states they put on the player, and
+  whether it attacks, resumes or stops afterwards), and AI actions the
+  simulator cannot play out (summons, wandering, running away) are counted
+  under the table. **Fix passive bugs** shows what the passives were
   meant to give. **Run** simulates in a worker process; **Auto-run** (off by
   default) repeats it after every edit. A new build is unsaved until you save
   it, and "Don't save" deletes its file. The engine is `scripts/combatsim` (also a command-line tool,

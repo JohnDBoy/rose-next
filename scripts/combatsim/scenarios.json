@@ -1,5 +1,5 @@
 {
-  "about": "In-game checks of the combat simulator: each scenario is a build seeded as a GM character (combat-sim.py seed-scenarios) and a monster spawned with /mon <row> 1. The monsters were picked because their AI casts no skill and summons nothing while fighting (death-only summons are fine), so a normal-attack-only sim describes the whole fight.",
+  "about": "In-game checks of the combat simulator: each scenario is a build seeded as a GM character (combat-sim.py seed-scenarios) and a monster spawned with /mon <row> 1. Scenarios 1-4 use monsters whose AI casts no skill and summons nothing while fighting (death-only summons are fine); 5-6 check the monster AI: skills cast from the 'damaged' pattern.",
   "scenarios": [
     {
       "id": 1,
@@ -38,6 +38,26 @@
       "character": "SimArtisan",
       "play": "Gun auto-attacks only, 6-8 kills. No skills, no buffs, no potions.",
       "note": "Crit share of landed hits: ~89% with the server fix, ~76% on the old server (the second passive range was wiped). Needs the rebuilt sho_gameserver and LIST_SKILL from rebalance-artisan.py --profile gunsmith-v2."
+    },
+    {
+      "id": 5,
+      "title": "Monster AI: self-cast area skill that stops the monster (Goblin Sword)",
+      "build": "builds/test-knight-92.json",
+      "mob": 1403,
+      "account": "simtest@local",
+      "character": "SimKnight",
+      "play": "Auto-attack only, 8-10 kills. No skills, no buffs, no potions. Rest to full HP between pulls.",
+      "note": "bomb1.aip: each player hit has a 30% x 50% chance to make it self-cast Flame Hawk (2992, type 17, weapon damage, power 300) around itself: ~1.9 casts and ~580 damage each per fight, against 37 per normal hit. Action mode 0: it stops after the cast and turns back on the player at its next hit."
+    },
+    {
+      "id": 6,
+      "title": "Monster AI: magic area skill with a silence, then resumes (Elder Sikuku)",
+      "build": "builds/test-champion-175.json",
+      "mob": 555,
+      "account": "simtest@local",
+      "character": "SimChamp",
+      "play": "Auto-attack only, 8-10 kills. No skills, no buffs, no potions. Rest to full HP between pulls.",
+      "note": "ed_shaman.aip: casts 3056 (type 17, magic, power 120, silences: state 30) from its 'damaged' pattern, ~2.5 casts per fight at ~410 damage; action mode 2 resumes the attack. Its 'call for help' finds nobody when spawned alone."
     }
   ]
 }

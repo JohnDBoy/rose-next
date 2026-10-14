@@ -14,6 +14,7 @@ Usage
     python scripts/combat-sim.py new --job 221 --level 180 -o scripts/combatsim/builds/my-mage.json
     python scripts/combat-sim.py find npc "Grizzly"                 # npc|weapon|skill|...
     python scripts/combat-sim.py skills --job 221                   # rotation candidates
+    python scripts/combat-sim.py ai --mob 1403                      # what a monster's AI does
 
 Builds are JSON (see scripts/combatsim/builds/); the Rose Dev Studio "Combat
 Simulator" tab edits the same files.
@@ -91,6 +92,9 @@ def main():
     sd.add_argument("--replace", action="store_true", help="delete a character of that name first")
     sd.add_argument("--dry-run", action="store_true", help="print the SQL, write nothing")
 
+    ai = sub.add_parser("ai", help="print a monster's AI file as readable rules")
+    ai.add_argument("--mob", required=True, help="LIST_NPC row or name")
+
     sc = sub.add_parser("scenarios", help="predictions for the in-game test scenarios")
     sc.add_argument("-n", type=int, default=500)
     ct = sub.add_parser("compare-trace", help="compare a client CombatTrace log with the sim")
@@ -99,6 +103,9 @@ def main():
     ct.add_argument("--build", help="or: a build file ...")
     ct.add_argument("--mob", help="... and a monster")
     ct.add_argument("--since", help="ignore lines before 'YYYY-MM-DD HH:MM:SS' (log time is UTC)")
+    ct.add_argument("--exclude", type=int, nargs="*", default=[],
+                    help="fight numbers (as listed under 'Per fight') to leave out")
+    ct.add_argument("--until", help="ignore lines after 'YYYY-MM-DD HH:MM:SS'")
     ct.add_argument("--player", type=int, help="the player's object id, if guessed wrong")
     ss = sub.add_parser("seed-scenarios", help="seed every test scenario's GM character")
     ss.add_argument("--password", required=True)
@@ -183,7 +190,22 @@ def main():
             b, mob = Build.load(a.build), resolve_mob(gd, a.mob)
         else:
             raise SystemExit("give --scenario N, or --build and --mob")
-        print(compare(gd, Simulation(gd, b, mob), a.log, a.since, a.player))
+        print(compare(gd, Simulation(gd, b, mob), a.log, a.since, a.player, until=a.until,
+                      exclude=a.exclude))
+    elif a.cmd == "ai":
+        from combatsim import ai as AI
+        row = resolve_mob(gd, a.mob)
+        n = gd.npc(row)
+        f = AI.load_for_npc(gd, row)
+        print(f"{n.name} (NPC {row}, level {n.level}): "
+              + (gd.stb("FILE_AI").s(n.ai, 0).strip() if f else "no AI file"))
+        if f:
+            print("\n".join(AI.describe(f, gd)))
+            for r_ in sorted({x[0] for x in f.skills(AI.DAMAGED) + f.skills(AI.STOP)}):
+                sk = gd.skill(r_)
+                print(f"skill {r_} {sk.name}: type {sk.type}, damage type {sk.damage_type}, "
+                      f"power {sk.power}, action mode {sk.action_mode}, range {sk.distance}, "
+                      f"area {sk.scope}, states {[x for x in sk.states if x]}")
     elif a.cmd == "skills":
         for row, name, t in skill_choices(gd, a.job):
             sk = gd.skill(row)

@@ -2,6 +2,7 @@
 import random
 import statistics
 
+from . import ai as AI
 from . import formulas as F
 from .data import ING, ING_LABEL, ING_NAME, JOBS
 from .fight import TICK_MS, Combatant, Fight
@@ -9,12 +10,14 @@ from .player import StatBlock
 
 AVT_ANI_ATTACK = 8            # datatype.h, avatar attack motion row in TYPE_MOTION
 MOB_ANI_ATTACK = 2            # datatype.h, monster attack slot in LIST_NPC.CHR
+MAX_MOB_ANI = 11              # datatype.h: CCharDATA::GetMOTION returns NULL past it
 SURVIVAL_CAP_S = 300          # simulated seconds per survival run before projecting
 
 # Everything the simulator decides that the server code does not.
 ASSUMPTIONS = [
     "1v1, both sides in range from the first tick; the monster fights back at once. "
-    "No walking, no aggro delay, no other monsters.",
+    "No walking, no aggro delay, no other monsters. They stand at the shorter of the "
+    "two attack ranges (weapon range + 120 / NPC range + scale x 120).",
     f"Zone tick is exactly {TICK_MS} ms (the server waits for 100 ms plus the time the "
     "previous object loop took).",
     "Buffs are kept up for the whole fight (cast before the pull, refreshed between "
@@ -23,10 +26,18 @@ ASSUMPTIONS = [
     "The player stands while fighting (standing regen) and is never mounted.",
     "Equipment is at full durability with life > 0; a gem/option on an item counts "
     "(the server needs it appraised or socketed).",
-    "Monsters only use normal attacks (their AI skills are not simulated yet).",
-    "A stunned or sleeping monster stops (SetCMD_STOP) and resumes attacking on the tick "
-    "the state ends; any player attack, hit or miss, wakes it from sleep. Poison damage "
-    "(DoTs) is not simulated.",
+    "Monster AI: the DAMAGED pattern runs on every player hit or miss and every harmful "
+    "status (gated by the file's percent once the monster has a target); the STOP pattern "
+    "runs on its timer while the monster stands idle. ATTACK-MOVE never runs (nobody "
+    "walks), KILL and DEAD end the fight. Of the CREATED pattern only AI variables are "
+    "kept: the monster spawned before the pull. The monster's skills ignore their cast "
+    "range (it never has to walk to cast).",
+    "A stunned or sleeping monster stops and forgets its target (SetCMD_STOP); with an AI "
+    "file it fights again only when an AI pattern orders it (a monster without one simply "
+    "resumes). A player hit, hit or miss, wakes it from sleep. Poison damage (DoTs) is "
+    "not simulated. A stunned or sleeping player acts again the moment the state ends.",
+    "Survival runs: a monster that would die is replaced at once by a fresh one (full HP, "
+    "no debuffs, AI reset), so HP-triggered AI phases repeat.",
     "Potions: drunk the moment HP/MP drops under the threshold, at most every 500 ms "
     "per kind (the client's delay; the server enforces no cooldown).",
     "Arithmetic is double precision; the server uses 32-bit float, so a result sitting "
@@ -69,6 +80,101 @@ class Simulation:
             self.notes.append("monster has no attack motion: it never deals damage")
         elif not self.m_attack_motion.attack_frames:
             self.notes.append("monster attack clip has no event trailer: it deals no damage")
+        # CObjMOB::Get_AttackRange: NPC_ATK_RANGE + NPC_SCALE/100 * 120
+        n = self.npc
+        self.m_range = int(n.range + n.scale / 100.0 * 120)
+        self.distance = min(st.attack_range, self.m_range)
+        self._m_motions, self._m_skills = {}, {}
+        self.ai = AI.load_for_npc(gd, npc_row)
+        self.ai_name = None
+        if self.ai is None:
+            self.notes.append("monster has no AI file: it fights back and resumes after a "
+                              "stun on its own (the server would leave it idle)")
+        else:
+            self.ai_name = gd.stb("FILE_AI").s(n.ai, 0).strip()
+            self._ai_notes()
+
+    def _ai_notes(self):
+        ai, gd = self.ai, self.gd
+        live = (AI.STOP, AI.DAMAGED)
+        for c in sorted(ai.assumed_conditions(live)):
+            self.notes.append(f"AI condition '{AI.COND_LABEL[c]}' answered by assumption: "
+                              f"{AI.ASSUMED_COND[c]}")
+        kinds = ai.action_kinds(live) - AI.SIMULATED_ACTS - AI.HARMLESS_ACTS
+        if kinds:
+            self.notes.append("AI actions not simulated (counted when they fire): " + ", ".join(
+                f"{AI.ACT_LABEL.get(k, k)} (act {k})" for k in sorted(kinds)))
+        seen = set()
+        for pat in live:
+            for row, motion, tgt in ai.skills(pat):
+                if row in seen:
+                    continue
+                seen.add(row)
+                sk = self.m_skill(row)
+                if sk is None:
+                    self.notes.append(f"AI casts skill {row}, a blank LIST_SKILL row: "
+                                      "the server refuses the order")
+                    continue
+                act = self.m_motion(motion + 1)
+                if sk.is_damage() and sk.type not in (7, 17):
+                    if act is None:
+                        self.notes.append(f"monster skill {sk.name} (#{row}): action slot "
+                                          f"{motion + 1} unmapped -- the clip already "
+                                          "playing gives its timing and hit count")
+                    elif not act.attack_frames:
+                        self.notes.append(f"monster skill {sk.name} (#{row}): action clip "
+                                          "has no hit event -- it deals 0 damage")
+                # only a targeted order walks into range first (ProcCMD_Skill2OBJECT ->
+                # Goto_TARGET); a self-cast (target 2) is cast where the monster stands
+                if tgt != 2 and sk.distance and sk.distance < self.distance:
+                    self.notes.append(f"monster skill {sk.name} (#{row}): range "
+                                      f"{sk.distance} < {self.distance}; the walk to cast "
+                                      "is not simulated (it is cast from the closer spot)")
+                if sk.type in (7, 17) and sk.scope < self.cast_distance(sk, tgt == 2):
+                    self.notes.append(f"monster skill {sk.name} (#{row}): area {sk.scope} "
+                                      f"does not reach the player at {self.distance}")
+                if sk.type == 14:
+                    self.notes.append(f"monster skill {sk.name} (#{row}) summons: the "
+                                      "summon is not simulated")
+
+    def cast_distance(self, sk, self_cast):
+        """Where the player stands when a monster skill lands: a targeted cast first
+        closes to the skill's range (Goto_TARGET); a self-cast goes off where it is."""
+        if not self_cast and sk.distance:
+            return min(self.distance, sk.distance)
+        return self.distance
+
+    def m_motion(self, slot):
+        """CCharDATA::GetMOTION for the monster: None for an unmapped or invalid slot."""
+        if slot not in self._m_motions:
+            self._m_motions[slot] = self.gd.npc_motion(self.npc_row, slot) \
+                if 0 <= slot < MAX_MOB_ANI else None
+        return self._m_motions[slot]
+
+    def m_skill(self, row):
+        """The Skill an AI action names, or None when F_AIACT24 would refuse it."""
+        if row not in self._m_skills:
+            gd = self.gd
+            stb = gd.stb("LIST_SKILL")
+            sk = None
+            if 1 <= row < stb.rows:
+                sk = gd.skill(row)
+                if sk.type == 0 and not gd.names("LIST_SKILL").get(row) \
+                        and not stb.get(row, 0).strip():
+                    sk = None
+            self._m_skills[row] = sk
+        return self._m_skills[row]
+
+    def pass_filter(self, sk, target, caster):
+        """Skill_IsPassFilter for a monster caster: no party, no clan; allied only with
+        itself in a 1v1 fight (SKILL_CLASS_FILTER, LIST_SKILL col 7)."""
+        if target.hp <= 0:
+            return False
+        own = target is caster
+        user = target.is_user
+        return {0: own, 1: own, 2: False, 3: own, 4: not user, 5: not own,
+                6: user and not own, 7: user, 8: True, 10: not own and not user
+                }.get(sk.target_filter, False)
 
     # ------------------------------------------------------------ combatants
     def make_player(self):
@@ -78,6 +184,8 @@ class Simulation:
                       st.cur["INT"], st.cur["SENSE"], st.magic, True,
                       base_atk=srv.base_attack_power, base_hit=srv.base_hit,
                       base_aspd=srv.base_attack_speed)
+        p.base_value = st.base_ability
+        p.charm = st.cur["CHARM"]
         for buff in b.buffs:
             self._apply_buff(p, buff)
         p.hp, p.mp = p.max_hp, p.max_mp
@@ -125,6 +233,10 @@ class Simulation:
         return Report(self, fights, surv)
 
 
+def _label(ing):
+    return ING_LABEL.get(ing, ING_NAME.get(ing, ing))
+
+
 def _pct(xs, q):
     if not xs:
         return None
@@ -170,7 +282,43 @@ class Report:
         self.m_land = mhi / msw if msw else 0
         self.m_crit = sum(f.m_crits for f in fights) / mhi if mhi else 0
         self.m_hit_dmg = sum(f.m_dmg for f in fights) / mhi if mhi else 0
-        self.dtps = sum(f.m_dmg for f in fights) * 1000 / tot_ms
+        self.m_skills = {}
+        for f in fights:
+            for row, a in f.m_skills.items():
+                d = self.m_skills.setdefault(row, dict.fromkeys(a, 0))
+                for k in a:
+                    d[k] += a[k]
+        m_skill_dmg = sum(f.m_skill_dmg for f in fights)
+        self.dtps_auto = sum(f.m_dmg for f in fights) * 1000 / tot_ms
+        self.dtps_skill = m_skill_dmg * 1000 / tot_ms
+        self.dtps = self.dtps_auto + self.dtps_skill
+        self.m_skill_samples = {}
+        for f in fights:
+            for row, xs in f.m_skill_samples.items():
+                self.m_skill_samples.setdefault(row, []).extend(xs)
+        self.ai_damaged = sum(f.ai_damaged for f in fights) / n if n else 0
+        self.ai_stop = sum(f.ai_stop for f in fights) / n if n else 0
+        self.ai_events = {}
+        for f in fights:
+            for k, v in f.ai_events.items():
+                self.ai_events[k] = self.ai_events.get(k, 0) + v
+        self.ai_unsim = {}
+        for f in fights:
+            for k, v in f.ai_unsim.items():
+                self.ai_unsim[k] = self.ai_unsim.get(k, 0) + v
+        self.ai_unsim = {k: v / n for k, v in self.ai_unsim.items()}
+        self.m_idle = sum(f.m_idle_ms for f in fights) / tot_ms
+        self.player_disabled = sum(f.player_disabled_ms for f in fights) / tot_ms
+        self.player_states = {}
+        self.monster_buffs = {}
+        for f in fights:
+            for k, v in f.player_state_ms.items():
+                self.player_states[k] = self.player_states.get(k, 0) + v
+            for k, v in f.monster_buff_ms.items():
+                self.monster_buffs[k] = self.monster_buffs.get(k, 0) + v
+        self.player_states = {k: v / tot_ms for k, v in self.player_states.items()}
+        self.monster_buffs = {k: v / tot_ms for k, v in self.monster_buffs.items()}
+        self.suicides = sum(f.suicides for f in fights)
         self.regen_hps = sum(f.regen_hp for f in fights) * 1000 / tot_ms
         self.regen_mps = sum(f.regen_mp for f in fights) * 1000 / tot_ms
         self.mp_per_s = sum(f.mp_spent for f in fights) * 1000 / tot_ms
@@ -194,6 +342,14 @@ class Report:
             for row, xs in f.skill_samples.items():
                 self.skill_samples.setdefault(row, []).extend(xs)
         self.m_swings_per_fight = msw / n if n else 0
+
+        # seconds per swing over each fight, first to last swing (what compare-trace
+        # measures): casts, stops and stuns between swings count
+        def interval(f, who):
+            k, ts = (f.p_swings, f.p_swing_t) if who == "p" else (f.m_swings, f.m_swing_t)
+            return (ts[1] - ts[0]) / 1000 / (k - 1) if k >= 4 else None
+        self.p_swing_s = [x for x in (interval(f, "p") for f in fights) if x]
+        self.m_swing_s = [x for x in (interval(f, "m") for f in fights) if x]
         self.fight_s = [f.end_ms / 1000 for f in fights]
 
         self.surv_cap = SURVIVAL_CAP_S
@@ -259,7 +415,38 @@ class Report:
                      for k, v in self.debuff_uptime.items()],
             m_land=self.m_land, m_crit=self.m_crit, m_hit_dmg=self.m_hit_dmg,
             monster_disabled=self.monster_disabled,
+            dtps_auto=self.dtps_auto, dtps_skill=self.dtps_skill,
+            monster_swings=self.m_swings_per_fight,
+            m_skills=self._m_skill_rows(), ai=self._ai_summary(),
+            player_disabled=self.player_disabled, monster_idle=self.m_idle,
+            player_states=[[_label(k), v] for k, v in self.player_states.items()],
+            monster_buffs=[[_label(k), v] for k, v in self.monster_buffs.items()],
             notes=list(s.notes), text=self.text())
+
+    def _m_skill_rows(self):
+        gd, out = self.sim.gd, []
+        tot = max(1, sum(a["dmg"] for a in self.m_skills.values()))
+        for row, a in sorted(self.m_skills.items(), key=lambda kv: -kv[1]["casts"]):
+            sk = gd.skill(row)
+            out.append(dict(
+                row=row, name=sk.name, type=sk.type, damage=sk.is_damage(),
+                mode=sk.action_mode, orders=a["orders"] / self.n, casts=a["casts"] / self.n,
+                land=a["landed"] / a["casts"] if a["casts"] and sk.is_damage() else None,
+                per_hit=a["dmg"] / a["landed"] if a["landed"] else 0,
+                dps=self.dtps_skill * a["dmg"] / tot,
+                state_land=a["states"] / a["state_tries"] if a["state_tries"] else None))
+        return out
+
+    def _ai_summary(self):
+        s = self.sim
+        if s.ai is None:
+            return None
+        return dict(file=s.ai_name, damaged_rate=s.ai.damaged_rate,
+                    stop_s=s.ai.stop_ms / 1000, damaged_runs=self.ai_damaged,
+                    stop_runs=self.ai_stop, distance=s.distance,
+                    unsimulated=[[AI.ACT_LABEL.get(k, str(k)), v]
+                                 for k, v in sorted(self.ai_unsim.items(), key=str)],
+                    suicides=self.suicides)
 
     # ------------------------------------------------------------ text
     def text(self):
@@ -320,10 +507,34 @@ class Report:
                 f"{ING_LABEL.get(k, ING_NAME.get(k, k))} {v:.0%}" for k, v in self.debuff_uptime.items()))
         w("")
         w("Monster damage")
-        w(f"  lands {self.m_land:.0%}, crit {self.m_crit:.0%}, {self.m_hit_dmg:.0f} per landed hit"
+        w(f"  normal attack: lands {self.m_land:.0%}, crit {self.m_crit:.0%}, "
+          f"{self.m_hit_dmg:.0f} per landed hit"
           + (f";  stunned/asleep {self.monster_disabled:.0%} of the fight"
              if self.monster_disabled else ""))
-        w(f"  damage taken {self.dtps:.0f}/s;  regen {self.regen_hps:.1f} HP/s"
+        for r in self._m_skill_rows():
+            parts = [f"{r['casts']:.1f} casts/fight"]
+            if r["orders"] > r["casts"] + 0.05:
+                parts.append(f"{r['orders']:.1f} orders")
+            if r["land"] is not None:
+                parts += [f"lands {r['land']:.0%}", f"{r['per_hit']:.0f} per landed cast"]
+            if r["state_land"] is not None:
+                parts.append(f"state lands {r['state_land']:.0%}")
+            parts.append({1: "then attacks", 2: "then resumes"}.get(r["mode"], "then STOPS"))
+            w(f"  skill {r['name']} (#{r['row']}, type {r['type']}): " + ", ".join(parts))
+        if self.m_idle > 0.005:
+            w(f"  stands idle (stopped, no target) {self.m_idle:.0%} of the fight")
+        if self.monster_buffs:
+            w("  its buffs' uptime: " + ", ".join(
+                f"{_label(k)} {v:.0%}" for k, v in self.monster_buffs.items()))
+        if self.player_states:
+            w("  states on the player: " + ", ".join(
+                f"{_label(k)} {v:.0%}" for k, v in self.player_states.items())
+              + (f";  player stunned/asleep {self.player_disabled:.0%}"
+                 if self.player_disabled else ""))
+        w(f"  damage taken {self.dtps:.0f}/s"
+          + (f" (normal {self.dtps_auto:.0f} + skills {self.dtps_skill:.0f})"
+             if self.dtps_skill else "")
+          + f";  regen {self.regen_hps:.1f} HP/s"
           + (f";  potions {self.potion_hps:.1f} HP/s" if b.potions["enabled"] else ""))
         if self.surv_n:
             proj = (f"; {self.surv_projected}/{self.surv_n} projected past "
@@ -331,7 +542,8 @@ class Report:
             if self.surv_never * 2 > self.surv_n:
                 w(f"  never dies: regen outpaces it ({self.surv_never}/{self.surv_n} runs)")
             elif self.surv:
-                w(f"  survives {statistics.median(self.surv):.1f} s against it (median; "
+                w(f"  survives {statistics.median(self.surv):.1f} s against fresh copies back to "
+                  f"back (median; "
                   f"{_pct(self.surv, .1):.1f}-{_pct(self.surv, .9):.1f} s p10-p90){proj}")
         w("")
         w("Outcome")
@@ -348,6 +560,18 @@ class Report:
              if self.oom else ""))
         if b.potions["enabled"]:
             w(f"  potions per fight: HP {self.potions['hp']:.1f}, MP {self.potions['mp']:.1f}")
+        ai = self._ai_summary()
+        if ai:
+            w("")
+            w(f"Monster AI ({ai['file']}): damaged pattern {ai['damaged_runs']:.1f} runs/fight "
+              f"(gate {ai['damaged_rate']}% once it has a target), stop pattern "
+              f"{ai['stop_runs']:.1f} runs/fight (every {ai['stop_s']:g} s idle); "
+              f"distance {ai['distance']} cm")
+            if ai["unsimulated"]:
+                w("  fired but not simulated, per fight: " + ", ".join(
+                    f"{k} {v:.1f}" for k, v in ai["unsimulated"]))
+            if ai["suicides"]:
+                w(f"  suicided in {ai['suicides']} fights")
         if s.notes:
             w("")
             w("Warnings")
