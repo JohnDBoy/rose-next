@@ -265,6 +265,17 @@ Diagnosing a suspected bad bake: `scripts/verify-vfs.py <game-dir>` (or `rosefmt
 
 **Prefer `--art-only --template-row N` for anything from an unfamiliar dump.** It takes the model (plus `--copy-icon` / `--copy-field-model`) and clones every stat column from one of *our* rows, reading no source cell at all. That is a safety property, not a convenience: item bonus/requirement columns are ability ids fed straight into `m_iAddValue[nType] += nValue` with **no bounds check** on the client (`src/client/common/cuserdata.cpp`; the gameserver's `accumulate_item_bonuses` in `mounted_item_bonuses.h` now skips ids outside `0..AT_MAX`). `m_iAddValue` is `int[AT_MAX]` with `m_nPassiveRate`/`m_btRecoverHP`/`m_iDropRATE` directly behind it, so a modern affix id (Jrose uses 174/175/184/185/195) silently corrupts adjacent character state instead of erroring. `--art-only` also skips the source STL, sidestepping foreign dialects — Jrose writes the legacy `I_NUM` header that our strict reader rejects. See [doc/jrose-back-import.md](../doc/jrose-back-import.md). `scripts/add-item-icon.py` adds a custom item icon from a PNG (any size, auto-downscaled to a 40×40 cell) to the `ITEM1.TSI` atlas and prints the new global icon index (`--weapon-row N` also patches the STB); requires Pillow. `scripts/add-skill-icon.py` is the same tool for **skill** icons (`SKILLICON.TSI`, extension sheets `skill04.dds`+, original indices 0–506, extensions from 507; `--skill-row N` patches `LIST_SKILL.STB` col 51). Note the two TSIs use different sprite-rect conventions (item `x..x+40`, skill `x..x+39`) — each script matches its atlas. Both docstrings document the underlying binary formats — read them before editing STB/ZSC/STL/TSI by hand.
 
+**Castle gear and cart parts are `--type pat`** (`LIST_PAT.STB` + `LIST_PAT.ZSC`, one model
+table indexed by item number). A part rides the skeleton of its pet type (col 16), so check the
+source's skeleton for that type is byte-identical to ours before importing art. Jrose's castle gear
+is, and `scripts/import-jrose-castle-gear.py` (2026-10-14) imports its 23 sets plus 5 extra arms
+into the blank band at rows 512-585 with baseline stats. The three ranged arms bring their own
+projectile rows. Undo is whole-file (`--restore`). Two traps from its first test: **an
+arm's col 40 picks the motion set of the whole gear** (0 punch, 1 drill, 2 sword wheel, 3 cannon,
+4 spear: a TYPE_MOTION column), and Jrose leaves it blank on arms that are clearly spears or axes,
+so clone the retail arm the model looks like. Also, **a foreign effect mesh can be ZMS pool 0**,
+which pops the `zz_morpher` `get_dynamic()` assert on first use; set it to pool 1.
+
 **Original weapons come in through `scripts/import-glb-weapon.py`** (2026-10-11; first item:
 the Meshy-generated "Celestial Frost Scepter", LIST_WEAPON 1469, validated in game the same day; since 2026-10-12 that row *is* the moving version below -- the static one was dropped). It
 reads a glTF binary (Meshy's `glb` export — the only format on its list that needs no Blender

@@ -110,6 +110,12 @@ TYPES = {
     "foot":     (5, r"3DDATA\STB\LIST_FOOT.STB",     (r"3DDATA\AVATAR\LIST_MFOOT.ZSC",
                                                       r"3DDATA\AVATAR\LIST_WFOOT.ZSC"),
                  r"3DDATA\STB\LIST_FOOT_S.STL",     "LFOO", 36),
+    # Cart / castle gear parts: one model table indexed by item number
+    # (CObjCART::Create -> m_pMD_CartPARTS->GetMODEL). A part rides the skeleton
+    # of its pet type (col 16), so a source part fits only if that skeleton is
+    # ours too -- Jrose's castle gear one is byte-identical.
+    "pat":      (14, r"3DDATA\STB\LIST_PAT.STB",      (r"3DDATA\PAT\LIST_PAT.ZSC",),
+                 r"3DDATA\STB\LIST_PAT_S.STL",      "LPAT", 68),
     # No avatar model -- the model step is skipped entirely.
     "useitem":  (10, r"3DDATA\STB\LIST_USEITEM.STB",  (),
                  r"3DDATA\STB\LIST_USEITEM_S.STL",  "LUSE", 28),
