@@ -4,6 +4,13 @@
 #include "GS_PARTY.h"
 #include "GS_ThreadZONE.h"
 
+// tag_PARTY_MEMBER still carries recovery as a BYTE (party HP/MP regen prediction only);
+// CUserDATA keeps a short since item recovery counts, so clamp rather than wrap.
+static BYTE
+PartyRecoverBYTE(short nValue) {
+    return (BYTE)(nValue < 0 ? 0 : (nValue > 255 ? 255 : nValue));
+}
+
 
 CPartyBUFF::CPartyBUFF(WORD wMaxPartyCNT):
     CIndexARRAY<CParty*>("CPartyBUFF", wMaxPartyCNT), m_csPartyBUFF(4000) {
@@ -461,8 +468,8 @@ CParty::Change_ObjectIDX(classUSER* pUSER) {
     pCPacket->m_gsv_CHANGE_OBJIDX.m_Member.m_dwStatusFALG = pUSER->m_IngSTATUS.GetFLAGs();
 
     pCPacket->m_gsv_CHANGE_OBJIDX.m_Member.m_nCON = pUSER->GetCur_CON();
-    pCPacket->m_gsv_CHANGE_OBJIDX.m_Member.m_btRecoverHP = pUSER->m_btRecoverHP;
-    pCPacket->m_gsv_CHANGE_OBJIDX.m_Member.m_btRecoverMP = pUSER->m_btRecoverMP;
+    pCPacket->m_gsv_CHANGE_OBJIDX.m_Member.m_btRecoverHP = PartyRecoverBYTE(pUSER->m_nRecoverHP);
+    pCPacket->m_gsv_CHANGE_OBJIDX.m_Member.m_btRecoverMP = PartyRecoverBYTE(pUSER->m_nRecoverMP);
     pCPacket->m_gsv_CHANGE_OBJIDX.m_Member.m_nSTAMINA = pUSER->GetCur_STAMINA();
 
     this->SendToPartyMembersExceptME(pUSER, pCPacket);
@@ -569,8 +576,8 @@ CParty::Send_PartyUserLIST(classUSER* pUSER, DWORD dwUserTAG) {
                     sMember.m_nMaxHP = m_pPartyUSERs[nI]->m_pUSER->GetOri_MaxHP(); // Get_MaxHP ();
                     sMember.m_dwStatusFALG = m_pPartyUSERs[nI]->m_pUSER->m_IngSTATUS.GetFLAGs();
                     sMember.m_nCON = m_pPartyUSERs[nI]->m_pUSER->GetCur_CON();
-                    sMember.m_btRecoverHP = m_pPartyUSERs[nI]->m_pUSER->m_btRecoverHP;
-                    sMember.m_btRecoverMP = m_pPartyUSERs[nI]->m_pUSER->m_btRecoverMP;
+                    sMember.m_btRecoverHP = PartyRecoverBYTE(m_pPartyUSERs[nI]->m_pUSER->m_nRecoverHP);
+                    sMember.m_btRecoverMP = PartyRecoverBYTE(m_pPartyUSERs[nI]->m_pUSER->m_nRecoverMP);
                     sMember.m_nSTAMINA = m_pPartyUSERs[nI]->m_pUSER->GetCur_STAMINA();
 
                     pCPacket->AppendData(&sMember, sizeof(tag_PARTY_MEMBER));
@@ -629,8 +636,8 @@ CParty::Add_PartyUSER(classUSER* pUSER) {
         sMember.m_dwStatusFALG = pUSER->m_IngSTATUS.GetFLAGs();
 
         sMember.m_nCON = pUSER->GetCur_CON();
-        sMember.m_btRecoverHP = pUSER->m_btRecoverHP;
-        sMember.m_btRecoverMP = pUSER->m_btRecoverMP;
+        sMember.m_btRecoverHP = PartyRecoverBYTE(pUSER->m_nRecoverHP);
+        sMember.m_btRecoverMP = PartyRecoverBYTE(pUSER->m_nRecoverMP);
         sMember.m_nSTAMINA = pUSER->GetCur_STAMINA();
 
         pCPacket->AppendData(&sMember, sizeof(tag_PARTY_MEMBER));

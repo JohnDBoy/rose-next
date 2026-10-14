@@ -655,8 +655,10 @@ public:
     int m_iAddValue[AT_MAX];
     short m_nPassiveRate[AT_MAX];
 
-    BYTE m_btRecoverHP;
-    BYTE m_btRecoverMP;
+    // passive + item recovery (Cal_RecoverHP/MP); short since items count (a +300 item
+    // wrapped the old BYTE). The party packet still carries a clamped BYTE.
+    short m_nRecoverHP;
+    short m_nRecoverMP;
 
     int m_iDropRATE;
 

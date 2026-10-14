@@ -93,8 +93,8 @@ public:
     }
 
     int Get_CON() { return this->GetCur_CON(); }
-    int GetAdd_RecoverHP() { return this->m_btRecoverHP; }
-    int GetAdd_RecoverMP() { return this->m_btRecoverMP; }
+    int GetAdd_RecoverHP() { return this->m_nRecoverHP; }
+    int GetAdd_RecoverMP() { return this->m_nRecoverMP; }
 
     void Check_PerFRAME(DWORD dwPassTIME);
 

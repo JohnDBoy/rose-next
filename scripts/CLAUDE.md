@@ -637,7 +637,13 @@ each of which was wrong in someone's head:
   Harmful states roll `SUCCESS*(LV*2+INT+20)/(RES*0.6+5+AVOID) > 1+rand(100)`.
 - **Potions: the server has no cooldown** (the client's 500 ms is the only one). Health/Mana
   Vials heal over time through LIST_STATUS; the Vital/Spiritual Waters are instant.
-- Monsters have no HP regen; player regen runs every 2 s and is not paused in combat.
+- Monsters have no HP regen; player regen runs every 2 s and is not paused in combat
+  (it is paused while poisoned). Sitting regen (`Get_RecoverHP/MP(100)`) is ~20x standing.
+- **Item HP/MP recovery counted 0 until 2026-10-14**: `Cal_RecoverHP/MP` read passive +
+  item x passive *rate*, and no recovery passive (Meditation, Rest Mastery) has a rate, so
+  Recovery/Meditation Rings, recovery gems, Orlean Saga (+300) ... did nothing. It now adds
+  the item value like `GetCur_SaveMP`, in a `short m_nRecoverHP/MP` (the BYTE wrapped at
+  256; the party packet still carries a clamped BYTE). MP cost reduction always counted.
 - **Poison is a fixed tick, not a skill-scaled one**: `StatusEffects::Proc` deals the
   applied LIST_STATUS row's value (`STATE_APPLY_ABILITY_VALUE`, col 6: Poison I-V = 10, 20,
   30, 44, 60/s; Burning, row 58, 30/s) each second while ticks remain, through

@@ -2971,8 +2971,8 @@ classUSER::Change_EQUIP_ITEM(short nEquipInvIDX, short nWeaponInvIDX) {
     }
 
     BYTE btCurCON = this->GetCur_CON();
-    BYTE btRecvHP = this->m_btRecoverHP;
-    BYTE btRecvMP = this->m_btRecoverMP;
+    short nRecvHP = this->m_nRecoverHP;
+    short nRecvMP = this->m_nRecoverMP;
 
     bool bResult = true;
     // 바뀐 인벤토리 구조 전송..
@@ -3109,8 +3109,8 @@ classUSER::Change_EQUIP_ITEM(short nEquipInvIDX, short nWeaponInvIDX) {
 
         if (this->GetPARTY()) {
             // 변경에 의해 옵션이 붙어 회복이 바뀌면 파티원에게 전송.
-            if (btCurCON != this->GetCur_CON() || btRecvHP != this->m_btRecoverHP
-                || btRecvMP != this->m_btRecoverMP) {
+            if (btCurCON != this->GetCur_CON() || nRecvHP != this->m_nRecoverHP
+                || nRecvMP != this->m_nRecoverMP) {
                 this->m_pPartyBUFF->Change_ObjectIDX(this);
             }
         }
@@ -8922,8 +8922,8 @@ void
 classUSER::UpdateAbility() {
     const int iOldMaxHP = this->GetOri_MaxHP();
     const int iOldCON = this->GetCur_CON();
-    const BYTE btOldRecoverHP = this->m_btRecoverHP;
-    const BYTE btOldRecoverMP = this->m_btRecoverMP;
+    const short nOldRecoverHP = this->m_nRecoverHP;
+    const short nOldRecoverMP = this->m_nRecoverMP;
 
     // Force a sync with client everytime stats are updated
     CObjAVT::UpdateAbility();
@@ -8936,7 +8936,7 @@ classUSER::UpdateAbility() {
     // a gem left the party frames measuring our HP against a stale maximum.
     if (this->GetPARTY()
         && (iOldMaxHP != this->GetOri_MaxHP() || iOldCON != this->GetCur_CON()
-            || btOldRecoverHP != this->m_btRecoverHP || btOldRecoverMP != this->m_btRecoverMP)) {
+            || nOldRecoverHP != this->m_nRecoverHP || nOldRecoverMP != this->m_nRecoverMP)) {
         this->GetPARTY()->Change_ObjectIDX(this);
     }
 }

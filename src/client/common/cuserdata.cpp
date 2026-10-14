@@ -319,16 +319,21 @@ CUserDATA::Cal_BattleAbility() {
 
 void
 CUserDATA::Cal_RecoverHP() {
-    m_btRecoverHP = this->GetPassiveSkillValue(AT_PSV_RECOVER_HP)
+    // Passive + item + item x passive rate, like GetCur_SaveMP. It used to read only
+    // passive + item x rate, and no recovery passive has a rate, so every item's
+    // "recover HP/MP" (Recovery Ring, Meditation Ring, recovery gems...) counted 0.
+    m_nRecoverHP = (short)(this->GetPassiveSkillValue(AT_PSV_RECOVER_HP)
+        + m_iAddValue[AT_RECOVER_HP]
         + (short)(m_iAddValue[AT_RECOVER_HP] * this->GetPassiveSkillRate(AT_PSV_RECOVER_HP)
-            / 100.f);
+            / 100.f));
 }
 
 void
 CUserDATA::Cal_RecoverMP() {
-    m_btRecoverMP = this->GetPassiveSkillValue(AT_PSV_RECOVER_MP)
+    m_nRecoverMP = (short)(this->GetPassiveSkillValue(AT_PSV_RECOVER_MP)
+        + m_iAddValue[AT_RECOVER_MP]
         + (short)(m_iAddValue[AT_RECOVER_MP] * this->GetPassiveSkillRate(AT_PSV_RECOVER_MP)
-            / 100.f);
+            / 100.f));
 }
 
 #ifdef __KCHS_BATTLECART__

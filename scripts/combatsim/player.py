@@ -249,11 +249,13 @@ class StatBlock:
         self._item_bonuses(add)
         self.item_add = list(add)
 
-        # Cal_RecoverHP / MP -> BYTE m_btRecoverHP / MP
-        self.recover_hp = (psv_add[AT["PSV_RECOVER_HP"]]
-                           + short(add[AT["RECOVER_HP"]] * rate[AT["PSV_RECOVER_HP"]] / 100.0)) & 0xFF
-        self.recover_mp = (psv_add[AT["PSV_RECOVER_MP"]]
-                           + short(add[AT["RECOVER_MP"]] * rate[AT["PSV_RECOVER_MP"]] / 100.0)) & 0xFF
+        # Cal_RecoverHP / MP -> short m_nRecoverHP / MP: passive + item + item x passive
+        # rate (until 2026-10-14 the item value was only multiplied by the rate, which no
+        # recovery passive has, so recovery items counted 0; the field was a wrapping BYTE)
+        self.recover_hp = short(psv_add[AT["PSV_RECOVER_HP"]] + add[AT["RECOVER_HP"]]
+                                + short(add[AT["RECOVER_HP"]] * rate[AT["PSV_RECOVER_HP"]] / 100.0))
+        self.recover_mp = short(psv_add[AT["PSV_RECOVER_MP"]] + add[AT["RECOVER_MP"]]
+                                + short(add[AT["RECOVER_MP"]] * rate[AT["PSV_RECOVER_MP"]] / 100.0))
 
         for k in STAT_KEYS:
             add[AT[k]] += from_value[k]

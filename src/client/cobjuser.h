@@ -106,8 +106,8 @@ public:
 
     /*override*/ int Get_CON() { return GetCur_CON(); } // 집중
 
-    /*override*/ int GetAdd_RecoverHP() { return this->m_btRecoverHP; }
-    /*override*/ int GetAdd_RecoverMP() { return this->m_btRecoverMP; }
+    /*override*/ int GetAdd_RecoverHP() { return this->m_nRecoverHP; }
+    /*override*/ int GetAdd_RecoverMP() { return this->m_nRecoverMP; }
 
     virtual short GetPsv_ATKSPEED() { return this->GetPassiveSkillAttackSpeed(); }
     virtual short GetPsv_ATKSPEED(float fCurSpeed, short nRightWeaponItemNo);
