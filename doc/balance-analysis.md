@@ -308,6 +308,12 @@ Deliberately not recommended:
 - Seconds-per-kill assumes a 1.4 s swing animation at attack-speed 100. The real
   interval comes from the `.ZMO` motion length; the *ratios* between levels are
   unaffected by that assumption, the absolute seconds are.
+- **The tables here predate a sim fix (2026-10-14):** `balance-sim.py` took attack
+  speed as `1500 / spd` where the server's `update_speed` uses `1500 / (spd + 5)`,
+  so every swing ran ~1.4x fast and the seconds-per-kill above read about 30%
+  short (the 200 row is 97 s with the fix, not 80). Ratios between levels move
+  little, because every weapon was off by a similar factor; re-run
+  `--section rotation` for current figures.
 - Only the PVM branches are ported. PvP has its own formulas and its own damage
   caps (25-45% of the defender's max HP) and was not analysed.
 

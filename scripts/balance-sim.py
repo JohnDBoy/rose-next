@@ -393,8 +393,10 @@ class Player:
         wq = self.w["q"] if self.w else 0
         wd = self.w["dur"] if self.w else 0
         self.hit = int((CON + 10) * 0.8) + int(wq * 0.6 + wd * 0.8) + b.get("HIT", 0)
-        self.aspd = int(1500.0 / (self.w["spd"] if self.w and self.w["spd"] else 15)) \
-            + b.get("ASPD", 0)
+        # CObjAVT::update_speed: 1500 / (WEAPON_ATTACK_SPEED + 5). The +5 was
+        # missing until 2026-10-14, which ran every weapon ~50% fast here.
+        spd = self.w["spd"] if self.w and self.w["spd"] else 10
+        self.aspd = int(1500.0 / (spd + 5)) + b.get("ASPD", 0)
         self.INT, self.SEN = INT, SEN
 
 

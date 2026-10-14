@@ -20,8 +20,37 @@ Survey (2026-10-14), the reasons this is safe:
 What is written. Each part goes through `import-item.py --type pat --art-only
 --target-row N --copy-icon`: the model and the icon come from Jrose, every stat
 from one of OUR baseline rows (TEMPLATE below). Jrose's numbers are not wanted
--- its arms hit ~15x ours (4350-6714 ATK against 300-440) -- and stats will be
-authored per set once the user has seen them in game.
+-- its arms hit ~15x ours (4350-6714 ATK against 300-440).
+
+Stats: the tier ladder (2026-10-14; `--restat` rewrites just these cells).
+The user's brief: castle gear is the game's emblem, each set a little
+stronger than the last, the top one able to do endgame content; the extra
+arms accompany tiers. The sets are five models in colourways, ordered by look
+(LEVEL below): Insect Mk I 90-110, Worm 120-130, Insect Mk II 140-155, Kaiser
+165-190, Garter 200-240 -- a new model is a jump, a colourway a step. Every
+stat is linear in the set's level between the level-90 and level-240 ends of
+LADDER, on the classic rows' own bonus pattern (body DEF+RES, legs DEF+RES and
+speed, arms DEF+CRITICAL), so the bottom tier sits just above classic gear.
+
+Why these sizes, measured with balance-sim.py's formulas (median field
+monster, synthetic player): mounted ATK is `3*level + CON + arms ATK`
+(rose/common/mounted_stats.h) and the server refuses skills while riding, so
+a castle gear fights with auto-attacks alone. Classic Punch Arms (300) already
+kill 1.2-1.4x faster than a Champion using a skill on cooldown, but fall behind
+at 240, where monster DEF outgrows a fixed arms ATK and the classic +170 DEF.
+That model's synthetic player has no refines, gems or passives, and the first
+ladder built on it (650 ATK at the top) hit for ~40% of a real level-240
+character on foot -- arms ATK is now calibrated on in-game ATK readings
+instead (FOOT_ATK). Defence was right: the monster hit for the floor (5). Mounted DEF is 80% of
+the on-foot formula plus the parts' bonuses, and past about +400 bonus DEF the
+level-240 median monster drops to the damage floor -- so the top tier stays
+under it. Ranged extras get +10% ATK for their slower cannon swing (spd 12).
+
+Every part carries the level requirement (31:level) and its PART_VER = level.
+The version check (a part fits only a body of equal or higher version) lives
+in the client's equip UI alone; the server enforces only the level, which is
+why the requirement is on legs and arms too, unlike the classic rows. Classic
+parts (versions 30-40) and the engines still fit every new body.
 
 Arms animate from their template. LIST_PAT col 40 of the ARMS picks the column
 of TYPE_MOTION every castle gear clip is read from (CObjCART::Get_MOTION): 0
@@ -58,6 +87,7 @@ Our ids 452-454 are taken by the Camo cart engines -- Jrose ids are not portable
   python scripts/import-jrose-castle-gear.py --dry-run
   python scripts/import-jrose-castle-gear.py
   python scripts/import-jrose-castle-gear.py --verify
+  python scripts/import-jrose-castle-gear.py --restat    # after editing LEVEL / LADDER
   python scripts/import-jrose-castle-gear.py --restore
 
 Undo: every table and atlas it touches is saved whole in
@@ -207,6 +237,116 @@ SETS = [
       (1006, "ranged", "Keraunos Shot", "Castle Gear arms with a giant crossbow.")]),
 ]
 FIRST_ROW = 512
+
+# The approved tier order: set -> required level (also its PART_VER).
+LEVEL = {
+    "Insect Gear": 90, "Insect Gear 2015": 95, "Burning Insect": 100,
+    "Cobalt Insect": 105, "Ocean Insect": 110,
+    "Silk Worm": 120, "Milk Worm": 125, "Black Worm": 130,
+    "Cerulean Insect": 140, "Scarlet Insect": 145, "Nero Insect": 150, "Reiban Volante": 155,
+    "Proto Kaiser Type-Y": 165, "Proto Kaiser Type-W": 170, "Red Kaiser": 175,
+    "Blue Kaiser": 180, "Black Kaiser": 190,
+    "Junon Garter": 200, "Junon Garter Red": 205, "Junon Garter Purple": 210,
+    "Union Garter Green": 220, "Union Garter Blue": 230, "Union Garter Black": 240,
+}
+# Extra arms: jrose row -> (level, ATK, bonus slot 2 (ability, value), DEF added to slot 1).
+# Each sits a little above its tier's set arms, with Jrose's flavour at our scale.
+EXTRA_ARMS = {
+    1006: (105, 1.10, (22, 40), 0),    # Keraunos Shot: ranged; AVOID (Jrose 22:85)
+    1003: (135, 1.10, (20, 40), 0),    # Rocket Punch: ranged; HIT (Jrose 20:200)
+    1004: (170, 0.95, (26, 25), 120),  # Tank Defender: lower ATK, DEF +120 (Jrose 19:350)
+    1005: (195, 1.10, (38, 400), 0),   # Missile Launcher: ranged; MAX HP (Jrose 38:1200)
+    1002: (220, 1.10, (26, 60), 0),    # Gigant Axe: slow wheel swing; CRITICAL (Jrose 26:150)
+}
+# Arms ATK, calibrated in game (2026-10-14). A level-240 character read ATK 2395
+# on foot and 1719 mounted on the first ladder's 650 arms: mounted hit for ~40%
+# of on-foot damage. Mounted ATK is 3*level + CON + arms + item ATK bonuses and
+# ignores weapon, refines, gems and weapon passives, so it lags a geared
+# character more the higher the level. On-foot ATK anchors: 2395 at 240 and
+# ~900 at 140 (a refine-5 character read 962), exponential between them; the
+# CON + bonus share of the mounted base is taken from the same character (349
+# at 240) and scaled with level. Arms then make mounted ATK MOUNTED_OVER_FOOT
+# times the on-foot value at the set's level (~25% more damage per hit), never
+# under ARMS_FLOOR, which keeps the early sets above the classic arms (300-440):
+# the floor rules up to ~175, where the mounted base alone is already strong.
+FOOT_ATK = ((140, 900.0), (240, 2395.0))
+MOUNT_CON_AT_240 = 349
+MOUNTED_OVER_FOOT = 1.10
+ARMS_FLOOR = (450, 2)          # ATK at level 90, + per level
+# (level-90 value, level-240 value), linear in the level between them.
+LADDER = {
+    "arms_q": (50, 70), "arms_def": (30, 50), "arms_crit": (20, 40),
+    "body_def": (100, 200), "body_res": (40, 100),
+    "legs_def": (40, 80), "legs_res": (20, 40), "legs_speed": (44, 52),
+}
+AT_DEF, AT_RES, AT_CRITICAL, AT_LEVEL = 19, 21, 26, 31
+C_QUALITY, C_PART_VER, C_NEED, C_BONUS1, C_BONUS2 = 8, 17, 21, 24, 27
+C_MOV_SPD, C_ATK_POW = 33, 36
+
+
+def ladder(key, level):
+    lo, hi = LADDER[key]
+    return lo + (hi - lo) * (level - 90) / 150.0
+
+
+def arms_atk(level):
+    """Set arms ATK at a level -- see FOOT_ATK."""
+    import math
+    (l1, a1), (l2, a2) = FOOT_ATK
+    foot = a1 * math.exp(math.log(a2 / a1) * (level - l1) / (l2 - l1))
+    base = 3 * level + MOUNT_CON_AT_240 * level / 240.0
+    return max(ARMS_FLOOR[0] + ARMS_FLOOR[1] * (level - 90), MOUNTED_OVER_FOOT * foot - base)
+
+
+def r5(v):
+    return int(round(v / 5.0) * 5)
+
+
+def stats_for(src, part, set_name):
+    """{col: value} for one part -- the whole stat ladder lives here."""
+    if src in EXTRA_ARMS:
+        level, atk_mult, (bid, bval), extra_def = EXTRA_ARMS[src]
+    else:
+        level = LEVEL[set_name]
+    out = {C_PART_VER: level, C_NEED: AT_LEVEL, C_NEED + 1: level}
+    if part == "body":
+        out.update({C_BONUS1: AT_DEF, C_BONUS1 + 1: r5(ladder("body_def", level)),
+                    C_BONUS2: AT_RES, C_BONUS2 + 1: r5(ladder("body_res", level))})
+    elif part == "legs":
+        out.update({C_BONUS1: AT_DEF, C_BONUS1 + 1: r5(ladder("legs_def", level)),
+                    C_BONUS2: AT_RES, C_BONUS2 + 1: r5(ladder("legs_res", level)),
+                    C_MOV_SPD: int(round(ladder("legs_speed", level)))})
+    else:
+        out.update({C_QUALITY: int(round(ladder("arms_q", level))),
+                    C_BONUS1: AT_DEF, C_BONUS1 + 1: r5(ladder("arms_def", level))})
+        if src in EXTRA_ARMS:
+            out.update({C_ATK_POW: r5(arms_atk(level) * atk_mult), C_BONUS1 + 1: out[C_BONUS1 + 1] + extra_def,
+                        C_BONUS2: bid, C_BONUS2 + 1: bval})
+        else:
+            out.update({C_ATK_POW: r5(arms_atk(level)),
+                        C_BONUS2: AT_CRITICAL, C_BONUS2 + 1: r5(ladder("arms_crit", level))})
+    return out
+
+
+def part_stats():
+    """[(dest, name, {col: value})] for every imported part."""
+    out, dest = [], FIRST_ROW
+    for set_name, _desc, parts in SETS:
+        for p in parts:
+            out.append((dest, p[2], stats_for(p[0], p[1], set_name)))
+            dest += 1
+    return out
+
+
+def apply_stats(root):
+    pat = Stb(os.path.join(root, PAT_STB))
+    for dest, name, cells in part_stats():
+        if pat.s(dest, 0) != name:
+            sys.exit("row %d is %r, expected %r -- not re-statting" % (dest, pat.s(dest, 0), name))
+        for c, v in cells.items():
+            pat.set(dest, c, str(v).encode())
+    pat.write(os.path.join(root, PAT_STB))
+    print("   stats applied to %d parts" % len(part_stats()))
 
 
 def items():
@@ -381,6 +521,10 @@ def verify(root):
     for rel in EFFECT_MESHES:
         if zms.parse(os.path.join(root, rel)).pool != 1:
             bad.append("%s is not pool 1 (zz_morpher asserts)" % rel)
+    for dest, name, cells in part_stats():
+        wrong = [c for c, v in cells.items() if pat.i(dest, c) != v]
+        if wrong:
+            bad.append("%d %s: stat cols %s off the ladder" % (dest, name, wrong))
     for b in bad:
         print("   " + b)
     print("   %d parts, %s" % (len(items()), "all OK" if not bad else "%d problem(s)" % len(bad)))
@@ -393,6 +537,8 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--verify", action="store_true")
     ap.add_argument("--restore", action="store_true")
+    ap.add_argument("--restat", action="store_true",
+                    help="rewrite only the stat cells of the imported rows from the ladder")
     a = ap.parse_args()
     root = os.path.abspath(a.root)
 
@@ -411,6 +557,12 @@ def main():
             print("   restored %s" % rel)
         os.remove(MANIFEST)
         return 0
+    if a.restat:
+        if not os.path.isfile(MANIFEST):
+            sys.exit("nothing imported (no %s) -- run the import first" % MANIFEST)
+        apply_stats(root)
+        print("verify:")
+        return 0 if verify(root) else 1
     if a.verify:
         print("verify:")
         return 0 if verify(root) else 1
@@ -468,6 +620,7 @@ def main():
     if ok:
         set_bullets(root)
         axe_knuckle(root)
+        apply_stats(root)
 
     # import-item.py's per-item backups, and add-item-icon.py's, out of data/
     baks = os.path.join(WORK, "import-baks")
