@@ -500,7 +500,9 @@ class CombatEditor(EditorBase):
         self.e_fix.toggled.connect(lambda: self.queue_run(immediate=True))
         bl.addWidget(self.e_fix)
         self.e_auto = QCheckBox("Auto-run")
-        self.e_auto.setChecked(True)
+        self.e_auto.setToolTip("Re-run after every edit (off: press Run)")
+        self.e_auto.setChecked(False)
+        self.e_auto.toggled.connect(lambda on: on and self.queue_run(immediate=True))
         bl.addWidget(self.e_auto)
         self.b_run = QPushButton("Run")
         self.b_run.setObjectName("Primary")
@@ -897,9 +899,10 @@ class CombatEditor(EditorBase):
         self.queue_run(immediate=True)
 
     def queue_run(self, immediate=False, force=False):
-        if not force and not self.e_auto.isChecked() and self._report is not None:
-            self._status = "out of date — press Run"
-            self.l_state.setText(self._status)
+        if not force and not self.e_auto.isChecked():
+            self._status = "out of date — press Run" if self._report else "press Run"
+            self.l_state.setText("Results are out of date — press Run." if self._report
+                                 else "Pick a monster and press Run.")
             self.statusChanged.emit()
             return
         self._run_timer.start(0 if immediate else 250)
@@ -1047,7 +1050,7 @@ class CombatEditor(EditorBase):
             self.e_mob.set_row(state["mob"])
         self.e_n.setValue(state.get("n", 300))
         self.e_fix.setChecked(bool(state.get("fix")))
-        self.e_auto.setChecked(state.get("auto", True))
+        self.e_auto.setChecked(state.get("auto", False))
         self.queue_run(immediate=True)
 
     def focus_search(self, prefix=""):

@@ -51,7 +51,22 @@ class BuildDocument(Document):
         if not is_build(raw):
             raise ValueError("not a combat simulator build (no job/level/stats)")
         self.data = Build(raw).to_json()      # normalised: every field present
+        # A build made by Tools > New Combat Build is written to disk so it can be opened
+        # like any file, but it is not the user's until they save it: it counts as unsaved,
+        # and "Don't save" deletes it (MainWindow.discard_provisional).
+        self.provisional = False
         super().__init__(path, encoding)
+
+    def mark_provisional(self):
+        self.provisional = True
+        self.dirtyChanged.emit(True)
+
+    @property
+    def dirty(self):
+        return self.provisional or not self.undo.isClean()
+
+    def _clean_changed(self, clean):
+        self.dirtyChanged.emit(self.provisional or not clean)
 
     def build(self):
         return Build(self.data)
@@ -69,4 +84,6 @@ class BuildDocument(Document):
             raise ValueError("build JSON does not round-trip")
 
     def _mark_saved(self):
-        pass
+        if self.provisional:
+            self.provisional = False
+            self.dirtyChanged.emit(not self.undo.isClean())

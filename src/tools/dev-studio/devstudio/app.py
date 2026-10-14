@@ -473,6 +473,7 @@ class MainWindow(QMainWindow):
         self.undo_group.removeStack(ed.doc.undo)
         if ed.doc.path in self.watcher.files():
             self.watcher.removePath(ed.doc.path)
+        self.discard_provisional(ed.doc)
         ed.deleteLater()
         self._mark_explorer()
         if not self.tabs.count():
@@ -627,8 +628,10 @@ class MainWindow(QMainWindow):
             path = new_build_file(gd, job, level)
         finally:
             QApplication.restoreOverrideCursor()
-        self.open_path(path)
-        self.toast("Build created", "success", os.path.relpath(path, REPO_ROOT))
+        ed = self.open_path(path)
+        if ed is not None:
+            ed.doc.mark_provisional()     # not kept unless saved
+        self.toast("Build created", "success", "Save it to keep it")
 
     def open_combat_build(self):
         BUILDS_DIR.mkdir(parents=True, exist_ok=True)
@@ -696,16 +699,30 @@ class MainWindow(QMainWindow):
         files = []
         for i in range(self.tabs.count()):
             ed = self.tabs.widget(i)
+            if getattr(ed.doc, "provisional", False):
+                continue
             enc = ed.doc.encoding if ed.doc.encoding != type(ed.doc).DEFAULT_ENCODING else None
             files.append({"path": ed.doc.path, "encoding": enc, "state": ed.view_state()})
         cur = self.current_editor()
         self.settings.setValue("session", json.dumps({"files": files, "current": cur.doc.path if cur else None}))
+
+    @staticmethod
+    def discard_provisional(doc):
+        """A new build the user never saved goes away with its tab (see BuildDocument)."""
+        if getattr(doc, "provisional", False):
+            try:
+                os.remove(doc.path)
+            except OSError:
+                pass
 
     def closeEvent(self, ev):
         dirty = [ed for ed in self.editors.values() if ed.doc.dirty]
         if dirty and not self._ask_save(dirty):
             ev.ignore()
             return
+        for ed in list(self.editors.values()):
+            if getattr(ed.doc, "provisional", False):
+                self._discard_editor(ed)      # "Don't save" on a new build: delete it
         self._save_session()
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("split", self.split.sizes())

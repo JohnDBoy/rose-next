@@ -67,8 +67,9 @@ instead (anything that holds `3DDATA`).
   long the character survives against an unkillable copy of the monster, HP and
   MP left, damage dealt and taken per second, both stat blocks, per-skill
   numbers and debuff uptime. **Fix passive bugs** shows what the passives were
-  meant to give. Runs happen on a worker thread and repeat after each edit
-  (**Auto-run**). The engine is `scripts/combatsim` (also a command-line tool,
+  meant to give. **Run** simulates in a worker process; **Auto-run** (off by
+  default) repeats it after every edit. A new build is unsaved until you save
+  it, and "Don't save" deletes its file. The engine is `scripts/combatsim` (also a command-line tool,
   `scripts/combat-sim.py`); see `scripts/CLAUDE.md` "Combat Simulator".
 
 ## Saving
