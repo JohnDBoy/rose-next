@@ -25,6 +25,7 @@ SKILL_SPACING = 1
 SUMMONERS = {
     421: dict(skills=None, priority=False),          # Bourgeois: all three, mixed in
     322: dict(skills=(1711,), priority=False),       # Scout: Call Hawk (not Iron Skin)
+    411: dict(skills=None, priority=False),          # Dealer: Employ Warrior, "a nice help"
 }
 SUMMONER_JOBS = tuple(SUMMONERS)
 AT_PSV_SUMMON_MOB_CNT = 62
@@ -374,12 +375,42 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summon
                     yield sk_(v, 1) or v
 
     todo = list(want)
+    only_prereq = set()
     while todo:
         for g in prereqs(todo.pop()):
             ranks = skill_ranks(gd, g) if g not in want else None
             if ranks:
                 want[g] = ("passive" if sk_(ranks[-1], 5) == 15 else "active", ranks)
+                only_prereq.add(g)
                 todo.append(g)
+
+    def needed():
+        """A skill learned only as a prerequisite climbs just in time: to the rank the next
+        rank of something wanted asks for (Economy Research to 6 when Employ Troops 1 is
+        next), never ahead of it."""
+        need = {}
+
+        def ask(r):
+            grew = False
+            for t in range(3):
+                v, n = sk_(r, 39 + 2 * t), sk_(r, 40 + 2 * t)
+                k = (sk_(v, 1) or v) if v else 0
+                if k in only_prereq and max(1, n) > need.get(k, 0):
+                    need[k] = max(1, n)
+                    grew = True
+            return grew
+
+        for g, (_kind, ranks) in want.items():
+            if g not in only_prereq and have.get(g, 0) < len(ranks):
+                ask(ranks[have.get(g, 0)])
+        grew = True
+        while grew:                         # a prerequisite's own prerequisites
+            grew = False
+            for k in list(need):
+                i, ranks = have.get(k, 0), want[k][1]
+                if i < need[k] and i < len(ranks) and ask(ranks[i]):
+                    grew = True
+        return need
     core = {g for g, (kind, ranks) in want.items()
             if kind == "passive" and _own_mastery(gd.skill(ranks[-1]), wtype)}
     if summons and summons["priority"]:
@@ -409,8 +440,11 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summon
     spent = {"passive": 0, "active": 0}
     while True:
         cands = []
+        need = needed()
         for first, (kind, ranks) in want.items():
             i = have.get(first, 0)
+            if first in only_prereq and i >= need.get(first, 0):
+                continue
             if i < len(ranks) and sk_(ranks[i], 3) <= left and ok(ranks[i]):
                 cands.append((kind, 0 if first in core else 1, sk_(ranks[i], 3), i, first))
         if not cands:

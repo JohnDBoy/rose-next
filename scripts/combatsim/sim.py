@@ -36,8 +36,9 @@ ASSUMPTIONS = [
     "range (it never has to walk to cast).",
     "A stunned or sleeping monster stops and forgets its target (SetCMD_STOP); with an AI "
     "file it fights again only when an AI pattern orders it (a monster without one simply "
-    "resumes). A player hit, hit or miss, wakes it from sleep. Poison damage (DoTs) is "
-    "not simulated. A stunned or sleeping player acts again the moment the state ends.",
+    "resumes). A player hit, hit or miss, wakes it from sleep. Poison ticks every second "
+    "for its LIST_STATUS value and never kills. A stunned or sleeping player acts again "
+    "the moment the state ends.",
     "Survival runs: a monster that would die is replaced at once by a fresh one (full HP, "
     "no debuffs, AI reset), so HP-triggered AI phases repeat.",
     "Summons are called before the pull and stand by the player (same distance to the "
@@ -77,10 +78,6 @@ class Simulation:
                 self.notes.append(f"{sk.name}: needs weapon type {need}, build has {wt}")
             if sk.type in (7, 17):
                 self.notes.append(f"{sk.name}: area skill, simulated on the one target")
-            if sk.type == 19:
-                self.notes.append(f"{sk.name}: drain part (self HP/MP gain) not simulated")
-            if any(s and gd.state_type(s) == ING["POISONED"] for s in sk.states):
-                self.notes.append(f"{sk.name}: its poison (DoT) damage is not simulated")
         self.m_attack_motion = gd.npc_motion(npc_row, MOB_ANI_ATTACK)
         if self.m_attack_motion is None:
             self.notes.append("monster has no attack motion: it never deals damage")
@@ -327,10 +324,10 @@ class Report:
         for f in fights:
             for row, s in f.skills.items():
                 a = self.skills.setdefault(row, dict(casts=0, landed=0, dmg=0, states=0,
-                                                     state_tries=0))
+                                                     state_tries=0, dot=0, drain=0))
                 for k in a:
                     a[k] += s[k]
-                p_skill += s["dmg"]
+                p_skill += s["dmg"] + s["dot"]
         self.dps_auto = p_auto * 1000 / tot_ms
         self.dps_skill = p_skill * 1000 / tot_ms
         self.dps_summon = sum(f.s_dmg for f in fights) * 1000 / tot_ms
@@ -375,7 +372,8 @@ class Report:
         m_skill_dmg = sum(f.m_skill_dmg for f in fights)
         self.dtps_auto = sum(f.m_dmg for f in fights) * 1000 / tot_ms
         self.dtps_skill = m_skill_dmg * 1000 / tot_ms
-        self.dtps = self.dtps_auto + self.dtps_skill
+        self.dtps_dot = sum(f.m_dot_dmg for f in fights) * 1000 / tot_ms
+        self.dtps = self.dtps_auto + self.dtps_skill + self.dtps_dot
         self.m_skill_samples = {}
         for f in fights:
             for row, xs in f.m_skill_samples.items():
@@ -474,7 +472,8 @@ class Report:
                 per_hit=a["dmg"] / a["landed"] if a["landed"] else 0,
                 dps=self.dps_skill * a["dmg"] / skill_dmg,
                 mp=sk.mp_cost(st.rate_use_mp), cooldown=sk.reload_ms / 1000,
-                state_land=a["states"] / a["state_tries"] if a["state_tries"] else None))
+                state_land=a["states"] / a["state_tries"] if a["state_tries"] else None,
+                poison=a["dot"] / self.n, drain=a["drain"] / self.n))
         return dict(
             build=b.name, job=JOBS.get(b.job, b.job), level=b.level, female=b.female,
             npc=npc.name, npc_level=npc.level, npc_row=npc.row,
@@ -612,6 +611,10 @@ class Report:
                 parts.append(f"{per:.0f} per landed cast")
             if a["state_tries"]:
                 parts.append(f"state lands {a['states'] / a['state_tries']:.0%}")
+            if a["dot"]:
+                parts.append(f"poison/burn {a['dot'] / self.n:.0f} damage/fight")
+            if a["drain"]:
+                parts.append(f"drains {a['drain'] / self.n:.0f} HP/fight back")
             parts.append(f"{sk.mp_cost(st.rate_use_mp)} MP, {sk.reload_ms / 1000:.1f} s cd")
             w(f"  {sk.name} (#{row}): " + ", ".join(x for x in parts if x))
         w(f"  DPS {self.dps:.0f}  (normal {self.dps_auto:.0f} + skills {self.dps_skill:.0f}"
@@ -671,8 +674,9 @@ class Report:
               + (f";  player stunned/asleep {self.player_disabled:.0%}"
                  if self.player_disabled else ""))
         w(f"  damage taken {self.dtps:.0f}/s"
-          + (f" (normal {self.dtps_auto:.0f} + skills {self.dtps_skill:.0f})"
-             if self.dtps_skill else "")
+          + (f" (normal {self.dtps_auto:.0f} + skills {self.dtps_skill:.0f}"
+             + (f" + poison/burn {self.dtps_dot:.0f}" if self.dtps_dot else "") + ")"
+             if self.dtps_skill or self.dtps_dot else "")
           + f";  regen {self.regen_hps:.1f} HP/s"
           + (f";  potions {self.potion_hps:.1f} HP/s" if b.potions["enabled"] else ""))
         if self.surv_n:

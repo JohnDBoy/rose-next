@@ -638,6 +638,14 @@ each of which was wrong in someone's head:
 - **Potions: the server has no cooldown** (the client's 500 ms is the only one). Health/Mana
   Vials heal over time through LIST_STATUS; the Vital/Spiritual Waters are instant.
 - Monsters have no HP regen; player regen runs every 2 s and is not paused in combat.
+- **Poison is a fixed tick, not a skill-scaled one**: `StatusEffects::Proc` deals the
+  applied LIST_STATUS row's value (`STATE_APPLY_ABILITY_VALUE`, col 6: Poison I-V = 10, 20,
+  30, 44, 60/s; Burning, row 58, 30/s) each second while ticks remain, through
+  `Give_STATUS_DAMAGE`, which never kills (it leaves 1 HP), wakes nobody and runs no AI.
+  The rank picks the row and the duration (Poison Fang 20 -> 30 -> 44/s, Curse 44/s for
+  only 3-8 s). Burning is STATE_TYPE 3 too, so it shares poison's slot; only monster skills
+  apply it (Fire/Magma Burn are Defense Down, not a burn). A drain (type 19, Blood Attack) that lands heals the caster
+  `FLAT*(INT+300)/315` (+ a percentage of its live HP), capped at max HP.
 - **Monster AI in a fight is the DAMAGED pattern**: it runs on every player hit *or miss*
   and on every `SKILL_HARM` status (so a damaging debuff runs it twice), never while the
   monster is stunned or asleep, and -- once the monster has a target -- only when the

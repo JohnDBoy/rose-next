@@ -57,7 +57,7 @@ ING_LABEL = {
     ING["INC_HIT"]: "HIT", ING["DEC_HIT"]: "HIT down", ING["INC_CRITICAL"]: "CRIT",
     ING["DEC_CRITICAL"]: "CRIT down", ING["INC_AVOID"]: "AVOID", ING["DEC_AVOID"]: "AVOID down",
     ING["DUMB"]: "Silenced", ING["SLEEP"]: "Asleep", ING["FAINTING"]: "Stunned",
-    ING["POISONED"]: "Poisoned", ING["SHIELD_DAMAGE"]: "Reflect",
+    ING["POISONED"]: "Poison/burn", ING["SHIELD_DAMAGE"]: "Reflect",
     ING["DUMMY_DAMAGE"]: "Extra damage", ING["TAUNT"]: "Taunted",
 }
 

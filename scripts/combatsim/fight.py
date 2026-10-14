@@ -96,8 +96,10 @@ class Status:
         """StatusEffects::IsIgnoreSTATUS: sleep or faint blocks every command."""
         return _SLEEP in self.val or _FAINT in self.val
 
-    def proc(self, ms):
-        """StatusEffects::Proc: once per accumulated second, `if (m_nTICKs[i]-- <= 0) clear`."""
+    def proc(self, ms, on_tick=None):
+        """StatusEffects::Proc: once per accumulated second, `if (m_nTICKs[i]-- <= 0) clear`;
+        `on_tick(ing)` runs for every state with ticks left (poison deals its damage then:
+        `if (m_nTICKs[ING_POISONED]-- > 0) Give_STATUS_DAMAGE`)."""
         self.acc += ms
         if self.acc < 1000:
             return False
@@ -113,6 +115,8 @@ class Status:
                         d.pop(ing, None)
                     changed = True
                 else:
+                    if on_tick:
+                        on_tick(ing)
                     self.ticks[ing] = t - 1
         if changed and self.on_change:
             self.on_change()
@@ -121,6 +125,7 @@ class Status:
 
 _SLEEP, _FAINT, _DUMMY = ING["SLEEP"], ING["FAINTING"], ING["DUMMY_DAMAGE"]
 _DUMB = ING["DUMB"]
+_POISON = ING["POISONED"]
 _I = {k: ING[k] for k in ("INC_APOWER", "DEC_APOWER", "INC_HIT", "DEC_HIT", "INC_ATK_SPD",
                           "DEC_ATK_SPD", "INC_DPOWER", "DEC_DPOWER", "INC_RES", "DEC_RES",
                           "INC_AVOID", "DEC_AVOID", "INC_CRITICAL", "DEC_CRITICAL",
@@ -177,7 +182,9 @@ class Combatant:
     def base(self, at):
         """Get_BaseAbilityValue: CObjAVT's pre-buff stat for the player; a monster has no
         override, so CObjCHAR's default reads its live (already buffed) value."""
-        return self.base_value(at) if self.base_value else self.current_ability(at)
+        if self.base_value and at not in (AT["HP"], AT["MP"]):
+            return self.base_value(at)
+        return self.current_ability(at)    # CObjAVT's default: Get_AbilityValue (live HP)
 
     def current_ability(self, at):
         """CObjMOB::Get_AbilityValue: a monster's percentage base is its live value."""
@@ -264,13 +271,14 @@ class Log:
         self.s_calls = 0          # summons called again during the fight
         self.s_deaths = 0
         self.ms_dmg = 0           # the monster's damage to summons
+        self.m_dot_dmg = 0        # poison ticks on the player
         self.ms_swings = 0        # the monster's swings at summons
         self.s_swing_t = []       # (first, last) summon swing start ms
         self.m_on_summon_ms = 0   # time the monster spends on a summon
 
     def skill(self, row):
         return self.skills.setdefault(row, dict(casts=0, landed=0, dmg=0, states=0,
-                                                state_tries=0))
+                                                state_tries=0, dot=0, drain=0))
 
     def m_skill(self, row):
         return self.m_skills.setdefault(row, dict(orders=0, casts=0, landed=0, dmg=0,
@@ -837,6 +845,15 @@ class Fight:
                 self.log.skill_samples.setdefault(sk.row, []).append(dmg)
                 self.m.hp -= dmg
             self.enemy.damaged(self.p, dmg)
+            if sk.type == 19:
+                # Skill_START_19: a drain that lands heals the caster -- its
+                # Skill_ApplyIngSTATUS on the caster, the target standing in as speller,
+                # at the caster's own INT
+                if dmg:
+                    hp0 = self.p.hp
+                    self.apply_states(sk, self.m, self.p, rec, speller_int=self.p.get_int)
+                    rec["drain"] += self.p.hp - hp0
+                return
         # Skill_ChangeIngSTATUS runs after the damage for 3/4/5/6, on its own for 9/13;
         # 8/10/12 are self-cast
         target = self.p if sk.type in SELF_TYPES else self.m
@@ -917,6 +934,28 @@ class Fight:
             if bool(self.gd.state_harmful(stb)) == (kind == 0):
                 return True
         return False
+
+    def _poison(self, unit):
+        """The per-second hook for `unit`: poison deals its LIST_STATUS value
+        (STATE_APPLY_ABILITY_VALUE) through Give_STATUS_DAMAGE, which never kills (it
+        leaves 1 HP), wakes nobody and runs no AI."""
+        def tick(ing):
+            if ing != _POISON or unit.hp <= 1:
+                return
+            dmg = min(self.gd.state_apply(unit.st.stb[ing], 0)[1], unit.hp - 1)
+            if dmg <= 0:
+                return
+            unit.hp -= dmg
+            lg, row = self.log, unit.st.skill.get(ing)
+            if unit is self.p:
+                lg.m_dot_dmg += dmg
+            elif unit is self.m and row in self.cost:
+                lg.skill(row)["dot"] += dmg
+            elif unit is self.m:
+                lg.s_dmg += dmg
+            else:
+                lg.ms_dmg += dmg
+        return tick
 
     def _respawn(self):
         """Survival runs: the monster that would have died is replaced by a fresh one."""
@@ -1057,15 +1096,15 @@ class Fight:
                 for ing, tk in self.p.st.ticks.items():
                     if tk is not None:
                         lg.player_state_ms[ing] = lg.player_state_ms.get(ing, 0) + TICK_MS
-                self.p.st.proc(TICK_MS)
+                self.p.st.proc(TICK_MS, self._poison(self.p))
             if self.m.st.val:
                 for ing, stb in self.m.st.stb.items():
                     d = lg.debuff_ms if self.gd.state_harmful(stb) else lg.monster_buff_ms
                     d[ing] = d.get(ing, 0) + TICK_MS
-                self.m.st.proc(TICK_MS)
+                self.m.st.proc(TICK_MS, self._poison(self.m))
             for s in self.live_summons():
                 if s.u.st.ticks:
-                    s.u.st.proc(TICK_MS)
+                    s.u.st.proc(TICK_MS, self._poison(s.u))
             if self.p.st.disabled():
                 lg.player_disabled_ms += TICK_MS
             else:
