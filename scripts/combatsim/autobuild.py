@@ -7,7 +7,7 @@ are the ones the server awards by that level, spent on a mix of passives and act
 (spend_skill_points). Edit the result in the Dev Studio tab.
 """
 from .data import AT, JOBS, PREFIXED_TABLES, SLOTS
-from .player import PSV_ATK_BY_WTYPE, PSV_SPD_BY_WTYPE, STAT_KEYS, Build, auto_stats
+from .player import PSV_ATK_BY_WTYPE, PSV_SPD_BY_WTYPE, STAT_KEYS, Build, StatBlock, auto_stats
 
 # stat weights and usable weapon types per job (the old balance-sim profiles)
 # CON as a share of level, spent before the weights: ROSE players run CON about equal to
@@ -17,6 +17,11 @@ MELEE_CON, OTHER_CON = 0.9, 0.75
 # weak), everyone else weaves a swing in (user guidance, 2026-10-14)
 SPAM_JOBS = (211, 221, 222)
 SKILL_SPACING = 1
+# classes played with their summons out: the auto-build learns the summon skills and the
+# capacity passive, and fills the summon bar (user guidance, 2026-10-14: a Bourgeois mixes
+# summons and attacking skills)
+SUMMONER_JOBS = (421,)
+AT_PSV_SUMMON_MOB_CNT = 62
 MELEE_JOBS = (111, 121, 122, 311, 321)
 
 # "Average" gear (make_build(gear="average")): what a typical player wears rather than
@@ -52,9 +57,10 @@ PROFILES = {
     311: dict(w=dict(DEX=5, STR=3, SENSE=2), wt=(251, 231)),
     321: dict(w=dict(STR=3, DEX=4, SENSE=3), wt=(251, 252, 253)),
     322: dict(w=dict(DEX=5, SENSE=3, CON=2), wt=(231,)),
-    411: dict(w=dict(CON=4, DEX=3, SENSE=3), wt=(232, 271)),
-    421: dict(w=dict(CON=4, DEX=3, SENSE=3), wt=(271, 232)),
-    422: dict(w=dict(CON=4, DEX=3, SENSE=3), wt=(232, 271)),
+    # the Dealer line's skills all need a gun or launcher (232/233), never a crossbow
+    411: dict(w=dict(CON=4, DEX=3, SENSE=3), wt=(232, 233)),
+    421: dict(w=dict(CON=4, DEX=3, SENSE=3), wt=(232, 233)),
+    422: dict(w=dict(CON=4, DEX=3, SENSE=3), wt=(232, 233)),
 }
 JUNK = ("GM ", "GameMaster", "Game Master", "Christmas", "Wreath", "Test")
 EVENT_PREFIXES = range(9, 17)          # STR_ITEMPREFIX [Costume], [Event], [X-mas] ...
@@ -305,21 +311,22 @@ COMBAT_ATS = ({AT[k] for k in ("STR", "DEX", "INT", "CON", "SENSE", "HP", "MP", 
 NON_COMBAT_TYPES = (1, 2, 10, 11, 14, 20)   # basic actions, crafting, heals, summons, revive
 
 
-def _passive_fits(sk, wtype):
+def _passive_fits(sk, wtype, summons=False):
     """False for a weapon mastery of another weapon type (AT_PSV_ATK_POW_* / _SPD_*) and for
-    a passive that raises nothing a fight uses."""
+    a passive that raises nothing a fight uses (the summon capacity counts for a summoner)."""
     own = {PSV_ATK_BY_WTYPE.get(wtype), PSV_SPD_BY_WTYPE.get(wtype)}
     if not wtype:
         own.add(AT["PSV_ATK_POW_NO_WEAPON"])
+    useful = COMBAT_ATS | ({AT_PSV_SUMMON_MOB_CNT} if summons else set())
     for ab, flat, rate in sk.ability:
-        if not (flat or rate) or ab not in COMBAT_ATS:
+        if not (flat or rate) or ab not in useful:
             continue
         if not (AT["PSV_ATK_POW_NO_WEAPON"] <= ab <= AT["PSV_ATK_SPD_PAIR"]) or ab in own:
             return True
     return False
 
 
-def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE):
+def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summons=False):
     """The skill rows a typical player has learned: the server's points for `level`,
     one rank at a time, keeping passives near `share` of the points spent and buying
     the cheapest next rank in each kind -- so several skills climb together instead of
@@ -328,8 +335,9 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE):
     other passives. Ranks respect the server's prerequisites (Skill_
     CheckLearnedSKILL, cols 39-44) and ability requirements (cols 45-48: level, stats).
     Skips weapon masteries for other weapons, actives the weapon cannot use, crafting,
-    trade and other non-combat skills, heals, summons, and skills no rank of which costs
-    points (not learned with points)."""
+    trade and other non-combat skills, heals, summons (unless `summons`: then the summon
+    skills count as actives and the summon capacity passive as useful), and skills no
+    rank of which costs points (not learned with points)."""
     sk_ = gd.sk
     groups = class_skills(gd, job)
     want = {}
@@ -339,9 +347,11 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE):
             continue
         sk = gd.skill(top)
         if sk.is_passive():
-            if any(f or rt for _, f, rt in sk.ability) and _passive_fits(sk, wtype):
+            if any(f or rt for _, f, rt in sk.ability) and _passive_fits(sk, wtype, summons):
                 want[first] = ("passive", ranks)
-        elif sk.type not in NON_COMBAT_TYPES:
+        elif sk.is_damage() and sk.power <= 0:
+            continue                    # no SKILL_POWER: Double Scratch, never used
+        elif sk.type not in NON_COMBAT_TYPES or (summons and sk.type == 14):
             need = [w for w in sk.need_weapon if w]
             if not need or wtype in need or wtype // 10 in need:
                 want[first] = ("active", ranks)
@@ -424,10 +434,31 @@ def auto_rotation(gd, rows):
         if sk.is_passive():
             continue
         if sk.is_damage():
-            damage.append((-sk.power, r))
+            if sk.power > 0:            # a damage skill with no power is never cast
+                damage.append((-sk.power, r))
         elif sk.type in (9, 13) and any(st and gd.state_type(st) in useful for st in sk.states):
             debuffs.append((-sk.power, r))
     return [r for _, r in sorted(debuffs)] + [r for _, r in sorted(damage)]
+
+
+def fill_summons(gd, b):
+    """The summon bar a summoner keeps full: the learned summon skills, the one taking the
+    most capacity (the strongest) first, one of each in turn until none fits
+    (CUserDATA::GetMax_SummonCNT vs NPC_NEED_SUMMON_CNT, LIST_NPC col 21)."""
+    npc = gd.stb("LIST_NPC")
+    kinds = sorted((r for r in b.skills if gd.sk(r, 5) == 14 and gd.sk(r, 28) > 0),
+                   key=lambda r: -npc.i(gd.sk(r, 28), 21))
+    cap = StatBlock(gd, b).summon_capacity
+    out, used, added = [], 0, True
+    while added:
+        added = False
+        for r in kinds:
+            need = npc.i(gd.sk(r, 28), 21)
+            if used + need <= cap:
+                out.append(r)
+                used += need
+                added = True
+    return out
 
 
 def con_floor(job):
@@ -483,8 +514,11 @@ def make_build(gd, job, level, female=False, gear="best"):
     for slot, it in b.equip.items():
         if it.id:
             it.grade = wg if slot == "weapon" else ag
+    summoner = job in SUMMONER_JOBS
     b.skills, spent, left = spend_skill_points(gd, job, level, gd.weapon_type(w) if w else 0,
-                                               b.stats)
+                                               b.stats, summons=summoner)
+    if summoner:
+        b.summons = fill_summons(gd, b)
     b.rotation = auto_rotation(gd, b.skills)
     b.skill_spacing = 0 if job in SPAM_JOBS else SKILL_SPACING
     sp = (f"{spent['passive'] + spent['active']} skill points (passives {spent['passive']}, "

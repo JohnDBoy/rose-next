@@ -445,6 +445,9 @@ class CombatEditor(EditorBase):
         self.rot_add = combo()
         self.rot_add.activated.connect(self._rot_add)
         v.addWidget(self.rot_add)
+        self.l_other = dim("", "Hint")
+        self.l_other.setWordWrap(True)
+        v.addWidget(self.l_other)
 
         # buffs
         section("Buffs kept up", v)
@@ -759,6 +762,7 @@ class CombatEditor(EditorBase):
         b.buffs = [dict(skill=w.rank.row(), caster_int=w.cint.value(), caster_level=0)
                    for w in self._buff_widgets if w.rank.row()]
         b.summons = [w.rank.row() for w in self._sum_widgets if w.rank.row()]
+        self._sync_learned(b)
         b.potions["enabled"] = self.e_pot_on.isChecked()
         for kind, (cb, th) in self.e_pot.items():
             b.potions[kind] = cb.currentData() or 0
@@ -787,9 +791,12 @@ class CombatEditor(EditorBase):
         self.l_points.setToolTip("Stats cost more points than the level grants" if over else
                                  f"{have - spent:,} unspent")
         # skill points: learned skills plus the rotation (a skill cast must be learned)
-        spent = skills_cost(self.gd, b.skills + b.rotation + b.summons)
+        rows = b.skills + b.rotation + b.summons
+        spent = skills_cost(self.gd, rows)
         have = skill_points(self.gd, b.level)
-        self.l_sp.setText(f"Skill points {spent:,} / {have:,}")
+        psv = skills_cost(self.gd, [r for r in rows if self.gd.sk(r, 5) == 15])
+        self.l_sp.setText(f"Skill points {spent:,} / {have:,}  ·  passives {psv:,}  ·  "
+                          f"actives {spent - psv:,}")
         over = spent > have
         self.l_sp.setObjectName("ChipModified" if over else "Chip")
         self.l_sp.setToolTip(("More skill points than the level grants: the passives and "
@@ -798,6 +805,14 @@ class CombatEditor(EditorBase):
                              "unspent")
         self.l_sp.style().unpolish(self.l_sp)
         self.l_sp.style().polish(self.l_sp)
+        used = {self._group(r) for r in b.rotation + b.summons}
+        other = [r for r in b.skills
+                 if self.gd.sk(r, 5) != 15 and self._group(r) not in used]
+        self.l_other.setText(
+            ("Also learned, not cast: " + ", ".join(
+                f"{self.gd.name('LIST_SKILL', r)} {self.gd.sk(r, 2)}" for r in other)
+             + f" ({skills_cost(self.gd, other):,} points)") if other else "")
+        self.l_other.setVisible(bool(other))
         # summon capacity: CUserDATA::GetMax_SummonCNT vs NPC_NEED_SUMMON_CNT of each
         try:
             cap = StatBlock(self.gd, b).summon_capacity
@@ -900,10 +915,32 @@ class CombatEditor(EditorBase):
         b.rotation.append(row)
         self.doc.set_data(b.to_json(), "Add to rotation", merge=False)
 
+    def _group(self, row):
+        return self.gd.sk(row, 1) or row
+
+    def _sync_learned(self, b):
+        """An active skill in the rotation or the summons is learned at the rank used there
+        (the highest, if several entries share it), so the skill points follow the form."""
+        used = {}
+        for r in b.rotation + b.summons:
+            g = self._group(r)
+            if g not in used or self.gd.sk(r, 2) > self.gd.sk(used[g], 2):
+                used[g] = r
+        keep = [r for r in b.skills if self.gd.sk(r, 5) == 15 or self._group(r) not in used]
+        b.skills = keep + sorted(used.values())
+
+    def _unlearn_unused(self, b, row):
+        """Removing the last rotation/summon entry of an active skill unlearns it."""
+        g = self._group(row)
+        if all(self._group(r) != g for r in b.rotation + b.summons):
+            b.skills = [r for r in b.skills
+                        if self._group(r) != g or self.gd.sk(r, 5) == 15]
+
     def _rot_remove(self, w):
         b = self._gather()
         i = self._rot_widgets.index(w)
-        del b.rotation[i]
+        row = b.rotation.pop(i)
+        self._unlearn_unused(b, row)
         self.doc.set_data(b.to_json(), "Remove from rotation", merge=False)
 
     def _rot_move(self, w, step):
@@ -981,7 +1018,8 @@ class CombatEditor(EditorBase):
 
     def _sum_remove(self, w):
         b = self._gather()
-        del b.summons[self._sum_widgets.index(w)]
+        row = b.summons.pop(self._sum_widgets.index(w))
+        self._unlearn_unused(b, row)
         self.doc.set_data(b.to_json(), "Remove summon", merge=False)
 
     # ------------------------------------------------------------------ class / auto
@@ -998,6 +1036,8 @@ class CombatEditor(EditorBase):
         nb = make_build(self.gd, b.job, b.level, b.female, gear)
         nb.name = b.name
         nb.buffs, nb.potions = b.buffs, b.potions
+        if not nb.summons:                  # a summoner's auto-build fills its own bar
+            nb.summons = b.summons
         self.doc.set_data(nb.to_json(), f"Auto-build ({gear})", merge=False)
 
     def _auto_stats(self):

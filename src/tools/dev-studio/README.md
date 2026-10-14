@@ -71,8 +71,11 @@ instead (anything that holds `3DDATA`).
   skill points the level grants on a mix of passives and actives (own weapon
   mastery first), and fill the rotation from the skills learned (debuffs that hit
   the monster first, then damage skills, strongest first) with "auto-attacks
-  between skills" at 0 for casters (they spam) and 1 for everyone else; buffs
-  and potions are left alone. A chip under
+  between skills" at 0 for casters (they spam) and 1 for everyone else. A
+  Bourgeois also learns its summons and Employ Troops and fills its summon bar
+  (strongest first). Buffs and potions are left alone. The skill-point chip
+  splits passives from actives (an action learned only counts once it is in the
+  build: test builds made before 2026-10-14 list passives only). A chip under
   "Passive skills" counts skill points used against the level's total. Item names carry
   their in-game prefix (Saint, Dark ...). The right side picks a monster and shows how the
   fight goes over a few hundred simulated fights: win rate, time to kill, how
