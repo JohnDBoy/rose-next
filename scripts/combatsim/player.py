@@ -38,6 +38,9 @@ PSV_ATK_BY_WTYPE = {211: 42, 212: 42, 221: 43, 222: 43, 223: 43, 231: 44, 232: 4
                     253: 45, 241: 46, 242: 46, 251: 48, 252: 48, 271: 47}
 PSV_SPD_BY_WTYPE = {231: 49, 232: 50, 233: 50, 251: 51, 252: 51}
 
+# Cal_HIT: the weapon's hit rate is ITEM_QUALITY x this (WEAPON_HIT_PER_QUALITY in
+# citem.h; retail 0.6)
+WEAPON_HIT_QUALITY = 1.4
 DURABILITY_SLOTS = ("cap", "body", "back", "arms", "foot", "subwpn")  # Cal_BattleAbility
 
 
@@ -331,7 +334,7 @@ class StatBlock:
 
         # Cal_HIT
         if wid:
-            hit = int((CON + 10) * 0.8) + int(gd.item_quality(8, wid) * 0.6
+            hit = int((CON + 10) * 0.8) + int(gd.item_quality(8, wid) * WEAPON_HIT_QUALITY
                                               + gd.grade(w.grade, 1) + self._durability(w) * 0.8)
         else:
             hit = int((CON + 10) * 0.5 + 15)

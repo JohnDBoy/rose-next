@@ -167,8 +167,9 @@ file before working in that area.
   record), the .vfs size limit, item import (`--art-only --template-row`), monster
   spawns (never sum `limitCNT`), missing NPC/skill rows and AI audits (run
   `audit-spawned-npcs.py` after any import), buffs (percent off the pre-buff stat),
-  monster balance, the combat simulator (`scripts/combat-sim.py`; players get
-  server.toml's +70 ATK/+80 HIT/+35 ASPD), and lessons from the zone imports. "I can't hit this monster" is
+  monster balance, the combat simulator (`scripts/combat-sim.py`), the weapon identity
+  pass (server.toml's ATK/HIT/ASPD bonuses are 0 since 2026-10-15; the weapons carry them),
+  and lessons from the zone imports. "I can't hit this monster" is
   usually the level gate in `Get_SuccessRATE` (`src/common/calculation.cpp`), not
   HIT/AVOID. Before adding a monster, read `doc/making-monsters.md`.
 - **Rose Dev Studio** -- `src/tools/dev-studio/CLAUDE.md` (STL text is UTF-8; STB

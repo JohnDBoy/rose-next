@@ -400,7 +400,7 @@ tagBaseITEM::GetHitRate() {
     if (m_cType != ITEM_TYPE_WEAPON)
         return 0;
 
-    return ITEM_QUALITY(m_cType, m_nItemNo) * 0.6 + m_cDurability * 0.8 - 15;
+    return ITEM_QUALITY(m_cType, m_nItemNo) * WEAPON_HIT_PER_QUALITY + m_cDurability * 0.8 - 15;
 }
 
 int

@@ -8,6 +8,11 @@
 #define MAX_ITEM_LIFE 1000
 #define MAX_DUP_ITEM_QUANTITY 999
 
+// A weapon's own hit rate is ITEM_QUALITY x this (CObjAVT::Cal_HIT, and the tooltip's
+// tagBaseITEM::GetHitRate). Retail was 0.6; raised to 1.4 when server.toml's base_hit
+// bonus went to 0, so accuracy comes from the weapon. Castle gear uses 1.2.
+#define WEAPON_HIT_PER_QUALITY 1.4f
+
 #pragma pack(push, 1)
 struct tagPartITEM {
     unsigned int m_nItemNo : 11;

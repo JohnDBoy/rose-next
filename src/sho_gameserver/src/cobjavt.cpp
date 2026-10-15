@@ -866,7 +866,7 @@ CObjAVT::Cal_HIT() {
         pRightWPN = this->Get_EquipItemPTR(EQUIP_IDX_WEAPON_R);
         if (pRightWPN->GetItemNO() && pRightWPN->GetLife() > 0) {
             iHitRate = (int)((GetCur_CON() + 10) * 0.8f)
-                + (int)((ITEM_QUALITY(ITEM_TYPE_WEAPON, pRightWPN->GetItemNO())) * 0.6f
+                + (int)((ITEM_QUALITY(ITEM_TYPE_WEAPON, pRightWPN->GetItemNO())) * WEAPON_HIT_PER_QUALITY
                     + ITEMGRADE_HIT(pRightWPN->GetGrade()) + pRightWPN->GetDurability() * 0.8f);
         } else {
             iHitRate = (int)((GetCur_CON() + 10) * 0.5f + 15);

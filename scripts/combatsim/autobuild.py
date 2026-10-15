@@ -23,9 +23,9 @@ SKILL_SPACING = 1
 # summon skills' first ranks (None = all of the class's); `priority`: bought before the
 # other actives, like the own weapon mastery among passives.
 SUMMONERS = {
-    421: dict(skills=None, priority=False),          # Bourgeois: all three, mixed in
-    322: dict(skills=(1711,), priority=False),       # Scout: Call Hawk (not Iron Skin)
-    411: dict(skills=None, priority=False),          # Dealer: Employ Warrior, "a nice help"
+    421: dict(skills=None, priority=True),           # Bourgeois: all three, its identity
+    322: dict(skills=(1711,), priority=True),        # Scout: Call Hawk (not Iron Skin)
+    411: dict(skills=None, priority=True),           # Dealer: Employ Warrior, "a nice help"
 }
 SUMMONER_JOBS = tuple(SUMMONERS)
 AT_PSV_SUMMON_MOB_CNT = 62
@@ -62,12 +62,14 @@ PROFILES = {
     221: dict(w=dict(INT=5, SENSE=3, CON=2), wt=(242, 241)),
     222: dict(w=dict(INT=5, CHARM=2, CON=3), wt=(241, 242)),
     311: dict(w=dict(DEX=5, STR=3, SENSE=2), wt=(251, 231)),
-    321: dict(w=dict(STR=3, DEX=4, SENSE=3), wt=(251, 252, 253)),
+    321: dict(w=dict(STR=3, DEX=4, SENSE=3), wt=(251, 252)),       # dual guns: a test weapon
     322: dict(w=dict(DEX=5, SENSE=3, CON=2), wt=(231,)),
-    # the Dealer line's skills all need a gun or launcher (232/233), never a crossbow
+    # the Dealer line's skills all need a gun or launcher (232/233), never a crossbow; the
+    # Artisan is the gun crit build, the Bourgeois the launcher (whose Cal_ATTACK reads
+    # STR*0.52 + CON*0.5, scaled by CON and SENSE -- DEX does nothing for it)
     411: dict(w=dict(CON=4, DEX=3, SENSE=3), wt=(232, 233)),
-    421: dict(w=dict(CON=4, DEX=3, SENSE=3), wt=(232, 233)),
-    422: dict(w=dict(CON=4, DEX=3, SENSE=3), wt=(232, 233)),
+    421: dict(w=dict(CON=4, STR=3, SENSE=3), wt=(233,)),
+    422: dict(w=dict(CON=4, DEX=3, SENSE=3), wt=(232,)),
 }
 JUNK = ("GM ", "GameMaster", "Game Master", "Christmas", "Wreath", "Test")
 EVENT_PREFIXES = range(9, 17)          # STR_ITEMPREFIX [Costume], [Event], [X-mas] ...
@@ -75,6 +77,12 @@ EVENT_PREFIXES = range(9, 17)          # STR_ITEMPREFIX [Costume], [Event], [X-m
 # Skill points: a typical player spreads them over passives and actives instead of
 # maxing every passive first (user guidance, 2026-10-14); this is the passives' share.
 PASSIVE_SHARE = 0.5
+SIGNATURE_SKILLS = 2          # strongest damage skills bought first among the actives
+# Players take a few skills far rather than many a little (user, 2026-10-15): a started
+# skill climbs before a new one opens, and beyond the core (signature skills, summons,
+# own mastery and their prerequisites) at most this many other actives are learned while
+# anything else can still take the points.
+EXTRA_ACTIVES = 3
 AMMO_TYPES = {0: 431, 1: 432, 2: 433}   # LIST_NATURAL type of arrows/bullets/throwing
 
 
@@ -122,6 +130,13 @@ def best_weapon(gd, level, wtypes, job=None):
         if rl > level:
             continue
         c.append((rl, s.i(r, 35) * 2 + s.i(r, 8), r))
+    # a row with no level requirement is an event, quest or GM weapon -- or, when nothing
+    # else fits (level 1), the starter weapon: the weakest of them
+    real = [x for x in c if x[0] > 0]
+    starters = [x for x in c if s.i(x[2], 8) > 0]       # holiday rows have no quality
+    if not real and starters:
+        return min(starters, key=lambda x: x[1])[2]
+    c = real
     if not c:
         return 0
     top = max(x[0] for x in c)
@@ -414,7 +429,16 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summon
     core = {g for g, (kind, ranks) in want.items()
             if kind == "passive" and _own_mastery(gd.skill(ranks[-1]), wtype)}
     if summons and summons["priority"]:
-        core |= {g for g in summons["skills"] or () if g in want}
+        core |= {g for g in want if want[g][0] == "active"
+                 and gd.skill(want[g][1][-1]).type == 14
+                 and (summons["skills"] is None or g in summons["skills"])}
+    # the class's strongest damage skills (top-rank SKILL_POWER, usable with this weapon):
+    # players head for their big skill and its prerequisites (a Mage for Luna Stone, which
+    # wants Tornado 8 -- buying the cheapest rank first never got there before level 240)
+    strong = sorted((g for g, (kind, ranks) in want.items()
+                     if kind == "active" and gd.skill(ranks[-1]).is_damage()),
+                    key=lambda g: -gd.skill(want[g][1][-1]).power)[:SIGNATURE_SKILLS]
+    core |= set(strong)
     todo = list(core)
     while todo:
         for g in prereqs(todo.pop()):
@@ -438,23 +462,34 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summon
 
     left = skill_points(gd, level)
     spent = {"passive": 0, "active": 0}
+
+    def extra(g):
+        return want[g][0] == "active" and g not in core and g not in only_prereq
+
     while True:
         cands = []
         need = needed()
+        extras = sum(1 for g, n in have.items() if n and extra(g))
         for first, (kind, ranks) in want.items():
             i = have.get(first, 0)
             if first in only_prereq and i >= need.get(first, 0):
                 continue
             if i < len(ranks) and sk_(ranks[i], 3) <= left and ok(ranks[i]):
-                cands.append((kind, 0 if first in core else 1, sk_(ranks[i], 3), i, first))
+                # core first (climbing together, cheapest rank first, so a summon chain
+                # starts alongside the masteries); an extra finishes before another opens
+                c = first in core
+                cands.append((kind, 0 if c else 1, 0 if c or i else 1,
+                              sk_(ranks[i], 3), i, first))
+        capped = [c for c in cands if not (c[4] == 0 and extra(c[5]) and extras >= EXTRA_ACTIVES)]
+        cands = capped or cands             # the cap gives way once nothing else can grow
         if not cands:
             break
         tot = spent["passive"] + spent["active"]
         kind = "passive" if spent["passive"] <= share * tot else "active"
         pick = min([c for c in cands if c[0] == kind] or cands, key=lambda c: c[1:])
-        have[pick[4]] = pick[3] + 1
-        spent[pick[0]] += pick[2]
-        left -= pick[2]
+        have[pick[5]] = pick[4] + 1
+        spent[pick[0]] += pick[3]
+        left -= pick[3]
     rows = sorted(want[g][1][n - 1] for g, n in have.items() if n)
     return rows, spent, left
 
@@ -569,7 +604,7 @@ def refines(level, table):
     return table[-1][1], table[-1][2]
 
 
-def make_build(gd, job, level, female=False, gear="best"):
+def make_build(gd, job, level, female=False, gear="best", weapon_types=None):
     """A starting build. gear="best": best in slot at the level, refined per BEST_REFINES.
     gear="average": what a typical player runs -- see average_upgrades/average_refines."""
     prof = PROFILES.get(job, PROFILES[111])
@@ -577,7 +612,7 @@ def make_build(gd, job, level, female=False, gear="best"):
     b = Build(dict(name=f"{JOBS.get(job, job)} {level} ({label})", job=job, level=level,
                    female=female))
     b.stats = auto_stats(level, prof["w"], con_floor(job))
-    w = best_weapon(gd, level, prof["wt"], job)
+    w = best_weapon(gd, level, weapon_types or prof["wt"], job)
     b.equip["weapon"].id = w
     up = average_upgrades(level) if gear == "average" else None
     cset = class_set(gd, job, level) if up is not None else {}
