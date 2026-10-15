@@ -104,6 +104,9 @@ def main():
     sw.add_argument("--level", type=int, nargs="+", required=True)
     sw.add_argument("--band", type=int, default=5, help="monster levels within +/- this")
     sw.add_argument("-n", type=int, default=80, help="fights per monster")
+    sw.add_argument("--route", nargs="+", choices=("weapon", "support"),
+                    default=["weapon", "support"],
+                    help="build routes to run (default both, blended 90/10)")
     sw.add_argument("--json", help="also write every result here")
 
     sc = sub.add_parser("scenarios", help="predictions for the in-game test scenarios")
@@ -225,8 +228,9 @@ def main():
         import json
         from combatsim import sweep
         rows = sweep.run(gd, a.job, a.level, a.band, a.n,
-                         progress=lambda r: print(f"  {r['job']} {r['level']} vs {r['name']}",
-                                                  file=sys.stderr))
+                         progress=lambda r: print(f"  {r['job']} {r['level']} {r['route']} "
+                                                  f"vs {r['name']}", file=sys.stderr),
+                         routes=tuple(a.route))
         if a.json:
             json.dump(rows, open(a.json, "w", encoding="utf-8"), indent=1)
         print(sweep.text(gd, rows))

@@ -341,17 +341,23 @@ class CombatEditor(EditorBase):
         v.addLayout(g)
         row = QHBoxLayout()
         row.addWidget(dim("Auto-build"))
-        for gear, text, tip in (
-                ("average", "Average gear",
+        for gear, route, text, tip in (
+                ("average", "weapon", "Average gear",
                  "What a typical player runs: the class armour set of the newest tier, a "
-                 "better weapon (and body/back at higher levels), low refines"),
-                ("best", "Best in slot",
-                 "The best item per slot at this level, well refined")):
+                 "better weapon (and body/back at higher levels), low refines; skills take the "
+                 "weapon's own route"),
+                ("best", "weapon", "Best in slot",
+                 "The best item per slot at this level, well refined"),
+                ("average", "support", "Support route",
+                 "About one player in ten: average gear, skills heading for buffs and the "
+                 "weapon-free attacks (magic, the hawk) -- weaker on paper; its buffs go up "
+                 "before each pull")):
             btn = QPushButton(text)
             btn.setToolTip(tip + ". Replaces stats, gear, skills and the rotation (debuffs, "
                            "then damage skills, strongest first) and potions (shop food, eaten below 70% "
-                           "HP / 50% MP); keeps buffs.")
-            btn.clicked.connect(lambda _c=False, g=gear: self._auto_build(g))
+                           "HP / 50% MP); keeps buffs"
+                           + (" (the support route sets its own)." if route == "support" else "."))
+            btn.clicked.connect(lambda _c=False, g=gear, r=route: self._auto_build(g, r))
             row.addWidget(btn, 1)
         v.addLayout(row)
 
@@ -1032,14 +1038,16 @@ class CombatEditor(EditorBase):
         b.skills, b.rotation, b.summons = [], [], []
         self.doc.set_data(b.to_json(), "Class", merge=False)
 
-    def _auto_build(self, gear="average"):
+    def _auto_build(self, gear="average", route="weapon"):
         b = self._gather()
-        nb = make_build(self.gd, b.job, b.level, b.female, gear)
+        nb = make_build(self.gd, b.job, b.level, b.female, gear, route=route)
         nb.name = b.name
-        nb.buffs = b.buffs                  # potions become food, like a player's
+        if route == "weapon":               # the user's buffs stay, the learned ones join
+            have = {x["skill"] for x in b.buffs}
+            nb.buffs = b.buffs + [x for x in nb.buffs if x["skill"] not in have]
         if not nb.summons:                  # a summoner's auto-build fills its own bar
             nb.summons = b.summons
-        self.doc.set_data(nb.to_json(), f"Auto-build ({gear})", merge=False)
+        self.doc.set_data(nb.to_json(), f"Auto-build ({gear}, {route} route)", merge=False)
 
     def _auto_stats(self):
         b = self._gather()

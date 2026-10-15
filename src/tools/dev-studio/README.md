@@ -67,15 +67,21 @@ instead (anything that holds `3DDATA`).
   **Average gear** (what a typical player runs -- their class's armour set of the
   newest tier, a better weapon and body, low refines; only those upgrades carry a
   prefix) or
-  **Best in slot** (well refined). Both put CON near the level, spend exactly the
-  skill points the level grants on a mix of passives and actives (own weapon
-  mastery first), and fill the rotation from the skills learned (debuffs that hit
-  the monster first, then damage skills, strongest first) with "auto-attacks
-  between skills" at 0 for casters (they spam) and 1 for everyone else. A
-  Bourgeois also learns its summons and Employ Troops and fills its summon bar
-  (strongest first). Potions become food (fruit, juice, cooked dishes: the
+  **Best in slot** (well refined), or
+  **Support route** (average gear, the build about one player in ten takes: buffs
+  and weapon-free attacks such as magic and the hawk first, its buffs up before
+  each pull). All put CON near the level, spend exactly the skill points the
+  level grants on a mix of passives and actives (own weapon mastery first, then
+  the weapon's own signature skills -- Screw Attack, Power Burst, Prime Hit --
+  taken far rather than many skills a little), and fill the rotation from the
+  skills learned (debuffs that hit the monster first, then damage skills,
+  strongest first) with "auto-attacks between skills" at 0 for casters (they
+  spam) and 1 for everyone else. A Bourgeois also learns its summons and Employ
+  Troops and fills its summon bar (strongest first); a Dealer takes Employ
+  Warrior and a Scout Call Hawk. Potions become food (fruit, juice, cooked dishes: the
   best a shop sells, eaten below 70% HP / 50% MP; vials and waters heal too fast
-  to be fair). Buffs are left alone. The skill-point chip
+  to be fair). Buffs you set stay, and the combat buffs the build learned join them
+  (every route starts its best buff and debuff early, at a few ranks). The skill-point chip
   splits passives from actives (an action learned only counts once it is in the
   build: test builds made before 2026-10-14 list passives only). A chip under
   "Passive skills" counts skill points used against the level's total. Item names carry

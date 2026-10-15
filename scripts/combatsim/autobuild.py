@@ -53,16 +53,21 @@ BEST_REFINES = (                   # best in slot is also well refined
     (999, 9, 6),
 )
 
+CLERIC_SUPPORT = ("Support", "Power Support", "Hit Support", "Blessing Body", "Blessing Armor",
+                  "Blessed Mind")
 PROFILES = {
     # a Soldier has no shield yet, so it swings two-handed (one-handed + shield is the Knight)
     111: dict(w=dict(STR=5, DEX=2), wt=(221, 222, 223)),
     121: dict(w=dict(STR=5, DEX=1, SENSE=1), wt=(211, 212), shield=True),
     122: dict(w=dict(STR=5, SENSE=2), wt=(221, 222, 223)),
-    211: dict(w=dict(INT=5, SENSE=3, CON=2), wt=(242, 241)),
-    221: dict(w=dict(INT=5, SENSE=3, CON=2), wt=(242, 241)),
+    # the Muse tree's support spells are the Cleric's branch (the class is being retired): a
+    # Mage takes only the heals from it (user, 2026-10-15)
+    211: dict(w=dict(INT=5, SENSE=3, CON=2), wt=(242, 241), skip=CLERIC_SUPPORT),
+    221: dict(w=dict(INT=5, SENSE=3, CON=2), wt=(242, 241), skip=CLERIC_SUPPORT),
     222: dict(w=dict(INT=5, CHARM=2, CON=3), wt=(241, 242)),
     311: dict(w=dict(DEX=5, STR=3, SENSE=2), wt=(251, 231)),
-    321: dict(w=dict(STR=3, DEX=4, SENSE=3), wt=(251, 252)),       # dual guns: a test weapon
+    321: dict(w=dict(STR=3, DEX=4, SENSE=3), wt=(251, 252),        # dual guns: a test weapon
+              skip=("Rest Mastery",)),
     322: dict(w=dict(DEX=5, SENSE=3, CON=2), wt=(231,)),
     # the Dealer line's skills all need a gun or launcher (232/233), never a crossbow; the
     # Artisan is the gun crit build, the Bourgeois the launcher (whose Cal_ATTACK reads
@@ -83,6 +88,27 @@ SIGNATURE_SKILLS = 2          # strongest damage skills bought first among the a
 # own mastery and their prerequisites) at most this many other actives are learned while
 # anything else can still take the points.
 EXTRA_ACTIVES = 3
+# Build routes and their share of players (user, 2026-10-15): most take the weapon's own
+# skills; about one in ten goes for buffs and magic / weapon-free attacks, the skills that
+# look weaker on paper. A sweep runs both and blends them by these weights.
+ROUTES = {"weapon": 0.9, "support": 0.1}
+BUFF_TYPES = (8, 9, 12)       # self / target bound duration, stealth -- with a kind state
+# the buff states that matter in a fight, best first (move speed and stealth do not)
+COMBAT_BUFF_INGS = ("INC_APOWER", "INC_ATK_SPD", "INC_HIT", "INC_CRITICAL", "INC_DPOWER",
+                    "INC_MAX_HP", "INC_RES", "INC_AVOID", "INC_MAX_MP")
+SUPPORT_BUFFS = 2             # combat buffs the support route makes core
+# The weapon route also starts its best self buff and its best debuff early, a few ranks,
+# then raises them only with points to spare: players take one to help themselves or the
+# party (user, 2026-10-15). The starter grows with the level -- STARTER_SHARE of the ranks
+# by STARTER_FULL_LEVEL, at least 1 -- so a level-40 Soldier has Berserk 2, not 6.
+STARTER_SHARE = 0.3
+STARTER_FULL_LEVEL = 120
+# Before the second job players try everything -- skills to press, buffs for flavour --
+# rather than taking a few far (user, 2026-10-15): below this level the extras spread
+# (lowest rank first, no EXTRA_ACTIVES cap, every buff welcome) and passives get a
+# smaller share of the points.
+EARLY_LEVEL = 70
+EARLY_PASSIVE_SHARE = 0.35
 AMMO_TYPES = {0: 431, 1: 432, 2: 433}   # LIST_NATURAL type of arrows/bullets/throwing
 
 
@@ -348,7 +374,36 @@ def _passive_fits(sk, wtype, summons=False):
     return False
 
 
-def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summons=None):
+def is_buff(gd, sk):
+    """A skill a player casts for its own good: a duration type whose states all help
+    (STATE_PRIFITS_LOSSES not 1) -- Berserk, Support, Hawker Spirit, Union Weapon."""
+    states = [x for x in sk.states if x]
+    return (sk.type in BUFF_TYPES and bool(states)
+            and all(gd.state_harmful(x) != 1 for x in states))
+
+
+def combat_buff_rank(gd, sk):
+    """Where a buff's best state sits in COMBAT_BUFF_INGS (lower = more useful), None for a
+    buff that does nothing in a fight (Sprint, Support's move speed, Stealth)."""
+    if not is_buff(gd, sk):
+        return None
+    from .data import ING
+    order = {ING[k]: i for i, k in enumerate(COMBAT_BUFF_INGS)}
+    st = gd.stb("LIST_STATUS")
+    ranks = [order[st.i(x, 1)] for x in sk.states if x and st.i(x, 1) in order]
+    return min(ranks) if ranks else None
+
+
+def is_useful_debuff(gd, sk):
+    """A harmful state cast on the target that matters one on one (USEFUL_DEBUFFS, as
+    auto_rotation casts them)."""
+    from .data import ING
+    useful = {ING[k] for k in USEFUL_DEBUFFS}
+    return sk.type in (9, 13) and any(st and gd.state_type(st) in useful for st in sk.states)
+
+
+def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summons=None,
+                       skip=(), route="weapon"):
     """The skill rows a typical player has learned: the server's points for `level`,
     one rank at a time, keeping passives near `share` of the points spent and buying
     the cheapest next rank in each kind -- so several skills climb together instead of
@@ -365,7 +420,7 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summon
     want = {}
     for first, top in groups.items():
         ranks = skill_ranks(gd, first)
-        if not ranks or not sum(sk_(r, 3) for r in ranks):
+        if not ranks or not sum(sk_(r, 3) for r in ranks) or gd.name("LIST_SKILL", first) in skip:
             continue
         sk = gd.skill(top)
         if sk.is_passive():
@@ -374,6 +429,9 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summon
                 want[first] = ("passive", ranks)
         elif sk.is_damage() and sk.power <= 0:
             continue                    # no SKILL_POWER: Double Scratch, never used
+        elif is_buff(gd, sk) and combat_buff_rank(gd, sk) is None:
+            continue                    # Sprint, Stealth: nothing in a fight (move speed has a
+                                        # baseline bonus and DEX); bought only as a prerequisite
         elif sk.restores() or sk.type not in NON_COMBAT_TYPES or (
                 summons and sk.type == 14
                 and (summons["skills"] is None or first in summons["skills"])):
@@ -435,16 +493,61 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summon
     # the class's strongest damage skills (top-rank SKILL_POWER, usable with this weapon):
     # players head for their big skill and its prerequisites (a Mage for Luna Stone, which
     # wants Tornado 8 -- buying the cheapest rank first never got there before level 240)
-    strong = sorted((g for g, (kind, ranks) in want.items()
+    # -- the weapon's own skills first (Screw Attack, Power Burst, Prime Hit: a Raider's
+    # identity, not Flame Hawk or Red Cloud, which any Hawker can take; user 2026-10-15)
+    def weapon_skill(g):
+        need = [w for w in gd.skill(want[g][1][-1]).need_weapon if w]
+        return bool(need) and (wtype in need or wtype // 10 in need)
+
+    # the support route heads for the weapon-free attacks (magic, the hawk) and the buffs
+    # The support route keeps a damage backbone -- the weapon's strongest skill -- and adds
+    # the strongest weapon-free attack (magic, the hawk) and its two best combat buffs: a
+    # Raider who likes Flame Hawk and Hawker Spirit still has Screw Attack (user, 2026-10-15)
+    support = route == "support"
+    damage = sorted((g for g, (kind, ranks) in want.items()
                      if kind == "active" and gd.skill(ranks[-1]).is_damage()),
-                    key=lambda g: -gd.skill(want[g][1][-1]).power)[:SIGNATURE_SKILLS]
+                    key=lambda g: -gd.skill(want[g][1][-1]).power)
+    if support:
+        strong = ([g for g in damage if weapon_skill(g)][:1]
+                  + [g for g in damage if not weapon_skill(g)][:1])
+        strong += [g for g in damage if g not in strong][:SIGNATURE_SKILLS - len(strong)]
+        buffs = sorted((g for g, (kind, ranks) in want.items() if kind == "active"
+                        and combat_buff_rank(gd, gd.skill(ranks[-1])) is not None),
+                       key=lambda g: combat_buff_rank(gd, gd.skill(want[g][1][-1])))
+        buff_core = set(buffs[:SUPPORT_BUFFS])
+        core |= buff_core
+    else:
+        buff_core = set()
+        strong = sorted(damage, key=lambda g: not weapon_skill(g))[:SIGNATURE_SKILLS]
     core |= set(strong)
-    todo = list(core)
-    while todo:
-        for g in prereqs(todo.pop()):
-            if g in want and g not in core:
-                core.add(g)
-                todo.append(g)
+    # the weapon route's starters: best combat buff and best debuff, a few ranks early
+    starter = {}
+    if not support:
+        actives = [g for g, (kind, _r) in want.items() if kind == "active"]
+        top = {g: gd.skill(want[g][1][-1]) for g in actives}
+        buffs = [g for g in actives if combat_buff_rank(gd, top[g]) is not None]
+        buff = min(buffs, key=lambda g: combat_buff_rank(gd, top[g]), default=None)
+        debuff = max((g for g in actives if is_useful_debuff(gd, top[g])),
+                     key=lambda g: top[g].power, default=None)
+        for g in (buff, debuff):
+            if g is not None and g not in core:
+                starter[g] = max(1, round(len(want[g][1]) * STARTER_SHARE
+                                          * min(1.0, level / STARTER_FULL_LEVEL)))
+        buff_core = set(starter)
+        core |= buff_core
+
+    def closure(start):
+        out, todo = set(start), list(start)
+        while todo:
+            for g in prereqs(todo.pop()):
+                if g in want and g not in out:
+                    out.add(g)
+                    todo.append(g)
+        return out
+
+    backbone = closure(core - buff_core)
+    buff_core = closure(buff_core) - backbone   # a buff's own prerequisites wait with it
+    core = backbone | buff_core
     have = {}                                   # first -> ranks learned
 
     def ok(r):
@@ -462,6 +565,9 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summon
 
     left = skill_points(gd, level)
     spent = {"passive": 0, "active": 0}
+    early = level < EARLY_LEVEL
+    if early:
+        share = min(share, EARLY_PASSIVE_SHARE)
 
     def extra(g):
         return want[g][0] == "active" and g not in core and g not in only_prereq
@@ -477,19 +583,50 @@ def spend_skill_points(gd, job, level, wtype, stats, share=PASSIVE_SHARE, summon
             if i < len(ranks) and sk_(ranks[i], 3) <= left and ok(ranks[i]):
                 # core first (climbing together, cheapest rank first, so a summon chain
                 # starts alongside the masteries); an extra finishes before another opens
+                # among the extras, the weapon's own skills (Double Attack, Power Attack)
+                # come before the weapon-free routes (Spirit Heart, Mana Blood)
+                # within the core the damage backbone climbs before the buffs (a support
+                # Mage still reaches Tornado and Luna Stone)
                 c = first in core
-                cands.append((kind, 0 if c else 1, 0 if c or i else 1,
+                if first in only_prereq and not c:
+                    # learned only for an extra (Sprint for Spiral Kick): last, not ahead --
+                    # and not at all before the second job
+                    if not early:
+                        cands.append((kind, 1, 1, 9, sk_(ranks[i], 3), i, first))
+                    continue
+                if c and first in starter and i >= starter[first]:
+                    c = False           # past its starter ranks: a late extra, unstarted
+                    pref = 2 if weapon_skill(first) else 3
+                    cands.append((kind, 1, 1, pref, sk_(ranks[i], 3), i, first))
+                    continue
+                if c:                   # (a weapon route's starter ranks climb with it)
+                    pref = 1 if support and first in buff_core else 0
+                elif kind == "passive":
+                    pref = 0
+                elif support:           # combat buffs, weapon-free, weapon, useless buffs
+                    top = gd.skill(ranks[-1])
+                    pref = (0 if combat_buff_rank(gd, top) is not None else
+                            3 if is_buff(gd, top) else 2 if weapon_skill(first) else 1)
+                elif early:             # trying everything: the lowest rank first
+                    cands.append((kind, 1, 0, i, sk_(ranks[i], 3), i, first))
+                    continue
+                else:                   # weapon skills, weapon-free, useless buffs last
+                    top = gd.skill(ranks[-1])
+                    pref = (0 if weapon_skill(first) else
+                            2 if is_buff(gd, top) and combat_buff_rank(gd, top) is None else 1)
+                cands.append((kind, 0 if c else 1, 0 if c or i else 1, pref,
                               sk_(ranks[i], 3), i, first))
-        capped = [c for c in cands if not (c[4] == 0 and extra(c[5]) and extras >= EXTRA_ACTIVES)]
+        capped = [c for c in cands if early or not (c[5] == 0 and extra(c[6])
+                                                     and extras >= EXTRA_ACTIVES)]
         cands = capped or cands             # the cap gives way once nothing else can grow
         if not cands:
             break
         tot = spent["passive"] + spent["active"]
         kind = "passive" if spent["passive"] <= share * tot else "active"
         pick = min([c for c in cands if c[0] == kind] or cands, key=lambda c: c[1:])
-        have[pick[5]] = pick[4] + 1
-        spent[pick[0]] += pick[3]
-        left -= pick[3]
+        have[pick[6]] = pick[5] + 1
+        spent[pick[0]] += pick[4]
+        left -= pick[4]
     rows = sorted(want[g][1][n - 1] for g, n in have.items() if n)
     return rows, spent, left
 
@@ -604,7 +741,7 @@ def refines(level, table):
     return table[-1][1], table[-1][2]
 
 
-def make_build(gd, job, level, female=False, gear="best", weapon_types=None):
+def make_build(gd, job, level, female=False, gear="best", weapon_types=None, route="weapon"):
     """A starting build. gear="best": best in slot at the level, refined per BEST_REFINES.
     gear="average": what a typical player runs -- see average_upgrades/average_refines."""
     prof = PROFILES.get(job, PROFILES[111])
@@ -638,10 +775,17 @@ def make_build(gd, job, level, female=False, gear="best", weapon_types=None):
             it.grade = wg if slot == "weapon" else ag
     summoner = SUMMONERS.get(job)
     b.skills, spent, left = spend_skill_points(gd, job, level, gd.weapon_type(w) if w else 0,
-                                               b.stats, summons=summoner)
+                                               b.stats, summons=summoner,
+                                               skip=prof.get("skip", ()), route=route)
     if summoner:
         b.summons = fill_summons(gd, b, summoner["skills"])
     b.rotation = auto_rotation(gd, b.skills)
+    # its combat buffs go up before each pull (Simulation._apply_buff), the self-cast ones
+    # and the target ones a player casts on itself
+    b.buffs = [dict(skill=r, caster_int=0, caster_level=0) for r in b.skills
+               if combat_buff_rank(gd, gd.skill(r)) is not None and gd.skill(r).duration >= 30]
+    if route == "support":
+        b.name += " (support route)"
     b.potions = dict(enabled=True, hp=best_food(gd, "hp"), hp_below=FOOD_HP_BELOW,
                      mp=best_food(gd, "mp"), mp_below=FOOD_MP_BELOW)
     b.skill_spacing = 0 if job in SPAM_JOBS else SKILL_SPACING
@@ -653,6 +797,9 @@ def make_build(gd, job, level, female=False, gear="best", weapon_types=None):
     else:
         b.notes = (f"Auto build, average gear: the class armour set of the newest tier, "
                    f"best {', '.join(up)}; weapon +{wg}, armour +{ag}; no gems; {sp}.")
+    if route == "support":
+        b.notes += (" Support route (about 1 player in 10): buffs and weapon-free attacks "
+                    "first, buffs up before each pull.")
     return b
 
 

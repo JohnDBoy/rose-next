@@ -9,10 +9,11 @@ Each monster is also compared with the median of the plain role monsters of its 
 (marks 1-7, no star, crown or skull) -- how fix-monster-marks.py grades the stars.
 """
 import importlib.util
+import itertools
 import os
 import statistics
 
-from .autobuild import make_build
+from .autobuild import make_build, ROUTES
 from .data import JOBS, SCRIPTS
 from .sim import Simulation
 
@@ -52,14 +53,16 @@ def spawned_monsters(gd):
     return gd._spawned
 
 
-def run(gd, jobs, levels, band=5, n=80, progress=None):
-    """One record per (job, level, monster)."""
+def run(gd, jobs, levels, band=5, n=80, progress=None, routes=tuple(ROUTES)):
+    """One record per (job, level, build route, monster); text() blends the routes by
+    autobuild.ROUTES (most players take the weapon's skills, about 1 in 10 the support
+    route)."""
     spawned = spawned_monsters(gd)
     npc = gd.stb("LIST_NPC")
     rows = []
     for job in jobs:
-        for lv in levels:
-            b = make_build(gd, job, lv, gear="average")
+        for lv, route in itertools.product(levels, routes):
+            b = make_build(gd, job, lv, gear="average", route=route)
             mobs = [r for r in spawned if abs(gd.npc(r).level - lv) <= band
                     and gd.npc(r).atk > 0 and gd.npc(r).hp_col > 0]
             for r in sorted(mobs):
@@ -67,7 +70,7 @@ def run(gd, jobs, levels, band=5, n=80, progress=None):
                 rep = sim.run(n=n, seed=1)
                 g = sim.grind(runs=2)
                 rows.append(dict(
-                    job=job, level=lv, npc=r, name=gd.npc(r).name, npc_level=gd.npc(r).level,
+                    job=job, level=lv, route=route, npc=r, name=gd.npc(r).name, npc_level=gd.npc(r).level,
                     mark=npc.i(r, MARK_COL), zones=spawned[r][:2],
                     win=rep.win_rate,
                     ttk=statistics.median(rep.ttk) if rep.ttk else None,
@@ -89,6 +92,17 @@ def _med(xs):
     return statistics.median(xs) if xs else None
 
 
+def _blend(rows, f):
+    """The routes' medians of f, weighted by autobuild.ROUTES (over the routes present)."""
+    by = {}
+    for x in rows:
+        by.setdefault(x.get("route", "weapon"), []).append(x)
+    parts = [(ROUTES.get(r, 0), _med(f(x) for x in xs)) for r, xs in by.items()]
+    parts = [(w, v) for w, v in parts if v is not None and w]
+    tot = sum(w for w, _ in parts)
+    return sum(w * v for w, v in parts) / tot if tot else None
+
+
 def text(gd, rows):
     """The sweep as readable tables: by mark (relative to Basic), then the outliers."""
     L = []
@@ -98,8 +112,8 @@ def text(gd, rows):
         groups.setdefault((x["job"], x["level"]), []).append(x)
     for (job, lv), xs in sorted(groups.items()):
         basic = [x for x in xs if x["mark"] in PLAIN]
-        b_ttk = _med(x["ttk"] for x in basic)
-        b_dtps = _med(x["dtps"] for x in basic)
+        b_ttk = _blend(basic, lambda x: x["ttk"])
+        b_dtps = _blend(basic, lambda x: x["dtps"])
         w(f"== {JOBS.get(job, job)} {lv} (average gear, food) vs {len(xs)} spawned monsters "
           f"of level {lv - 5}-{lv + 5}; grinding = 10 min back to back, 5 s walks, sitting "
           f"when under 50% HP / 30% MP")
@@ -114,21 +128,30 @@ def text(gd, rows):
             ms = by_mark[mark]
             if mark in GROUP and mark == next(m for m in order if m in GROUP):
                 w("   -- group content (crown / skull: never meant solo) --")
-            ttk = _med(x["ttk"] for x in ms)
-            dtps = _med(x["dtps"] for x in ms)
-            win = sum(x["win"] for x in ms) / len(ms)
-            hp = _med(x["hp_left"] for x in ms)
-            kpm = _med(x["kpm"] for x in ms)
-            food = _med(x["food_hp"] + x["food_mp"] for x in ms)
-            rest = _med(x["rest"] for x in ms)
+            ttk = _blend(ms, lambda x: x["ttk"])
+            dtps = _blend(ms, lambda x: x["dtps"])
+            win = _blend(ms, lambda x: x["win"])
+            hp = _blend(ms, lambda x: x["hp_left"])
+            kpm = _blend(ms, lambda x: x["kpm"])
+            food = _blend(ms, lambda x: x["food_hp"] + x["food_mp"])
+            rest = _blend(ms, lambda x: x["rest"])
             died = sum(x["grind_deaths"] for x in ms)
             runs = sum(x["grind_runs"] for x in ms)
-            w(f"   {MARKS.get(mark, mark)!s:<24}{len(ms):>3}{win:>6.0%}"
+            w(f"   {MARKS.get(mark, mark)!s:<24}{len({x['npc'] for x in ms}):>3}{win:>6.0%}"
               f"{(f'{ttk:.1f}' if ttk else '-'):>8}"
               f"{(f'{ttk / b_ttk:.2f}' if ttk and b_ttk else '-'):>8}"
               f"{dtps:>10.0f}{(f'{dtps / b_dtps:.2f}' if b_dtps else '-'):>8}"
               f"{(f'{hp:.0%}' if hp is not None else '-'):>9}"
               f"{kpm:>10.1f}{food:>10.2f}{rest:>6.0%}{f'{died}/{runs}':>8}")
+        # the routes side by side on the plain-role monsters
+        routes = sorted({x.get("route", "weapon") for x in basic}, key=lambda r: -ROUTES.get(r, 0))
+        if len(routes) > 1:
+            w("   routes (plain roles): " + " | ".join(
+                f"{r} {ROUTES.get(r, 0):.0%}: ttk "
+                + (lambda xs: f"{_med(x['ttk'] for x in xs) or 0:.1f} s, "
+                   f"{_med(x['kpm'] for x in xs) or 0:.1f} kills/min")(
+                    [x for x in basic if x.get("route", "weapon") == r])
+                for r in routes))
         # the monsters furthest from their band's Basic median
         w("   outliers (vs the plain-role median of the band):")
         scored = []

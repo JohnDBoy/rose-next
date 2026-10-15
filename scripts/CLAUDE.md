@@ -686,6 +686,18 @@ each of which was wrong in someone's head:
 - **Monster skills can dwarf monster swings**: Goblin Sword (1403, lv 92) self-casts Flame
   Hawk for ~580 against a level-92 Knight whose normal hits from it are ~37 -- 85% of the
   damage it deals.
+- **Auto-builds follow what players take** (`combatsim/autobuild.py`, user guidance
+  2026-10-14/15): CON near the level; skills taken far rather than wide (core first, at
+  most `EXTRA_ACTIVES` other actives); two routes, blended by `ROUTES` in a sweep --
+  *weapon* (90%: the weapon's own signature skills, Screw Attack / Power Burst / Prime Hit,
+  then Double / Power Attack) and *support* (10%: buffs and weapon-free attacks such as
+  Flame Hawk, Mana Blood, Red Cloud -- weaker on paper -- with its buffs up before each
+  pull). The weapon route also starts its best combat buff and best debuff early at ~30%
+  of their ranks (`STARTER_SHARE`) and raises them only with spare points. Only combat
+  buffs count (ATK, attack speed, HIT, crit, DEF, max HP/MP, RES -- not move speed or
+  stealth). Summons are core for Bourgeois, Dealer and Scout; a profile can name skills its
+  players skip (the Raider's Rest Mastery; the Muse/Mage skip the Cleric branch's support
+  spells and keep only the heals). `sweep --route` runs one route alone.
 
 **Checking it in game** (`scripts/combatsim/scenarios.json`): `combat-sim.py
 seed-scenarios --password X [--replace]` writes each test build into the dev DB as a GM
