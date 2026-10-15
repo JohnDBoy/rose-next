@@ -30,7 +30,7 @@ RECOVERY_MS = 2000            # GameStaticConfig::RECOVERY_RATE_TIME
 # of the last, and the client will not even send one within 1000 ms of the last request
 # (CSkillCommandDelay::m_dwCastingTimeDelay, skillcommanddelay.cpp) -- the client wins.
 SKILL_DELAY_MS = max(500, 1000)
-POTION_DELAY_MS = 500         # client useitemdelay.h (the server enforces none)
+POTION_DELAY_MS = 500         # client useitemdelay.h; instant restores add col 26 (server)
 # heal / mana skills in the rotation are cast only when the player needs them
 HEAL_BELOW = 0.60             # HP share under which a heal (Healing, Cure) goes out
 MANA_BELOW = 0.40             # MP share under which a mana skill (Mana Blood) goes out,
@@ -1069,12 +1069,18 @@ class Fight:
             row = pot[kind]
             if not row or self.p.hp <= 0 or cur * 100 >= mx * pot[kind + "_below"]:
                 continue
-            delay = max(POTION_DELAY_MS, int(pot.get("cooldown_s", 0) * 1000))
-            if self.t - self.last_potion[kind] < delay or kind in self.potion_run:
-                continue
             ui = gd.stb("LIST_USEITEM")
             status = ui.i(row, 24)
             total = ui.i(row, 20)
+            restore_ms = 0
+            if not status and ui.i(row, 19) in (AT["HP"], AT["MP"]):
+                # an instant restore (the waters, UseItem_RestoreValue / _CooldownMS):
+                # col 20 + col 21 % of the maximum, col 26 ms between two of a kind
+                total += mx * ui.i(row, 21) // 100
+                restore_ms = max(0, ui.i(row, 26))
+            delay = max(POTION_DELAY_MS, restore_ms, int(pot.get("cooldown_s", 0) * 1000))
+            if self.t - self.last_potion[kind] < delay or kind in self.potion_run:
+                continue
             self.last_potion[kind] = self.t
             self.log.potions[kind] += 1
             if status:

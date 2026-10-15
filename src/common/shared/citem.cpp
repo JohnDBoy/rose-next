@@ -394,6 +394,32 @@ tagBaseITEM::GetNaturalBulletType(int iItemNo) {
     return retType;
 }
 #endif
+
+bool
+UseItem_IsInstantRestore(int iUseItemNo) {
+    if (iUseItemNo <= 0 || iUseItemNo >= (int)g_TblUSEITEM.row_count
+        || USEITME_STATUS_STB(iUseItemNo))
+        return false;
+    const int iType = USEITEM_ADD_DATA_TYPE(iUseItemNo);
+    return AT_HP == iType || AT_MP == iType;
+}
+
+int
+UseItem_RestoreValue(int iUseItemNo, int iMaxValue) {
+    int iValue = USEITEM_ADD_DATA_VALUE(iUseItemNo);
+    if (UseItem_IsInstantRestore(iUseItemNo) && iMaxValue > 0)
+        iValue += iMaxValue * USEITEM_ADD_DATA_PERCENT(iUseItemNo) / 100;
+    return iValue;
+}
+
+int
+UseItem_RestoreCooldownMS(int iUseItemNo) {
+    if (!UseItem_IsInstantRestore(iUseItemNo))
+        return 0;
+    const int iMS = USEITEM_COOLTIME_DELAY(iUseItemNo);
+    return iMS > 0 ? iMS : 0;
+}
+
 #ifndef __SERVER
 int
 tagBaseITEM::GetHitRate() {

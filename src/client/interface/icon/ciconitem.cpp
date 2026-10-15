@@ -307,8 +307,14 @@ CIconItem::GetUseItemDelay(float& fDelay, float& fTotal) {
 
     switch (USEITME_STATUS_STB(Item.GetItemNO())) {
         case 0:
-            /// No status: a skill scroll, or anything else.
-            if (ITEM_TYPE(Item.GetTYPE(), Item.GetItemNO()) == USE_ITEM_SKILL_DOING) {
+            /// No status: an instant restore (the waters, own cooldown), a skill scroll, or
+            /// anything else.
+            if (int iRestoreCoolMS = UseItem_RestoreCooldownMS(Item.GetItemNO())) {
+                iDelayType = (AT_HP == USEITEM_ADD_DATA_TYPE(Item.GetItemNO()))
+                    ? USE_ITEM_HP_RESTORE
+                    : USE_ITEM_MP_RESTORE;
+                fDefault = (float)iRestoreCoolMS;
+            } else if (ITEM_TYPE(Item.GetTYPE(), Item.GetItemNO()) == USE_ITEM_SKILL_DOING) {
                 iDelayType = USE_ITEM_SCROLL;
                 fDefault = (float)DEFAULT_USE_SCROLL_DELAY;
             }

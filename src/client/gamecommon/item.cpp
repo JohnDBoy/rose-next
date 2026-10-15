@@ -744,11 +744,21 @@ CItem::GetToolTip(CInfo& ToolTip, DWORD dwDialogType, DWORD dwType) {
                                 CStringManager::GetSingleton().GetAbility(
                                     USEITEM_ADD_DATA_TYPE(nItemIdx)),
                                 USEITEM_ADD_DATA_VALUE(nItemIdx)));
+                        else if (UseItem_IsInstantRestore(nItemIdx)
+                            && USEITEM_ADD_DATA_PERCENT(nItemIdx))
+                            /// flat + % of the maximum (UseItem_RestoreValue)
+                            ToolTip.AddString(CStr::Printf("[%s %d + %d%%]",
+                                CStringManager::GetSingleton().GetAbility(
+                                    USEITEM_ADD_DATA_TYPE(nItemIdx)),
+                                USEITEM_ADD_DATA_VALUE(nItemIdx),
+                                USEITEM_ADD_DATA_PERCENT(nItemIdx)));
                         else
                             ToolTip.AddString(CStr::Printf("[%s %d]",
                                 CStringManager::GetSingleton().GetAbility(
                                     USEITEM_ADD_DATA_TYPE(nItemIdx)),
                                 USEITEM_ADD_DATA_VALUE(nItemIdx)));
+                        if (int iRestoreCoolMS = UseItem_RestoreCooldownMS(nItemIdx))
+                            ToolTip.AddString(CStr::Printf("[Cooldown %g s]", iRestoreCoolMS / 1000.0));
                     }
 
                     if (bIsDetail) {

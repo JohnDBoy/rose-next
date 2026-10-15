@@ -938,7 +938,14 @@ CUserDATA::Use_ITEM(WORD wUseItemNO) {
 
     if (0 == USEITME_STATUS_STB(wUseItemNO)) {
         // Áö¼ÓÇü »óÅÂ·Î ¼Ò¸ðµÇ´Â ¾ÆÀÌÅÛÀÌ ¾Æ´Ï¸é...
-        Add_AbilityValue(USEITEM_ADD_DATA_TYPE(wUseItemNO), USEITEM_ADD_DATA_VALUE(wUseItemNO));
+        // flat + % of the maximum, as the server restores it (UseItem_RestoreValue)
+        const int iType = USEITEM_ADD_DATA_TYPE(wUseItemNO);
+        int iMax = 0;
+        if (AT_HP == iType)
+            iMax = GetCur_MaxHP();
+        else if (AT_MP == iType)
+            iMax = GetCur_MaxMP();
+        Add_AbilityValue(iType, UseItem_RestoreValue(wUseItemNO, iMax));
     }
 
     /// DORMANT IN THIS BUILD - this is source symmetry, not a live fix. The whole function sits

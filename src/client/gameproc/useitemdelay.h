@@ -8,6 +8,8 @@ enum enumUSE_ITEM_TYPE {
     USE_ITEM_MP,
     USE_ITEM_OTHERS,
     USE_ITEM_SCROLL,
+    USE_ITEM_HP_RESTORE, ///< instant restores (the waters): LIST_USEITEM col 26 ms
+    USE_ITEM_MP_RESTORE, ///< (UseItem_RestoreCooldownMS), the server enforces the same
     USE_ITEM_MAX,
 };
 

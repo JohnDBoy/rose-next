@@ -2564,13 +2564,13 @@ CRecvPACKET::Recv_gsv_USE_ITEM() {
             else {
                 switch (USEITEM_ADD_DATA_TYPE(wUseItemNO)) {
                     case AT_HP:
-                        pAVT->Add_HP(USEITEM_ADD_DATA_VALUE(wUseItemNO));
+                        pAVT->Add_HP(UseItem_RestoreValue(wUseItemNO, pAVT->Get_MaxHP()));
                         if (pAVT->Get_HP() > pAVT->Get_MaxHP())
                             pAVT->Set_HP(pAVT->Get_MaxHP());
 
                         break;
                     case AT_MP:
-                        pAVT->Add_MP(USEITEM_ADD_DATA_VALUE(wUseItemNO));
+                        pAVT->Add_MP(UseItem_RestoreValue(wUseItemNO, pAVT->Get_MaxMP()));
                         if (pAVT->Get_MP() > pAVT->Get_MaxMP())
                             pAVT->Set_MP(pAVT->Get_MaxMP());
 

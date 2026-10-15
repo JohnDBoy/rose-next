@@ -1122,7 +1122,13 @@ classUSER::Use_pITEM(tagITEM* pITEM) {
     } else {
         // this->Use_ITEM( pITEM->m_nItemNo );
         const WORD wAddTYPE = USEITEM_ADD_DATA_TYPE(pITEM->m_nItemNo);
-        this->Add_AbilityValue(wAddTYPE, USEITEM_ADD_DATA_VALUE(pITEM->m_nItemNo));
+        // flat + % of the maximum (UseItem_RestoreValue; the client predicts the same)
+        int iMax = 0;
+        if (AT_HP == wAddTYPE)
+            iMax = this->GetCur_MaxHP();
+        else if (AT_MP == wAddTYPE)
+            iMax = this->GetCur_MaxMP();
+        this->Add_AbilityValue(wAddTYPE, UseItem_RestoreValue(pITEM->m_nItemNo, iMax));
 
         // Instant HP items restore silently: the client predicts the same amount
         // locally off the broadcast GSV_USE_ITEM (CUserDATA::Use_ITEM), and nothing
@@ -1266,6 +1272,18 @@ classUSER::Use_InventoryITEM(t_PACKET* pPacket) {
         return true;
     }
 
+    /// Instant restores (the waters): one timer for HP, one for MP (m_dwCoolTIME[0] / [1]).
+    /// Too early is refused without using the item; the client keeps the same delay.
+    const int iRestoreCoolMS = UseItem_RestoreCooldownMS(pITEM->m_nItemNo);
+    if (iRestoreCoolMS) {
+        nCoolTimeType = (AT_HP == USEITEM_ADD_DATA_TYPE(pITEM->m_nItemNo)) ? 0 : 1;
+        dwCurTime = ::GetTickCount();
+        if (this->m_dwCoolTIME[nCoolTimeType]
+            && dwCurTime - this->m_dwCoolTIME[nCoolTimeType] + USEITEM_RESTORE_COOLDOWN_SLACK_MS
+                < (DWORD)iRestoreCoolMS)
+            return true;
+    }
+
     //	DWORD dwClearedSTATUS = 0;
     if (USE_ITEM_SKILL_DOING == ITEM_TYPE(ITEM_TYPE_USE, pITEM->m_nItemNo)) {
         if (!(this->m_dwPayFLAG & PLAY_FLAG_BATTLE)) {
@@ -1370,8 +1388,9 @@ classUSER::Use_InventoryITEM(t_PACKET* pPacket) {
         this->Use_pITEM(pITEM);
     }
 
-    /// 마지막 사용한 시간 저장...
-    this->m_dwCoolTIME[nCoolTimeType] = dwCurTime;
+    /// 마지막 사용한 시간 저장... (restores only: any other item used to zero slot 0 here)
+    if (iRestoreCoolMS)
+        this->m_dwCoolTIME[nCoolTimeType] = dwCurTime ? dwCurTime : 1;
 
     // 수량 감소
     if (--pITEM->m_uiQuantity <= 0) {

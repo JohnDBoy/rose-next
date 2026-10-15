@@ -13,6 +13,18 @@
 // bonus went to 0, so accuracy comes from the weapon. Castle gear uses 1.2.
 #define WEAPON_HIT_PER_QUALITY 1.4f
 
+// Instant restores -- the Vital and Spiritual Waters: a use item with no status row
+// (USEITME_STATUS_STB 0) that adds HP or MP. It restores LIST_USEITEM col 20 + col 21 %
+// of the maximum, and col 26 is its cooldown in ms, one timer for HP restores and one for
+// MP, enforced by the server (classUSER::Use_InventoryITEM) and mirrored by the client's
+// use-item delay. A restore with both columns blank behaves as it always did.
+bool UseItem_IsInstantRestore(int iUseItemNo);
+int UseItem_RestoreValue(int iUseItemNo, int iMaxValue);
+int UseItem_RestoreCooldownMS(int iUseItemNo);
+// the server lets a restore through this much early: the client times the cooldown from
+// its send, the server from the packets' arrival
+#define USEITEM_RESTORE_COOLDOWN_SLACK_MS 300
+
 #pragma pack(push, 1)
 struct tagPartITEM {
     unsigned int m_nItemNo : 11;

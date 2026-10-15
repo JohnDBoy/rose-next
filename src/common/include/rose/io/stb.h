@@ -219,6 +219,9 @@ constexpr const char* ZONE_STB = "3ddata/stb/list_zone.stb";
 #define USEITEM_SCROLL_USE_SKILL USEITEM_ADD_DATA_VALUE
 
 #define USEITEM_SCRIPT(I) g_TblUSEITEM.get_int32(I, 21)
+/// Col 21 on an instant restore (UseItem_IsInstantRestore, citem.h): the % of the maximum
+/// added to col 20. Nothing reads col 21 as a script.
+#define USEITEM_ADD_DATA_PERCENT(I) g_TblUSEITEM.get_int32(I, 21)
 #define USEITEM_USE_EFFECT(I) g_TblUSEITEM.get_int32(I, 22)
 #define USEITEM_USE_SOUND(I) g_TblUSEITEM.get_int32(I, 23)
 #define USEITME_STATUS_STB(I) g_TblUSEITEM.get_int32(I, 24)

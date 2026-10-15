@@ -464,6 +464,18 @@ CTCmdItemUseInInventory::Exec(CTObject* pObj) {
         } break;
     }
 
+    /// Instant restores (the waters) have their own HP / MP cooldown, the one the server
+    /// enforces (classUSER::Use_InventoryITEM).
+    if (int iRestoreCoolMS = UseItem_RestoreCooldownMS(Item.GetItemNO())) {
+        int iDelayType = (AT_HP == USEITEM_ADD_DATA_TYPE(Item.GetItemNO())) ? USE_ITEM_HP_RESTORE
+                                                                          : USE_ITEM_MP_RESTORE;
+        if (g_UseItemDelay.GetUseItemDelay(iDelayType)) {
+            g_itMGR.AppendChatMsg(STR_CANT_DOUBLE_USE, IT_MGR::CHAT_TYPE_SYSTEM);
+            return false;
+        }
+        g_UseItemDelay.SetUseItemDelay(iDelayType, (float)iRestoreCoolMS);
+    }
+
     // 상태 번호가 설정되어 있다면..
     if (USEITME_STATUS_STB(Item.GetItemNO())) {
         switch (USEITME_STATUS_STB(Item.GetItemNO())) {
