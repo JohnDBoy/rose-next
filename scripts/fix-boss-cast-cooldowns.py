@@ -6,9 +6,13 @@ skull HP pass). Its AI (RoseZA lineage) gates every cast on an AI variable -- ca
 while var0 <= 10, each cast adds 14 -- and the only events that lower it sit in the STOP
 pattern, which runs while the monster idles. In a fight the counter never comes back down:
 one cast, then nothing until the boss wanders again. With boss fights now 1.5-3 minutes,
-that left the skill a one-off. scripts/../cast_lock audit (combat sim reading of every
-.aip) found the same lock in these boss files (fixed here) and in ~40 regular monsters'
-(the Oro Asper/Snapper families, Sikuku fighters, Yeti Riders ...; not touched).
+that left the skill a one-off. An audit of every .aip (the combat sim's reader) found the
+same lock in five boss files and in 31 regular monsters' files (the Oro Asper/Snapper
+families, Sikuku fighters / trackers, Hooks, Yeti Riders, Beeberu, a clan-field Tirwin, the
+Karkia ents); all are fixed here (user: "only fair that the game actually works").
+Not fixed, by design: the Sikuku prison family's one-time self-buff (Prison Slumber, the
+Cannibal buff: the counter is *set* to 1 and the cast needs it < 1 -- once per fight), and
+the Sikuku Infiltrator's 5 Dispel / Slow charges.
 
 Deliberately NOT changed: Executor Kera, the Ulverick bosses and the Hebarn officers
 (ks_ / uv_ / ed_s_kera files). Their main attack (Kera Stun Blast) already resets in
@@ -54,6 +58,39 @@ FIXES = {
     "OR_GMdevourer1.aip": ("Grand Master Devourer", 0, 4),
     "clownboss.aip": ("Wise Clown", 0, 1),
     "ed_heavygear.aip": ("Ikaness Mecha (and the Ikaness Heavygear elite)", 0, 1),
+    # -- regular monsters (user: "it's only fair that the game actually works"): the same
+    # idle-only counter (+13/+14 per cast, <= 10; Beeberu +18 <= 20; Tirwin 397 +10 <= 5;
+    # +1 <= 5 for the Karkia ents)
+    "OR_assassinasper1.aip": ("Hooded Asper Assassin", 0, 4),
+    "OR_babyasper1.aip": ("Baby Desert Asper", 0, 4),
+    "OR_barbedsnapper1.aip": ("Barbed Snapper", 0, 4),
+    "OR_brutesnapper1.aip": ("Barbed Snapper Brute", 0, 4),
+    "OR_captainsnapper1.aip": ("Fiery Snapper Captain", 0, 4),
+    "OR_commanderasper1.aip": ("Crowned Asper Commander", 0, 4),
+    "OR_crownedasper1.aip": ("Crowned Asper", 0, 4),
+    "OR_desertasper1.aip": ("Desert Asper", 0, 4),
+    "OR_elderasper1.aip": ("Elder Desert Asper", 0, 4),
+    "OR_fierysnapper1.aip": ("Fiery Snapper", 0, 4),
+    "OR_guardsnapper1.aip": ("Venerable Snapper Guard", 0, 4),
+    "OR_healersnapper1.aip": ("Venerable Snapper Healer", 0, 4),
+    "OR_hoodedasper1.aip": ("Hooded Asper", 0, 4),
+    "OR_hunterasper1.aip": ("Hooded Asper Hunter", 0, 4),
+    "OR_leaderasper1.aip": ("Hooded Asper Leader", 0, 4),
+    "OR_leadersnapper1.aip": ("Fiery Snapper Leader", 0, 4),
+    "OR_vensnapper1.aip": ("Venerable Snapper", 0, 4),
+    "OR_viciousasper1.AIP": ("Vicious Desert Asper", 0, 4),
+    "OR_warriorsnapper1.aip": ("Barbed Snapper Warrior", 0, 4),
+    "OR_wisesnapper1.aip": ("Wise Venerable Snapper", 0, 4),
+    "qst_venasper1.aip": ("Venomous Hooded Asper", 0, 4),
+    "ed_fighter.aip": ("Sikuku Spearman / Leader / Fighter / Veteran", 0, 4),
+    "ed_hooker.aip": ("Hook, King Hook", 0, 4),
+    "ed_tracer.aip": ("Sikuku Hunter / Tracker / Captain / Butcher", 0, 4),
+    "at_rider1.aip": ("Yeti Rider", 0, 4),
+    "kfgdg2549.aip": ("Beeberu", 0, 5),
+    "CLAN_MOB8.aip": ("Tirwin 397 (Luna Clan Field, Forgotten Temple B1)", 1, 3),
+    "ed_treeboss.aip": ("Cursed Ant Vagabond", 0, 1),
+    "kak_deadent.aip": ("Dark Tower", 0, 1),
+    "kak_ent.aip": ("Element Battler", 0, 1),
 }
 
 
