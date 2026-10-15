@@ -33,6 +33,8 @@ Cerberus Lair).
 Clan-field bosses (CLAN_BOSSES: the Junon Clan Field Guardians, Astarot, Astarot King)
 are clan content, "a five-player job": HP x CLAN_HP, ATK x CLAN_ATK on their own values.
 Simulated with HP and attacks split over the group: solo ~20%, a duo ~40%, five ~90%.
+The Luna Clan Field's regular monsters (CLAN_DUO: Tirwins, Elec Ghosts) are two-player
+content on top of their role: HP x DUO_HP, ATK x DUO_ATK (solo ~35%, a duo ~85%).
 
 This is a layer, applied last. The older monster passes (rebalance-karkia.py,
 -oro-667.py, -endgame-curve.py, -oro-bosses.py, -eldeon-outliers.py, -exp-rewards.py) read
@@ -92,6 +94,12 @@ CLAN_BOSSES = {215: "Aqua Guardian", 216: "Grunter Guardian", 217: "Krawfy Guard
                218: "Golem Guardian", 219: "Goblin Guardian", 395: "Astarot",
                396: "Astarot King"}
 CLAN_HP, CLAN_ATK = 2.5, 1.25
+# The Luna Clan Field's regular monsters are two-player content (user), on top of their
+# role: sim solo wins ~35%, a duo ~85%. Tirwin 397 also spawns in Forgotten Temple B1, so
+# it keeps its plain role profile.
+CLAN_DUO = {387: "Elec Ghost", 388: "Elec Ghost", 477: "Tirwin", 478: "Tirwin",
+            487: "Tirwin", 488: "Tirwin", 497: "Tirwin", 498: "Tirwin"}
+DUO_HP, DUO_ATK = 4.5, 1.6
 
 
 def num(b):
@@ -151,6 +159,10 @@ def plan(stb, spawned):
     for r in CLAN_BOSSES:
         out[(r, COLS["hp"])] = max(1, round(num(stb.get(r, COLS["hp"])) * CLAN_HP))
         out[(r, COLS["atk"])] = max(1, round(num(stb.get(r, COLS["atk"])) * CLAN_ATK))
+    for r in CLAN_DUO:                  # on top of the role profile
+        for k, mult in (("hp", DUO_HP), ("atk", DUO_ATK)):
+            key = (r, COLS[k])
+            out[key] = max(1, round(out.get(key, num(stb.get(*key))) * mult))
     return out, factor, mark, level
 
 
@@ -184,7 +196,7 @@ def main():
         print(f"restored LIST_NPC.STB ({skipped} cells edited since were left alone)")
         return 0
 
-    for r, name in CLAN_BOSSES.items():
+    for r, name in list(CLAN_BOSSES.items()) + list(CLAN_DUO.items()):
         got = stb.get(r, 0).strip().decode("latin-1")
         if not got.startswith(name):
             print(f"ABORT: LIST_NPC {r} is {got!r}, expected {name!r}")
@@ -203,6 +215,8 @@ def main():
         print(f"   {sweep.MARKS.get(m, m)!s:<24}" + " ".join(
             f"{k} x{factor[m][k]:.2f}" for k in ORDER))
     print(f"   clan bosses: HP x{CLAN_HP}, ATK x{CLAN_ATK} ({', '.join(CLAN_BOSSES.values())})")
+    print(f"   Luna clan-field regulars (two players): HP x{DUO_HP}, ATK x{DUO_ATK} on their role, "
+          f"rows {sorted(CLAN_DUO)}")
 
     if args.verify:
         if pending or (todo and not trend_exclude.roles_applied()):
