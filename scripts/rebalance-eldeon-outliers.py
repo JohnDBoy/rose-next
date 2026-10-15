@@ -154,9 +154,13 @@ def main():
     ap.add_argument("--verify", action="store_true")
     ap.add_argument("--restore", action="store_true")
     args = ap.parse_args()
+    if not (args.verify or args.dry_run) and trend_exclude.roles_applied():
+        print("ABORT: the monster role layer is applied -- run "
+              "scripts/rebalance-monster-roles.py --restore, then this pass, then the roles again")
+        return 1
 
     oro = load_oro()
-    stb = oro.Stb(NPC_STB)
+    stb = trend_exclude.without_roles(oro.Stb(NPC_STB))
     check_rows(stb)
 
     saved = {}
@@ -183,7 +187,7 @@ def main():
             sys.exit("no sidecar -- the rebalance has not been applied")
         # Recompute the intended value from the *original* recorded in the sidecar,
         # so verify re-derives rather than trusting whatever is in the table.
-        restored = oro.Stb(NPC_STB)
+        restored = trend_exclude.without_roles(oro.Stb(NPC_STB))
         for (row, col), old in saved.items():
             restored.set(row, col, str(old))
         want = {(r, c): new for r, c, _old, new, _why
@@ -222,7 +226,7 @@ def main():
     with open(SIDECAR, "w", encoding="utf-8") as fh:
         json.dump(record, fh, indent=1)
 
-    chk = oro.Stb(NPC_STB)
+    chk = trend_exclude.without_roles(oro.Stb(NPC_STB))
     for row, col, _old, new, _why in todo:
         assert gi(chk, row, col) == new, (row, col, gi(chk, row, col), new)
     print(f"\ndone -- {len(record)} values rewritten and verified.")

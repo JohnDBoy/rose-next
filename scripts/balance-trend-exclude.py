@@ -36,3 +36,33 @@ EXCLUDED = SHIBUYA | ULVERICK | CERBERUS
 
 def excluded(row):
     return row in EXCLUDED
+
+
+# --- the monster role layer (rebalance-monster-roles.py, 2026-10-15) ------------------
+# Role profiles by icon are applied last, as a layer on top of every pass above. Those
+# passes fit and verify against the table *without* it: they load LIST_NPC through
+# without_roles(), and refuse to write while the layer is applied (restore the roles,
+# run the pass, apply the roles again).
+import json as _json
+import os as _os
+
+ROLE_MANIFEST = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                              "build", "monster-roles", "manifest.json")
+
+
+def roles_applied():
+    return _os.path.isfile(ROLE_MANIFEST)
+
+
+def without_roles(stb):
+    """The table as the passes left it: every role cell still holding the value the
+    layer wrote goes back to its recorded pre-role value (in place; returns stb)."""
+    if not roles_applied():
+        return stb
+    with open(ROLE_MANIFEST, encoding="utf-8") as fh:
+        cells = _json.load(fh)["cells"]
+    for key, (old, new) in cells.items():
+        r, c = (int(x) for x in key.split(","))
+        if stb.get(r, c).strip() == new.encode("latin-1"):
+            stb.set(r, c, old.encode("latin-1"))
+    return stb

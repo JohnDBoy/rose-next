@@ -182,11 +182,15 @@ def main():
     ap.add_argument("--verify", action="store_true")
     ap.add_argument("--restore", action="store_true")
     args = ap.parse_args()
+    if not (args.verify or args.dry_run) and trend_exclude.roles_applied():
+        print("ABORT: the monster role layer is applied -- run "
+              "scripts/rebalance-monster-roles.py --restore, then this pass, then the roles again")
+        return 1
 
     col, sidecar = STATS[args.stat]
     known_bosses = boss_rows()
     oro = load_oro()
-    stb = oro.Stb(NPC_STB)
+    stb = trend_exclude.without_roles(oro.Stb(NPC_STB))
     saved = {}
     if os.path.exists(sidecar):
         with open(sidecar, encoding="utf-8") as fh:
@@ -257,7 +261,7 @@ def main():
     with open(sidecar, "w", encoding="utf-8") as fh:
         json.dump({str(k): v for k, v in record.items()}, fh, indent=1)
 
-    chk = oro.Stb(NPC_STB)
+    chk = trend_exclude.without_roles(oro.Stb(NPC_STB))
     for i, lv, cur, cap, boss in changed:
         assert gi(chk, i, col) == cap, (i, gi(chk, i, col), cap)
     print(f"\ndone -- {len(record)} rows rewritten and verified.")

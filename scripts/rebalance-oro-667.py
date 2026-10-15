@@ -251,10 +251,14 @@ def main():
     ap.add_argument("--verify", action="store_true")
     ap.add_argument("--restore", action="store_true")
     args = ap.parse_args()
+    if not (args.verify or args.dry_run) and trend_exclude.roles_applied():
+        print("ABORT: the monster role layer is applied -- run "
+              "scripts/rebalance-monster-roles.py --restore, then this pass, then the roles again")
+        return 1
 
     import rosedata as oro  # the shared data layer (was import-oro.py)
     exp_mod = load("rebalance_exp_rewards", "rebalance-exp-rewards.py")
-    stb = oro.Stb(NPC_STB)
+    stb = trend_exclude.without_roles(oro.Stb(NPC_STB))
     zone_of = oro_rows(oro, stb)
     if not zone_of:
         sys.exit("no Oro monsters found in the map lumps -- run import-oro-667.py first")
@@ -283,7 +287,7 @@ def main():
     # plan from the ORIGINALS once applied, or the pass remaps its own output
     source = stb
     if saved:
-        source = oro.Stb(NPC_STB)
+        source = trend_exclude.without_roles(oro.Stb(NPC_STB))
         for row, cols in saved.items():
             for col, v in cols.items():
                 source.set(row, col, str(v))
@@ -332,7 +336,7 @@ def main():
     with open(BOSS_SIDECAR, "w", encoding="utf-8") as fh:
         json.dump({str(k): stb.get(k, 0).decode("latin-1") for k in sorted(BOSSES) if k in rows},
                   fh, indent=1, sort_keys=True)
-    check = oro.Stb(NPC_STB)
+    check = trend_exclude.without_roles(oro.Stb(NPC_STB))
     bad = [r for r, cols in rows.items() if any(gi(check, r, c) != v for c, v in cols.items())]
     if bad:
         sys.exit(f"VERIFY FAILED on {len(bad)} rows: {bad}")

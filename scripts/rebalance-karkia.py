@@ -269,9 +269,13 @@ def main():
     ap.add_argument("--verify", action="store_true")
     ap.add_argument("--restore", action="store_true")
     args = ap.parse_args()
+    if not (args.verify or args.dry_run) and trend_exclude.roles_applied():
+        print("ABORT: the monster role layer is applied -- run "
+              "scripts/rebalance-monster-roles.py --restore, then this pass, then the roles again")
+        return 1
 
     oro = load_oro()
-    stb = oro.Stb(NPC_STB)
+    stb = trend_exclude.without_roles(oro.Stb(NPC_STB))
     names, zone_of = karkia_rows(oro)
 
     saved = {}
@@ -301,7 +305,7 @@ def main():
     # them, so rebuild a pre-state view and plan from that.
     source = stb
     if saved:
-        source = oro.Stb(NPC_STB)
+        source = trend_exclude.without_roles(oro.Stb(NPC_STB))
         for row, old in saved.items():
             for col, v in zip((COL_LEVEL, COL_HP, COL_ATK), old):
                 source.set(row, col, str(v))
@@ -353,7 +357,7 @@ def main():
         json.dump({str(k): names.get(k, "") for k in sorted(BOSSES)}, fh,
                   indent=1, sort_keys=True)
 
-    check = oro.Stb(NPC_STB)
+    check = trend_exclude.without_roles(oro.Stb(NPC_STB))
     bad = [r for r, lv, hp, atk in rows
            if (gi(check, r, COL_LEVEL), gi(check, r, COL_HP), gi(check, r, COL_ATK))
            != (lv, hp, atk)]
