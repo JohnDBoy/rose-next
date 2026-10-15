@@ -36,6 +36,14 @@ Simulated with HP and attacks split over the group: solo ~20%, a duo ~40%, five 
 The Luna Clan Field's regular monsters (CLAN_DUO: Tirwins, Elec Ghosts) are two-player
 content on top of their role: HP x DUO_HP, ATK x DUO_ATK (solo ~35%, a duo ~85%).
 
+Kings and skulls (BOSS_HP): early kings below level 80 are for 2-3 players, kings a
+five-player job, skulls the ultimate bosses for ten (four field elites that wore a skull
+are silver stars now, fix-monster-marks.py). HP only: each boss's multiplier (x3.4 ..
+x53, frozen from the sim) puts its fight at ~45 s / 90 s / 3 min for its group (sim:
+42-67 s, 72-117 s, 149-202 s). Not the Desert of the Dead's four (PvPvE zone, later).
+The ten bosses that never cast a skill (NOSKILL_BOSSES) get ATK x NOSKILL_ATK instead;
+skills weaker than the boss's swing got a boss-only copy (boost-boss-skills.py).
+
 This is a layer, applied last. The older monster passes (rebalance-karkia.py,
 -oro-667.py, -endgame-curve.py, -oro-bosses.py, -eldeon-outliers.py, -exp-rewards.py) read
 LIST_NPC without it (balance-trend-exclude.without_roles) and refuse to write while it is
@@ -100,6 +108,53 @@ CLAN_HP, CLAN_ATK = 2.5, 1.25
 CLAN_DUO = {387: "Elec Ghost", 388: "Elec Ghost", 477: "Tirwin", 478: "Tirwin",
             487: "Tirwin", 488: "Tirwin", 497: "Tirwin", 498: "Tirwin"}
 DUO_HP, DUO_ATK = 4.5, 1.6
+# Kings and skulls (user, 2026-10-15): early kings (below level 80) are for 2-3 players,
+# kings a five-player job, skulls the ultimate bosses for ten. HP only -- normal attacks
+# stay (their AI skills carry the threat; a skill pass may follow). Each boss's multiplier
+# puts its fight at BOSS_FIGHT_S for its group: today's fight = HP / (group x the players'
+# DPS against it, five classes at its level, combat sim). Frozen here so a re-run never
+# depends on the simulator. Not here: the Desert of the Dead's four (PvPvE, later) and the
+# clan bosses above.
+BOSS_FIGHT_S = {"early king": (3, 45), "king": (5, 90), "skull": (10, 180)}
+# Bosses that never cast a skill in the sim get a small ATK lift instead (user: "those may
+# actually benefit from a little attack boost"); a skill weaker than the swing got a
+# boss-only stronger copy (boost-boss-skills.py).
+NOSKILL_ATK = 1.15
+NOSKILL_BOSSES = {203: "Jelly King", 205: "Woopie King", 2254: "Poisontail Scorpio King",
+                  2281: "Golden Scarab King", 2247: "Desert Scavenger King",
+                  2530: "Basilissa Melitta", 2259: "Prehistoric Mastyx King",
+                  2276: "Camouflaged Armastyx King", 2729: "Deadly Drake",
+                  2699: "Deadly Drake Alpha"}
+BOSS_HP = {   # row: (name, HP multiplier) -- frozen from the combat sim (see above)
+    203: ('Jelly King', 41.66),   # early lv 13, 3 players 1 s today
+    205: ('Woopie King', 13.45),   # early lv 25, 3 players 3 s today
+    207: ('Aqua King', 4.89),   # early lv 40, 3 players 9 s today
+    209: ('Grunter King', 4.19),   # early lv 60, 3 players 11 s today
+    212: ('Krawfy King', 3.35),   # early lv 75, 3 players 13 s today
+    1543: ('Mountain Bebeg', 12.72),   # king lv 80, 5 players 7 s today
+    376: ('Dreadnaught King', 4.48),   # king lv 133, 5 players 20 s today
+    382: ('Behemoth King', 3.92),   # king lv 142, 5 players 23 s today
+    534: ('King Ulverick', 6.89),   # king lv 151, 5 players 13 s today
+    2207: ('Crowned Asper King', 18.06),   # king lv 222, 5 players 5 s today
+    2254: ('Poisontail Scorpio King', 17.57),   # king lv 224, 5 players 5 s today
+    2281: ('Golden Scarab King', 15.03),   # king lv 226, 5 players 6 s today
+    2722: ('Neg Golem', 23.99),   # king lv 228, 5 players 4 s today
+    2247: ('Desert Scavenger King', 13.31),   # king lv 231, 5 players 7 s today
+    2530: ('Basilissa Melitta', 45.23),   # king lv 238, 5 players 2 s today
+    2259: ('Prehistoric Mastyx King', 10.92),   # king lv 239, 5 players 8 s today
+    2276: ('Camouflaged Armastyx King', 11.63),   # king lv 240, 5 players 8 s today
+    2265: ('Fearsome Terrasaurus King', 11.02),   # king lv 240, 5 players 8 s today
+    4068: ('Deader Rex', 22.57),   # skull lv 100, 10 players 8 s today
+    532: ("Ulverick's Leader", 36.49),   # skull lv 135, 10 players 5 s today
+    533: ("Ulverick's General", 31.99),   # skull lv 145, 10 players 6 s today
+    1591: ('Moss Golem', 40.74),   # skull lv 210, 10 players 4 s today
+    2226: ('Grand Master Devourer', 50.77),   # skull lv 230, 10 players 4 s today
+    2296: ('Ikaness Mecha', 45.14),   # skull lv 234, 10 players 4 s today
+    2221: ('Giant Fiery Snapper', 48.4),   # skull lv 237, 10 players 4 s today
+    2729: ('Deadly Drake', 17.26),   # skull lv 238, 10 players 10 s today
+    1719: ('Executor Kera', 53.01),   # skull lv 240, 10 players 3 s today
+    2699: ('Deadly Drake Alpha', 27.57),   # skull lv 240, 10 players 7 s today
+}
 
 
 def num(b):
@@ -159,6 +214,10 @@ def plan(stb, spawned):
     for r in CLAN_BOSSES:
         out[(r, COLS["hp"])] = max(1, round(num(stb.get(r, COLS["hp"])) * CLAN_HP))
         out[(r, COLS["atk"])] = max(1, round(num(stb.get(r, COLS["atk"])) * CLAN_ATK))
+    for r, (_name, mult) in BOSS_HP.items():
+        out[(r, COLS["hp"])] = max(1, round(num(stb.get(r, COLS["hp"])) * mult))
+    for r in NOSKILL_BOSSES:
+        out[(r, COLS["atk"])] = max(1, round(num(stb.get(r, COLS["atk"])) * NOSKILL_ATK))
     for r in CLAN_DUO:                  # on top of the role profile
         for k, mult in (("hp", DUO_HP), ("atk", DUO_ATK)):
             key = (r, COLS[k])
@@ -196,7 +255,8 @@ def main():
         print(f"restored LIST_NPC.STB ({skipped} cells edited since were left alone)")
         return 0
 
-    for r, name in list(CLAN_BOSSES.items()) + list(CLAN_DUO.items()):
+    for r, name in (list(CLAN_BOSSES.items()) + list(CLAN_DUO.items())
+                    + [(r, n) for r, (n, _m) in BOSS_HP.items()] + list(NOSKILL_BOSSES.items())):
         got = stb.get(r, 0).strip().decode("latin-1")
         if not got.startswith(name):
             print(f"ABORT: LIST_NPC {r} is {got!r}, expected {name!r}")
@@ -215,6 +275,8 @@ def main():
         print(f"   {sweep.MARKS.get(m, m)!s:<24}" + " ".join(
             f"{k} x{factor[m][k]:.2f}" for k in ORDER))
     print(f"   clan bosses: HP x{CLAN_HP}, ATK x{CLAN_ATK} ({', '.join(CLAN_BOSSES.values())})")
+    print(f"   kings and skulls: HP x{min(m for _n, m in BOSS_HP.values())}"
+          f"..x{max(m for _n, m in BOSS_HP.values())} ({len(BOSS_HP)} bosses)")
     print(f"   Luna clan-field regulars (two players): HP x{DUO_HP}, ATK x{DUO_ATK} on their role, "
           f"rows {sorted(CLAN_DUO)}")
 

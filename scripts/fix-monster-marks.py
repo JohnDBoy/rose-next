@@ -30,6 +30,9 @@ outcome, one row at a time, in five groups:
   * shooter    -- ranged attackers (NPC_ATK_RANGE >= 600; melee is <= 450,
                   nothing between) get the bow, gun users the crossbow, ranged
                   magic (NPC_IS_MAGIC_DAMAGE) the staff.
+  * elite      -- four field elites first taken for bosses (Frozen Tooth, Sikuku Elite
+                  Slaughterer, Cursed Ant Vagabond, Ikaness Heavygear) wear the silver
+                  star: the skull now means a ten-player boss (2026-10-15).
   * star       -- stars re-graded by HP against the level trend: bronze below
                   1.4x, silver 1.4-2x, gold 2-3.5x (leaders at 1.15-1.3x kept).
 
@@ -91,10 +94,6 @@ MARKS = {   # row: (name, reviewed value(s), new value)
     219: ('Goblin Guardian', 10, 16),   # HP 8.88x
     532: ("Ulverick's Leader", 8, 16),   # HP 4.81x
     533: ("Ulverick's General", 9, 16),   # HP 8.28x
-    1542: ('Frozen Tooth', 10, 16),   # HP 1.71x
-    1571: ('Sikuku Elite Slaughterer', 10, 16),   # HP 2.36x
-    1572: ('Cursed Ant Vagabond', 10, 16),   # HP 2.10x
-    1582: ('Ikaness Heavygear', 10, 16),   # HP 2.12x
     1591: ('Moss Golem', 11, 16),   # HP 4.70x
     1719: ('Executor Kera', 11, 16),   # HP 5.18x
     2221: ('Giant Fiery Snapper', (7, 11), 16),   # HP 5.96x; 11 = import-oro-667's king fold
@@ -103,6 +102,13 @@ MARKS = {   # row: (name, reviewed value(s), new value)
     2699: ('Deadly Drake Alpha', 11, 16),   # HP 8.93x
     2729: ('Deadly Drake', 11, 16),   # HP 13.50x
     4068: ('Deader Rex', 11, 16),   # HP 8.54x
+    # ---- elite (2026-10-15): field elites, not bosses -- the user's call when the skulls
+    # became ten-player bosses (rebalance-monster-roles.py). Their HP (1.7-2.4x trend)
+    # is a silver star's; 16 is what the boss group above gave them.
+    1542: ('Frozen Tooth', (10, 16), 9),   # HP 1.71x
+    1571: ('Sikuku Elite Slaughterer', (10, 16), 9),   # HP 2.36x
+    1572: ('Cursed Ant Vagabond', (10, 16), 9),   # HP 2.10x
+    1582: ('Ikaness Heavygear', (10, 16), 9),   # HP 2.12x
     # ---- rank->role
     157: ('Doonga Leader', 8, 1),   # HP 1.07x
     366: ('Vulcan Leader', 8, 2),   # HP 0.62x
