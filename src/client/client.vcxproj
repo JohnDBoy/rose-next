@@ -477,6 +477,7 @@
     <ClCompile Include="rmlui\RoseRmlSystem.cpp" />
     <ClCompile Include="rmlui\RoseRmlStatusPanel.cpp" />
     <ClCompile Include="rmlui\RoseRmlTargetFrame.cpp" />
+    <ClCompile Include="rmlui\RoseRmlSummons.cpp" />
     <ClCompile Include="rmlui\RoseRmlUi.cpp" />
     <ClCompile Include="rmlui\RoseUi2.cpp" />
     <ClCompile Include="Interface\CNameBox.cpp" />

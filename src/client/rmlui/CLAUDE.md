@@ -348,6 +348,23 @@ stayed on over UI2 windows and world hover labels showed through them.
 close sound, so `HideReplacedDialogs` hides silently. Skill bar slots use on **double-click**, as
 the classic quickbar.
 
+**Summon cards** (2026-10-16, `RoseRmlSummons`, `RoseUi2::PIECE_SUMMON_PANEL`, replacing
+`CSummonInfoPanel`): one card per owned summon under a title bar carrying the summon gauge --
+name, level, eased HP, the summon-time ATK/DEF/RES from `SummonMobInfo`, abilities, status
+effects (`RoseRmlBuffBar::CollectBuffs`); a click targets the summon. **A summon's abilities are
+its AI file's `AIACT_24` (cast a skill) actions** -- no table lists them: LIST_NPC col 16 ->
+`g_AI_LIST.CollectCastSkills` (read-only walk added to `CAI_FILE`/`CAI_PATTERN`/`CAI_EVENT`,
+cached per NPC row). Most summons (the monster summons, Phantom Sword, Elemental, mercenaries)
+cast nothing and show no ability row. The tooltip is written from the skill row (kind from
+`SKILL_TYPE`, reach/area, power, HP/MP restored, states with duration and chance, then the STL
+description) because most monster skills have no description, and the classic
+`CIconSkill::GetToolTip` lists learning requirements. Ability icons are the 39 px sprite shrunk
+to 24dp (native was too big, the user's call), pinned top-left; the summon's own life-timer state
+(`ING_DEC_LIFE_TIME`, every summon has it) is left out of its status icons
+(`CollectBuffs`'s `iSkipIng`), though the target frame still shows it. Cards are **not positioned**: a `.ui-tip` takes the nearest
+positioned ancestor as its width cap. The default spot is `right:`-anchored with a definite
+width, the first top-level panel to do so; a saved `left` wins.
+
 Also UI2: the target frame (`RoseRmlTargetFrame`, new — retail showed the target only overhead),
 and, in the classic options, Play > "Use new interface (UI2)" (checkbox ID 49, loose `DlgOption.xml`).
 

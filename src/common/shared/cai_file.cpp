@@ -499,6 +499,26 @@ CAI_EVENT::Check(t_AIPARAM* pAIParam) {
     return true;
 }
 
+int
+CAI_EVENT::CollectCastSkills(short* pOut, int iCount, int iMax) const {
+    for (int iA = 0; iA < m_iActionCNT && iCount < iMax; iA++) {
+        const AI_ACTION* pAct = m_ppActionLIST[iA];
+        if (pAct->m_Header.Type != AIACT_24 || pAct->m_Header.dwSize < sizeof(AIACT24))
+            continue;
+
+        const short nSkill = pAct->st24.nSkill;
+        if (nSkill <= 0)
+            continue;
+
+        bool bSeen = false;
+        for (int iS = 0; iS < iCount && !bSeen; iS++)
+            bSeen = (pOut[iS] == nSkill);
+        if (!bSeen)
+            pOut[iCount++] = nSkill;
+    }
+    return iCount;
+}
+
 //-------------------------------------------------------------------------------------------------
 CAI_PATTERN::CAI_PATTERN() {
     m_iEventCNT = 0;
@@ -551,6 +571,13 @@ CAI_PATTERN::Check(t_AIPARAM* pAIParam) {
         if (m_pEvent[iE].Check(pAIParam))
             return;
     }
+}
+
+int
+CAI_PATTERN::CollectCastSkills(short* pOut, int iCount, int iMax) const {
+    for (int iE = 0; iE < m_iEventCNT; iE++)
+        iCount = m_pEvent[iE].CollectCastSkills(pOut, iCount, iMax);
+    return iCount;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -636,6 +663,15 @@ CAI_FILE::Load(char* szFileName, STBDATA* pSTB, int iLangCol) {
     return true;
 }
 #endif
+//-------------------------------------------------------------------------------------------------
+int
+CAI_FILE::CollectCastSkills(short* pOut, int iMax) const {
+    int iCount = 0;
+    for (int iP = 0; iP < m_iPatternCNT; iP++)
+        iCount = m_pPattern[iP].CollectCastSkills(pOut, iCount, iMax);
+    return iCount;
+}
+
 //-------------------------------------------------------------------------------------------------
 void
 CAI_FILE::AI_Check(WORD wPattern, CAI_OBJ* pSourCHAR, CAI_OBJ* pDestCHAR, int iDamage) {

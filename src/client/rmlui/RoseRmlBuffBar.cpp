@@ -203,7 +203,7 @@ RoseRmlBuffBar::SetVisible(bool bVisible) {
 }
 
 void
-RoseRmlBuffBar::CollectBuffs(CObjCHAR* pChar, std::vector<BuffVM>& out) {
+RoseRmlBuffBar::CollectBuffs(CObjCHAR* pChar, std::vector<BuffVM>& out, int iSkipIng) {
     out.clear();
     if (pChar == NULL)
         return;
@@ -213,6 +213,8 @@ RoseRmlBuffBar::CollectBuffs(CObjCHAR* pChar, std::vector<BuffVM>& out) {
 
     /// In the legacy strip's order.
     for (int i = 0; i < pack.GetEntityCount(); ++i) {
+        if (i == iSkipIng)
+            continue;
         CEnduranceProperty* pEntity = pack.GetEntity(i);
         if (pEntity == NULL)
             continue;

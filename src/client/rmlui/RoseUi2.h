@@ -42,6 +42,7 @@ bool IsReplaced(int iDlgType);
 enum Piece {
     PIECE_BUFF_BAR, ///< CEndurancePack::Draw: buffs, summon/fuel gauges, worn gear
     PIECE_NOTIFY_BUTTONS, ///< CNotifyButtonDlg: the tutorial's blinking notify buttons
+    PIECE_SUMMON_PANEL, ///< CSummonInfoPanel: the owned summons' cards ( and its drag )
 };
 
 /// True when this legacy HUD piece is currently replaced by a UI2 panel.

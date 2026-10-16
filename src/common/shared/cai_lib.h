@@ -206,6 +206,11 @@ public:
 
     bool Load(char* szFileName, STBDATA* pSTB, int iLangCol);
 
+    /// Every skill this AI can cast ( its AIACT_24 actions, all patterns ),
+    /// without repeats, into pOut[0..iMax). Returns how many. Read-only; the
+    /// client's summon panel lists a summon's abilities from it.
+    int CollectCastSkills(short* pOut, int iMax) const;
+
     /// 0		처음 생성시
     void AI_WhenCREATED(CAI_OBJ* pSourCHAR);
 

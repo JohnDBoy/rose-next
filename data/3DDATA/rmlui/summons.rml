@@ -1,0 +1,64 @@
+<rml>
+<head>
+    <title>Summons</title>
+    <!-- Theme first ( materials, colours, states ), then this panel's layout. -->
+    <link type="text/rcss" href="rose-theme.rcss"/>
+    <link type="text/rcss" href="summons.rcss"/>
+</head>
+<body data-model="summons">
+    <!--
+        UI2 summon cards ( RoseRmlSummons ), replacing CSummonInfoPanel. Shown
+        while you own a summon; drag the title bar to move it.
+
+        One card per summon: name, level, HP, the ATK / DEF / RES it was
+        summoned with, what it can cast ( hover an icon ) and its status
+        effects. The title shows the summon gauge. Click a card to target the
+        summon.
+    -->
+    <div id="summons" class="ui-window">
+        <handle move_target="summons" class="ui-titlebar">
+            <span class="ui-title">Summons</span>
+            <span class="cap" data-if="capacity != ''">{{capacity}}</span>
+        </handle>
+
+        <div class="card" data-for="s : summons" data-event-click="target(s.tag)">
+            <div class="line1">
+                <span class="name">{{s.name}}</span>
+                <span class="lv"><span class="ui-muted">Lv</span> {{s.level}}</span>
+            </div>
+
+            <div class="bar ui-gauge">
+                <div class="ui-gauge-fill hp" data-class-low="s.hp_low" data-style-width="s.hp_width + '%'"></div>
+                <span class="val ui-gauge-text">{{s.hp}}</span>
+            </div>
+
+            <div class="stats">
+                <span class="ui-muted">ATK</span> <span class="num">{{s.atk}}</span>
+                <span class="ui-muted">DEF</span> <span class="num">{{s.def}}</span>
+                <span class="ui-muted">RES</span> <span class="num">{{s.res}}</span>
+            </div>
+
+            <!-- What it casts besides its plain attack. -->
+            <div class="icons" data-if="s.abilities.size > 0">
+                <div class="ability ui-tipped" data-for="a : s.abilities">
+                    <div class="frame ui-icon"><img data-attr-src="a.src" data-attr-rect="a.rect"/></div>
+                    <div class="ui-window ui-tip">
+                        <span class="ui-tip-name">{{a.name}}</span>
+                        <span class="ui-tip-body ui-muted">{{a.detail}}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="icons" data-if="s.buffs.size > 0">
+                <div class="buff ui-tipped" data-for="b : s.buffs" data-class-ui-blink="b.expiring">
+                    <div class="sframe ui-icon"><img data-attr-src="b.src" data-attr-rect="b.rect"/></div>
+                    <div class="ui-window ui-tip">
+                        <span class="ui-tip-name">{{b.name}}</span>
+                        <span class="ui-tip-body ui-muted">{{b.detail}}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</rml>

@@ -10,6 +10,7 @@
 #include "CTDrawImpl.h"
 #include "IO_ImageRes.h"
 #include "tgamectrl/resourcemgr.h"
+#include "../rmlui/RoseUi2.h"
 
 namespace {
 
@@ -161,6 +162,10 @@ CSummonInfoPanel::EnsureDefaultPosition() {
 
 bool
 CSummonInfoPanel::GetStackRect(RECT& rcOut) const {
+    /// UI2 shows its own summon cards ( RoseRmlSummons ): nothing to grab here.
+    if (RoseUi2::IsPieceReplaced(RoseUi2::PIECE_SUMMON_PANEL))
+        return false;
+
     int iCount = GetSummonCount();
     if (iCount <= 0)
         return false;
@@ -175,6 +180,8 @@ CSummonInfoPanel::GetStackRect(RECT& rcOut) const {
 void
 CSummonInfoPanel::Draw() {
     if (g_pAVATAR == NULL)
+        return;
+    if (RoseUi2::IsPieceReplaced(RoseUi2::PIECE_SUMMON_PANEL))
         return;
     if (GetSummonCount() <= 0)
         return;

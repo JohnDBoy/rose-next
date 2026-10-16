@@ -178,3 +178,9 @@ CAI_LIST::AI_Dead(int iAI_IDX, CObjCHAR* pSourCHAR, CObjCHAR* pDestCHAR, int iDa
 }
 
 //-------------------------------------------------------------------------------------------------
+int
+CAI_LIST::CollectCastSkills(int iAI_IDX, short* pOut, int iMax) const {
+    if (iAI_IDX <= 0 || iAI_IDX >= m_nAICNT || m_ppAI[iAI_IDX] == NULL)
+        return 0;
+    return m_ppAI[iAI_IDX]->CollectCastSkills(pOut, iMax);
+}

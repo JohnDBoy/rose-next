@@ -1008,6 +1008,10 @@ public:
     bool Load(CFileSystem* pFileSystem, STBDATA* pSTB, int iLangCol);
 #endif
     bool Check(t_AIPARAM* pAIParam);
+
+    /// Read-only: appends the skill of every AIACT_24 ( cast a skill ) action
+    /// to pOut[iCount..iMax), skipping repeats; returns the new count.
+    int CollectCastSkills(short* pOut, int iCount, int iMax) const;
 };
 
 //-------------------------------------------------------------------------------------------------
@@ -1027,6 +1031,8 @@ public:
     bool Load(CFileSystem* pFileSystem, STBDATA* pSTB, int iLangCol);
 #endif
     void Check(t_AIPARAM* pAIParam);
+
+    int CollectCastSkills(short* pOut, int iCount, int iMax) const;
 };
 
 //-------------------------------------------------------------------------------------------------

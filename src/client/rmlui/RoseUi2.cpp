@@ -178,6 +178,7 @@ const int kReplacedWindows[] = {
 const RoseUi2::Piece kReplacedPieces[] = {
     RoseUi2::PIECE_BUFF_BAR, ///< RoseRmlBuffBar
     RoseUi2::PIECE_NOTIFY_BUTTONS, ///< RoseRmlNotifyButtons
+    RoseUi2::PIECE_SUMMON_PANEL, ///< RoseRmlSummons
 };
 
 const char* kIniPath = ".\\rose-next.ini";

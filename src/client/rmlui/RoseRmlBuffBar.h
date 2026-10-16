@@ -62,7 +62,9 @@ public:
 
     /// The status-effect icons on any character, in the legacy strip's order.
     /// Shared with the target frame, which shows its target's buffs the same way.
-    static void CollectBuffs(CObjCHAR* pChar, std::vector<BuffVM>& out);
+    /// iSkipIng ( an ING_* ) leaves one state out: the summon cards drop every
+    /// summon's ING_DEC_LIFE_TIME, which says nothing.
+    static void CollectBuffs(CObjCHAR* pChar, std::vector<BuffVM>& out, int iSkipIng = -1);
 
     /// Registers BuffVM with a data model, under the member names the .rml
     /// files use ( src, rect, time, name, detail, expiring ).

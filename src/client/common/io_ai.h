@@ -22,6 +22,10 @@ public:
     void AI_Damaged(int iAI_IDX, CObjCHAR* pSourCHAR, CObjCHAR* pDestCHAR, int iDamage);
     void AI_Kill(int iAI_IDX, CObjCHAR* pSourCHAR, CObjCHAR* pDestCHAR, int iDamage);
     void AI_Dead(int iAI_IDX, CObjCHAR* pSourCHAR, CObjCHAR* pDestCHAR, int iDamage);
+
+    /// The skills AI file iAI_IDX ( LIST_NPC col 16 ) can cast, see
+    /// CAI_FILE::CollectCastSkills. 0 for an unknown or missing file.
+    int CollectCastSkills(int iAI_IDX, short* pOut, int iMax) const;
 };
 
 extern CAI_LIST g_AI_LIST;

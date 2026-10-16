@@ -10,6 +10,7 @@
 #include "RoseRmlLayout.h"
 #include "RoseRmlStatusPanel.h"
 #include "RoseRmlTargetFrame.h"
+#include "RoseRmlSummons.h"
 #include "RoseRmlRenderer.h"
 #include "RoseRmlSkillBar.h"
 #include "RoseRmlSkillWindow.h"
@@ -81,6 +82,7 @@ RoseRmlDamageMeter g_DamageMeter;
 RoseRmlStatusPanel g_StatusPanel; ///< UI2: replaces CAvatarInfoDlg
 RoseRmlBuffBar g_BuffBar; ///< UI2: replaces CEndurancePack::Draw
 RoseRmlTargetFrame g_TargetFrame; ///< UI2: new, the selected target
+RoseRmlSummons g_Summons; ///< UI2: replaces CSummonInfoPanel
 RoseRmlOptions g_Options; ///< UI2: replaces COptionDlg, and the old Interface window ( its tab )
 RoseRmlSkillBar g_SkillBar; ///< UI2: replaces the two CQuickBARs ( as their view )
 RoseRmlSkillWindow g_SkillWindow; ///< UI2: replaces CSkillDLG ( a window )
@@ -636,6 +638,7 @@ Initialise(HWND hWnd, void* pD3DDevice, int iWidth, int iHeight) {
     g_BuffBar.Initialise(g_pContext, kAssetDir);
     g_BuffBar.SetAnchor(g_StatusPanel.GetPanel());
     g_TargetFrame.Initialise(g_pContext, kAssetDir);
+    g_Summons.Initialise(g_pContext, kAssetDir);
     g_Options.Initialise(g_pContext, kAssetDir);
     g_SkillBar.Initialise(g_pContext, kAssetDir);
     g_SkillWindow.Initialise(g_pContext, kAssetDir);
@@ -688,6 +691,7 @@ Shutdown() {
     g_StatusPanel.Shutdown();
     g_BuffBar.Shutdown();
     g_TargetFrame.Shutdown();
+    g_Summons.Shutdown();
     g_Options.Shutdown();
     g_SkillBar.Shutdown();
     g_SkillWindow.Shutdown();
@@ -793,6 +797,7 @@ Update() {
     UI_TIMED("status", g_StatusPanel.Update());
     UI_TIMED("buffs", g_BuffBar.Update());
     UI_TIMED("target", g_TargetFrame.Update());
+    UI_TIMED("summons", g_Summons.Update());
     UI_TIMED("options", g_Options.Update());
     UI_TIMED("skillbar", g_SkillBar.Update());
     UI_TIMED("skills", g_SkillWindow.Update());

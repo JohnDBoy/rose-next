@@ -1,0 +1,124 @@
+/* UI2 summon cards -- LAYOUT ONLY ( colours and materials: rose-theme.rcss,
+   plus the few colours that are this panel's own states ).
+   Reload in game with /uireload. */
+
+/* Default spot: the right edge, under the minimap, where the classic summon
+   panel sat. A definite width, so a saved left wins over this right. */
+#summons {
+    right: 3dp;
+    top: 250dp;
+    width: 196dp;
+}
+
+/* --- title bar: the summon gauge ------------------------------------------- */
+.cap {
+    margin-right: 4dp;
+    font-size: 10dp;
+    font-weight: bold;
+    color: #c98ad8;
+}
+
+/* --- one card per summon ------------------------------------------------------ */
+/* Not positioned: the tooltips' containing block must stay the window, or a
+   tip is capped at the width of whatever is positioned around it. */
+.card {
+    margin-bottom: 3dp;
+    padding: 4dp 4dp 4dp 5dp;
+    border: 1dp #ffffff10;
+    border-left: 2dp #8a2aa0ff;      /* the summon violet */
+    border-radius: 3dp;
+    background-color: #00000060;
+    cursor: pointer;
+}
+.card:hover {
+    background-color: #ffffff12;
+    border-color: #d0501a80;
+    border-left-color: #8a2aa0ff;
+}
+
+.line1 {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+.name {
+    flex-grow: 1;
+    font-size: 12dp;
+    font-weight: bold;
+    color: #89f3ff;                  /* CNameBox: summons are blue */
+    font-effect: shadow(1px 1px #000000c0);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.lv {
+    margin-left: 4dp;
+    font-size: 11dp;
+    font-weight: bold;
+    color: #ff9a5a;
+}
+
+/* --- HP ------------------------------------------------------------------------ */
+.bar {
+    height: 14dp;
+    margin-top: 3dp;
+    text-align: center;
+    font-size: 10dp;
+    line-height: 12dp;
+}
+@keyframes summon-low-hp {
+    from { background-color: #922500ff; }
+    to   { background-color: #d8401cff; }
+}
+.ui-gauge-fill.low { animation: 0.6s quadratic-in-out infinite alternate summon-low-hp; }
+
+/* --- stats ------------------------------------------------------------------- */
+.stats {
+    margin-top: 3dp;
+    font-size: 10dp;
+}
+.stats .num {
+    margin-right: 8dp;
+    color: #e6e6e6;
+}
+
+/* --- abilities and status effects --------------------------------------------- */
+.icons {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 3dp;
+}
+/* .ui-tipped elements: must not be position: relative ( see the theme ). */
+.ability, .buff {
+    margin-right: 2dp;
+    margin-bottom: 1dp;
+}
+/* Abilities: skill icons on a violet rim, so they read as "what it can do",
+   apart from the smaller status icons under them. The 39 px skill sprite is
+   shrunk to 24dp ( native was too big for a card ), filling the frame inside
+   its 1dp rim and pinned top-left, so it sits on whole pixels -- centring a
+   sprite on a half pixel is what blurs it. */
+.frame {
+    box-sizing: border-box;
+    width: 26dp;
+    height: 26dp;
+    align-items: flex-start;
+    justify-content: flex-start;
+    border-color: #8a2aa0c0;
+}
+.frame img {
+    width: 24dp;
+    height: 24dp;
+}
+.sframe {
+    width: 20dp;
+    height: 20dp;
+}
+.sframe img {
+    width: 16dp;
+    height: 16dp;
+}
+
+/* An ability's tip carries a sentence or two: let it wrap at the window. */
+.ability .ui-tip { white-space: normal; }
