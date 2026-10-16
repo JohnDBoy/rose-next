@@ -341,6 +341,26 @@ CCal::Get_CriSuccessRATE(CObjCHAR* pATK) {
 }
 
 //-------------------------------------------------------------------------------------------------
+// Katar skill criticals (2026-10-16): a Hawker or Raider holding a katar can land any damage
+// skill as a critical, on the same roll as a normal swing's critical, for KATAR_SKILL_CRITICAL
+// times the damage. The katar is the critical weapon, but skills never crit and nearly all of a
+// Raider's damage is skills, so the katar Raider sat at ~0.6x the median class in the combat
+// simulator (scripts/combatsim mirrors this in formulas.skill_damage).
+static const float KATAR_SKILL_CRITICAL = 1.5f;
+static const int WEAPON_TYPE_KATAR = 251;
+
+static bool
+Is_KatarSkillCRITICAL(CObjCHAR* pATK) {
+    if (!pATK->IsUSER())
+        return false;
+    int iJob = pATK->Get_JOB();
+    if (iJob != CLASS_MIXER_311 && iJob != CLASS_MIXER_321)
+        return false;
+    int iWeapon = static_cast<CObjAVT*>(pATK)->GetCur_R_WEAPON();   // IsUSER: an avatar
+    return iWeapon > 0 && WEAPON_TYPE(iWeapon) == WEAPON_TYPE_KATAR;
+}
+
+//-------------------------------------------------------------------------------------------------
 // ÀÏ¹Ý ¹°¸® µ¥¹ÌÁö °è»ê½Ä...
 int
 CCal::Get_BasicDAMAGE(CObjCHAR* pATK, CObjCHAR* pDEF, WORD wHitCNT, int iSuc) {
@@ -745,6 +765,13 @@ CCal::Get_SkillDAMAGE(CObjCHAR* pATK, CObjCHAR* pDEF, short nSkillIDX, WORD wHit
         }
     }
 
+    // a katar Hawker / Raider's skill can be a critical (see Is_KatarSkillCRITICAL)
+    bool bSkillCRITICAL = false;
+    if (Is_KatarSkillCRITICAL(pATK) && Get_CriSuccessRATE(pATK) < 20) {
+        iDamage = (int)(iDamage * KATAR_SKILL_CRITICAL);
+        bSkillCRITICAL = true;
+    }
+
     // Ãß°¡ µ¥¹ÌÁö ...
     if (FLAG_ING_DUMMY_DAMAGE & pATK->GetIngDurationStateFLAG()) {
         iDamage +=
@@ -770,6 +797,8 @@ CCal::Get_SkillDAMAGE(CObjCHAR* pATK, CObjCHAR* pDEF, short nSkillIDX, WORD wHit
 
     iHitActRATE = iDamage * (1 + (RANDOM(100)) + 100) / (pDEF->Get_AVOID() + 40) / 14;
 
+    if (bSkillCRITICAL)
+        iDamage |= DMG_BIT_CRITICAL;    // the client's critical hit effect and camera shake
     return (iHitActRATE >= 10) ? (DMG_BIT_HITTED | iDamage) : iDamage;
 }
 

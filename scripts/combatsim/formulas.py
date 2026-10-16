@@ -91,6 +91,13 @@ def normal_attack(rng, a, d, hit_cnt):
     return basic_damage(rng, a, d, hit_cnt, suc)
 
 
+# Katar skill criticals (calculation.cpp Is_KatarSkillCRITICAL, 2026-10-16): a Hawker or
+# Raider holding a katar lands any damage skill as a critical on the normal-swing roll.
+KATAR_SKILL_CRITICAL = 1.5
+KATAR_CRIT_JOBS = (311, 321)
+WEAPON_TYPE_KATAR = 251
+
+
 def skill_damage(rng, a, d, sk, hit_cnt):
     """CCal::Get_SkillDAMAGE (calculation.cpp:574), monster branches. 0 = miss."""
     power = sk.power
@@ -154,6 +161,8 @@ def skill_damage(rng, a, d, sk, hit_cnt):
                       * 0.01 * (120 - d.level + a.level)
                       / (d.get_def + d.get_res * 0.3 + d.get_avoid * 0.4 + 10) / 100.0 + 20)
 
+    if a.katar_crit and cri_success_rate(rng, a) < 20:
+        dmg = int(dmg * KATAR_SKILL_CRITICAL)
     dmg = _dummy(a, dmg)
     if dmg < 5:
         dmg = 5

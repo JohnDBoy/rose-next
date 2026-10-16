@@ -220,6 +220,8 @@ BOOK_DESCRIPTIONS = {
          "its targets' Accuracy.",
     733: "Cast a magic campfire that restores the HP and MP of everyone nearby.",
     734: "Summon a magic sword to attack a target at close range.",
+    # Hawker Spirit gained Attack Power (hawker-spirit-attack.py, 2026-10-16)
+    754: "Increase Accuracy and Attack Power of caster for skill's duration.",
     755: "Increase Attack Speed of Katar, Dual Wield and Bow weapons.",
     757: "Hit a target with mighty force while using a Katar or Dual Swords.",
     767: "Advanced Power Attack skill. Hit a target with awesome might while "

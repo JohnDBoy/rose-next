@@ -25,7 +25,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from combatsim import Build, GameData, Simulation, find_rows  # noqa: E402
+from combatsim import PLAY, Build, GameData, Simulation, find_rows  # noqa: E402
 from combatsim.autobuild import make_build, skill_choices  # noqa: E402
 
 FIND_TABLES = dict(npc="LIST_NPC", weapon="LIST_WEAPON", subwpn="LIST_SUBWPN",
@@ -64,6 +64,9 @@ def main():
     r.add_argument("--fix-passive-bugs", action="store_true",
                    help="show the stats the passives were meant to give")
     r.add_argument("--potions", action="store_true", help="force potions on")
+    r.add_argument("--play", choices=sorted(PLAY), default="skilled",
+                   help="skilled = perfect play (default); typical = late reactions and "
+                        "refreshes, caught in some area skills")
 
     s = sub.add_parser("stats", help="print the build's stat block")
     s.add_argument("build")
@@ -108,6 +111,8 @@ def main():
                     default=["weapon", "support"],
                     help="build routes to run (default both, blended 90/10)")
     sw.add_argument("--json", help="also write every result here")
+    sw.add_argument("--play", choices=sorted(PLAY), default="skilled",
+                    help="skilled (perfect play) or typical")
 
     sc = sub.add_parser("scenarios", help="predictions for the in-game test scenarios")
     sc.add_argument("-n", type=int, default=500)
@@ -137,7 +142,7 @@ def main():
         b = Build.load(a.build)
         if a.potions:
             b.potions["enabled"] = True
-        sim = Simulation(gd, b, resolve_mob(gd, a.mob), a.fix_passive_bugs)
+        sim = Simulation(gd, b, resolve_mob(gd, a.mob), a.fix_passive_bugs, play=a.play)
         print(sim.run(n=a.n, seed=a.seed, max_seconds=a.max_seconds).text())
     elif a.cmd == "stats":
         b = Build.load(a.build)
@@ -230,7 +235,7 @@ def main():
         rows = sweep.run(gd, a.job, a.level, a.band, a.n,
                          progress=lambda r: print(f"  {r['job']} {r['level']} {r['route']} "
                                                   f"vs {r['name']}", file=sys.stderr),
-                         routes=tuple(a.route))
+                         routes=tuple(a.route), play=a.play)
         if a.json:
             json.dump(rows, open(a.json, "w", encoding="utf-8"), indent=1)
         print(sweep.text(gd, rows))

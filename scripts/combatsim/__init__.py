@@ -11,4 +11,4 @@ Carlo, report), autobuild (starting builds). CLI: scripts/combat-sim.py.
 """
 from .data import GameData, find_rows  # noqa: F401
 from .player import Build, StatBlock  # noqa: F401
-from .sim import ASSUMPTIONS, Report, Simulation  # noqa: F401
+from .sim import ASSUMPTIONS, PLAY, Report, Simulation  # noqa: F401

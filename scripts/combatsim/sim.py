@@ -51,12 +51,28 @@ ASSUMPTIONS = [
     "per kind (the client's delay; the server enforces no cooldown).",
     "Arithmetic is double precision; the server uses 32-bit float, so a result sitting "
     "on an integer boundary can differ by one point.",
+    "Play (PLAY): 'skilled' is a perfect player -- every skill the moment the 1 s skill "
+    "delay allows, every buff and debuff recast the tick it drops, a ranged player never "
+    "inside a monster's area skill. 'typical' adds a 0-1 s reaction before each skill, "
+    "recasts a buff or debuff 2-8 s after it drops (the first cast of a fight is on time), "
+    "and catches a player standing outside the area in 1 of 3 of the monster's area "
+    "skills (bunching up, the monster turning, walking in to loot or heal).",
 ]
+
+# How well the player plays (user, 2026-10-16: "you assume people play perfectly").
+# reaction_ms: extra delay drawn after each cast, on top of the 1 s skill delay;
+# refresh_lag_ms: how long a dropped buff/debuff stays down before it is recast;
+# caught: the share of the monster's area skills that hit a player standing out of range.
+PLAY = {
+    "skilled": dict(reaction_ms=(0, 0), refresh_lag_ms=(0, 0), caught=0.0),
+    "typical": dict(reaction_ms=(0, 1000), refresh_lag_ms=(2000, 8000), caught=1 / 3),
+}
 
 
 class Simulation:
-    def __init__(self, gd, build, npc_row, fix_passive_bugs=False):
+    def __init__(self, gd, build, npc_row, fix_passive_bugs=False, play="skilled"):
         self.gd, self.build, self.npc_row = gd, build, npc_row
+        self.play_name, self.play = play, PLAY[play]
         self.stats = StatBlock(gd, build, fix_passive_bugs)
         self.npc = gd.npc(npc_row)
         self.notes = list(self.stats.notes)
@@ -243,6 +259,7 @@ class Simulation:
                       base_aspd=srv.base_attack_speed)
         p.base_value = st.base_ability
         p.charm = st.cur["CHARM"]
+        p.katar_crit = b.job in F.KATAR_CRIT_JOBS and st.wtype == F.WEAPON_TYPE_KATAR
         for buff in b.buffs:
             self._apply_buff(p, buff)
         p.hp, p.mp = p.max_hp, p.max_mp
@@ -590,7 +607,7 @@ class Report:
         L = []
         w = L.append
         w(f"== {b.name}: {JOBS.get(b.job, b.job)} {b.level}  vs  {npc.name} "
-          f"(NPC {npc.row}, level {npc.level})")
+          f"(NPC {npc.row}, level {npc.level})  [{s.play_name} play]")
         w("")
         w("Player (totals the combat formulas read; server.toml adds "
           f"ATK +{srv.base_attack_power}, HIT +{srv.base_hit}, ASPD +{srv.base_attack_speed})")

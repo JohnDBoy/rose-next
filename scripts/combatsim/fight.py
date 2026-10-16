@@ -161,6 +161,7 @@ class Combatant:
         self.base_atk, self.base_hit, self.base_aspd = base_atk, base_hit, base_aspd
         self.dummy_skill_power = 0
         self.charm = 0
+        self.katar_crit = False   # a Hawker / Raider with a katar: skills can crit
         self.base_value = None    # Get_BaseAbilityValue override (the player's pre-buff stat)
         self.st = Status(self.refresh)
         self.refresh()
@@ -585,7 +586,9 @@ class Mob:
                 else:
                     f.apply_states(sk, me, tgt, rec)
         elif t in (7, 17):                  # around the caster (m_PosGOTO = m_PosCUR)
-            if f.sim.cast_distance(sk, selfc) <= sk.scope:
+            caught = f.play["caught"]
+            if (f.sim.cast_distance(sk, selfc) <= sk.scope
+                    or (self.enemy and caught and f.rng.random() < caught)):
                 for c in self.candidates():
                     if f.pass_filter(sk, c, me):
                         self.skill_hit(sk, rec, 1, c)
@@ -664,6 +667,11 @@ class Fight:
         self.p_summon_slot = None  # which summon a summon cast refills
         self.last_cast = {}       # skill row -> accept time
         self.last_any_cast = -10 ** 9
+        # sim.play: a typical player reacts late and refreshes buffs/debuffs late
+        self.play = sim.play
+        self.react_ms = 0         # this cast's extra reaction delay (drawn per cast)
+        self.cast_once = set()    # rows cast this fight: their refresh may run late
+        self.off_since = {}       # buff/debuff row -> (ms it was seen down, lag drawn)
         self.spacing = sim.build.skill_spacing
         self.swings_since_skill = self.spacing  # the opener may be a skill
         self.regen_acc = 0
@@ -759,7 +767,7 @@ class Fight:
     def _skill_ready(self, sk):
         if self.p.st.is_set(_DUMB):
             return False
-        if self.t - self.last_any_cast < SKILL_DELAY_MS:
+        if self.t - self.last_any_cast < SKILL_DELAY_MS + self.react_ms:
             return False
         if self.t - self.last_cast.get(sk.row, -10 ** 9) < sk.reload_ms:
             return False
@@ -778,7 +786,16 @@ class Fight:
             who = self.p if sk.type in SELF_TYPES else self.m
             states = [s for s in sk.states if s]
             if states and all(who.st.is_set(self.gd.state_type(s)) for s in states):
+                self.off_since.pop(sk.row, None)
                 return False
+            lo, hi = self.play["refresh_lag_ms"]
+            if hi and sk.row in self.cast_once:
+                # a typical player notices a dropped buff/debuff some seconds late
+                if sk.row not in self.off_since:
+                    self.off_since[sk.row] = (self.t, self.rng.uniform(lo, hi))
+                since, lag = self.off_since[sk.row]
+                if self.t - since < lag:
+                    return False
         return True
 
     def _player_next(self):
@@ -834,6 +851,10 @@ class Fight:
         self.last_cast[sk.row] = self.t
         self.last_any_cast = self.t
         self.swings_since_skill = 0
+        self.cast_once.add(sk.row)
+        self.off_since.pop(sk.row, None)
+        lo, hi = self.play["reaction_ms"]
+        self.react_ms = self.rng.uniform(lo, hi) if hi else 0
         cost = self.cost[sk.row]
         self.p.mp -= cost
         self.p.hp -= sk.hp_cost()

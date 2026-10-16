@@ -53,7 +53,7 @@ def spawned_monsters(gd):
     return gd._spawned
 
 
-def run(gd, jobs, levels, band=5, n=80, progress=None, routes=tuple(ROUTES)):
+def run(gd, jobs, levels, band=5, n=80, progress=None, routes=tuple(ROUTES), play="skilled"):
     """One record per (job, level, build route, monster); text() blends the routes by
     autobuild.ROUTES (most players take the weapon's skills, about 1 in 10 the support
     route)."""
@@ -66,7 +66,7 @@ def run(gd, jobs, levels, band=5, n=80, progress=None, routes=tuple(ROUTES)):
             mobs = [r for r in spawned if abs(gd.npc(r).level - lv) <= band
                     and gd.npc(r).atk > 0 and gd.npc(r).hp_col > 0]
             for r in sorted(mobs):
-                sim = Simulation(gd, b, r)
+                sim = Simulation(gd, b, r, play=play)
                 rep = sim.run(n=n, seed=1)
                 g = sim.grind(runs=2)
                 rows.append(dict(

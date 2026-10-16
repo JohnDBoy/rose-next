@@ -254,7 +254,9 @@ TEXT = {
                   "Power with katars and dual swords.",
     "LSkill1441": "Your wounds close faster, most of all while you sit and rest. "
                   "Increases HP recovery; from rank 6, MP recovery as well.",
-    "LSkill1451": "Sharpen your hunter's instincts, increasing your Accuracy.",
+    # Attack Power added 2026-10-16 (hawker-spirit-attack.py)
+    "LSkill1451": "Sharpen your hunter's instincts, increasing your Accuracy and "
+                  "Attack Power.",
     "LSkill1461": "Relentless drilling in the rhythm of the fight. Increases Attack "
                   "Speed with bows, katars and dual swords.",
     "LSkill1481": "Hold your breath, draw deep and drive an arrow into the target "

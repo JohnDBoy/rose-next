@@ -53,7 +53,8 @@ def main():
         try:
             req = json.loads(line)
             rid = req.get("id")
-            sim = Simulation(gd, Build(req["build"]), int(req["mob"]), bool(req.get("fix")))
+            sim = Simulation(gd, Build(req["build"]), int(req["mob"]), bool(req.get("fix")),
+                             play=req.get("play", "skilled"))
             rep = sim.run(n=int(req.get("n", 300)), seed=int(req.get("seed", 1)))
             msg = {"id": rid, "summary": rep.summary()}
         except Exception as e:
