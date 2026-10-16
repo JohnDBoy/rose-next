@@ -36,11 +36,11 @@ Simulated with HP and attacks split over the group: solo ~20%, a duo ~40%, five 
 The Luna Clan Field's regular monsters (CLAN_DUO: Tirwins, Elec Ghosts) are two-player
 content on top of their role: HP x DUO_HP, ATK x DUO_ATK (solo ~35%, a duo ~85%).
 
-Kings and skulls (BOSS_HP): early kings below level 80 are for 2-3 players, kings a
-five-player job, skulls the ultimate bosses for ten (four field elites that wore a skull
-are silver stars now, fix-monster-marks.py). HP only: each boss's multiplier (x3.4 ..
-x53, frozen from the sim) puts its fight at ~45 s / 90 s / 3 min for its group (sim:
-42-67 s, 72-117 s, 149-202 s). Not the Desert of the Dead's four (PvPvE zone, later).
+Kings and skulls (BOSS_HP): early kings below level 80 and kings are for three players,
+skulls for five (scaled back from five / ten on 2026-10-16: the alpha pool is 5-6 players) (four field elites that wore a skull
+are silver stars now, fix-monster-marks.py). HP only: each boss's multiplier (x2.35 ..
+x41.66, frozen from the sim) puts its fight at ~45 s / 90 s / 3 min for its group (sim, at
+the first group sizes: 42-67 s, 72-117 s, 149-202 s). Not the Desert of the Dead's four (PvPvE zone, later).
 The ten bosses that never cast a skill (NOSKILL_BOSSES) get ATK x NOSKILL_ATK instead;
 skills weaker than the boss's swing got a boss-only copy (boost-boss-skills.py).
 
@@ -108,14 +108,16 @@ CLAN_HP, CLAN_ATK = 2.5, 1.25
 CLAN_DUO = {387: "Elec Ghost", 388: "Elec Ghost", 477: "Tirwin", 478: "Tirwin",
             487: "Tirwin", 488: "Tirwin", 497: "Tirwin", 498: "Tirwin"}
 DUO_HP, DUO_ATK = 4.5, 1.6
-# Kings and skulls (user, 2026-10-15): early kings (below level 80) are for 2-3 players,
-# kings a five-player job, skulls the ultimate bosses for ten. HP only -- normal attacks
+# Kings and skulls (user, 2026-10-15; scaled back 2026-10-16 for an alpha pool of 5-6
+# players): early kings (below level 80) and kings are for three players, skulls for
+# five. The frozen multipliers were measured for 5 / 10 and scaled by 3/5 and 5/10 (a
+# fight's length goes as HP / group). HP only -- normal attacks
 # stay (their AI skills carry the threat; a skill pass may follow). Each boss's multiplier
 # puts its fight at BOSS_FIGHT_S for its group: today's fight = HP / (group x the players'
 # DPS against it, five classes at its level, combat sim). Frozen here so a re-run never
 # depends on the simulator. Not here: the Desert of the Dead's four (PvPvE, later) and the
 # clan bosses above.
-BOSS_FIGHT_S = {"early king": (3, 45), "king": (5, 90), "skull": (10, 180)}
+BOSS_FIGHT_S = {"early king": (3, 45), "king": (3, 90), "skull": (5, 180)}
 # Bosses that never cast a skill in the sim get a small ATK lift instead (user: "those may
 # actually benefit from a little attack boost"); a skill weaker than the swing got a
 # boss-only stronger copy (boost-boss-skills.py).
@@ -131,29 +133,29 @@ BOSS_HP = {   # row: (name, HP multiplier) -- frozen from the combat sim (see ab
     207: ('Aqua King', 4.89),   # early lv 40, 3 players 9 s today
     209: ('Grunter King', 4.19),   # early lv 60, 3 players 11 s today
     212: ('Krawfy King', 3.35),   # early lv 75, 3 players 13 s today
-    1543: ('Mountain Bebeg', 12.72),   # king lv 80, 5 players 7 s today
-    376: ('Dreadnaught King', 4.48),   # king lv 133, 5 players 20 s today
-    382: ('Behemoth King', 3.92),   # king lv 142, 5 players 23 s today
-    534: ('King Ulverick', 6.89),   # king lv 151, 5 players 13 s today
-    2207: ('Crowned Asper King', 18.06),   # king lv 222, 5 players 5 s today
-    2254: ('Poisontail Scorpio King', 17.57),   # king lv 224, 5 players 5 s today
-    2281: ('Golden Scarab King', 15.03),   # king lv 226, 5 players 6 s today
-    2722: ('Neg Golem', 23.99),   # king lv 228, 5 players 4 s today
-    2247: ('Desert Scavenger King', 13.31),   # king lv 231, 5 players 7 s today
-    2530: ('Basilissa Melitta', 45.23),   # king lv 238, 5 players 2 s today
-    2259: ('Prehistoric Mastyx King', 10.92),   # king lv 239, 5 players 8 s today
-    2276: ('Camouflaged Armastyx King', 11.63),   # king lv 240, 5 players 8 s today
-    2265: ('Fearsome Terrasaurus King', 11.02),   # king lv 240, 5 players 8 s today
-    4068: ('Deader Rex', 22.57),   # skull lv 100, 10 players 8 s today
-    532: ("Ulverick's Leader", 36.49),   # skull lv 135, 10 players 5 s today
-    533: ("Ulverick's General", 31.99),   # skull lv 145, 10 players 6 s today
-    1591: ('Moss Golem', 40.74),   # skull lv 210, 10 players 4 s today
-    2226: ('Grand Master Devourer', 50.77),   # skull lv 230, 10 players 4 s today
-    2296: ('Ikaness Mecha', 45.14),   # skull lv 234, 10 players 4 s today
-    2221: ('Giant Fiery Snapper', 48.4),   # skull lv 237, 10 players 4 s today
-    2729: ('Deadly Drake', 17.26),   # skull lv 238, 10 players 10 s today
-    1719: ('Executor Kera', 53.01),   # skull lv 240, 10 players 3 s today
-    2699: ('Deadly Drake Alpha', 27.57),   # skull lv 240, 10 players 7 s today
+    1543: ('Mountain Bebeg', 7.63),   # king lv 80, measured 7 s for 5 players
+    376: ('Dreadnaught King', 2.69),   # king lv 133, measured 20 s for 5 players
+    382: ('Behemoth King', 2.35),   # king lv 142, measured 23 s for 5 players
+    534: ('King Ulverick', 4.13),   # king lv 151, measured 13 s for 5 players
+    2207: ('Crowned Asper King', 10.84),   # king lv 222, measured 5 s for 5 players
+    2254: ('Poisontail Scorpio King', 10.54),   # king lv 224, measured 5 s for 5 players
+    2281: ('Golden Scarab King', 9.02),   # king lv 226, measured 6 s for 5 players
+    2722: ('Neg Golem', 14.39),   # king lv 228, measured 4 s for 5 players
+    2247: ('Desert Scavenger King', 7.99),   # king lv 231, measured 7 s for 5 players
+    2530: ('Basilissa Melitta', 27.14),   # king lv 238, measured 2 s for 5 players
+    2259: ('Prehistoric Mastyx King', 6.55),   # king lv 239, measured 8 s for 5 players
+    2276: ('Camouflaged Armastyx King', 6.98),   # king lv 240, measured 8 s for 5 players
+    2265: ('Fearsome Terrasaurus King', 6.61),   # king lv 240, measured 8 s for 5 players
+    4068: ('Deader Rex', 11.29),   # skull lv 100, measured 8 s for 10 players
+    532: ("Ulverick's Leader", 18.25),   # skull lv 135, measured 5 s for 10 players
+    533: ("Ulverick's General", 15.99),   # skull lv 145, measured 6 s for 10 players
+    1591: ('Moss Golem', 20.37),   # skull lv 210, measured 4 s for 10 players
+    2226: ('Grand Master Devourer', 25.39),   # skull lv 230, measured 4 s for 10 players
+    2296: ('Ikaness Mecha', 22.57),   # skull lv 234, measured 4 s for 10 players
+    2221: ('Giant Fiery Snapper', 24.2),   # skull lv 237, measured 4 s for 10 players
+    2729: ('Deadly Drake', 8.63),   # skull lv 238, measured 10 s for 10 players
+    1719: ('Executor Kera', 26.5),   # skull lv 240, measured 3 s for 10 players
+    2699: ('Deadly Drake Alpha', 13.79),   # skull lv 240, measured 7 s for 10 players
 }
 
 
