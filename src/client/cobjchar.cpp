@@ -3961,6 +3961,7 @@ CObjCHAR::PresentImmediateCombatDamage(CObjCHAR* pAtkOBJ) {
         event.hp_after);
     ApplyPresentedCombatDamage(pAtkOBJ, event);
     CreateImmediateDigitEffect(event.raw_damage);
+    PresentImmediateCriticalHitFeedback(pAtkOBJ, event.raw_damage);
     return Rose::Combat::CombatPresentationQueue::result_for(event);
 }
 
@@ -3991,6 +3992,7 @@ CObjCHAR::PresentQueuedCombatDamageFromAttacker(CObjCHAR* pAtkOBJ) {
     }
     ApplyPresentedCombatDamage(pAtkOBJ, event);
     CreateImmediateDigitEffect(event.raw_damage);
+    PresentImmediateCriticalHitFeedback(pAtkOBJ, event.raw_damage);
     return Rose::Combat::CombatPresentationQueue::result_for(event);
 }
 
@@ -4208,6 +4210,7 @@ CObjCHAR::PresentQueuedCombatDamageEvent(uint32_t eventId, CObjCHAR* pAtkOBJ, co
         reason ? reason : "");
     ApplyPresentedCombatDamage(pAtkOBJ, event);
     CreateImmediateDigitEffect(event.raw_damage);
+    PresentImmediateCriticalHitFeedback(pAtkOBJ, event.raw_damage);
     return Rose::Combat::CombatPresentationQueue::result_for(event);
 }
 
@@ -4827,28 +4830,7 @@ CObjCHAR::Hitted(CObjCHAR* pFromOBJ,
         }
 
         if (stDmage.m_wACTION & DMG_ACT_CRITICAL) {
-            /// 카메라 진동..
-            if (IsA(OBJ_USER)) {
-                D3DXVECTOR3 vMin(-10, -10, -10), vMax(10, 10, 50);
-                ::shakeCamera(g_pCamera->GetZHANDLE(),
-                    vMin,
-                    vMax,
-                    200); // 카메라 흔들림.
-            }
-
-            if (iEffectIDX) {
-                int iCriticalEffect = EFFECT_HITTED_CRITICAL(iEffectIDX);
-
-                ///아로아 이펙트
-                ChangeHittedEffect(pFromOBJ, IsAcceptAroa, iCriticalEffect);
-
-                CEffect* pHitEFT =
-                    g_pEffectLIST->Add_EffectWithIDX(iCriticalEffect, true);
-                if (pHitEFT) {
-                    pHitEFT->SetPOSITION(this->Get_CurPOS());
-                    pHitEFT->InsertToScene();
-                }
-            }
+            PresentCriticalHitFeedback(pFromOBJ, iEffectIDX);
         }
 
         // Crowd drain, paced by this hit frame. One digit per hit frame cannot keep
@@ -4951,6 +4933,73 @@ CObjCHAR::Hitted(CObjCHAR* pFromOBJ,
     g_pNet->Send_cli_DAMAGE(pFromOBJ, this, stDmage.m_wDamage);
 #endif
     return true;
+}
+
+//--------------------------------------------------------------------------------
+/// A critical hit's feedback: the camera shake when the local avatar takes it, and
+/// the critical hit effect of the attacker's weapon (LIST_EFFECT row iEffectIDX).
+///
+/// The effect draws a fixed height above its anchor (about chest height on a
+/// character). Anchored at the feet, it sat deep inside a tall monster, where the
+/// mesh hid it (the Giant Fiery Snapper), and on a mid-sized one (Baby Desert Asper)
+/// right on top of the damage digit, which spawns at the head. So a monster's crit
+/// is anchored at the digit (GetOverheadZ) and always draws just above it, whatever
+/// the monster's size (2026-10-16). Avatars keep the feet anchor, where the effect
+/// lands at the chest, below their digit; past kCritEffectTallStature they too move.
+//--------------------------------------------------------------------------------
+void
+CObjCHAR::PresentCriticalHitFeedback(CObjCHAR* pFromOBJ, int iEffectIDX) {
+    /// Taller than any avatar: an avatar this tall (a castle gear) moves up too.
+    const float kCritEffectTallStature = 250.f;
+
+    /// 카메라 진동..
+    if (IsA(OBJ_USER)) {
+        D3DXVECTOR3 vMin(-10, -10, -10), vMax(10, 10, 50);
+        ::shakeCamera(g_pCamera->GetZHANDLE(),
+            vMin,
+            vMax,
+            200); // 카메라 흔들림.
+    }
+
+    if (!iEffectIDX) {
+        return;
+    }
+
+    int iCriticalEffect = EFFECT_HITTED_CRITICAL(iEffectIDX);
+
+    ///아로아 이펙트
+    ChangeHittedEffect(pFromOBJ, FALSE, iCriticalEffect);
+
+    CEffect* pHitEFT = g_pEffectLIST->Add_EffectWithIDX(iCriticalEffect, true);
+    if (pHitEFT) {
+        D3DXVECTOR3 pos = this->Get_CurPOS();
+        const float fOverheadZ = GetOverheadZ();
+        if (IsA(OBJ_MOB) || fOverheadZ - pos.z > kCritEffectTallStature) {
+            pos.z = fOverheadZ; // CreateDamageDigit's anchor
+        }
+        pHitEFT->SetPOSITION(pos);
+        pHitEFT->InsertToScene();
+    }
+}
+
+//--------------------------------------------------------------------------------
+/// Critical feedback for a hit presented without an attack frame. Skill damage is
+/// shown by PresentImmediateCombatDamage / PresentQueuedCombatDamageFromAttacker,
+/// which only drew the digit, so a critical skill (a katar Hawker or Raider's,
+/// calculation.cpp Is_KatarSkillCRITICAL, 2026-10-16) looked like any other hit.
+/// The effect is the attacker's weapon critical, as on its normal swings.
+//--------------------------------------------------------------------------------
+void
+CObjCHAR::PresentImmediateCriticalHitFeedback(CObjCHAR* pFromOBJ, uint32_t uRawDamage) {
+    if (!pFromOBJ || !(uRawDamage & DMG_BIT_CRITICAL)) {
+        return;
+    }
+
+    int iEffectIDX = pFromOBJ->Get_RWeapon() ? WEAPON_DEFAULT_EFFECT(pFromOBJ->Get_RWeapon()) : 0;
+    if (!iEffectIDX && pFromOBJ->IsA(OBJ_MOB)) {
+        iEffectIDX = NPC_HAND_HIT_EFFECT(pFromOBJ->Get_CharNO());
+    }
+    PresentCriticalHitFeedback(pFromOBJ, iEffectIDX);
 }
 
 //--------------------------------------------------------------------------------

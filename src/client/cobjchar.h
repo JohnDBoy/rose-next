@@ -702,6 +702,12 @@ public:
     /// 타격치 바로 표시
     void CreateImmediateDigitEffect(int wDamage);
 
+    /// A critical hit's camera shake and weapon critical effect (LIST_EFFECT row
+    /// iEffectIDX); drawn at the damage digit on a tall target.
+    void PresentCriticalHitFeedback(CObjCHAR* pFromOBJ, int iEffectIDX);
+    /// The same for a hit presented without an attack frame (skill damage).
+    void PresentImmediateCriticalHitFeedback(CObjCHAR* pFromOBJ, uint32_t uRawDamage);
+
     /// Damage_of_Skill => 일반 데미지로 전환저장..
     /// arrivalSeq carries the receive-time HP-authority stamp for deferred skill
     /// hits; 0 means "stamp now" (immediate paths) and is filled in by
