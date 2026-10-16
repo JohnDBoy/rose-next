@@ -1089,6 +1089,14 @@ CZoneTHREAD::CommandSummons_Attack(CObjCHAR* pOwner, CObjCHAR* pTarget) {
             // SetCMD_RUNnATTACK is the AI attack entry point (chase + attack).
             pSummon->SetCMD_RUNnATTACK(pTarget->Get_INDEX());
             pSummon->SetManualOrder();
+            // Tell the summon's AI file it was just ordered: AI variable
+            // SUMMON_ORDER_AI_VAR = 1, then its ATTACK-MOVE pattern runs once now
+            // (a summon already in reach never chases, so it would not run at all).
+            // The Terror Knight answers with a taunt on the clicked monster and
+            // clears the flag (sur_guard.aip, scripts/terror-knight-taunt.py);
+            // AI files that never read the variable are unaffected.
+            pSummon->Set_AiVAR(CObjSUMMON::SUMMON_ORDER_AI_VAR, 1);
+            pSummon->Do_AttackMoveAI(pTarget);
             ++iCommanded;
         }
         pObjNODE = m_ObjLIST.GetNextNode(pObjNODE);

@@ -239,6 +239,10 @@ public:
     // explicit move/attack order is honored, then it returns to normal behavior.
     DWORD m_dwManualOrderUntil;
     static const DWORD MANUAL_ORDER_MS = 5000; // hold ~5s, then resume following
+    // AI variable a CTRL+click attack order sets to 1 before running the summon's
+    // ATTACK-MOVE pattern (CZoneTHREAD::CommandSummons_Attack). No summon AI file
+    // used variable 3 before; the Terror Knight's taunt reads it.
+    static const short SUMMON_ORDER_AI_VAR = 3;
     void SetManualOrder() { m_dwManualOrderUntil = ::timeGetTime() + MANUAL_ORDER_MS; }
     bool IsManualOrderActive() {
         return m_dwManualOrderUntil != 0

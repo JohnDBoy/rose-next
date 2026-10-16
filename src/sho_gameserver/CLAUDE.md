@@ -177,6 +177,8 @@ Players can directly command their summons (phantom swords, companions) with CTR
 
 ### PlayerOrderMoveTo (do NOT use SetCMD_MOVE2D for player clicks)
 
+An attack order also sets the summon's AI variable `CObjSUMMON::SUMMON_ORDER_AI_VAR` (3) to 1 and runs its ATTACK-MOVE pattern once on the spot (`Do_AttackMoveAI`; a summon already in reach never chases, so the pattern would not run otherwise). It lets an AI file answer the order: the Terror Knight's `sur_guard.aip` taunts the clicked monster and clears the variable (`scripts/terror-knight-taunt.py`). No summon AI used variable 3 before; files that never read it are unaffected.
+
 Move orders go through `CObjSUMMON::PlayerOrderMoveTo`, **not** `SetCMD_MOVE2D`. `CObjCHAR::SetCMD_MOVE2D` rejects destinations where `GetZONE()->IsMovablePOS()` is false (non-walkable cells) and silently keeps the old command — which made CTRL+click move orders "randomly" ignored depending on the exact terrain cell clicked. The avatar's own click-to-move has no such gate (it relies on client CANTMOVE collision feedback). `PlayerOrderMoveTo` replicates SetCMD_MOVE2D minus the IsMovablePOS check (calls `CObjAI::SetCMD_MOVE2D` + the now-`protected` `Send_gsv_MOVE`), so player orders are tolerant of non-walkable clicks like the avatar. Attack orders use the AI's `SetCMD_RUNnATTACK` (chase + attack). Keep the strict IsMovablePOS gate only for internal AI pathing.
 
 ## Walkability, and why a missing .MOV killed every leash in Karkia

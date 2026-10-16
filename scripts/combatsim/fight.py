@@ -132,7 +132,7 @@ class Status:
 
 
 _SLEEP, _FAINT, _DUMMY = ING["SLEEP"], ING["FAINTING"], ING["DUMMY_DAMAGE"]
-_DUMB = ING["DUMB"]
+_DUMB, _TAUNT = ING["DUMB"], ING["TAUNT"]
 _POISON = ING["POISONED"]
 _I = {k: ING[k] for k in ("INC_APOWER", "DEC_APOWER", "INC_HIT", "DEC_HIT", "INC_ATK_SPD",
                           "DEC_ATK_SPD", "INC_DPOWER", "DEC_DPOWER", "INC_RES", "DEC_RES",
@@ -336,6 +336,7 @@ class Mob:
         self.clip = None          # last clip set (m_pCurMOTION)
         self.stop_check = -10 ** 9
         self.created_only = False
+        self.taunter = None       # m_iTargetOBJ[ING_TAUNT]: who a landed Taunt ties it to
 
     # ---- the view ai.Brain reads
     @property
@@ -512,9 +513,18 @@ class Mob:
         elif n not in HARMLESS_ACTS:
             self.unsim[n] = self.unsim.get(n, 0) + 1
 
-    def order_attack(self, who):
-        """SetCMD_RUNnATTACK -> CObjAI::SetCMD_ATTACK (replaces an order not yet cast)."""
+    def taunted_away_from(self, who):
+        """StatusEffects::IsTauntSTATUS: taunted by someone still alive, and `who` is not
+        them -- the attack order is refused. A dead taunter frees it."""
+        return (self.u.st.is_set(_TAUNT) and self.taunter is not None
+                and self.taunter.hp > 0 and who is not self.taunter)
+
+    def order_attack(self, who, forced=False):
+        """SetCMD_RUNnATTACK -> CObjAI::SetCMD_ATTACK (replaces an order not yet cast);
+        refused while a Taunt ties the monster to someone else (Is_TauntSTATUS)."""
         if self.active:
+            return
+        if not forced and self.taunted_away_from(who):
             return
         if self.cmd == "attack" and self.target is who:
             return
@@ -952,6 +962,10 @@ class Fight:
             if not target.st.can_apply(gd, stb_row, value):
                 continue
             ing = target.st.apply(gd, stb_row, sk.duration, value, sk.row)
+            if ing == _TAUNT and mob is not None:
+                # Skill_ApplyIngSTATUS: a landed Taunt turns the target on its caster
+                mob.taunter = caster
+                mob.order_attack(caster, forced=True)
             if ing == ING["DUMMY_DAMAGE"]:
                 target.dummy_skill_power = sk.power
                 target.refresh()
