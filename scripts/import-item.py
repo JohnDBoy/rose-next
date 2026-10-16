@@ -215,6 +215,12 @@ def zms_extent(path):
         return None
     return nvert, max(bmax[k] - bmin[k] for k in range(3))
 
+def model_paths(z, obj_idx):
+    """An object's (mesh, texture) paths, case-folded: what it looks like, whatever
+    the indices are in its own table."""
+    return [(z.meshes[m].lower(), z.materials[t][0].lower())
+            for m, t, _props in z.objects[obj_idx][1]]
+
 def object_is_placeholder(source, src_zsc, obj_idx):
     """True when every part of a source object is degenerate geometry.
 
@@ -452,6 +458,13 @@ def zsc_build_append(ours_path, src_zsc, src_obj_idx, source=None, copy_effects=
             kept.append((a, props))
             continue
         src_path = (src_zsc.effects[list_idx] if list_idx < len(src_zsc.effects) else None)
+        if src_path is not None and not src_path.strip(b"\0 "):
+            # A blank effect name is the source's "no effect": the 668 client keeps
+            # one empty entry and points every plain anchor (trail tip, trail low,
+            # gem point) at it, where ours writes -1. Dropping these would cost the
+            # weapon its swing trail and its gem glow.
+            kept.append((struct.pack("<hh", -1, eff_type), props))
+            continue
         if src_path is not None and norm(src_path) in our_eft_idx:
             kept.append((struct.pack("<hh", our_eft_idx[norm(src_path)], eff_type), props))
             continue
@@ -700,7 +713,9 @@ def main():
                          "Appending walks straight past that once a table is near it -- "
                          "LIST_NATURAL is 981 rows, leaving 19 usable slots -- while the "
                          "table itself has hundreds of blank rows lower down. Refuses a "
-                         "row that already carries a name.")
+                         "row that already carries a name, or whose model object holds "
+                         "art -- unless that art is the source's own model (retail left "
+                         "some behind blank rows), which is then kept as is.")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--selftest", action="store_true",
                     help="prove that re-serialising every ZSC we ship reproduces its "
@@ -751,6 +766,7 @@ def main():
         if scols != ocols:
             print("note: source has %d data cols to our %d; the extra trailing columns are dropped"
                   % (scols - 1, ocols - 1))
+    same_model = set()      # model tables whose target object already is the source's model
     if args.target_row is not None:
         new_id = args.target_row
         # A model table is indexed 1:1 with the STB, so writing in place is only
@@ -765,6 +781,13 @@ def main():
                          "table would need padding first"
                          % (new_id, os.path.basename(rel), len(z.objects)))
             if z.objects[new_id][1]:
+                # Retail left some models behind blank rows (unique weapons 904 and
+                # 936: the object is there, the STB row is not). Reusing the object
+                # is safe only when it is the very model being imported.
+                if model_paths(z, new_id) == model_paths(
+                        Zsc(os.path.join(args.source, rel)), args.source_row):
+                    same_model.add(rel)
+                    continue
                 sys.exit("--target-row %d already carries %d model part(s) in %s -- that "
                          "is another item's art, even though the STB row reads blank. "
                          "Pick a row that is empty in both."
@@ -1059,6 +1082,10 @@ def main():
             sys.exit("--attach-effect-row is for back items only")
         extra_dummies = (weapon_effect_dummy(args.source, args.attach_effect_row),)
     for rel in ZSC_RELS:
+        if rel in same_model:
+            print("model: %s object %d already holds the source's model; kept"
+                  % (os.path.basename(rel), new_id))
+            continue
         src_zsc = Zsc(os.path.join(args.source, rel))
         if not src_zsc.objects[args.source_row][1]:
             empty_models.add(rel)

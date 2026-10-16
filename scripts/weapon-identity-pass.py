@@ -81,6 +81,10 @@ CROSSBOW, CROSSBOW_ASPD = 271, 29
 R_KNOTS = [(10, 1.896), (20, 1.384), (56, 1.384), (73, 1.216), (250, 1.000)]
 R_FLOOR = 0.3
 SKIP = {1380: "GM Sword"}
+# Uniques imported after this pass by import-668-uniques.py, authored on the
+# post-pass scale: a re-run would take them as originals and scale them twice.
+SKIP.update({r: "668 unique" for r in (904, 911, 918, 922, 929, 935, 936, 943, 955,
+                                       962, 970, 979, 986, 994, 995)})
 
 
 def R(level):
