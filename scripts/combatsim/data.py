@@ -226,6 +226,12 @@ class GameData:
                 n = raw.decode("utf-8")          # STB cells mix codecs (Korean is UTF-8)
             except UnicodeDecodeError:
                 n = raw.decode("latin-1")
+        elif table == "LIST_SKILL" and self.stb(table).get(row, 86).startswith(b"LMobSkill"):
+            # a monster skill: the player-facing name plus what it does and who casts it
+            # (name-monster-skills-players.py / name-monster-skills.py)
+            label = self.stb(table).get(row, 0).strip().decode("utf-8", "replace")
+            if label and label != n:
+                n = f"{n} [{label}]"
         n = n or f"#{row}"
         if table in PREFIXED_TABLES:
             pre = self.item_prefix(table, row)
