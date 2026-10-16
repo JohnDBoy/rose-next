@@ -382,9 +382,11 @@ def append_sprites(items, args, label_prefix):
         p = os.path.join(RES, sheet_name)
         if os.path.exists(p):
             backup_file(p, m, args.dry_run)
+        # Written without a mip chain, as add-skill-icon.py does since the rosefmt move:
+        # a UI sheet is drawn 1:1 and the engine forces miplevels = 1 for it, so
+        # add-dds-mipmaps.py skips it too. (A restore_mipmaps call that used to sit
+        # here no longer existed and crashed the write half-way.)
         ask.dds_write(p, img, args.dry_run)
-        if not args.dry_run:
-            ask.restore_mipmaps(p, False)
     ask.tsi_write(TSI, textures, blocks, args.dry_run)
     if not args.dry_run:
         # Not Stb.save(): it drops a .bak beside the STB, and pack.ps1 refuses to
