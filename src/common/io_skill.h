@@ -145,6 +145,12 @@ enum enumSKILL_TAGER_FILTER {
 #define SKILL_SCRIPT1(I) g_SkillList.m_SkillDATA.get_int32(I, 49)
 
 #define SKILL_RESERVE_02(I) g_SkillList.m_SkillDATA.get_int32(I, 50)
+// Critical burst (2026-10-18; columns 49 and 50 were unused by every row and all code): a
+// skill with SKILL_CRITICAL_RATE > 0 rolls its own critical -- a critical when
+// Get_CriSuccessRATE < SKILL_CRITICAL_ROLL (a normal swing's threshold is 20) -- for
+// SKILL_CRITICAL_RATE percent of its damage. CCal::Get_SkillDAMAGE; the Raider's Shun'ei-zan.
+#define SKILL_CRITICAL_ROLL(I) g_SkillList.m_SkillDATA.get_int32(I, 49)
+#define SKILL_CRITICAL_RATE(I) g_SkillList.m_SkillDATA.get_int32(I, 50)
 #define SKILL_ICON_NO(I) g_SkillList.m_SkillDATA.get_int32(I, 51)
 
 /// 캐스팅 동작

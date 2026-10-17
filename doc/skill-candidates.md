@@ -10,7 +10,7 @@ from: *new* means a file we do not ship, *ours* means a file we already have (an
 usually, a look some existing skill already uses). Every gameplay number is always
 ours; only presentation is taken. The import method and its traps are in
 [skill-import-investigation.md](skill-import-investigation.md); the worked examples are
-`scripts/import-champion-skills.py` (668) and `scripts/artisan-bazooka-test.py` (Jrose).
+`scripts/import-champion-skills.py` (668) and `scripts/import-raider-skills.py` (Jrose).
 
 Dumps: `668` = official Rednim client (`Testclients/668/Extracted`), `667` = the Evo test
 client, `Jrose` = the Japanese 2024 dump (`Testclients/Jrose`, cp932, see
@@ -26,6 +26,7 @@ Jrose also has, one Muse buff).
 | Artisan | Photon Cannon (Jrose's Photon Wave, made single-target) | Jrose | `import-artisan-photon-cannon.py` |
 | Bourgeois | Exceed Break (launcher, Burning splash, costs Zuly) | Jrose | `import-exceed-break.py` |
 | Artisan | Calibrated Burst: new "Nightmare" look (effects only) | Jrose | `import-exceed-break.py` |
+| Raider | Eruption (katar area), Shun'ei-zan (dual, critical burst) | Jrose | `import-raider-skills.py` |
 
 ## Artisan (gun + launcher)
 
@@ -57,10 +58,7 @@ Jrose also has, one Muse buff).
 
 ## Raider (katar / dual)
 
-| Skill | From | Animation | Effects | Notes |
-|---|---|---|---|---|
-| **Eruption** (Irapushon) | Jrose 4321 (Raider, katar, lv 180) | **new**: `HAWKER_U_SKILL_KATAR03` | ours | "Ultra-fast combination slashing every enemy in range" |
-| **Shun'ei-zan** (Shadow Flash Slash) | Jrose 4311 (Raider, dual, lv 200) | **new**: `HAWKER_U_SKILL_DSW03` | 4 new files | "A shadow dashes past faster than the eye; heavy damage on success" |
+Both Jrose Raider skills are **done** (`import-raider-skills.py`); no dump has another new Raider clip.
 
 ## Scout (bow / crossbow)
 

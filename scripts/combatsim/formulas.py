@@ -161,7 +161,10 @@ def skill_damage(rng, a, d, sk, hit_cnt):
                       * 0.01 * (120 - d.level + a.level)
                       / (d.get_def + d.get_res * 0.3 + d.get_avoid * 0.4 + 10) / 100.0 + 20)
 
-    if a.katar_crit and cri_success_rate(rng, a) < 20:
+    if sk.crit_rate > 0:                         # critical burst (io_skill.h, cols 49/50)
+        if a.is_user and cri_success_rate(rng, a) < sk.crit_roll:
+            dmg = int(dmg * sk.crit_rate / 100.0)
+    elif a.katar_crit and cri_success_rate(rng, a) < 20:
         dmg = int(dmg * KATAR_SKILL_CRITICAL)
     dmg = _dummy(a, dmg)
     if dmg < 5:

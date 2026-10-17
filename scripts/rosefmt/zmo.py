@@ -6,7 +6,9 @@ per channel ``u32 type | u32 bone`` and the frame data. Writing a full clip is
 reads the header and edits the trailer.
 
 Trailer (``EZMO`` / ``3ZMO``): ``... body ... | u16 n | n x i16 event-per-frame
-| u32 trailer_offset | "EZMO"``. The events are what makes a clip *do*
+| [3ZMO: i32 interpolation interval] | u32 trailer_offset | "EZMO"``.
+``truncated`` cuts a clip to its first N frames (frame records, events and the
+header count together) -- for an imported clip with a dead tail. The events are what makes a clip *do*
 something: a normal attack lands at frame 21 (melee) or fires at 22/23
 (bow/gun); a skill release launches at 24/34 (or 26/25). **A bare-handed
 monster on a 22/23 clip has nothing to fire** and used to deal damage with no
@@ -51,6 +53,76 @@ def event_set(blob):
     """The set of non-zero event ids a clip carries; empty without a trailer."""
     _, ev = events(blob)
     return {e for e in ev if e} if ev else set()
+
+
+# bytes per frame per channel, by channel type (zz_motion_channel_frame_size)
+FIELD_SIZE = {1 << 1: 12, 1 << 2: 16, 1 << 3: 12,                 # position, rotation, normal
+              1 << 4: 4, 1 << 9: 4, 1 << 10: 4,                   # alpha, texture anim, scale
+              1 << 5: 8, 1 << 6: 8, 1 << 7: 8, 1 << 8: 8}         # uv0-uv3
+
+
+def frame_layout(blob):
+    """(offset of the frame section, bytes per frame, header) -- the frame records
+    follow the channel table, one fixed-size record per channel, repeated per frame."""
+    b = read_file(blob)
+    h = read_header(b)
+    if h is None:
+        raise ValueError("not a ZMO0002 clip")
+    _, o = read_cstr(b, 0)
+    start = o + 12 + 8 * len(h[2])
+    stride = 0
+    for ctype, _ in h[2]:
+        if ctype not in FIELD_SIZE:
+            raise ValueError("unknown channel type %d" % ctype)
+        stride += FIELD_SIZE[ctype]
+    return start, stride, h
+
+
+def frame_values(blob, frame):
+    """The floats of one frame, channel by channel: [(type, bone, (floats...)), ...]."""
+    b = read_file(blob)
+    start, stride, (_, frames, chans) = frame_layout(b)
+    if not 0 <= frame < frames:
+        raise ValueError("frame %d of %d" % (frame, frames))
+    o, out = start + stride * frame, []
+    for ctype, bone in chans:
+        n = FIELD_SIZE[ctype] // 4
+        out.append((ctype, bone, struct.unpack_from("<%df" % n, b, o)))
+        o += FIELD_SIZE[ctype]
+    return out
+
+
+def truncated(blob, frames):
+    """The clip cut to its first ``frames`` frames: frame count, frame records and the
+    event trailer (one event per frame) all shortened, the trailer offset re-pointed.
+    Refuses a clip with anything between its frame records and its trailer."""
+    b = read_file(blob)
+    start, stride, (fps, total, chans) = frame_layout(b)
+    if not 1 <= frames <= total:
+        raise ValueError("cannot cut a %d-frame clip to %d" % (total, frames))
+    body_end = start + stride * total
+    base, ev = events(b)
+    if base is None:
+        if len(b) != body_end:
+            raise ValueError("clip has %d bytes after its frames and no trailer" % (len(b) - body_end))
+        tail = b""
+    else:
+        if base - 2 != body_end:
+            raise ValueError("data between the frames and the trailer -- refusing")
+        if len(ev) != total:
+            raise ValueError("trailer has %d events for %d frames" % (len(ev), total))
+        tag = b[-4:]
+        # 3ZMO keeps a u32 after the events -- the clip's interpolation interval,
+        # read by CMotion::Load for extended version 3 -- so whatever sits between
+        # the events and the offset field travels with them.
+        extra = b[base + 2 * total:len(b) - 8]
+        new_body_end = start + stride * frames
+        tail = (struct.pack("<H", frames) + struct.pack("<%dh" % frames, *ev[:frames])
+                + extra + struct.pack("<I", new_body_end) + tag)
+    _, o = read_cstr(b, 0)
+    head = bytearray(b[:start])
+    struct.pack_into("<I", head, o + 4, frames)
+    return bytes(head) + b[start:start + stride * frames] + tail
 
 
 def with_events(blob, changes):

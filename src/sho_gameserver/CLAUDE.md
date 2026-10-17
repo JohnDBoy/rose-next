@@ -37,7 +37,7 @@ main.cpp → lib_gsmain (init) → Zone Threads (gs_threadzone)
 | `src/cobjitem.cpp/h` | Dropped item objects |
 | `src/status_effects.cpp/h` | Buff/debuff system |
 | `src/srv_common/` | Chat rooms (`cchatroom`), `cobjvar.h` |
-| `../common/calculation.cpp` | Combat math (server-only `#ifdef __SERVER`), compiled directly into this project. Skills can crit only for a Hawker/Raider holding a katar (`Is_KatarSkillCRITICAL`, x1.5, 2026-10-16); `scripts/combatsim/formulas.py` mirrors every formula here -- change both |
+| `../common/calculation.cpp` | Combat math (server-only `#ifdef __SERVER`), compiled directly into this project. Skills can crit only for a Hawker/Raider holding a katar (`Is_KatarSkillCRITICAL`, x1.5, 2026-10-16), or when their row sets a critical burst (LIST_SKILL cols 49/50, `SKILL_CRITICAL_ROLL` / `SKILL_CRITICAL_RATE`, which replaces the katar rule for that skill; Shun'ei-zan, 2026-10-18); `scripts/combatsim/formulas.py` mirrors every formula here -- change both |
 | `src/ai_lib/` | Server-side AI behavior |
 | `src/common/` | Server copies of `CObjAI`, regen areas, user data and the AI/motion/skill table readers (the client has its own) |
 

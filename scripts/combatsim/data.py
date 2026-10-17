@@ -418,6 +418,8 @@ class Skill:
         self.ability = [(g(21 + 3 * t), g(22 + 3 * t), g(23 + 3 * t)) for t in range(2)]
         self.action_mode = g(29)
         self.need_weapon = [g(30 + t) for t in range(5)]
+        self.crit_roll = g(49)               # SKILL_CRITICAL_ROLL (critical burst)
+        self.crit_rate = g(50)               # SKILL_CRITICAL_RATE, % of the damage
         self.ani_casting = g(52)
         self.ani_casting_speed = g(53)
         self.ani_repeat = g(54)

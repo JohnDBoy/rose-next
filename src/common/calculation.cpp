@@ -765,9 +765,16 @@ CCal::Get_SkillDAMAGE(CObjCHAR* pATK, CObjCHAR* pDEF, short nSkillIDX, WORD wHit
         }
     }
 
-    // a katar Hawker / Raider's skill can be a critical (see Is_KatarSkillCRITICAL)
+    // a critical-burst skill rolls its own critical (io_skill.h SKILL_CRITICAL_RATE), in
+    // place of the katar rule; otherwise a katar Hawker / Raider's skill can be a critical
+    // (see Is_KatarSkillCRITICAL)
     bool bSkillCRITICAL = false;
-    if (Is_KatarSkillCRITICAL(pATK) && Get_CriSuccessRATE(pATK) < 20) {
+    if (SKILL_CRITICAL_RATE(nSkillIDX) > 0) {
+        if (pATK->IsUSER() && Get_CriSuccessRATE(pATK) < SKILL_CRITICAL_ROLL(nSkillIDX)) {
+            iDamage = (int)(iDamage * SKILL_CRITICAL_RATE(nSkillIDX) / 100.f);
+            bSkillCRITICAL = true;
+        }
+    } else if (Is_KatarSkillCRITICAL(pATK) && Get_CriSuccessRATE(pATK) < 20) {
         iDamage = (int)(iDamage * KATAR_SKILL_CRITICAL);
         bSkillCRITICAL = true;
     }
