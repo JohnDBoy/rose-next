@@ -76,8 +76,9 @@ How a player gets it
   is compiled out on the server). LIST_USEITEM 855 (blank) is a copy of Refine Item's
   book 849, sold in Darren's second-job tab 468 col 49, beside Calibrated Burst's.
 * **Trees.** UI2 builds itself from the class set and prerequisite columns. The classic
-  tree (`skilltree_dealer.xml`, page `DEALER_CRAFT_MASTERY.DDS`) gets a box to the
-  right of Calibrated Burst's with a plain connector (`doc/skill-tree-art.md`).
+  tree's node and painted box are owned by `scripts/dealer-tree-layout.py` (run it after
+  the imports) since 2026-10-17, when the user moved the Dealer's new skills: this one
+  now sits after Calibrated Burst on the Gunshot Mastery page.
 * **Icon:** Jrose's own (sprite 867 of its SKILLICON.TSI: the Artisan aiming the glowing
   cannon, with Jrose's "U" badge for its unique skills -- the user kept the badge),
   cut to a PNG by `--icon-png` and appended by `add-skill-icon.py`, which owns the
@@ -94,16 +95,15 @@ What it changes
     FILE_EFFECT.STB              row 25 (Jrose's number)
     MOTION/AVATAR                + skill_cannon_m01/m02/m03.ZMO (m03 with the fire event)
     EFFECT, EFFECTMESH, PARTICLES  at_skill_cannon.eft and its chain (25 files)
-    skilltree_dealer.xml         1 node; DEALER_CRAFT_MASTERY.DDS painted
 
 The hit-dummy sound Jrose names (FILE_SOUND 1000, `u_skill_b.wav`) is left out: the dump
 does not ship it, and our sounds are loose files in the launch folder. Every Jrose id
 written is checked first (motion rows blank here, effect row blank, projectile row
-LIST_EFFECT 221 identical to ours). Cell-level undo, the copied files and the page
-original live in `build/artisan-photon-cannon/`.
+LIST_EFFECT 221 identical to ours). Cell-level undo and the copied files live in
+`build/artisan-photon-cannon/`.
 
 Deploy: restart the server (LIST_SKILL, LIST_USEITEM, LIST_SELL, the motion tables and
-clips), re-bake, and copy `skilltree_dealer.xml` loose into the launch folder.
+clips), re-bake, and run `dealer-tree-layout.py` for the classic tree.
 """
 import argparse
 import importlib.util
@@ -127,8 +127,6 @@ _spec.loader.exec_module(rd)
 
 DATA = os.path.join(ROOT, "data")
 STB_DIR = os.path.join(DATA, "3DDATA", "STB")
-RES_DIR = os.path.join(DATA, "3DDATA", "CONTROL", "RES")
-TREE_XML = os.path.join(DATA, "3DDATA", "CONTROL", "xml", "skilltree_dealer.xml")
 JROSE = r"C:\Users\Thomas\Desktop\Testclients\Jrose"
 J_STB = os.path.join(JROSE, "3Ddata", "STB")
 OUT = os.path.join(ROOT, "build", "artisan-photon-cannon")
@@ -157,11 +155,6 @@ ST_ACCURACY_DOWN = 25
 BOOK, BOOK_TEMPLATE = 855, 849
 SHOP_TAB, SHOP_COL = 468, 49
 
-# classic tree: art + (20, 75) = dialog; icon at box + (1, 2)
-PAGE = "DEALER_CRAFT_MASTERY.DDS"
-ANCHOR = '<SKILL INDEX="7002" OFFSETX="199" OFFSETY="432"/>'
-FROM_BOX, BOX = (178, 355), (262, 355)
-ART_ORIGIN, ART_BOX_SIZE, ART_LINE_RGBA = (20, 75), 42, (74, 81, 99, 255)
 
 
 def lin(a, b, n=RANKS):
@@ -188,18 +181,6 @@ def load(name):
 
 def jload(name):
     return rd.Stb(os.path.join(J_STB, name), "cp932")
-
-
-def page_path():
-    hit = [f for f in os.listdir(RES_DIR) if f.upper() == PAGE]
-    if not hit:
-        sys.exit(f"tree art {PAGE} not found")
-    return os.path.join(RES_DIR, hit[0])
-
-
-def tree_node(base):
-    x, y = BOX[0] + ART_ORIGIN[0] + 1, BOX[1] + ART_ORIGIN[1] + 2
-    return f'\n         <SKILL INDEX="{base}" OFFSETX="{x}" OFFSETY="{y}"/>'
 
 
 # --------------------------------------------------------------- planning
@@ -282,23 +263,6 @@ def skill_rows(base):
     return rows
 
 
-# --------------------------------------------------------------- tree art
-def art_paint(path):
-    from PIL import Image, ImageDraw
-    im = Image.open(path).convert("RGBA")
-    d = ImageDraw.Draw(im)
-    mid = BOX[1] + ART_BOX_SIZE // 2
-    d.line([(FROM_BOX[0] + ART_BOX_SIZE - 1, mid), (BOX[0], mid)], fill=ART_LINE_RGBA)
-    d.rectangle([BOX[0], BOX[1], BOX[0] + ART_BOX_SIZE - 1, BOX[1] + ART_BOX_SIZE - 1],
-                outline=ART_LINE_RGBA)
-    im.save(path)
-
-
-def art_has_box(path):
-    from PIL import Image
-    return Image.open(path).convert("RGBA").load()[BOX[0], BOX[1]][3] > 8
-
-
 # --------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -325,9 +289,6 @@ def main():
     files = asset_files()
     new_files = [f for f in files if not os.path.isfile(ro.rel_path(DATA, f))]
     rows = skill_rows(base)
-    raw_xml = open(TREE_XML, encoding="utf-8", newline="").read()
-    if ANCHOR not in raw_xml:
-        sys.exit("tree: Calibrated Burst's node not found -- refusing")
 
     print(f"{NAME}: LIST_SKILL {base}-{base + RANKS - 1}, book {BOOK}, "
           f"tab {SHOP_TAB} col {SHOP_COL}")
@@ -343,12 +304,6 @@ def main():
         return
 
     os.makedirs(OUT, exist_ok=True)
-    page = page_path()
-    backup = os.path.join(OUT, os.path.basename(page) + ".orig")
-    if not os.path.exists(backup):
-        shutil.copyfile(page, backup)
-    if not art_has_box(page):
-        art_paint(page)
 
     for f in new_files:
         d = ro.rel_path(DATA, f)
@@ -375,14 +330,10 @@ def main():
     t.append(f"LUSE{BOOK}", BOOK, NAME, DESC)
     t.save(False, keep_backup=False)
 
-    node = tree_node(base)
-    open(TREE_XML, "w", encoding="utf-8", newline="").write(
-        raw_xml.replace(ANCHOR, ANCHOR + node, 1))
 
-    json.dump(dict(base=base, cells=undo, files=new_files, node=node,
-                   page=page, page_backup=backup), open(MANIFEST, "w"), indent=1)
+    json.dump(dict(base=base, cells=undo, files=new_files), open(MANIFEST, "w"), indent=1)
     print(f"done -- now the icon: --icon-png, then add-skill-icon.py ... --skill-row "
-          f"{base}-{base + RANKS - 1}; restart the server, re-bake, copy skilltree_dealer.xml loose")
+          f"{base}-{base + RANKS - 1}; restart the server, re-bake, then scripts/dealer-tree-layout.py")
 
 
 def icon_png(path):
@@ -424,10 +375,6 @@ def restore(m):
         p = ro.rel_path(DATA, f)
         if os.path.isfile(p):
             os.remove(p)
-    raw = open(TREE_XML, encoding="utf-8", newline="").read()
-    open(TREE_XML, "w", encoding="utf-8", newline="").write(raw.replace(m["node"], "", 1))
-    if os.path.exists(m["page_backup"]):
-        shutil.copyfile(m["page_backup"], m["page"])
     os.remove(MANIFEST)
     print("restored: skill rows, book, shop slot, motion/effect rows, files, tree node, art")
 
@@ -458,12 +405,6 @@ def verify(m):
         if not Stl(os.path.join(STB_DIR, name)).has(key):
             ok = False
             print(f"  {name} lacks {key}")
-    if m["node"] not in open(TREE_XML, encoding="utf-8", newline="").read():
-        ok = False
-        print("  tree node missing")
-    if not art_has_box(m["page"]):
-        ok = False
-        print("  tree box not painted")
     icon = int(sk.d[m["base"]][51] or b"0")
     if icon != ICON:
         print(f"  note: icon is {icon}, not {ICON} -- add it with add-skill-icon.py (see the docstring)")

@@ -45,7 +45,7 @@ What is re-pointed
 ------------------
     class      44 (whole Dealer line)  ->  68 (Artisan Job = 422/432)
     name       "Aimed Triple Shot"     ->  "Calibrated Burst"
-    prereq     RoseZA skill 2301       ->  Craft Mastery (2081) rank 6
+    prereq     RoseZA skill 2301       ->  Gunshot Mastery (2021) rank 10 (was Craft Mastery 6)
     icon       566 (their atlas)       ->  172 (ours; swap with add-skill-icon.py)
     ranks      5                       ->  10, to match every other skill here
     power / cooldown / MP / SP         ->  authored, see below
@@ -60,7 +60,7 @@ The numbers
     power   80 -> 200   against the motion's 3 attack frames
     cd     3.6 -> 2.8s  -- the shortest cooldown of any attack skill in the game
     MP      26 -> 55
-    prereq  Craft Mastery rank 6, which is itself the Artisan gate
+    prereq  Gunshot Mastery rank 10 (Craft Mastery rank 6 until 2026-10-17)
 
 Measured against the Dealer kit at level 200: ~672 dps, sitting alongside Triple
 Shot's 709 rather than above it. The difference is that Triple Shot needs twenty
@@ -73,8 +73,12 @@ burst, not a rotation.
 
 Where it lands in the tree
 --------------------------
-Under `Craft Mastery LEVEL="6"` in `skilltree_dealer.xml`, beside Refine Item,
-Gem Cutting and Cart Craft -- the node where the Artisan branch already begins.
+First under `Craft Mastery LEVEL="6"`, beside Refine Item and the crafts. Moved
+2026-10-17 at the user's request: it is a gun skill, so it now needs **Gunshot
+Mastery rank 10** (Sniping Shot's gate) and sits on the Gunshot Mastery page with
+Photon Cannon after it. The classic tree placement (XML node and painted box) is
+owned by `scripts/dealer-tree-layout.py`, no longer by this script -- run it after
+the imports. UI2 places the skill itself from the prerequisite.
 
 Traps this had to avoid
 -----------------------
@@ -106,44 +110,20 @@ import json
 import os
 import struct
 import sys
-import shutil
-import xml.etree.ElementTree as ET
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 STB_DIR = os.path.join(ROOT, "data", "3DDATA", "STB")
 SKILL_STB = os.path.join(STB_DIR, "LIST_SKILL.STB")
 SKILL_STL = os.path.join(STB_DIR, "LIST_SKILL_S.STL")
-TREE_XML = os.path.join(ROOT, "data", "3DDATA", "CONTROL", "xml", "skilltree_dealer.xml")
 SIDECAR = os.path.join(STB_DIR, "LIST_SKILL.artisan-import.json")
-TREE_ART = os.path.join(ROOT, "data", "3DDATA", "CONTROL", "RES",
-                        "DEALER_CRAFT_MASTERY.DDS")
-# Hidden on purpose: pack.rs walks the data tree filtering only *hidden* entries and
-# applies no extension filter, so a plain .bak next to the art gets baked into the .vfs.
-ART_BACKUP = os.path.join(ROOT, "data", "3DDATA", "CONTROL", "RES",
-                          ".DEALER_CRAFT_MASTERY.DDS.orig")
-
-# CSkillTreeDlg::Draw blits the page art at m_sPosition + (20, 75), then draws 40x40
-# icons on top at their XML offsets -- so art-local + ART_ORIGIN = dialog-local.
-# There is NO line-drawing code anywhere in the dialog: every box and every connector
-# in the skill tree is painted into this DDS. A new skill gets no box and no line
-# unless it is added here, which is why the first attempt looked broken.
-ART_ORIGIN = (20, 75)
-ART_LINE_RGBA = (74, 81, 99, 255)   # sampled from the existing spine
-ART_SPINE_X = 74                    # vertical spine that every branch hangs off
-ART_SPINE_BOTTOM = 296              # where it stopped, at the 2621 branch
-ART_BOX = (178, 355)                # art-local top-left of the new box
-ART_BOX_SIZE = 42                   # boxes are 42x42, 1px border
-
-# Icon sits 1px in horizontally and 2px vertically from the box border -- the same
-# relationship retail uses (2621: box art(178,275) -> icon dialog(199,352)).
-TREE_OFFSET = (ART_BOX[0] + ART_ORIGIN[0] + 1, ART_BOX[1] + ART_ORIGIN[1] + 2)
 
 RANKS = 10
 NAME = "Calibrated Burst"
 DESC = ("A tuned three-round burst. The fastest attack skill an Artisan can fire, "
         "and far too expensive to hold down.")
-PREREQ_SKILL, PREREQ_RANK = 2081, 6      # Craft Mastery, at the Artisan gate
+PREREQ_SKILL, PREREQ_RANK = 2021, 10     # Gunshot Mastery, Sniping Shot's gate (was
+                                         # Craft Mastery 6 until 2026-10-17)
 CLASS_ARTISAN = 68
 ICON = 512                  # custom art, added by scripts/add-skill-icon.py;
                             # 172 was Twin Shot's icon, shared by accident
@@ -181,13 +161,17 @@ def row_cells(base_row, n):
         51: ICON,
         52: 95, 53: 150,            # casting anim + speed
         54: 131,                    # casting repeat
-        56: 1041, 57: 3, 58: 131,   # casting effect / dummy point / sound
+        56: 1126, 57: 3, 58: 131,   # casting effect / dummy point / sound -- 1126 is
+                                    # Jrose's _mana_hit_05, the "Nightmare" look picked in
+                                    # game 2026-10-17 (was 1041); import-exceed-break.py
+                                    # brings the effect row and writes these two cells
         68: 92, 69: 175,            # action anim (gun_3attack, 3 attack frames) + speed
         70: 3,                      # SKILL_ANI_HIT_COUNT -- cosmetic. Nothing reads
                                     # this column; the real multiplier is the
                                     # motion's attack-frame count. Set to match
                                     # the animation so the table stays honest.
-        71: 180, 72: 1, 73: 148,    # bullet effect / point / sound
+        71: 252, 72: 1, 73: 148,    # bullet effect / point / sound -- 252 = Night Mare Blitz's
+                                    # round (_mana_firing_00), was 180
         74: 110, 75: 999, 76: 67,   # hit effect / root dummy / sound
         77: 171, 78: 1, 79: 67,     # dummy hit effect / point / sound
         85: 30,                     # level-up cost / 100
@@ -343,108 +327,6 @@ def stl_write(path, keys, langs):
         fh.write(bytes(out))
 
 
-# ------------------------------------------------------------------ tree XML
-def tree_add(base_row, dry):
-    """Hang the skill under Craft Mastery LEVEL=6 -- where the Artisan branch starts.
-
-    OFFSETX/OFFSETY are absolute inside the 564x540 dialog, NOT relative to the
-    parent node (`CSkillTreeDlg::MoveWindow` does `m_sPosition + m_offset`), and
-    icons are 40x40 (`CIcon::CIcon`). The rank-6 row already runs 273/337/401/465,
-    so 465 collides exactly with Refine Item (2601) -- which is declared after us
-    and paints straight over the top, making the skill invisible. 529 would be the
-    next 64-step but ends at 569 and clips the 564px panel, so the free slot is the
-    head of the row: 233 spans 233-273, clear of the parent icon at 182-222.
-    """
-    raw = open(TREE_XML, encoding="utf-8", newline="").read()
-    if f'INDEX="{base_row}"' in raw:
-        print(f"  tree: INDEX {base_row} already present, skipping")
-        return
-    anchor = '<SKILL INDEX="2081" OFFSETX="182" OFFSETY="79" LEVEL="6">'
-    if anchor not in raw:
-        sys.exit("tree: could not find the Craft Mastery rank-6 node; refusing to edit")
-    node = (f'\n         <SKILL INDEX="{base_row}" '
-            f'OFFSETX="{TREE_OFFSET[0]}" OFFSETY="{TREE_OFFSET[1]}"/>')
-    out = raw.replace(anchor, anchor + node, 1)
-    if not dry:
-        open(TREE_XML, "w", encoding="utf-8", newline="").write(out)
-    print(f"  tree: added INDEX {base_row} under Craft Mastery rank 6")
-
-
-def tree_remove(base_row):
-    raw = open(TREE_XML, encoding="utf-8", newline="").read()
-    node = (f'\n         <SKILL INDEX="{base_row}" '
-            f'OFFSETX="{TREE_OFFSET[0]}" OFFSETY="{TREE_OFFSET[1]}"/>')
-    if node in raw:
-        open(TREE_XML, "w", encoding="utf-8", newline="").write(raw.replace(node, "", 1))
-        print(f"  tree: removed INDEX {base_row}")
-
-
-# ------------------------------------------------------------------ tree art
-def _hide(path):
-    """Set the Windows hidden attribute so pack.rs skips this file."""
-    try:
-        import ctypes
-        ctypes.windll.kernel32.SetFileAttributesW(str(path), 0x02)
-    except Exception:
-        pass
-
-
-def _art_draw(im):
-    """Extend the spine one branch further and add the box, in the retail style."""
-    from PIL import ImageDraw
-    d = ImageDraw.Draw(im)
-    mid = ART_BOX[1] + ART_BOX_SIZE // 2
-    d.line([(ART_SPINE_X, ART_SPINE_BOTTOM), (ART_SPINE_X, mid)], fill=ART_LINE_RGBA)
-    d.line([(ART_SPINE_X, mid), (ART_BOX[0], mid)], fill=ART_LINE_RGBA)
-    d.rectangle([ART_BOX[0], ART_BOX[1],
-                 ART_BOX[0] + ART_BOX_SIZE - 1, ART_BOX[1] + ART_BOX_SIZE - 1],
-                outline=ART_LINE_RGBA)
-    return im
-
-
-def art_has_node(path):
-    """True if the new box is already painted (probes its top-left corner pixel)."""
-    from PIL import Image
-    return Image.open(path).convert("RGBA").load()[ART_BOX[0], ART_BOX[1]][3] > 8
-
-
-def art_add(dry):
-    """Paint the new branch into the page art.
-
-    Deliberately a plain connector, not an arrowhead: in this artwork an arrow means
-    "same skill, higher rank" (2081 -> 2081 L6, 2221 -> 2221 L11). Calibrated Burst is
-    a distinct skill, so it gets the same plain line as the 2111/2131/2621 branches.
-
-    Saved UNCOMPRESSED. The original is DXT5 with 10 mips; Pillow can only write BGRA
-    here (350 KB -> 1 MB, no mips). Harmless for a UI sprite -- it is blitted 1:1 and
-    INIT.LUA setMipmapLevel(3) caps the chain anyway -- but it is a real format change,
-    hence the backup.
-    """
-    from PIL import Image
-    if art_has_node(TREE_ART):
-        print("  art: branch already painted, skipping")
-        return
-    if dry:
-        print("  art: would paint a box at art%s and extend the spine" % (ART_BOX,))
-        return
-    if not os.path.exists(ART_BACKUP):
-        shutil.copyfile(TREE_ART, ART_BACKUP)
-        _hide(ART_BACKUP)
-        print("  art: backed up -> %s (hidden)" % os.path.basename(ART_BACKUP))
-    _art_draw(Image.open(TREE_ART).convert("RGBA")).save(TREE_ART)
-    print("  art: painted branch box at art%s -> dialog%s"
-          % (ART_BOX, (ART_BOX[0] + ART_ORIGIN[0], ART_BOX[1] + ART_ORIGIN[1])))
-
-
-def art_remove():
-    if os.path.exists(ART_BACKUP):
-        shutil.copyfile(ART_BACKUP, TREE_ART)
-        os.remove(ART_BACKUP)
-        print("  art: restored the original DXT5 page art")
-    else:
-        print("  art: no backup found -- page art left as-is")
-
-
 # ------------------------------------------------------------------ main
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -474,10 +356,9 @@ def main():
             for e in langs:
                 e.pop()
             stl_write(SKILL_STL, keys, langs)
-        tree_remove(base)
-        art_remove()
         os.remove(SIDECAR)
-        print(f"restored -- removed {RANKS} skill rows, the STL key and the tree node")
+        print(f"restored -- removed {RANKS} skill rows and the STL key "
+              f"(the tree placement is dealer-tree-layout.py's)")
         return
 
     if args.verify:
@@ -498,14 +379,11 @@ def main():
                 got = sk.get(r, c)
                 if got.strip() != w.strip():
                     bad.append((r, c, got, w))
-        raw = open(TREE_XML, encoding="utf-8", newline="").read()
         keys, _ = stl_read(SKILL_STL)
         print(f"rows {base}-{base + RANKS - 1}: {len(bad)} cells differ")
         for r, c, got, w in bad[:10]:
             print(f"    row {r} col {c}: {got!r} != {w!r}")
         print(f"STL key present: {any(k == f'LSkill{base}'.encode() for k, _ in keys)}")
-        print(f"tree node present: {f'INDEX=\"{base}\"' in raw}")
-        print("tree art branch painted:", art_has_node(TREE_ART))
         sys.exit(1 if bad else 0)
 
     if saved:
@@ -521,7 +399,7 @@ def main():
     for n in range(RANKS):
         print(f"  {n + 1:>5}{POWER[n]:>8}{3:>6}{RELOAD[n] * 0.2:>6.1f}s{MP[n]:>5}{SP[n]:>5}")
     print(f"\n  class {CLASS_ARTISAN} (Artisan), weapon 232 gun + 233 launcher, "
-          f"prereq Craft Mastery rank {PREREQ_RANK}")
+          f"prereq Gunshot Mastery rank {PREREQ_RANK}")
 
     if args.dry_run:
         print("\ndry run -- nothing written")
@@ -540,17 +418,13 @@ def main():
         stl_write(SKILL_STL, keys, langs)
         print(f"  STL: added {key.decode()}")
 
-    tree_add(base, False)
-    art_add(False)
-
     with open(SIDECAR, "w", encoding="utf-8") as fh:
         json.dump({"base_row": base, "ranks": RANKS, "name": NAME}, fh, indent=1)
 
     print(f"\ndone -- {NAME} imported at rows {base}-{base + RANKS - 1}. "
           f"Sidecar: {os.path.basename(SIDECAR)}")
     print("Restart the game server and the client, and rebake the VFS before deploying.")
-    print("NOTE: LIST_SKILL_S.STL and the tree XML both changed, so the client needs "
-          "both -- and dlgskilltree reads the loose xml folder, not the VFS.")
+    print("Then run scripts/dealer-tree-layout.py for the classic skill tree.")
 
 
 if __name__ == "__main__":

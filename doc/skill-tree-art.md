@@ -7,9 +7,14 @@
 How to make a new skill appear in the skill-tree window *with its box and connector*,
 rather than as a bare floating icon or not at all.
 
-Worked example: Calibrated Burst (row 7002), added 2026-09-01 as its own branch off
-Craft Mastery rank 6. The mechanised version lives in `scripts/import-artisan-skill.py`
-(`art_add` / `art_remove`, covered by `--restore`, reported by `--verify`).
+Worked example: the Dealer line. `scripts/dealer-tree-layout.py` owns the classic
+placement of Calibrated Burst, Photon Cannon, Exceed Break and Jewel Item Craft (the
+import scripts own only the rows): it grows a page canvas that has no room left
+(`DEALER_GUNSHOT_MASTERY.DDS`, 512x128 -> 512x256), hangs a new row off the spine, and
+erases boxes a moved skill left behind (`clear`), all reported by `--verify` and undone
+by `--restore`. (Calibrated Burst was first a branch off Craft Mastery rank 6, painted
+by `import-artisan-skill.py`; the user moved the gun skills under Gunshot Mastery on
+2026-10-17.)
 
 ## The one thing to know
 
@@ -69,8 +74,8 @@ misrepresent it as a rank continuation.
 
 2. **Paint the box and connector** into the DDS, in `(74, 81, 99, 255)`. To hang a new
    branch off the left spine, extend the spine down to the new box's vertical centre,
-   run a stub across, then draw the 42x42 outline. See `_art_draw` in
-   `scripts/import-artisan-skill.py`.
+   run a stub across, then draw the 42x42 outline. See `PAGES` / `draw_page` in
+   `scripts/dealer-tree-layout.py`.
 
 3. **Back up the original as a *hidden* file.** `pack.rs` walks the data tree filtering
    only hidden entries and applies **no extension filter**, so a plain `.bak` next to

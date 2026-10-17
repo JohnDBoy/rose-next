@@ -24,6 +24,8 @@ Jrose also has, one Muse buff).
 | Champion | Voltage Crush, Dance of Flames, Final Strike | 668 + a never-shipped clip | `import-champion-skills.py` |
 | Artisan | Calibrated Burst | RoseZA | `import-artisan-skill.py` (+ `add-calibrated-burst-book.py`) |
 | Artisan | Photon Cannon (Jrose's Photon Wave, made single-target) | Jrose | `import-artisan-photon-cannon.py` |
+| Bourgeois | Exceed Break (launcher, Burning splash, costs Zuly) | Jrose | `import-exceed-break.py` |
+| Artisan | Calibrated Burst: new "Nightmare" look (effects only) | Jrose | `import-exceed-break.py` |
 
 ## Artisan (gun + launcher)
 
@@ -41,7 +43,7 @@ Jrose also has, one Muse buff).
 
 | Skill | From | Animation | Effects | Notes |
 |---|---|---|---|---|
-| Exceed Break | Jrose 6151 (Bourgeois, launcher, lv 210) | new (cannon set) | 2 new files | Wide barrage that sets enemies burning. Shares the Artisan's clips, so it costs little once Photon Wave is in |
+| ~~Exceed Break~~ | Jrose 6151 | | | **Done** (`import-exceed-break.py`). Jrose's real row has no projectile; never take a projectile from its test row 6211 (an impact flash -- it never lands) |
 
 ## Champion
 
