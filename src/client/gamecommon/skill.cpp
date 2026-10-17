@@ -988,7 +988,35 @@ CSkillManager::UpdateUseProperty(CObjAI* pObjAI, int iSkillIdx) {
 
     /// 유져일경우는..
     if (pObjAI->IsA(OBJ_USER)) {
-        g_pAVATAR->Skill_UseAbilityValue(iSkillIdx);
+        // Every cost but MP. The server takes the MP when the cast *starts*
+        // (CObjAVT::SkillUse_ABILITY) and sends the new value right then; this runs
+        // when RESULT_OF_SKILL arrives at the *end*. Charging MP here as well counted
+        // it twice whenever an MP update landed mid-cast -- a 94-MP Photon Cannon went
+        // 362 -> 169 -> 273 (2026-10-17). HP stays charged here: it rides the combat
+        // HP reconciliation, which this does not touch.
+        for (short nI = 0; nI < SKILL_USE_PROPERTY_CNT; nI++) {
+            const int iProperty = SKILL_USE_PROPERTY(iSkillIdx, nI);
+            if (0 == iProperty)
+                break;
+            const int iValue = g_pAVATAR->Skill_ToUseAbilityVALUE(iSkillIdx, nI);
+            switch (iProperty) {
+                case AT_HP:
+                    g_pAVATAR->SubCur_HP(iValue);
+                    break;
+                case AT_EXP:
+                    g_pAVATAR->SetCur_EXP(g_pAVATAR->GetCur_EXP() - iValue);
+                    break;
+                case AT_MONEY:
+                    g_pAVATAR->SetCur_MONEY(g_pAVATAR->GetCur_MONEY() - iValue);
+                    break;
+                case AT_STAMINA:
+                    g_pAVATAR->SetCur_STAMINA(g_pAVATAR->GetCur_STAMINA() - iValue);
+                    break;
+                case AT_PATHP:
+                    g_pAVATAR->SetCur_PatHP(g_pAVATAR->GetCur_PatHP() - iValue);
+                    break;
+            }
+        }
         return;
     }
 

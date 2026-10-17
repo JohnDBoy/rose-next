@@ -83,6 +83,16 @@ public:
             this->Dec_ShotITEM(1);
         }
         Skill_UseAbilityValue(nSkillIDX);
+        // The MP is taken here, when the cast starts, so tell the player now: the
+        // client no longer charges MP itself when RESULT_OF_SKILL arrives at the end
+        // of the cast (CSkillManager::UpdateUseProperty). Charging it at both ends
+        // double-counted it whenever a regen update landed mid-cast.
+        for (short nI = 0; nI < SKILL_USE_PROPERTY_CNT; nI++) {
+            if (AT_MP == SKILL_USE_PROPERTY(nSkillIDX, nI)) {
+                this->Send_gsv_SET_HPnMP(0x02);
+                break;
+            }
+        }
     }
     void Recv_ITEM(short nItemNO, short iDupCnt) {
         tagITEM sItem;
