@@ -3323,8 +3323,16 @@ CObjCHAR::ProcEffectedSkill(bool bProjectileImpact,
                 ++begin;
                 continue;
             }
+            // Another target's payload waits for its own projectile -- unless it is a
+            // status-only payload of this same skill: that is the skill's splash. A
+            // type-3 skill with SKILL_SCOPE hits one target but the server spreads its
+            // status to every enemy around it (Skill_ChangeIngSTATUS), and no projectile
+            // ever flies at those, so they sat until the 10 s projectile timeout
+            // (Photon Cannon's Accuracy Down, 2026-10-17). They land with the shot.
             if (iProjectileTargetObjIDX
-                && pEffectOfSkill->EffectOfSkill.m_wObjectIDX != iProjectileTargetObjIDX) {
+                && pEffectOfSkill->EffectOfSkill.m_wObjectIDX != iProjectileTargetObjIDX
+                && (pEffectOfSkill->bDamageOfSkill || !iProjectileSkillIDX
+                    || SKILL_SCOPE(iProjectileSkillIDX) <= 0)) {
                 ++begin;
                 continue;
             }
