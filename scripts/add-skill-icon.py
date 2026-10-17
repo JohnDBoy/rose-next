@@ -28,6 +28,7 @@ import argparse, io, os, struct, shutil, subprocess, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rosefmt.tsi import tsi_read, tsi_write  # noqa: E402
+from rosefmt.stb import Stb  # noqa: E402
 from rosefmt import dds as _dds  # noqa: E402
 from rosefmt.binio import FormatError  # noqa: E402
 
@@ -166,18 +167,19 @@ def main():
     targets = sorted(set(targets))
 
     if targets:
-        d, offset, rows, cols, data = stb_read(SKILL_STB)
+        # rosefmt.stb, not the private stb_read this script used to carry: that went in
+        # the rosefmt move and this call was left behind (it crashed after the TSI and
+        # the sheet were already written -- found 2026-10-17 adding Photon Cannon's).
+        stb = Stb(SKILL_STB)
         for row in targets:
-            if row >= rows - 1:
-                sys.exit("skill row %d out of range (table has %d)" % (row, rows - 1))
-        olds = [data[r][SKILL_ICON_COL] for r in targets]
+            if row >= stb.rows:
+                sys.exit("skill row %d out of range (table has %d)" % (row, stb.rows))
+        olds = [stb.d[r][SKILL_ICON_COL] for r in targets]
         for row in targets:
-            data[row][SKILL_ICON_COL] = str(new_index).encode("ascii")
-        cells = b"".join(struct.pack("<H", len(c)) + c for r in data for c in r)
+            stb.set_i(row, SKILL_ICON_COL, new_index)
         if not args.dry_run:
             backup_once(SKILL_STB)
-            with open(SKILL_STB, "wb") as fh:
-                fh.write(d[:offset] + cells)
+            stb.write(SKILL_STB)
         before = sorted({o.decode().strip() or "''" for o in olds})
         print("LIST_SKILL.STB rows %d-%d (%d): icon %s -> %d (restart the server)"
               % (targets[0], targets[-1], len(targets), "/".join(before), new_index))
@@ -189,11 +191,9 @@ def main():
         sheet_path = os.path.join(RES_DIR, sheet_name)
         vsheet = dds_read_bgra(sheet_path)
         assert vsheet.crop((x, y, x + CELL, y + CELL)).tobytes() == art.tobytes(), "sheet pixels mismatch"
-        restore_mipmaps(sheet_path, False)
-        # texconv rewrites the file, so re-check mip 0 survived the round trip.
-        vsheet = dds_read_bgra(sheet_path)
-        assert vsheet.crop((x, y, x + CELL, y + CELL)).tobytes() == art.tobytes(), \
-            "mip 0 changed when the chain was rebuilt"
+        # No mip chain: a skill sheet is a UI resource drawn 1:1 (the engine forces
+        # miplevels = 1 and add-dds-mipmaps.py skips it). The restore_mipmaps call
+        # that sat here no longer existed.
         print("verified: TSI has %d sprites, sheet pixels match the source art" % (total_before + 1))
     else:
         print("DRY RUN - no files written")
