@@ -27,6 +27,8 @@ Jrose also has, one Muse buff).
 | Bourgeois | Exceed Break (launcher, Burning splash, costs Zuly) | Jrose | `import-exceed-break.py` |
 | Artisan | Calibrated Burst: new "Nightmare" look (effects only) | Jrose | `import-exceed-break.py` |
 | Raider | Eruption (katar area), Shun'ei-zan (dual, critical burst) | Jrose | `import-raider-skills.py` |
+| Scout | Arrow Shower (area, poison), Deadly Snipe (bow finisher) | 667 + Jrose | `import-scout-knight-skills.py` |
+| Knight | Volcanic Shot, Star Gazer (crossbow) | Jrose | `import-scout-knight-skills.py` |
 
 ## Artisan (gun + launcher)
 
@@ -62,12 +64,21 @@ Both Jrose Raider skills are **done** (`import-raider-skills.py`); no dump has a
 
 ## Scout (bow / crossbow)
 
+Surveyed 2026-10-18 (Jrose, 667, 668). **Done:** Arrow Shower, Deadly Snipe (Scout), Volcanic Shot, Star Gazer (crossbow Knight) -- `import-scout-knight-skills.py`. Traps are next for the Scout, later (they need AI and code). The Scout's exclusives are Poison Arrow, Detect,
+Sharpen Arrow, Hawk Shot and Call Hawk; its other bow skills are shared Hawker ones.
+
 | Skill | From | Animation | Effects | Notes |
 |---|---|---|---|---|
-| Angel Arrow | Jrose 4301 (Scout, bow, lv 100) | **new**: `HAWKER_U_SKILL_BOW03` | 4 new files | A party heal over time: an arrow of light rains blessing |
-| Doping Shot | Jrose 6131 (Scout, crossbow, lv 210) | new (same bow clip) | 4 new files | Party buff: ATK, DEF and Movement Speed |
-| Shot Master | Jrose (crossbow) | **new**: `MASTAR_BOWGUN_SKILL_02` (0.4 s) | -- | Not traced yet |
-| Arrow Shower | 667 1870 | **new** motion `bow_arrowshower_m1` | | From the 667 shortlist |
+| Arrow Shower | 667/668 1870 (bow), 1920 (crossbow) | **new**: `bow_arrowshower_m1` (0.7 s) | **ours, unused**: `_ARROW_RAIN_01.eft` (rain), `_scope_rotate_01`, `_bow_casting_01`, `_bow_hit_heavy01` | Type 7 rain, 15 m in 667. LIST_EFFECT 279 / FILE_EFFECT 2018 are blank here. 667's Poison Arrow Shower (4706) is the same with poison |
+| Traps (Steel, Flash, Siphon, Freezing, Sand) | 667/668 1950-1960, 2145-2150 | -- | -- | Type 14 summons of trap NPCs 2800-2820. Our `NPC/ETC/TRAP` mesh, bone and 3 textures sit **orphaned** (no CHR entry); 667 adds 2 textures and 3 motions. 667 ships no AI, so the trap AI is ours to write. Stationary summons already work (the Bonfire) |
+| Star Gazer | Jrose 6121 (crossbow, lv 210) | ours (`hoke_firing01`) | 38 new files (star-shard rain) | Area: slows, lowers defense |
+| Deadly Snipe | Jrose 6111 (bow, lv 210) | ours (`bow_3attack`, the triple shot) | 9 new files (heavy arrow) | Strong volley, Dodge Down and a short stun |
+| Volcanic shot | Jrose 5202 (crossbow, lv 170) | ours (`bowgun_3attack`) | 2 new (`volcanic_bullet.eft`) | A meteor bolt that lowers Attack Power |
+| Angel Arrow | Jrose 4301 (bow, lv 100) | **new**: `HAWKER_U_SKILL_BOW03` (2.7 s) | 4 new files | Party HP/MP regeneration |
+| Doping Shot | Jrose 6131 (crossbow, lv 210) | new (same clip) | 4 new files | Party buff: ATK, DEF and Movement Speed |
+| Shot Master | Jrose (crossbow, not class-gated) | **new**: `MASTAR_BOWGUN_SKILL_02` (1.9 s aim, one shot) | -- | Not traced yet |
+| Stun Arrow | 668 1595 (Hawker, bow) | **new**: `kneel_bow_cast` | ours | A kneeling shot |
+| Zero Range Shot | Jrose 4291 (crossbow) | `skill_Longinus_01` -- **now Final Strike's** | 3 new | Skip: it would look like the Champion's skill |
 
 ## Knight
 
