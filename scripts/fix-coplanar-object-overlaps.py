@@ -77,7 +77,15 @@ six maps: Union War 122, Golden Colosseum 110, Junon Polis 99, Sikuku
 Underground Prison 73, Junon Cartel/Crusader Training Camp 43 each (the two
 folders are byte-identical copies), Forgotten Temple B1 35. Field maps are
 clean. One exact duplicate: Junon Polis DECO 153 written into both 36_31 and
-36_32, sunk 100 m. Validated in game.
+36_32, and the 36_32 record was sunk 100 m. That was the wrong one, and the
+duplicate was never a fight: the pivot lies in chunk 36_32, so the client
+drops the 36_31 record at load (`loaded_by_client`), and sinking the 36_32
+record removed the only drawn copy. The wall stood invisible, with only its
+baked shadow on the ground, until 2026-10-19, when the 36_32 bytes were
+restored and placements the client never loads were excluded from the scan.
+Across `data/` 26 other records sit outside their chunk. One (Cerberus Lair
+30_30) has a drawn twin in 31_30; the other 25 have no twin and have never
+been visible, retail included. All were left alone.
 
 Two things the first attempts got wrong, kept here so they are not re-learnt:
 back-to-back faces (one copy's top on another's bottom) are not a fight
@@ -95,6 +103,7 @@ import importlib.util
 import json
 import math
 import os
+import re
 import struct
 import sys
 import time
@@ -229,6 +238,19 @@ def read_ifo_objects(path):
 
 def world_pos(raw):
     return (f32(f32(raw[0]) + WORLD_OFF), f32(f32(raw[1]) + WORLD_OFF), f32(raw[2]))
+
+
+def loaded_by_client(path, pos):
+    """CMAP::AddObject (io_terrain.cpp) files a placement under the patch that holds
+    its pivot and deletes it when that patch is not in the chunk whose .IFO lists it,
+    so a record whose pivot lies in a neighbouring chunk is never drawn. The chunk
+    file x_y covers world x from x * 16000 and y from (64 - y) * 16000 cm."""
+    m = re.match(r"(\d+)_(\d+)\.ifo$", os.path.basename(path), re.I)
+    if not m:
+        return True
+    dx = int(pos[0] - int(m.group(1)) * 16000)
+    dy = int(pos[1] - (64 - int(m.group(2))) * 16000)
+    return 0 <= int(dx / 1000) < 16 and 0 <= int(dy / 1000) < 16
 
 
 def zone_list():
@@ -453,6 +475,8 @@ def load_zone(zone):
             o["zsc"] = tab
             o["orig_raw"] = o["raw_pos"]
             o["pos"] = world_pos(o["raw_pos"])
+            if not loaded_by_client(f, o["pos"]):
+                continue                          # never drawn: cannot fight anything
             o["tris"] = placement_triangles(tab, o, o["pos"])
             placements.append(o)
     return placements

@@ -846,10 +846,15 @@ Things that will bite:
 
 - **Never delete a duplicate record.** `CMAP::LoadLightMapINFO` keys objects by
   1-based ordinal within the lump, so removing a record shifts every lightmap after
-  it. An exact duplicate (same object, transform and position, usually a building
-  written into two neighbouring chunk files: Junon Polis DECO 153) is coplanar on
+  it. An exact duplicate (same object, transform and position) is coplanar on
   every face and cannot be separated by any nudge; the script **sinks** the later
   record 100 m instead.
+- **A record whose pivot lies outside its own chunk is never drawn.** `CMAP::AddObject`
+  deletes it at load. A building written into two neighbouring chunk files is
+  therefore not a duplicate at all, because only the copy in the pivot's chunk exists
+  in game. The script once sank that copy (Junon Polis DECO 153, 36_32), which left
+  an invisible wall with only its baked shadow on the ground. It now skips placements
+  the client drops (`loaded_by_client`).
 - **Back-to-back faces are not a fight.** Map materials default to
   `ZZ_CULLMODE_CW`, so one placement's top lying on another's bottom never draws
   against it; the detector keeps the facing sign (dropping it doubled Union War's
