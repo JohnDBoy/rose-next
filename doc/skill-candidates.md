@@ -48,7 +48,7 @@ Jrose also has, one Muse buff).
 
 | Skill | From | Animation | Effects | Notes |
 |---|---|---|---|---|
-| ~~Exceed Break~~ | Jrose 6151 | | | **Done** (`import-exceed-break.py`). Jrose's real row has no projectile; never take a projectile from its test row 6211 (an impact flash -- it never lands) |
+| ~~Exceed Break~~ | Jrose 6151 | | | **Done** (`import-exceed-break.py`), as a type-3 shot with Fire Burn's fireball. **Not what Jrose built, and kept that way (user, 2026-10-18):** Jrose's LIST_EFFECT 330 is *named* Exceed Break -- `dragon_firing_hit02`, a blast that a type-7 skill plays at the target spot (its test rows 6211-6213), not a projectile; 6151's scope `40002500` is a packed ~40 x 25 m frontal rectangle our engine cannot do. A type-7 blast test (6 m on the spot, Jrose's untouched m03 with area event 24 -- our shared copy carries Photon Cannon's 26) looked no better in game. Revisit only with a frontal-area shape ("fancy stuff later") |
 
 ## Champion
 
