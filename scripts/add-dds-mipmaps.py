@@ -84,6 +84,13 @@ RUNS ON RECORD (data/ is gitignored, so this list is the only committed history)
   measured 36% and 71%, i.e. ~92 and ~181 out of 255. The black-band failure mode
   is three orders of magnitude away, measured rather than argued.
 
+- 2026-10-18, `--subdir 3DDATA/MAPS/LUNAR/CERBERUS`: **3 files**, the Cerberus
+  Lair's ground lightmaps (`x_y_PlaneLightingMap.dds`, 512 px DXT3), which came in
+  with `import-cerberus.py` after the full pass and logged `slow texture create`
+  at ~10.7 ms each on every zone entry (40 in one test session). The lair's 441
+  object lightmaps are 32-128 px, never reach the 2 ms log threshold, and were
+  left unmipped like Oro's.
+
 Uses thirdparty/directxtex-2020.9.30/texconv.exe, which was already vendored in
 this repo and used by nothing at all.
 

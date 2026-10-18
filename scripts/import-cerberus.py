@@ -168,7 +168,8 @@ A player 10+ levels above Cerberus (165+) gets nothing from the table
 (CCal::Get_DropITEM); the dead-pattern drops still fall.
 
 After running: audit-lightmap-index.py --zone 49, audit-ai-skill-refs.py,
-add-dds-mipmaps.py --dry-run over NPC/ANIMAL/CERBERUS, rebake the VFS, restart the
+add-dds-mipmaps.py over NPC/ANIMAL/CERBERUS and MAPS/LUNAR/CERBERUS (the three ground
+lightmaps ship unmipped, ~11 ms each per zone entry), rebake the VFS, restart the
 servers (LIST_ZONE, LIST_NPC, LIST_NPC.CHR, FILE_AI, AI_s.STB, WARP, the IFOs and
 LP02.ZON are server data). Backups: build/cerberus/.
 """
