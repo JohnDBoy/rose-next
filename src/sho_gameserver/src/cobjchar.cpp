@@ -1643,22 +1643,34 @@ CObjCHAR::Skill_DamageToAROUND(tPOINTF& PosCENTER) {
     // was aimed at. The search is a circle around the rectangle's middle that just holds it
     // (40 x 25 m needs 23.6 m, well inside the 3x3 sectors FindNextCHAR walks), and only
     // what falls inside the rectangle is hit. A plain scope searches PosCENTER as before.
-    // Aimed at the caster's own feet (a type-17 skill) there is no direction, and a frontal
-    // scope falls back to a circle of its length around the caster.
+    // A cone (SKILL_SCOPE_CONE) has its point at the caster and opens toward PosCENTER:
+    // what stands within its length and its half-angle of the aim is hit; the search is a
+    // circle of its length around the caster. A monster aims both at the spot its target
+    // stood on when the cast began (Casting_START). Aimed at the caster's own feet (a
+    // type-17 skill) there is no direction, and either falls back to a circle of its length
+    // around the caster.
     const short nSkillIDX = Get_ActiveSKILL();
-    bool bFrontal = SKILL_SCOPE_FRONTAL(nSkillIDX);
+    const bool bCone = SKILL_SCOPE_CONE(nSkillIDX);
+    bool bAimed = SKILL_SCOPE_AIMED(nSkillIDX);
     tPOINTF PosSEARCH = PosCENTER;
     int iSearchDIST = SKILL_SCOPE_RADIUS(nSkillIDX);
-    float fDirX = 0, fDirY = 0, fLength = 0, fHalfWidth = 0;
-    if (bFrontal) {
+    float fDirX = 0, fDirY = 0, fLength = 0, fHalfWidth = 0, fCosHalfAngle = -1.f;
+    if (bAimed) {
         fLength = (float)SKILL_SCOPE_RADIUS(nSkillIDX);
         fHalfWidth = SKILL_SCOPE_WIDTH(nSkillIDX) * 0.5f;
         fDirX = PosCENTER.x - m_PosCUR.x;
         fDirY = PosCENTER.y - m_PosCUR.y;
         const float fAim = sqrtf(fDirX * fDirX + fDirY * fDirY);
         if (fAim < 1.f) {
-            bFrontal = false;
+            bAimed = false;
             PosSEARCH = m_PosCUR;
+        } else if (bCone) {
+            fDirX /= fAim;
+            fDirY /= fAim;
+            PosSEARCH = m_PosCUR;
+            const int iAngle = SKILL_SCOPE_ANGLE(nSkillIDX);
+            if (iAngle < 360)
+                fCosHalfAngle = cosf(iAngle * 0.5f * 3.14159265f / 180.f);
         } else {
             fDirX /= fAim;
             fDirY /= fAim;
@@ -1672,12 +1684,17 @@ CObjCHAR::Skill_DamageToAROUND(tPOINTF& PosCENTER) {
     pFindCHAR = (CObjCHAR*)this->AI_FindFirstOBJ(PosSEARCH, iSearchDIST);
     while (pFindCHAR) {
         bool bInside = true;
-        if (bFrontal) {
+        if (bAimed) {
             const float fX = pFindCHAR->Get_CurXPOS() - m_PosCUR.x;
             const float fY = pFindCHAR->Get_CurYPOS() - m_PosCUR.y;
             const float fAhead = fX * fDirX + fY * fDirY;
-            const float fAside = fabsf(fX * fDirY - fY * fDirX);
-            bInside = fAhead >= 0.f && fAhead <= fLength && fAside <= fHalfWidth;
+            if (bCone) {
+                const float fDist = sqrtf(fX * fX + fY * fY);
+                bInside = fDist <= fLength && (fDist < 1.f || fAhead >= fDist * fCosHalfAngle);
+            } else {
+                const float fAside = fabsf(fX * fDirY - fY * fDirX);
+                bInside = fAhead >= 0.f && fAhead <= fLength && fAside <= fHalfWidth;
+            }
         }
         if (bInside && this->Skill_IsPassFilter(pFindCHAR, Get_ActiveSKILL())) {
             sDamage.m_wDamage = CCal::Get_SkillDAMAGE(this, pFindCHAR, Get_ActiveSKILL(), 1);
@@ -2020,8 +2037,22 @@ CObjCHAR::Casting_START(CObjCHAR* pTarget) {
             return false;
 
         pCPacket->m_HEADER.m_wType = GSV_SKILL_START;
-        pCPacket->m_HEADER.m_nSize = sizeof(gsv_SKILL_START);
+        pCPacket->m_HEADER.m_nSize = GSV_SKILL_START_SIZE;
         pCPacket->m_gsv_SKILL_START.m_wObjectIDX = this->Get_INDEX();
+
+        // A frontal area or a cone is aimed where the target stands now, as the cast begins
+        // (2026-10-18). Goto_TARGET reset m_PosGOTO to the caster's own position once in
+        // range, so a type-7 skill cast on a target hit around the caster; nothing writes
+        // m_PosGOTO while the cast runs, and Skill_START measures the area from it when the
+        // skill fires. The clients get the same spot here, to draw it and to face it.
+        const short nSkillIDX = m_nToDoSkillIDX; // m_nActiveSkillIDX is set after this
+        CObjCHAR* pAimTarget = (CObjCHAR*)this->Get_TARGET(false);
+        if (nSkillIDX && SKILL_TYPE(nSkillIDX) == SKILL_TYPE_07 && SKILL_SCOPE_AIMED(nSkillIDX)
+            && pAimTarget) {
+            m_PosGOTO = pAimTarget->m_PosCUR;
+            pCPacket->m_HEADER.m_nSize = sizeof(gsv_SKILL_START);
+            pCPacket->m_gsv_SKILL_START.m_PosAIM = m_PosGOTO;
+        }
 
         this->GetZONE()->SendPacketToSectors(this, pCPacket);
         Packet_ReleaseNUnlock(pCPacket);

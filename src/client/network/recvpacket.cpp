@@ -9,6 +9,7 @@
 #include "../CClientStorage.h"
 #include "../CJustModelAVT.h"
 #include "../zoneobjects.h"
+#include "../groundtelegraph.h"
 #include "../SqliteDB.h"
 
 #include "system/cgame.h"
@@ -2964,6 +2965,25 @@ void
 CRecvPACKET::Recv_gsv_SKILL_START() {
     CObjCHAR* pCHAR =
         g_pObjMGR->Get_ClientCharOBJ(m_pRecvPacket->m_gsv_SKILL_START.m_wObjectIDX, true);
+    if (pCHAR && m_pRecvPacket->m_HEADER.m_nSize >= sizeof(gsv_SKILL_START)) {
+        // A frontal or cone skill: where the server aimed it (net_prototype.h). The cast
+        // takes it up when it starts here (ProcSkillCastingAction).
+        pCHAR->m_PosSkillAIM.x = m_pRecvPacket->m_gsv_SKILL_START.m_PosAIM.x;
+        pCHAR->m_PosSkillAIM.y = m_pRecvPacket->m_gsv_SKILL_START.m_PosAIM.y;
+        pCHAR->m_PosSkillAIM.z = pCHAR->Get_CurPOS().z;
+        pCHAR->m_bSkillAimPending = true;
+        // The cast may already be playing: a remote cast held behind an owed swing can pop
+        // with its start flag still armed and begin before this packet (Cerberus's first
+        // Hellfire Breath, 2026-10-18: drawn as the fallback circle). Aim it now.
+        const short nActive = pCHAR->m_nActiveSkillIDX;
+        if (nActive && !pCHAR->m_bSkillAimActive && SKILL_TYPE(nActive) == SKILL_ACTION_AREA_TARGET
+            && SKILL_SCOPE_AIMED(nActive)) {
+            pCHAR->m_bSkillAimActive = true;
+            pCHAR->m_bSkillAimPending = false;
+            pCHAR->Set_ModelDIR(pCHAR->m_PosSkillAIM);
+            CGroundTelegraphs::Instance().OnAimArrived(pCHAR);
+        }
+    }
     if (pCHAR) {
         // A remote caster (monster, other player) that is still playing its previous
         // cast has the new skill command sitting in m_CommandQueue, and this start

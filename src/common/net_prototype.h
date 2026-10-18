@@ -1554,7 +1554,13 @@ struct gsv_RESULT_OF_SKILL: public t_PACKETHEADER {
 
 struct gsv_SKILL_START: public t_PACKETHEADER {
     WORD m_wObjectIDX;
+    // Only for a frontal or cone skill (SKILL_SCOPE_AIMED, 2026-10-18): the spot it is aimed
+    // at, world cm -- where the target stood when the server began the cast, the point the
+    // area is measured from when it fires. Any other cast sends GSV_SKILL_START_SIZE bytes,
+    // as before; a receiver reads m_PosAIM only when m_nSize says it is there.
+    tPOINTF m_PosAIM;
 };
+#define GSV_SKILL_START_SIZE (sizeof(t_PACKETHEADER) + sizeof(WORD))
 
 #define SKILL_CANCEL_NEED_ABILITY 0x01 // 능력치 부족
 #define SKILL_CANCEL_NEED_TARGET 0x02 // 케스팅 시도전 타겟이 없어졌다... MP소모 없음

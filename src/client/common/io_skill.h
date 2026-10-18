@@ -77,9 +77,16 @@ enum enumSKILL_TAGER_FILTER {
 // the caster, Jrose's convention: length * 10000 + width, in cm (40002500 = 40 x 25 m). Every
 // scope below 10000 -- all of them before -- is a plain radius: SKILL_SCOPE_RADIUS returns it
 // unchanged. Read scope through these wherever it is used as a distance.
-#define SKILL_SCOPE_FRONTAL(S) (SKILL_SCOPE(S) >= 10000)
-#define SKILL_SCOPE_RADIUS(S) (SKILL_SCOPE_FRONTAL(S) ? SKILL_SCOPE(S) / 10000 : SKILL_SCOPE(S))
+// Cones (2026-10-18): a SKILL_SCOPE of 100000000 or more is a cone from the caster toward
+// the aimed spot: 100000000 + length * 10000 + full angle in degrees (118000070 = 18 m, 70
+// degrees). SKILL_SCOPE_RADIUS is its length. Frontal areas and cones both point somewhere
+// (SKILL_SCOPE_AIMED): a monster's is aimed where its target stood when the cast began.
+#define SKILL_SCOPE_CONE(S) (SKILL_SCOPE(S) >= 100000000)
+#define SKILL_SCOPE_AIMED(S) (SKILL_SCOPE(S) >= 10000)
+#define SKILL_SCOPE_FRONTAL(S) (SKILL_SCOPE_AIMED(S) && !SKILL_SCOPE_CONE(S))
+#define SKILL_SCOPE_RADIUS(S) (SKILL_SCOPE_CONE(S) ? (SKILL_SCOPE(S) - 100000000) / 10000 : SKILL_SCOPE_FRONTAL(S) ? SKILL_SCOPE(S) / 10000 : SKILL_SCOPE(S))
 #define SKILL_SCOPE_WIDTH(S) (SKILL_SCOPE_FRONTAL(S) ? SKILL_SCOPE(S) % 10000 : 0)
+#define SKILL_SCOPE_ANGLE(S) (SKILL_SCOPE_CONE(S) ? SKILL_SCOPE(S) % 10000 : 0)
 #define SKILL_POWER(S) g_SkillList.m_SkillDATA.get_int32(S, 9)
 #define SKILL_ITEM_MAKE_NUM SKILL_POWER
 #define SKILL_HARM(I) g_SkillList.m_SkillDATA.get_int32(I, 10)

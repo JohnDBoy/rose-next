@@ -692,6 +692,19 @@ CSkillManager::ActionSkill(short nSkillIdx,
                         }else*/
                         { pHitEFT->SetPOSITION(PosTo); }
 
+                        // An aimed area (frontal strip, cone; io_skill.h) starts at the caster
+                        // and points where it faces, the aim (2026-10-18): turn the effect with
+                        // the caster, whose front is the effect's -Y. In the world, so at its
+                        // own size -- a casting effect is linked to the model and drawn at the
+                        // caster's scale (8x on Cerberus).
+                        if (SKILL_SCOPE_AIMED(nSkillIdx) && pSrc) {
+                            float fWXYZ[4];
+                            if (::getRotationQuad(pSrc->GetZMODEL(), fWXYZ)) {
+                                D3DXQUATERNION rot(fWXYZ[1], fWXYZ[2], fWXYZ[3], fWXYZ[0]);
+                                pHitEFT->Rotation(rot);
+                            }
+                        }
+
                         pHitEFT->InsertToScene();
                     }
                 }

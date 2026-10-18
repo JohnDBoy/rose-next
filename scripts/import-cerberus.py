@@ -89,19 +89,23 @@ GetHeightTop) and the server sends no height. Heard, never seen (2026-10-09). Th
 crater is open sky. The controller's reset kills them with everything else. **The glow** (col 39, RRRGGGBBB) is a fiery red on both forms of
 Cerberus and on the hounds.
 
-**Hellfire Breath** (LIST_SKILL 7022, 2026-10-09): Fireball 3604's row and effect
-chain (projectile 476, thornie_firecharge / fireblast, fire hit) with a 15 m range, a
-5 m blast, fired from p_mouth (dummy 7, added to Cerberus's copy of the skeleton --
-see MOUTH; the first cut used Fireball's point 5, p_06, which sits in the spiked
-collar, and the bolt left from mid-body). Cast on slot 6, released on slot 7, `runa_wolf1_status_skill01`,
-whose launch frames 24 and 34 fire two fireballs a cast (multi-hit is
-animation-driven). Burns: Flame Heat (status 58, the Mukuroji's), 70%, 10 s. Every BREATH_EVERY hits taken (var 4) at any target within 14 m -- melee included:
-from p_mouth, ~7 m ahead of and ~7.5 m above Cerberus's centre at size 800, the bolt
-crosses ~10 m down to a fighter standing under the heads. (The first cut fired from the
-collar, right above the body, so a melee target was hit instantly; for one build the
-breath was range-only, which lost the flavour.) Also while chasing: 30% of checks at a
-target 6-14 m away, so a kiter is breathed on rather than run down.
-Power 200 is a first guess, to tune after a fight.
+**Hellfire Breath** (LIST_SKILL 7022), v2 2026-10-18 ("a true roar of fire"): a charged
+cone. Cerberus rears back for ~2.5 s -- the breath clip `runa_wolf1_status_skill01` split at
+its firing frame 34, the wind-up (cast, slot 6) at 45%, the breath (action, slot 7) from
+there -- while the cone (18 m from its centre, 70 degrees) is drawn on the ground
+(LIST_SKILL col 83; the client's groundtelegraph.h), then fire washes down it and everything
+inside takes power 400 (v1: 200 a fireball) and may burn: Flame Heat (status 58, the
+Mukuroji's), 70%, 10 s. The cone is aimed where its target stood when the charge began --
+the game server fixes the aim in Casting_START and sends it with GSV_SKILL_START, so
+stepping out during the charge is the dodge, and Cerberus turns to the aim, not to a
+target that moved. The fire is `hellfire_breath.eft` (FILE_EFFECT 2901, LIST_EFFECT
+bullet 777), placed by the area event in the world at true size and turned to Cerberus's
+facing; a casting effect would be linked to the model and drawn 8x. Every BREATH_EVERY
+hits taken (var 4) at a target within 14 m, and while chasing 30% of checks at a target
+6-14 m away, so a kiter is breathed on rather than run down.
+v1 (2026-10-09) was Fireball 3604's row: two fireballs from p_mouth (dummy 7, added to
+Cerberus's copy of the skeleton -- see MOUTH; Fireball's point 5, p_06, sits in the spiked
+collar), with a 5 m blast.
 
 Not taken (offered 2026-10-08): a howl (area slow) and an enrage.
 
@@ -172,6 +176,7 @@ import argparse
 import collections
 import copy
 import importlib.util
+import math
 import os
 import shutil
 import struct
@@ -319,18 +324,55 @@ SK_CAST_MOTION, SK_SKILL_MOTION, SK_FIRE_LOC = 52, 68, 72
 SK_TELEGRAPH = 83                   # 1: the client draws the area on the ground while
                                     # it is cast (src/client/groundtelegraph.h)
 
-# ---- Hellfire Breath: two fireballs from the snout (2026-10-09, "make it feel like a boss")
+# ---- Hellfire Breath v2 (2026-10-18, "a true roar of fire"): a charged cone. Cerberus
+# rears back for ~2.5 s while the cone is drawn on the ground (SK_TELEGRAPH; the client's
+# src/client/groundtelegraph.h), then breathes fire down it: everything inside takes the
+# hit and may burn. The cone is aimed where its target stood when the charge began (game
+# server CObjCHAR::Casting_START, sent to the clients with GSV_SKILL_START), so walking
+# out of it during the charge is the dodge -- and, being dodgeable, it hits hard. v1
+# (2026-10-09) was two Fireballs from the snout, row 3604's projectile.
 BREATH = 7022
 BREATH_NAME = "Hellfire Breath"
-BREATH_SRC = 3604                   # Fireball (the Terrasaurus King's): projectile 476,
-                                    # firecharge / fireblast / fire hit, its sounds
-BREATH_MOTION = 6                   # cast on slot 6 (casting), released on slot 7:
-                                    # runa_wolf1_status_skill01, launch frames 24 and 34
-BREATH_CELLS = {SK_RANGE: 1500, SK_RADIUS: 500, SK_POWER: 200,
-                SK_CAST_LOC: 7, SK_FIRE_LOC: 7,                   # p_mouth (MOUTH below)
+BREATH_SRC = 3604                   # still the base row: its fire hit and sounds
+BREATH_MOTION = 6                   # cast on slot 6 (the wind-up), released on slot 7
+BREATH_LENGTH, BREATH_ANGLE = 1800, 70   # cm from Cerberus's centre (its heads are ~7 m
+                                    # ahead of it), and the cone's full opening in degrees
+BREATH_SCOPE = 100000000 + BREATH_LENGTH * 10000 + BREATH_ANGLE   # io_skill.h SKILL_SCOPE_CONE
+BREATH_RANGE = 1400                 # cm: it breathes on a target this close, no chase first
+BREATH_POWER = 400                  # v1: 200 a fireball. Seal Burst's 200 took ~830 off a
+                                    # lv~150 Soldier (3800 HP): ~1650 here, plus the burn
+BREATH_CAST_SPEED = 45              # % : the wind-up's 34 frames last ~2.5 s
+# The breath clip (runa_wolf1_status_skill01, 51 frames) fires at frame 34 (its fire sound
+# 34 there, the area event 24 at 36). The server applies the damage when the action motion
+# starts, so it is split there, as Exceed Break's shot is (import-exceed-break.py): frames
+# 0-33 are the wind-up (the cast, slowed), 34-50 the breath (the action), whose area event
+# at frame 0 spawns the fire, the fire sound following at 1.
+BREATH_CLIP_SRC = r"3Ddata\MOTION\NPC\runa_wolf1\runa_wolf1_status_skill01.ZMO"
+BREATH_CLIPS = {   # Cerberus's (2682) CHR slot: (clip, (first frame, end frame), {frame: event})
+    BREATH_MOTION: (r"3Ddata\MOTION\NPC\runa_wolf1\runa_wolf1_breath_windup.ZMO", (0, 34), {}),
+    BREATH_MOTION + 1: (r"3Ddata\MOTION\NPC\runa_wolf1\runa_wolf1_breath_fire.ZMO", (34, 51),
+                        {0: 24, 1: 34}),
+}
+# The fire: a "bullet" effect, which a type-7 skill's area event places at the caster
+# (CSkillManager::ActionSkill; for an aimed skill the client turns it to the caster's
+# facing, 2026-10-18). It stands in the world, so it is authored in world cm at Cerberus's
+# true size: a casting effect is linked to the model and drawn 8x, particles included.
+BREATH_BULLET = 777                 # LIST_EFFECT: blank in ours
+BREATH_FE = 2901                    # FILE_EFFECT: blank in ours
+BREATH_FX_REL = r"3DDATA\EFFECT\hellfire_breath.eft"
+BREATH_PTL = r"3DDATA\EFFECT\PARTICLES\{}.ptl"
+LIST_EFFECT_REL = r"3DDATA\STB\LIST_EFFECT.STB"
+FILE_EFFECT_REL = r"3DDATA\STB\FILE_EFFECT.STB"
+BREATH_CELLS = {5: 7,                                             # type 7: an aimed area
+                SK_RANGE: BREATH_RANGE, SK_RADIUS: BREATH_SCOPE, SK_POWER: BREATH_POWER,
                 SK_STATUS: 58, SK_SUCCESS: 70, SK_DURATION: 10,   # Flame Heat, the
-                SK_CAST_MOTION: BREATH_MOTION,                    # Mukuroji's burn
-                SK_SKILL_MOTION: BREATH_MOTION + 1}
+                                                                  # Mukuroji's burn
+                SK_CAST_MOTION: BREATH_MOTION, 53: BREATH_CAST_SPEED,
+                SK_SKILL_MOTION: BREATH_MOTION + 1,
+                SK_CAST_FX: "", SK_CAST_LOC: "", 58: "",          # v1's fireball kit, gone
+                62: "", 63: "", 64: "",
+                71: BREATH_BULLET, SK_FIRE_LOC: "",
+                SK_TELEGRAPH: 1}                                  # the cone on the ground
 BREATH_CHASE = (6, 14)              # m: while chasing, it breathes on you instead
 BREATH_CHASE_CHANCE = 30
 BREATH_EVERY = 8                    # hits taken (monster var 4)
@@ -474,6 +516,7 @@ mon = load("audit_ai_monster_refs", "audit-ai-monster-refs.py")   # .aip codec
 heb = load("import_hebarn", "import-hebarn.py")       # AI condition/action encoders
 fate = load("import_oro_fate", "import-oro-fate.py")  # QSD codec
 from mapgen import ifo, lit, objlight, prefab, zon  # noqa: E402
+from rosefmt import eft as rfeft, zmo as rfzmo  # noqa: E402
 
 
 def P(root, rel):
@@ -991,6 +1034,110 @@ def stage2_seal_clips(ours, dry):
               f"{f' (motions +{added})' if added else ''}")
 
 
+def breath_clips(ours):
+    """{clip path: bytes}: the breath clip split at its firing frame (BREATH_CLIPS)."""
+    raw = open(P(ours, BREATH_CLIP_SRC), "rb").read()
+    ev = rfzmo.events(raw)[1]
+    if not ev or ev[34] != 34 or ev[36] != 24:
+        raise SystemExit(f"{BREATH_CLIP_SRC} no longer fires at frames 34/36 -- refusing")
+    out = {}
+    for _slot, (dst, (first, end), events) in BREATH_CLIPS.items():
+        clip = rfzmo.sliced(raw, first, end)
+        changes = {i: 0 for i, e in enumerate(rfzmo.events(clip)[1] or []) if e in (24, 34, 74)}
+        changes.update(events)
+        out[dst] = rfzmo.with_events(clip, changes)
+    return out
+
+
+def breath_fx_bytes():
+    """The fire, in world cm from Cerberus's centre on the ground, its front -Y: a gout
+    at the mouth, then rows of fire washing out and down to the ground, widening with the
+    cone (kept inside its edge), a row every 35 ms; flames left burning where it lands."""
+    parts = []
+
+    def put(name, x, y, z, delay):
+        parts.append(dict(ptl=BREATH_PTL.format(name), pos=(x, y, z), delay=delay))
+
+    mouth_y, mouth_z = -700.0, 700.0          # p_mouth at size 800, roughly
+    put("_fire_firing_03", 0.0, mouth_y, mouth_z, 0)
+    put("_fire_firing_03", 0.0, mouth_y - 150.0, mouth_z - 120.0, 30)
+    tan = math.tan(math.radians(BREATH_ANGLE / 2.0)) * 0.8
+    rows = 8
+    for k in range(rows):
+        f = (k + 1.0) / rows
+        ahead = -mouth_y + (BREATH_LENGTH - 100.0 + mouth_y) * f      # 7 m -> 17 m
+        z = mouth_z * (1.0 - f) ** 1.5 + 40.0                        # falls to the ground
+        lanes = 1 + (k + 1) // 2                                     # 1, 2, 2, 3, 3, 4, 4, 5
+        half = ahead * tan
+        for j in range(lanes):
+            x = 0.0 if lanes == 1 else -half + 2.0 * half * j / (lanes - 1)
+            put("fire_ball_r01", x, -ahead, z, 35 * k)
+            if k >= rows // 2:
+                put("_fire_07", x, -ahead, 0.0, 35 * k + 60)
+    return rfeft.build(dict(name="hellfire_breath", particles=parts, meshes=[]))
+
+
+def breath_bullet_row(le):
+    row = [b""] * le.cols
+    row[1] = b"4"                       # effect type, as every bullet row
+    row[11] = b(BREATH_FE)              # EFFECT_BULLET_NORMAL: what the area event places
+    return row
+
+
+def breath_chr_anims(chr_, anims):
+    """Cerberus's anims with BREATH_CLIPS in their slots (None if a clip is not listed yet)."""
+    want = {}
+    for slot, (dst, _frames, _ev) in BREATH_CLIPS.items():
+        hit = [i for i, m in enumerate(chr_.motions) if m.lower() == dst.encode("latin-1").lower()]
+        if not hit:
+            return None
+        want[slot] = hit[0]
+    return [(slot, want.get(slot, a)) for slot, a in anims]
+
+
+def stage2_breath(ours, dry):
+    """Hellfire Breath v2's files: the split clip in Cerberus's slots 6/7, the fire effect
+    and the LIST_EFFECT / FILE_EFFECT rows that let its area event place it."""
+    for path, blob in sorted(breath_clips(ours).items()):
+        changed = write_if_changed(P(ours, path), blob, dry)
+        print(f"    {os.path.basename(path):26s} {'written' if changed else 'in place'}")
+    changed = write_if_changed(P(ours, BREATH_FX_REL), breath_fx_bytes(), dry)
+    print(f"    {os.path.basename(BREATH_FX_REL):26s} {'written' if changed else 'in place'}")
+
+    le = oro.Stb(P(ours, LIST_EFFECT_REL))
+    want = breath_bullet_row(le)
+    if le.d[BREATH_BULLET] != want:
+        if any(c.strip() for c in le.d[BREATH_BULLET]) and le.get(BREATH_BULLET, 11) != b(BREATH_FE):
+            raise SystemExit(f"our LIST_EFFECT row {BREATH_BULLET} is in use -- refusing")
+        le.d[BREATH_BULLET] = want
+        le.save(dry)
+        print(f"    {'LIST_EFFECT.STB':26s} row {BREATH_BULLET} -> FILE_EFFECT {BREATH_FE}")
+    fe = oro.Stb(P(ours, FILE_EFFECT_REL))
+    want = [b"hellfire_breath", BREATH_FX_REL.encode("latin-1")]
+    if fe.d[BREATH_FE][:2] != want:
+        if any(c.strip() for c in fe.d[BREATH_FE]) and fe.d[BREATH_FE][1] != want[1]:
+            raise SystemExit(f"our FILE_EFFECT row {BREATH_FE} is in use -- refusing")
+        fe.d[BREATH_FE][:2] = want
+        fe.save(dry)
+        print(f"    {'FILE_EFFECT.STB':26s} row {BREATH_FE} {BREATH_FX_REL}")
+
+    chr_ = oro.Chr(P(ours, NPC_CHR_REL))
+    if AWAKE >= len(chr_.chars) or chr_.chars[AWAKE] is None:
+        return                          # a fresh import: import_characters runs first
+    added = []
+    for _slot, (dst, _frames, _ev) in BREATH_CLIPS.items():
+        key = dst.encode("latin-1")
+        if not any(m.lower() == key.lower() for m in chr_.motions):
+            chr_.motions.append(key)
+            added.append(len(chr_.motions) - 1)
+    anims = breath_chr_anims(chr_, chr_.chars[AWAKE]["anims"])
+    if added or chr_.chars[AWAKE]["anims"] != anims:
+        chr_.chars[AWAKE]["anims"] = anims
+        chr_.save(dry)
+        print(f"    {'LIST_NPC.CHR':26s} entry {AWAKE} slots {sorted(BREATH_CLIPS)} -> the breath"
+              f"{f' (motions +{added})' if added else ''}")
+
+
 SK_STL_KEY = 86
 
 
@@ -1212,6 +1359,7 @@ def stage2(ours, src, dry):
     oro.import_characters(ids, ours, src, dry, "Cerberus")
     if not dry or os.path.isfile(P(ours, SKEL_REL)):
         write_if_changed(P(ours, SKEL_REL), cerberus_skeleton(src), dry)
+    stage2_breath(ours, dry)
 
 
 # ------------------------------------------------------------------- stage 3
@@ -1596,6 +1744,19 @@ def verify(ours, src):
     sk = oro.Stb(P(ours, SKILL_STB_REL))
     check(sk.rows > LEAP and sk.d[LEAP] == leap_row(sk), f"LIST_SKILL {LEAP} {LEAP_NAME}")
     check(sk.rows > BREATH and sk.d[BREATH] == breath_row(sk), f"LIST_SKILL {BREATH} {BREATH_NAME}")
+    for path, blob in sorted(breath_clips(ours).items()):
+        check(os.path.isfile(P(ours, path)) and open(P(ours, path), "rb").read() == blob,
+              os.path.basename(path))
+    fx = P(ours, BREATH_FX_REL)
+    check(os.path.isfile(fx) and open(fx, "rb").read() == breath_fx_bytes(), os.path.basename(fx))
+    le = oro.Stb(P(ours, LIST_EFFECT_REL))
+    check(le.d[BREATH_BULLET] == breath_bullet_row(le), f"LIST_EFFECT {BREATH_BULLET} (the breath)")
+    fe = oro.Stb(P(ours, FILE_EFFECT_REL))
+    check(fe.d[BREATH_FE][:2] == [b"hellfire_breath", BREATH_FX_REL.encode("latin-1")],
+          f"FILE_EFFECT {BREATH_FE}")
+    chr_ = oro.Chr(P(ours, NPC_CHR_REL))
+    check(chr_.chars[AWAKE]["anims"] == breath_chr_anims(chr_, chr_.chars[AWAKE]["anims"]),
+          f"CHR {AWAKE} breath slots")
     check(sk.rows > SEAL and sk.d[SEAL] == seal_row(sk), f"LIST_SKILL {SEAL} {SEAL_NAME}")
     sp = P(ours, SKEL_REL)
     check(os.path.isfile(sp) and open(sp, "rb").read() == cerberus_skeleton(src),

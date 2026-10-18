@@ -11,10 +11,12 @@
 #include <math.h>
 
 namespace {
+const float PI = 3.14159265f;
 const float LIFT_CM = 20.f; // over the terrain: GetHeight is bilinear, the mesh is triangles
 const float SEGMENT_CM = 80.f; // rim length per segment
-const float STEP_CM = 100.f; // radial spacing of the rings the terrain is sampled on
-const int MIN_SEGMENTS = 24;
+const float STEP_CM = 100.f; // spacing of the points the terrain is sampled on
+const int MIN_SEGMENTS = 4;
+const int MIN_CIRCLE_SEGMENTS = 24;
 const int MAX_SEGMENTS = 96;
 const unsigned long WAIT_MS = 3000; // past the clip, waiting for the server to fire it
 const unsigned long FLASH_MS = 350; // the fired flash's fade
@@ -23,6 +25,10 @@ const unsigned long DEFAULT_CAST_MS = 1000; // a cast with no clip
 const unsigned long RGB_AREA = 0xFF4020; // red-orange
 const unsigned long RGB_FILL = 0xFF6A20;
 const unsigned long RGB_FLASH = 0xFF9A50;
+const unsigned long ALPHA_AREA = 0x30;
+const unsigned long ALPHA_RIM = 0xA0; // over the area: ~0xB0 at the edge
+const unsigned long ALPHA_FILL = 0x38;
+const unsigned long ALPHA_FILL_EDGE = 0x90;
 const float RIM_CM = 60.f;
 const float EDGE_CM = 40.f;
 
@@ -41,6 +47,16 @@ Lerp(unsigned long c0, unsigned long c1, float f) {
     }
     return out;
 }
+
+int
+Steps(float fLength, float fStep, int iMin, int iMax) {
+    int n = (int)ceilf(fLength / fStep);
+    if (n < iMin)
+        n = iMin;
+    if (n > iMax)
+        n = iMax;
+    return n;
+}
 } // namespace
 
 CGroundTelegraphs&
@@ -53,21 +69,28 @@ void
 CGroundTelegraphs::OnCastStart(CObjCHAR* pCaster, short nSkillIDX, unsigned long dwCastMS) {
     if (!pCaster || nSkillIDX <= 0)
         return;
-    const float fRadius = (float)SKILL_SCOPE_RADIUS(nSkillIDX);
-    if (fRadius <= 0.f)
+    const float fLength = (float)SKILL_SCOPE_RADIUS(nSkillIDX);
+    if (fLength <= 0.f)
         return;
 
     Telegraph t;
     t.nObjIdx = pCaster->Get_INDEX();
     t.pCaster = pCaster;
     t.nSkillIDX = nSkillIDX;
+    t.shape = SHAPE_CIRCLE;
     t.fX = pCaster->Get_CurPOS().x;
     t.fY = pCaster->Get_CurPOS().y;
     t.fZ = pCaster->Get_CurPOS().z;
-    t.fRadius = fRadius;
+    t.fDirX = 1.f;
+    t.fDirY = 0.f;
+    t.fLength = fLength;
+    t.fHalfAngle = PI;
+    t.fHalfWidth = 0.f;
     t.dwStart = ::GetTickCount();
     t.dwCastMS = dwCastMS ? dwCastMS : DEFAULT_CAST_MS;
     t.dwFiredAt = 0;
+
+    Aim(t, pCaster);
 
     for (Telegraph& old: m_List) {
         if (old.nObjIdx == t.nObjIdx) { // a new cast replaces the caster's last one
@@ -76,6 +99,41 @@ CGroundTelegraphs::OnCastStart(CObjCHAR* pCaster, short nSkillIDX, unsigned long
         }
     }
     m_List.push_back(t);
+}
+
+void
+CGroundTelegraphs::Aim(Telegraph& t, CObjCHAR* pCaster) {
+    // A cone or a strip points where the server aimed it; without an aim (or aimed at the
+    // caster's own feet) the server measures a circle of its length, and so do we.
+    const short nSkillIDX = t.nSkillIDX;
+    if (!pCaster->m_bSkillAimActive || !SKILL_SCOPE_AIMED(nSkillIDX))
+        return;
+    const float dx = pCaster->m_PosSkillAIM.x - t.fX;
+    const float dy = pCaster->m_PosSkillAIM.y - t.fY;
+    const float fAim = sqrtf(dx * dx + dy * dy);
+    const int iAngle = SKILL_SCOPE_ANGLE(nSkillIDX);
+    if (fAim < 1.f || (SKILL_SCOPE_CONE(nSkillIDX) && iAngle >= 360))
+        return;
+    t.fDirX = dx / fAim;
+    t.fDirY = dy / fAim;
+    if (SKILL_SCOPE_CONE(nSkillIDX)) {
+        t.shape = SHAPE_CONE;
+        t.fHalfAngle = iAngle * 0.5f * PI / 180.f;
+    } else {
+        t.shape = SHAPE_STRIP;
+        t.fHalfWidth = SKILL_SCOPE_WIDTH(nSkillIDX) * 0.5f;
+    }
+}
+
+void
+CGroundTelegraphs::OnAimArrived(CObjCHAR* pCaster) {
+    for (Telegraph& t: m_List) {
+        if (t.pCaster == pCaster && t.nObjIdx == pCaster->Get_INDEX() && !t.dwFiredAt
+            && t.nSkillIDX == pCaster->m_nActiveSkillIDX) {
+            Aim(t, pCaster);
+            return;
+        }
+    }
 }
 
 bool
@@ -145,47 +203,31 @@ CGroundTelegraphs::Height(const Telegraph& t, float fX, float fY) const {
     return fZ + LIFT_CM;
 }
 
+template <class PosFn>
 void
-CGroundTelegraphs::AddRing(const Telegraph& t, float r0, float r1, unsigned long c0, unsigned long c1) {
-    if (r0 < 0.f)
-        r0 = 0.f;
-    if (r1 <= r0)
-        return;
-
-    int nSegs = (int)(2.f * 3.14159265f * t.fRadius / SEGMENT_CM);
-    if (nSegs < MIN_SEGMENTS)
-        nSegs = MIN_SEGMENTS;
-    if (nSegs > MAX_SEGMENTS)
-        nSegs = MAX_SEGMENTS;
-    int nSteps = (int)ceilf((r1 - r0) / STEP_CM);
-    if (nSteps < 1)
-        nSteps = 1;
-
-    // The rings' points, once each: (nSteps + 1) x nSegs, the terrain sampled at every one.
+CGroundTelegraphs::AddGrid(const Telegraph& t, int nRows, int nCols, PosFn pos, unsigned long c0, unsigned long c1) {
+    // The points, once each, the terrain sampled at every one.
     static std::vector<float> s_Grid; // x, y, z
-    s_Grid.resize((size_t)(nSteps + 1) * nSegs * 3);
-    for (int k = 0; k <= nSteps; ++k) {
-        const float r = r0 + (r1 - r0) * k / nSteps;
-        for (int s = 0; s < nSegs; ++s) {
-            const float a = 2.f * 3.14159265f * s / nSegs;
-            float* p = &s_Grid[((size_t)k * nSegs + s) * 3];
-            p[0] = t.fX + r * cosf(a);
-            p[1] = t.fY + r * sinf(a);
+    const int nStride = nCols + 1;
+    s_Grid.resize((size_t)(nRows + 1) * nStride * 3);
+    for (int r = 0; r <= nRows; ++r) {
+        for (int c = 0; c <= nCols; ++c) {
+            float* p = &s_Grid[((size_t)r * nStride + c) * 3];
+            pos((float)r / nRows, (float)c / nCols, p[0], p[1]);
             p[2] = this->Height(t, p[0], p[1]);
         }
     }
 
-    for (int k = 0; k < nSteps; ++k) {
-        const unsigned long cIn = Lerp(c0, c1, (float)k / nSteps);
-        const unsigned long cOut = Lerp(c0, c1, (float)(k + 1) / nSteps);
-        for (int s = 0; s < nSegs; ++s) {
-            const int s2 = (s + 1) % nSegs;
-            const float* a = &s_Grid[((size_t)k * nSegs + s) * 3];
-            const float* b = &s_Grid[((size_t)k * nSegs + s2) * 3];
-            const float* c = &s_Grid[((size_t)(k + 1) * nSegs + s) * 3];
-            const float* d = &s_Grid[((size_t)(k + 1) * nSegs + s2) * 3];
-            const float* tri[6] = {a, c, d, a, d, b};
-            const unsigned long col[6] = {cIn, cOut, cOut, cIn, cOut, cIn};
+    for (int r = 0; r < nRows; ++r) {
+        const unsigned long cA = Lerp(c0, c1, (float)r / nRows);
+        const unsigned long cB = Lerp(c0, c1, (float)(r + 1) / nRows);
+        for (int c = 0; c < nCols; ++c) {
+            const float* a = &s_Grid[((size_t)r * nStride + c) * 3];
+            const float* b = &s_Grid[((size_t)r * nStride + c + 1) * 3];
+            const float* d = &s_Grid[((size_t)(r + 1) * nStride + c) * 3];
+            const float* e = &s_Grid[((size_t)(r + 1) * nStride + c + 1) * 3];
+            const float* tri[6] = {a, d, e, a, e, b};
+            const unsigned long col[6] = {cA, cB, cB, cA, cB, cA};
             for (int v = 0; v < 6; ++v) {
                 m_XYZ.push_back(tri[v][0]);
                 m_XYZ.push_back(tri[v][1]);
@@ -197,13 +239,86 @@ CGroundTelegraphs::AddRing(const Telegraph& t, float r0, float r1, unsigned long
 }
 
 void
+CGroundTelegraphs::AddSector(const Telegraph& t, float r0, float r1, float a0, float a1, unsigned long c0,
+    unsigned long c1) {
+    if (r0 < 0.f)
+        r0 = 0.f;
+    if (r1 <= r0 || a1 <= a0)
+        return;
+    const bool bFull = (a1 - a0) >= 2.f * PI - 0.001f;
+    const int nRows = Steps(r1 - r0, STEP_CM, 1, 1000);
+    const int nCols =
+        Steps((a1 - a0) * t.fLength, SEGMENT_CM, bFull ? MIN_CIRCLE_SEGMENTS : MIN_SEGMENTS, MAX_SEGMENTS);
+    const float fBase = atan2f(t.fDirY, t.fDirX);
+    this->AddGrid(
+        t, nRows, nCols,
+        [&](float fr, float fc, float& x, float& y) {
+            const float r = r0 + (r1 - r0) * fr;
+            const float a = fBase + a0 + (a1 - a0) * fc;
+            x = t.fX + r * cosf(a);
+            y = t.fY + r * sinf(a);
+        },
+        c0, c1);
+}
+
+void
+CGroundTelegraphs::AddRect(const Telegraph& t, float a0, float a1, float s0, float s1, unsigned long c0,
+    unsigned long c1) {
+    if (a0 < 0.f)
+        a0 = 0.f;
+    if (a1 <= a0 || s1 <= s0)
+        return;
+    const int nRows = Steps(a1 - a0, STEP_CM, 1, 1000);
+    const int nCols = Steps(s1 - s0, STEP_CM, 1, 1000);
+    this->AddGrid(
+        t, nRows, nCols,
+        [&](float fr, float fc, float& x, float& y) {
+            const float a = a0 + (a1 - a0) * fr;
+            const float s = s0 + (s1 - s0) * fc;
+            x = t.fX + t.fDirX * a - t.fDirY * s;
+            y = t.fY + t.fDirY * a + t.fDirX * s;
+        },
+        c0, c1);
+}
+
+void
+CGroundTelegraphs::AddEdge(const Telegraph& t, float x0, float y0, float x1, float y1, float nx, float ny,
+    float fWidth, unsigned long cEdge, unsigned long cInner) {
+    const float fLen = sqrtf((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
+    if (fLen < 1.f)
+        return;
+    this->AddGrid(
+        t, 1, Steps(fLen, STEP_CM, 1, 1000),
+        [&](float fr, float fc, float& x, float& y) {
+            x = x0 + (x1 - x0) * fc + nx * fWidth * fr;
+            y = y0 + (y1 - y0) * fc + ny * fWidth * fr;
+        },
+        cEdge, cInner);
+}
+
+void
+CGroundTelegraphs::AddArea(const Telegraph& t, float fFrom, float fReach, unsigned long c0, unsigned long c1) {
+    switch (t.shape) {
+        case SHAPE_CIRCLE:
+            this->AddSector(t, fFrom, fReach, -PI, PI, c0, c1);
+            break;
+        case SHAPE_CONE:
+            this->AddSector(t, fFrom, fReach, -t.fHalfAngle, t.fHalfAngle, c0, c1);
+            break;
+        case SHAPE_STRIP:
+            this->AddRect(t, fFrom, fReach, -t.fHalfWidth, t.fHalfWidth, c0, c1);
+            break;
+    }
+}
+
+void
 CGroundTelegraphs::AddTelegraph(const Telegraph& t, unsigned long now) {
-    const float R = t.fRadius;
+    const float L = t.fLength;
 
     if (t.dwFiredAt) { // the hit: a flash that fades
         const float f = 1.f - (float)(now - t.dwFiredAt) / FLASH_MS;
         const unsigned long alpha = (unsigned long)(0x90 * (f > 0.f ? f : 0.f));
-        this->AddRing(t, 0.f, R, Argb(alpha, RGB_FLASH), Argb(alpha, RGB_FLASH));
+        this->AddArea(t, 0.f, L, Argb(alpha, RGB_FLASH), Argb(alpha, RGB_FLASH));
         return;
     }
 
@@ -211,11 +326,27 @@ CGroundTelegraphs::AddTelegraph(const Telegraph& t, unsigned long now) {
     if (p > 1.f)
         p = 1.f;
 
-    // The area and its rim.
-    this->AddRing(t, 0.f, R - RIM_CM, Argb(0x30, RGB_AREA), Argb(0x30, RGB_AREA));
-    this->AddRing(t, R - RIM_CM, R, Argb(0x30, RGB_AREA), Argb(0xC0, RGB_AREA));
-    // The fill: grows from the centre to the rim over the cast, a brighter leading edge.
-    const float rFill = R * p;
-    this->AddRing(t, 0.f, rFill - EDGE_CM, Argb(0x38, RGB_FILL), Argb(0x38, RGB_FILL));
-    this->AddRing(t, rFill - EDGE_CM, rFill, Argb(0x38, RGB_FILL), Argb(0x90, RGB_FILL));
+    // The area, and a bright rim over its outline.
+    this->AddArea(t, 0.f, L, Argb(ALPHA_AREA, RGB_AREA), Argb(ALPHA_AREA, RGB_AREA));
+    this->AddArea(t, L - RIM_CM, L, Argb(0, RGB_AREA), Argb(ALPHA_RIM, RGB_AREA));
+    if (t.shape == SHAPE_CONE) {
+        // the two sides, from the point to the arc; inward = toward the aim
+        for (int side = -1; side <= 1; side += 2) {
+            const float a = atan2f(t.fDirY, t.fDirX) + side * t.fHalfAngle;
+            const float ex = cosf(a), ey = sinf(a);
+            this->AddEdge(t, t.fX, t.fY, t.fX + ex * L, t.fY + ey * L, side * ey, -side * ex, RIM_CM,
+                Argb(ALPHA_RIM, RGB_AREA), Argb(0, RGB_AREA));
+        }
+    } else if (t.shape == SHAPE_STRIP) {
+        for (int side = -1; side <= 1; side += 2) {
+            const float px = -t.fDirY * side * t.fHalfWidth, py = t.fDirX * side * t.fHalfWidth;
+            this->AddEdge(t, t.fX + px, t.fY + py, t.fX + px + t.fDirX * L, t.fY + py + t.fDirY * L,
+                t.fDirY * side, -t.fDirX * side, RIM_CM, Argb(ALPHA_RIM, RGB_AREA), Argb(0, RGB_AREA));
+        }
+    }
+
+    // The fill: grows from the caster to the rim over the cast, a brighter leading edge.
+    const float fFill = L * p;
+    this->AddArea(t, 0.f, fFill - EDGE_CM, Argb(ALPHA_FILL, RGB_FILL), Argb(ALPHA_FILL, RGB_FILL));
+    this->AddArea(t, fFill - EDGE_CM, fFill, Argb(ALPHA_FILL, RGB_FILL), Argb(ALPHA_FILL_EDGE, RGB_FILL));
 }

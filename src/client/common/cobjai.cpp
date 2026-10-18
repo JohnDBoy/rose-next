@@ -46,6 +46,9 @@ CObjAI::CObjAI(): stats({}) {
 
     m_bCastingSTART = false;
     m_dwRemoteCastWaitSince = 0;
+    m_PosSkillAIM.x = m_PosSkillAIM.y = m_PosSkillAIM.z = 0;
+    m_bSkillAimPending = false;
+    m_bSkillAimActive = false;
     SetCastingState(false);
 
     m_bRunMODE = false; // �⺻�� �ȱ� ���...
@@ -229,10 +232,10 @@ CObjAI::Do_SKILL(int iServerTarget, CObjCHAR* pTarget) {
 #if defined(_GBC)
     //����ȣ::�����϶��� ȸ���� ��Ű�� �ʴ´�.
     if ((GetPetMode() < 0) && pTarget)
-        Set_ModelDIR(pTarget->m_PosCUR);
+        FaceSkillTarget(pTarget);
 #else
     if (pTarget)
-        Set_ModelDIR(pTarget->m_PosCUR);
+        FaceSkillTarget(pTarget);
 #endif
     //---------------------------------------------------------------------------------
 
@@ -269,6 +272,17 @@ CObjAI::Do_SKILL(int iServerTarget, CObjCHAR* pTarget) {
     return 0;
 }
 
+/// A caster turns to its target while it casts, except with an aimed area (frontal or
+/// cone) whose aim the server fixed at the cast start: it faces that spot, where the
+/// area will land, not the target that may have moved since (2026-10-18).
+void
+CObjAI::FaceSkillTarget(CObjCHAR* pTarget) {
+    if (m_bSkillAimActive)
+        Set_ModelDIR(m_PosSkillAIM);
+    else if (pTarget)
+        Set_ModelDIR(pTarget->m_PosCUR);
+}
+
 //----------------------------------------------------------------------------------------------------
 /// @param
 /// @brief ��ų�� ĳ���� ������ ó��..
@@ -292,6 +306,13 @@ CObjAI::ProcSkillCastingAction(int iServerTarget, CObjCHAR* pTarget) {
 
         m_nActiveSkillIDX = m_nToDoSkillIDX;
         m_nToDoSkillIDX = 0;
+
+        // The server's aim for this cast, if it sent one (GSV_SKILL_START): face it now.
+        m_bSkillAimActive = m_bSkillAimPending && SKILL_TYPE(m_nActiveSkillIDX) == SKILL_ACTION_AREA_TARGET
+                            && SKILL_SCOPE_AIMED(m_nActiveSkillIDX);
+        m_bSkillAimPending = false;
+        if (m_bSkillAimActive)
+            Set_ModelDIR(m_PosSkillAIM);
 
         if (this->GetANI_Casting() || this->IsA(OBJ_MOB)) {
             const float fCastSpeed = g_SkillList.Get_CastingAniSPEED(m_nActiveSkillIDX);
@@ -2179,7 +2200,7 @@ CObjAI::ProcCMD_Skill2OBJECT() {
         //-----------------------------------------------------------------------------------------
         /// Ÿ�� �������� ���� ������.
         //-----------------------------------------------------------------------------------------
-        Set_ModelDIR(pTarget->m_PosCUR);
+        FaceSkillTarget(pTarget);
 
         //-----------------------------------------------------------------------------------------
         /// Ÿ���� �׾���ȴ�...

@@ -452,6 +452,16 @@ public:
     /// waiting). A cast still waiting after kRemoteCastStartWaitMs is abandoned.
     DWORD m_dwRemoteCastWaitSince;
 
+    /// The spot a remote caster's frontal or cone skill is aimed at (2026-10-18): sent with
+    /// GSV_SKILL_START, where the target stood when the server began the cast, and the
+    /// point the server measures the area from. Pending until the cast starts here
+    /// (ProcSkillCastingAction), then active until Casting_END: the caster faces it rather
+    /// than its moving target, and the ground telegraph is drawn toward it.
+    t_POSITION m_PosSkillAIM;
+    bool m_bSkillAimPending;
+    bool m_bSkillAimActive;
+    void FaceSkillTarget(CObjCHAR* pTarget);
+
     virtual bool CanApplyCommand() = 0 { *(int*)0 = 10; };
 
     virtual void PushCommandSit() = 0 { *(int*)0 = 10; };

@@ -2398,6 +2398,7 @@ CObjCHAR::Casting_END() {
     SetCastingState(false);
     m_nActiveSkillIDX = 0;
     m_nToDoSkillIDX = 0;
+    m_bSkillAimActive = false;
 }
 
 //--------------------------------------------------------------------------------

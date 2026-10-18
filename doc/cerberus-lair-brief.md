@@ -83,8 +83,9 @@ Imported by `scripts/import-cerberus.py` from the tsuki dump.
 - No AI exists for Cerberus in any dump (QQ-iROSE's `CERBERUS.AIP` is our
   `CLAN_BOSS6.AIP`, the Astarot King, with two ids changed). Ours is written here.
 - **The kit** (importer docstring, "The fight"): melee, Infernal Leap (skill 7021,
-  the jump with fire effects), Hellfire Breath (skill 7022: two fireballs from the
-  snout and a burn, at range), and two Hellhounds (2684) called at 66% and again
+  the jump with fire effects), Hellfire Breath (skill 7022: since 2026-10-18 a charged
+  cone of fire drawn on the ground while it charges, then a burn; it was two fireballs),
+  and two Hellhounds (2684) called at 66% and again
   at 33% HP. A fiery glow (LIST_NPC col 39) on Cerberus and the hounds.
 - **The controller spawns the hounds, at the crater** (`HOUND_CALL_PCT`), not
   Cerberus's AI: a new monster stands on the highest surface at its spot on the

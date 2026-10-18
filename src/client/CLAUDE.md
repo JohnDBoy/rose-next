@@ -243,7 +243,7 @@ Left-click, hover, and non-drag cursor motion otherwise flow through the queued 
 
 `CUserInputState::IsEnemy` (`jcommandstate.cpp`) is the client's single hostile/friendly verdict for players (attack click, cursor, `CheckCastingTargetFilter`). It switches on the target's `pvp_state`: in an `AllExceptParty` zone (Junon Cartel, Crusader Training Camp, Lion's Plains, Union War, Desert of the Dead) it answers "enemy" for anyone not in the party list, and in an `All` zone for everyone — including the avatar itself, which the party list never contains. So Cure (type 11, target filter 3 `FRIEND_ALL`) on yourself printed "Invalid target" in those zones while Healing (type 10, a self-type skill that skips the filter) worked (alpha test #2, 2026-09-22). `IsEnemy` now returns false for `g_pAVATAR` before the switch. The server's `CObjAVT::Is_ALLIED` already had the `pDestCHAR == this` case.
 
-## Boss Attack Telegraphs (2026-10-18, awaiting the in-game test)
+## Boss Attack Telegraphs (2026-10-18, validated in game: circle and cone)
 
 A monster casting a skill flagged in `LIST_SKILL` col 83 (`SKILL_TELEGRAPH`; the column was
 the dead "area hit effect") shows its area on the ground for the length of the cast: a
@@ -254,13 +254,28 @@ the cast clip at its casting speed, which is how the server times the cast), pol
 frame from `CObjectMANAGER::ProcOBJECT`, and forgets them in `Clear`. A cast is over when
 `m_nActiveSkillIDX` no longer holds the skill (`Casting_END` covers fire, stop, stun,
 death, cancel); fired = `m_nDoingSkillIDX` holds it in that frame; a hard limit covers the
-one path that skips `Casting_END` (`SetCMD_MOVE`). The area is a circle of
-`SKILL_SCOPE_RADIUS` around where the cast began: a monster casts every area skill on
-itself (type 7 through `SetCMD_Skill2OBJ`, whose aim `Goto_TARGET` resets to the caster on
-both sides). The geometry samples `CTERRAIN::GetHeight` per vertex (lifted 20 cm: bilinear
+one path that skips `Casting_END` (`SetCMD_MOVE`). Three shapes, as the server measures
+them: a circle of `SKILL_SCOPE_RADIUS` around where the cast began (type 17, or any area
+without an aim -- `Goto_TARGET` resets a monster's aim to itself), and for an aimed scope
+(`SKILL_SCOPE_AIMED`: a frontal strip, or a cone, `SKILL_SCOPE_CONE` = 100000000 + length x
+10000 + degrees) the strip or cone toward the server's aim. **The aim** is fixed by the game
+server when the cast begins (`Casting_START`: the target's position into `m_PosGOTO`) and
+rides on `GSV_SKILL_START` (`m_PosAIM`, present only when `m_nSize` says so). The client
+keeps it in `CObjAI::m_PosSkillAIM` (pending until `ProcSkillCastingAction`, active until
+`Casting_END`), and `FaceSkillTarget` turns the caster to it instead of to its moving target.
+A start can reach a cast that is already playing (a remote cast held behind an owed swing
+pops with its start flag still armed and begins before the packet): `Recv_gsv_SKILL_START`
+then aims it on the spot and `CGroundTelegraphs::OnAimArrived` turns the fallback circle
+into the cone, timing kept (Cerberus's first breath, 2026-10-18).
+An aimed skill's area "bullet" effect (`CSkillManager::ActionSkill`, type 7) is also turned
+to the caster's facing: it stands in the world at true size, where a casting effect would be
+linked to the model and drawn at its scale (8x on Cerberus). The geometry samples `CTERRAIN::GetHeight` per vertex (lifted 20 cm: bilinear
 heights against a triangulated mesh) and goes to the engine's ground overlay
-(`::setGroundOverlay`, see `src/engine/CLAUDE.md`) every frame. First user: the Warden's
-Seal Burst (7023, `import-cerberus.py`).
+(`::setGroundOverlay`, see `src/engine/CLAUDE.md`) every frame. Users: the Warden's Seal
+Burst (7023, a circle) and Cerberus's Hellfire Breath (7022, a cone), `import-cerberus.py`.
+**A missing telegraph is a missing cast:** read `remote cast abandoned` in client.log first
+-- a stun-cancelled cast used to leave the remote-cast watchdog's stamp set and drop the
+caster's next cast (fixed in `SetCMD_Skill2OBJ`).
 
 ## Summon Control (CTRL+Click)
 

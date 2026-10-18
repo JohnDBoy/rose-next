@@ -22,10 +22,17 @@ Things that will bite:
   whelps, the Warden and the sleeper when a run starts (`RUN_SPAWNS`, `CRATER_X/Y`);
   between runs the lair is kept empty.
 - **Seal Burst draws its circle on the ground** while the Warden winds it up (2026-10-18,
-  awaiting the in-game test): `LIST_SKILL` col 83 = 1 (`SK_TELEGRAPH` in the importer),
+  validated): `LIST_SKILL` col 83 = 1 (`SK_TELEGRAPH` in the importer),
   drawn by the client (`src/client/groundtelegraph.h`). Any monster skill gets the same by
   setting that cell. The importer's skill builders keep the `LMobSkill<row>` name keys
   `name-monster-skills-players.py` gave them (col 86), so stage 2 no longer reverts them.
+- **Hellfire Breath is a charged cone** (v2, 2026-10-18, validated in game): an
+  18 m, 70-degree cone drawn for its ~2.5 s wind-up, aimed where the target stood when it
+  began (the server fixes it), power 400 and the burn. Its fire is `hellfire_breath.eft`
+  placed in the world (LIST_EFFECT 777 / FILE_EFFECT 2901) -- never as a casting effect,
+  which Cerberus's model would draw 8x. The clip is the breath split at its firing frame
+  (`runa_wolf1_breath_windup` / `_fire`, Cerberus's CHR slots 6/7). Importer docstring,
+  "The fight".
 - **The sleeper is on `TEAMNO_NPC` until the seal breaks.** `Is_ALLIED` makes team 1
   allied with everyone (same team, or a team product <= 100), so nothing can target
   it and its "enemies near" wake never fires -- a Hawk Shot reaches the crater from
