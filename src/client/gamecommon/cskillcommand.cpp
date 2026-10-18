@@ -270,7 +270,7 @@ CBasicCommand::Execute() {
             CStr::DebugString("SKILL_SCOPE: %f \n", SKILL_SCOPE(pSkill->GetSkillIndex()));
 #endif
 
-            if (g_pAVATAR->Get_DISTANCE(pAVT) >= SKILL_SCOPE(pSkill->GetSkillIndex())) {
+            if (g_pAVATAR->Get_DISTANCE(pAVT) >= SKILL_SCOPE_RADIUS(pSkill->GetSkillIndex())) {
                 g_itMGR.AppendChatMsg(STR_OUTOFRANGE,
                     IT_MGR::CHAT_TYPE_SYSTEM,
                     D3DCOLOR_ARGB(255, 206, 223, 136));

@@ -1604,7 +1604,7 @@ CObjCHAR::Skill_ChangeIngSTATUS(CObjCHAR* pTarget) {
             }
         } else {
             CObjCHAR* pFindCHAR;
-            pFindCHAR = (CObjCHAR*)pTarget->AI_FindFirstOBJ(SKILL_SCOPE(Get_ActiveSKILL()));
+            pFindCHAR = (CObjCHAR*)pTarget->AI_FindFirstOBJ(SKILL_SCOPE_RADIUS(Get_ActiveSKILL()));
             while (pFindCHAR) {
                 if (this->Skill_IsPassFilter(pFindCHAR, Get_ActiveSKILL())) {
                     btResult = pFindCHAR->Skill_ApplyIngSTATUS(Get_ActiveSKILL(), this);
@@ -1637,10 +1637,49 @@ CObjCHAR::Skill_DamageToAROUND(tPOINTF& PosCENTER) {
     short nResultCNT = 0;
 
     CObjITEM* pOutITEM;
+
+    // A frontal area (SKILL_SCOPE_FRONTAL, io_skill.h; 2026-10-18) is a length x width
+    // rectangle that starts at the caster and points at PosCENTER, the spot a type-7 skill
+    // was aimed at. The search is a circle around the rectangle's middle that just holds it
+    // (40 x 25 m needs 23.6 m, well inside the 3x3 sectors FindNextCHAR walks), and only
+    // what falls inside the rectangle is hit. A plain scope searches PosCENTER as before.
+    // Aimed at the caster's own feet (a type-17 skill) there is no direction, and a frontal
+    // scope falls back to a circle of its length around the caster.
+    const short nSkillIDX = Get_ActiveSKILL();
+    bool bFrontal = SKILL_SCOPE_FRONTAL(nSkillIDX);
+    tPOINTF PosSEARCH = PosCENTER;
+    int iSearchDIST = SKILL_SCOPE_RADIUS(nSkillIDX);
+    float fDirX = 0, fDirY = 0, fLength = 0, fHalfWidth = 0;
+    if (bFrontal) {
+        fLength = (float)SKILL_SCOPE_RADIUS(nSkillIDX);
+        fHalfWidth = SKILL_SCOPE_WIDTH(nSkillIDX) * 0.5f;
+        fDirX = PosCENTER.x - m_PosCUR.x;
+        fDirY = PosCENTER.y - m_PosCUR.y;
+        const float fAim = sqrtf(fDirX * fDirX + fDirY * fDirY);
+        if (fAim < 1.f) {
+            bFrontal = false;
+            PosSEARCH = m_PosCUR;
+        } else {
+            fDirX /= fAim;
+            fDirY /= fAim;
+            PosSEARCH.x = m_PosCUR.x + fDirX * fLength * 0.5f;
+            PosSEARCH.y = m_PosCUR.y + fDirY * fLength * 0.5f;
+            iSearchDIST = (int)ceilf(sqrtf(fLength * fLength * 0.25f + fHalfWidth * fHalfWidth));
+        }
+    }
+
     // PosGOTO좌표를 중심으로 탐색...
-    pFindCHAR = (CObjCHAR*)this->AI_FindFirstOBJ(PosCENTER, SKILL_SCOPE(Get_ActiveSKILL()));
+    pFindCHAR = (CObjCHAR*)this->AI_FindFirstOBJ(PosSEARCH, iSearchDIST);
     while (pFindCHAR) {
-        if (this->Skill_IsPassFilter(pFindCHAR, Get_ActiveSKILL())) {
+        bool bInside = true;
+        if (bFrontal) {
+            const float fX = pFindCHAR->Get_CurXPOS() - m_PosCUR.x;
+            const float fY = pFindCHAR->Get_CurYPOS() - m_PosCUR.y;
+            const float fAhead = fX * fDirX + fY * fDirY;
+            const float fAside = fabsf(fX * fDirY - fY * fDirX);
+            bInside = fAhead >= 0.f && fAhead <= fLength && fAside <= fHalfWidth;
+        }
+        if (bInside && this->Skill_IsPassFilter(pFindCHAR, Get_ActiveSKILL())) {
             sDamage.m_wDamage = CCal::Get_SkillDAMAGE(this, pFindCHAR, Get_ActiveSKILL(), 1);
 
             pOutITEM = NULL;
@@ -1728,7 +1767,7 @@ CObjCHAR::Skill_START_10_11(CObjCHAR* pTarget) {
         }
     } else {
         CObjCHAR* pFindCHAR;
-        pFindCHAR = (CObjCHAR*)pTarget->AI_FindFirstOBJ(SKILL_SCOPE(Get_ActiveSKILL()));
+        pFindCHAR = (CObjCHAR*)pTarget->AI_FindFirstOBJ(SKILL_SCOPE_RADIUS(Get_ActiveSKILL()));
         while (pFindCHAR) {
             if (this->Skill_IsPassFilter(pFindCHAR, Get_ActiveSKILL())) {
                 // btResult = pFindCHAR->Skill_IncAbilityValue( Get_ActiveSKILL() );

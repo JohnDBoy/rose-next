@@ -79,6 +79,13 @@ enum enumSKILL_TAGER_FILTER {
 
 #define SKILL_CLASS_FILTER(I) g_SkillList.m_SkillDATA.get_int32(I, 7)
 #define SKILL_SCOPE(S) g_SkillList.m_SkillDATA.get_int32(S, 8) /// 적용범위
+// Frontal areas (2026-10-18): a SKILL_SCOPE of 10000 or more packs a rectangle in front of
+// the caster, Jrose's convention: length * 10000 + width, in cm (40002500 = 40 x 25 m). Every
+// scope below 10000 -- all of them before -- is a plain radius: SKILL_SCOPE_RADIUS returns it
+// unchanged. Read scope through these wherever it is used as a distance.
+#define SKILL_SCOPE_FRONTAL(S) (SKILL_SCOPE(S) >= 10000)
+#define SKILL_SCOPE_RADIUS(S) (SKILL_SCOPE_FRONTAL(S) ? SKILL_SCOPE(S) / 10000 : SKILL_SCOPE(S))
+#define SKILL_SCOPE_WIDTH(S) (SKILL_SCOPE_FRONTAL(S) ? SKILL_SCOPE(S) % 10000 : 0)
 #define SKILL_POWER(S) g_SkillList.m_SkillDATA.get_int32(S, 9)
 #define SKILL_ITEM_MAKE_NUM SKILL_POWER /// 제조번호
 #define SKILL_HARM(I) g_SkillList.m_SkillDATA.get_int32(I, 10)

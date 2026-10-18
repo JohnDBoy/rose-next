@@ -8,7 +8,8 @@ reads the header and edits the trailer.
 Trailer (``EZMO`` / ``3ZMO``): ``... body ... | u16 n | n x i16 event-per-frame
 | [3ZMO: i32 interpolation interval] | u32 trailer_offset | "EZMO"``.
 ``truncated`` cuts a clip to its first N frames (frame records, events and the
-header count together) -- for an imported clip with a dead tail. The events are what makes a clip *do*
+header count together) -- for an imported clip with a dead tail; ``sliced`` takes any
+frame range, e.g. to split a shot at its firing frame. The events are what makes a clip *do*
 something: a normal attack lands at frame 21 (melee) or fires at 22/23
 (bow/gun); a skill release launches at 24/34 (or 26/25). **A bare-handed
 monster on a 22/23 clip has nothing to fire** and used to deal damage with no
@@ -96,11 +97,20 @@ def truncated(blob, frames):
     """The clip cut to its first ``frames`` frames: frame count, frame records and the
     event trailer (one event per frame) all shortened, the trailer offset re-pointed.
     Refuses a clip with anything between its frame records and its trailer."""
+    return sliced(blob, 0, frames)
+
+
+def sliced(blob, start, end):
+    """The clip's frames ``start`` .. ``end - 1`` as a clip of its own, events moved with
+    their frames -- e.g. a shot split into its wind-up (0 .. fire) and its release (fire ..
+    total), so a skill's action motion can begin on the firing frame. ``sliced(b, 0, n)``
+    is ``truncated``; identity on every avatar clip we ship."""
     b = read_file(blob)
-    start, stride, (fps, total, chans) = frame_layout(b)
-    if not 1 <= frames <= total:
-        raise ValueError("cannot cut a %d-frame clip to %d" % (total, frames))
-    body_end = start + stride * total
+    first, stride, (fps, total, chans) = frame_layout(b)
+    if not 0 <= start < end <= total:
+        raise ValueError("cannot take frames %d..%d of a %d-frame clip" % (start, end, total))
+    frames = end - start
+    body_end = first + stride * total
     base, ev = events(b)
     if base is None:
         if len(b) != body_end:
@@ -116,13 +126,13 @@ def truncated(blob, frames):
         # read by CMotion::Load for extended version 3 -- so whatever sits between
         # the events and the offset field travels with them.
         extra = b[base + 2 * total:len(b) - 8]
-        new_body_end = start + stride * frames
-        tail = (struct.pack("<H", frames) + struct.pack("<%dh" % frames, *ev[:frames])
+        new_body_end = first + stride * frames
+        tail = (struct.pack("<H", frames) + struct.pack("<%dh" % frames, *ev[start:end])
                 + extra + struct.pack("<I", new_body_end) + tag)
     _, o = read_cstr(b, 0)
-    head = bytearray(b[:start])
+    head = bytearray(b[:first])
     struct.pack_into("<I", head, o + 4, frames)
-    return bytes(head) + b[start:start + stride * frames] + tail
+    return bytes(head) + b[first + stride * start:first + stride * end] + tail
 
 
 def with_events(blob, changes):

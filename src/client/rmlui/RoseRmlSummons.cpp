@@ -58,7 +58,7 @@ Metres(int iUnits) {
 Rml::String
 DescribeKind(int iSkill) {
     const int iDist = Metres(SKILL_DISTANCE(iSkill));
-    const int iScope = Metres(SKILL_SCOPE(iSkill));
+    const int iScope = Metres(SKILL_SCOPE_RADIUS(iSkill));
     const bool bHarm = SKILL_HARM(iSkill) != 0;
 
     switch (SKILL_TYPE(iSkill)) {

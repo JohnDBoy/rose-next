@@ -23,8 +23,9 @@ Things that matter when editing one:
 * Rotations are stored as yaw/pitch/roll degrees in the first three floats, not
   a quaternion, despite the four slots.
 
-``read`` returns the mesh render flags with their byte offset, and ``with_mesh_flags``
-rewrites them in place, so an edit never re-serialises the file.
+``read`` keeps every field, ``build`` writes it back byte for byte (604 of the 605 shipped
+effects; ``rainbow01.eft`` is truncated), and ``with_mesh_flags`` patches the render flags
+in place. A new effect is a ``read``-shaped dict -- see ``build``.
 """
 import struct
 
@@ -64,42 +65,82 @@ def _read(b):
     name, o = _str(b, 0)
     (use_sound,), o = _ints(b, o, 1)
     sound, o = _str(b, o)
-    (_loops, count), o = _ints(b, o, 2)
+    (sound_loops, count), o = _ints(b, o, 2)
     particles = []
     for _ in range(count):
-        _, o = _str(b, o)
-        _, o = _str(b, o)
-        o += 4
-        ptl, o = _str(b, o)
-        (use_ani,), o = _ints(b, o, 1)
-        ani, o = _str(b, o)
-        o += 8
-        pos = struct.unpack_from("<3f", b, o)
+        q = {}
+        q["label"], o = _str(b, o)
+        q["unique"], o = _str(b, o)
+        (q["stb_index"],), o = _ints(b, o, 1)
+        q["ptl"], o = _str(b, o)
+        (q["use_ani"],), o = _ints(b, o, 1)
+        q["ani_name"], o = _str(b, o)
+        (q["ani_loops"], q["ani_stb_index"]), o = _ints(b, o, 2)
+        q["pos"] = struct.unpack_from("<3f", b, o)
+        q["rot"] = struct.unpack_from("<4f", b, o + 12)
         o += 28
-        (delay, _link), o = _ints(b, o, 2)
-        particles.append(dict(ptl=ptl, ani=ani if use_ani else "", pos=pos, delay=delay))
+        (q["delay"], q["link"]), o = _ints(b, o, 2)
+        q["ani"] = q["ani_name"] if q["use_ani"] else ""
+        particles.append(q)
     (count,), o = _ints(b, o, 1)
     meshes = []
     for _ in range(count):
-        _, o = _str(b, o)
-        _, o = _str(b, o)
-        o += 4
-        zms, o = _str(b, o)
-        zmo, o = _str(b, o)
-        texture, o = _str(b, o)
-        flags_offset = o
+        m = {}
+        m["label"], o = _str(b, o)
+        m["unique"], o = _str(b, o)
+        (m["stb_index"],), o = _ints(b, o, 1)
+        m["zms"], o = _str(b, o)
+        m["zmo"], o = _str(b, o)
+        m["texture"], o = _str(b, o)
+        m["flags_offset"] = o
         flags, o = _ints(b, o, len(MESH_FLAGS))
-        (use_ani,), o = _ints(b, o, 1)
-        ani, o = _str(b, o)
-        o += 8
-        pos = struct.unpack_from("<3f", b, o)
+        m["flags"] = dict(zip(MESH_FLAGS, flags))
+        (m["use_ani"],), o = _ints(b, o, 1)
+        m["ani_name"], o = _str(b, o)
+        (m["ani_loops"], m["ani_stb_index"]), o = _ints(b, o, 2)
+        m["pos"] = struct.unpack_from("<3f", b, o)
+        m["rot"] = struct.unpack_from("<4f", b, o + 12)
         o += 28
-        (delay, repeat, _link), o = _ints(b, o, 3)
-        meshes.append(dict(zms=zms, zmo=zmo, texture=texture, ani=ani if use_ani else "",
-                           flags=dict(zip(MESH_FLAGS, flags)), flags_offset=flags_offset,
-                           pos=pos, delay=delay, repeat=repeat))
-    return dict(name=name, sound=sound if use_sound else "", particles=particles, meshes=meshes,
-                trailing=len(b) - o)
+        (m["delay"], m["repeat"], m["link"]), o = _ints(b, o, 3)
+        m["ani"] = m["ani_name"] if m["use_ani"] else ""
+        meshes.append(m)
+    return dict(name=name, use_sound=use_sound, sound_name=sound,
+                sound=sound if use_sound else "", sound_loops=sound_loops,
+                particles=particles, meshes=meshes, trailing=len(b) - o, tail=b[o:])
+
+
+def _wstr(s):
+    raw = s.encode("latin-1") if isinstance(s, str) else s
+    return struct.pack("<i", len(raw)) + raw
+
+
+def build(e):
+    """The bytes of an effect in ``read``'s shape -- byte-identical for one that came from
+    ``read`` (604 of the 605 shipped effects; ``rosefmt-roundtrip``-style check in
+    ``scripts/CLAUDE.md``). A new effect needs, per particle: ``ptl``, ``pos`` (cm, the
+    parent's axes -- a character's front is -Y), ``delay`` (ms); everything else defaults."""
+    out = [_wstr(e.get("name", "")), struct.pack("<i", e.get("use_sound", 0)),
+           _wstr(e.get("sound_name", e.get("sound", ""))), struct.pack("<i", e.get("sound_loops", 0)),
+           struct.pack("<i", len(e["particles"]))]
+    for q in e["particles"]:
+        out += [_wstr(q.get("label", "")), _wstr(q.get("unique", "")),
+                struct.pack("<i", q.get("stb_index", 0)), _wstr(q["ptl"]),
+                struct.pack("<i", q.get("use_ani", 0)), _wstr(q.get("ani_name", "NULL")),
+                struct.pack("<2i", q.get("ani_loops", 0), q.get("ani_stb_index", 0)),
+                struct.pack("<3f", *q["pos"]), struct.pack("<4f", *q.get("rot", (0.0, 0.0, 0.0, -1.0))),
+                struct.pack("<2i", q.get("delay", 0), q.get("link", 1))]
+    out.append(struct.pack("<i", len(e.get("meshes", []))))
+    for m in e.get("meshes", []):
+        out += [_wstr(m.get("label", "")), _wstr(m.get("unique", "")),
+                struct.pack("<i", m.get("stb_index", 0)), _wstr(m["zms"]), _wstr(m["zmo"]),
+                _wstr(m["texture"]),
+                struct.pack("<%di" % len(MESH_FLAGS), *[m["flags"][k] for k in MESH_FLAGS]),
+                struct.pack("<i", m.get("use_ani", 0)), _wstr(m.get("ani_name", "NULL")),
+                struct.pack("<2i", m.get("ani_loops", 0), m.get("ani_stb_index", 0)),
+                struct.pack("<3f", *m["pos"]), struct.pack("<4f", *m.get("rot", (0.0, 0.0, 0.0, -1.0))),
+                struct.pack("<3i", m.get("delay", 0), m.get("repeat", 1), m.get("link", 1))]
+    out.append(e.get("tail", b""))
+    return b"".join(out)
 
 
 def with_mesh_flags(blob, index, **changes):

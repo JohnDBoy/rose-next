@@ -628,10 +628,18 @@ CIconSkill::AddSkillDistanceScope(int iSkillNo, CInfo& ToolTip, bool bAddScope) 
     ///거리가 0일경우는 표시하지 않는다.
     char* pszBuf;
     int iDistance = SKILL_DISTANCE(iSkillNo) / 100;
-    int iScope = SKILL_SCOPE(iSkillNo) / 100;
+    int iScope = SKILL_SCOPE_RADIUS(iSkillNo) / 100;
 
     if (bAddScope) {
-        if (iDistance && iScope) {
+        if (SKILL_SCOPE_FRONTAL(iSkillNo)) {
+            // a frontal area (io_skill.h): length x width in front of the caster
+            pszBuf = iDistance ? CStr::Printf("%s: %d m    %s: %d x %d m", STR_SHOOT_RANGE,
+                                     iDistance, STR_APPLY_RANGE, iScope,
+                                     SKILL_SCOPE_WIDTH(iSkillNo) / 100)
+                               : CStr::Printf("%s: %d x %d m", STR_APPLY_RANGE, iScope,
+                                     SKILL_SCOPE_WIDTH(iSkillNo) / 100);
+            ToolTip.AddString(pszBuf);
+        } else if (iDistance && iScope) {
             pszBuf = CStr::Printf("%s: %d m    %s: %d m",
                 STR_SHOOT_RANGE,
                 iDistance,
@@ -654,7 +662,11 @@ CIconSkill::AddSkillDistanceScope(int iSkillNo, CInfo& ToolTip, bool bAddScope) 
 }
 void
 CIconSkill::AddSkillScope(int iSkillNo, CInfo& ToolTip) {
-    if (SKILL_SCOPE(iSkillNo)) {
+    if (SKILL_SCOPE_FRONTAL(iSkillNo)) {
+        char* pszBuf = CStr::Printf("%s: %d x %d m", STR_APPLY_RANGE,
+            SKILL_SCOPE_RADIUS(iSkillNo) / 100, SKILL_SCOPE_WIDTH(iSkillNo) / 100);
+        ToolTip.AddString(pszBuf);
+    } else if (SKILL_SCOPE(iSkillNo)) {
         char* pszBuf = CStr::Printf("%s: %d m", STR_APPLY_RANGE, SKILL_SCOPE(iSkillNo) / 100);
         ToolTip.AddString(pszBuf);
     }

@@ -37,6 +37,7 @@ Jrose also has, one Muse buff).
 | Skill | From | Animation | Effects | Notes |
 |---|---|---|---|---|
 | ~~Photon Wave~~ | Jrose 4271 | | | **Done** as Photon Cannon. Note for the two below: the cannon clips are **already ours** now, and a type-3 version needs the shot clip's fire event (26), which our copy has |
+| Photon Wave as a strip | Jrose 4271 | ours (the cannon set) | ours | Jrose's original Photon Cannon is a frontal 30 x 20 m wave (`30002000`); the frontal area and the wave effect now exist, so the Artisan could get it someday |
 | Frost Edge Shot | Jrose 6161 (Artisan, gun, lv 210) | new (the same cannon set) | 4 new files (ice bullet) | Defense Down + slow on the enemies around the target |
 | Sleeping Phantom | Jrose 6171 (Artisan, launcher, lv 210) | new (cannon set) | 11 new files (Sandman smoke) | Sleep + Defense Down |
 | Daze Attack | 668 2680 | ours (Gun Smash's) | ours | Could take our unused `skill_Uppercut_01` instead: a rifle-butt uppercut |
@@ -48,7 +49,7 @@ Jrose also has, one Muse buff).
 
 | Skill | From | Animation | Effects | Notes |
 |---|---|---|---|---|
-| ~~Exceed Break~~ | Jrose 6151 | | | **Done** (`import-exceed-break.py`), as a type-3 shot with Fire Burn's fireball. **Not what Jrose built, and kept that way (user, 2026-10-18):** Jrose's LIST_EFFECT 330 is *named* Exceed Break -- `dragon_firing_hit02`, a blast that a type-7 skill plays at the target spot (its test rows 6211-6213), not a projectile; 6151's scope `40002500` is a packed ~40 x 25 m frontal rectangle our engine cannot do. A type-7 blast test (6 m on the spot, Jrose's untouched m03 with area event 24 -- our shared copy carries Photon Cannon's 26) looked no better in game. Revisit only with a frontal-area shape ("fancy stuff later") |
+| ~~Exceed Break~~ | Jrose 6151 | | | **Done**, v2 (2026-10-18): Jrose's frontal barrage -- type 7 over a frontal strip (packed scope, now read by our server), a rolling-wave effect of our own, and Jrose's shot split at its firing frame (`import-exceed-break.py`). v1 was a type-3 fireball shot; a blast-on-the-spot test (Jrose's LIST_EFFECT 330, *named* Exceed Break) looked no better |
 
 ## Champion
 
