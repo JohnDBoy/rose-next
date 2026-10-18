@@ -269,7 +269,7 @@ namespace Map_Editor
             {
                 DateTime loadStart = DateTime.Now;
 
-                string mapName = FileManager.STLs["LIST_ZONE_S"].Search(FileManager.STBs["LIST_ZONE"].Cells[MapManager.ID][27]);
+                string mapName = FileManager.STLs["LIST_ZONE_S"].Search(ZoneColumns.Cell(FileManager.STBs["LIST_ZONE"], MapManager.ID, ZoneColumns.NameKey));
 
                 Output.WriteLine(Output.MessageType.Event, string.Format("Saving Map {0}", mapName));
 

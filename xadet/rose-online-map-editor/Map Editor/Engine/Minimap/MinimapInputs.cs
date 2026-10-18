@@ -93,13 +93,13 @@ namespace Map_Editor.Engine.Minimap
                 if (gate == null || gate.Entry == null)
                     continue;
 
-                // editor cells are game column + 1: WARP col 1 = destination, LIST_ZONE col 26 = name key, col 0 = name
+                // editor cells are game column + 1: WARP col 1 = destination, LIST_ZONE name key = ZoneColumns.NameKey, col 0 = name
                 string name = null;
                 int id = gate.Entry.WarpID, dest;
                 if (warp != null && id >= 0 && id < warp.Cells.Count && warp.Cells[id].Count > 2
                     && int.TryParse(warp.Cells[id][2].Trim(), out dest) && dest >= 0 && dest < zones.Cells.Count)
                 {
-                    string key = zones.Cells[dest].Count > 27 ? zones.Cells[dest][27].Trim() : "";
+                    string key = ZoneColumns.Cell(zones, dest, ZoneColumns.NameKey).Trim();
                     name = key.Length > 0 ? FileManager.STLs["LIST_ZONE_S"].Search(key) : null;
                     if (string.IsNullOrEmpty(name) || name == key)
                         name = zones.Cells[dest][1].Trim();

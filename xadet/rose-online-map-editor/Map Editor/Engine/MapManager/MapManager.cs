@@ -227,7 +227,7 @@ namespace Map_Editor.Engine
 
             string mapFolder = Path.GetDirectoryName(FileManager.STBs["LIST_ZONE"].Cells[mapID][2]);
 
-            App.Form.Title = string.Format("Map Editor - {0}", Name = FileManager.STLs["LIST_ZONE_S"].Search(FileManager.STBs["LIST_ZONE"].Cells[mapID][27]));
+            App.Form.Title = string.Format("Map Editor - {0}", Name = FileManager.STLs["LIST_ZONE_S"].Search(ZoneColumns.Cell(FileManager.STBs["LIST_ZONE"], mapID, ZoneColumns.NameKey)));
 
             Output.WriteLine(Output.MessageType.Normal, "--------------------------");
             Output.WriteLine(Output.MessageType.Event, string.Format("Loading Map {0}", Name));
@@ -337,9 +337,9 @@ namespace Map_Editor.Engine
                 Output.WriteLine(Output.MessageType.Normal, "- Loading Map Objects");
 
                 loadStep = "Loading Decoration ZSC";
-                FileManager.Add("Decoration", FileManager.STBs["LIST_ZONE"].Cells[mapID][12], FileManager.FileType.ZSC);
+                FileManager.Add("Decoration", FileManager.STBs["LIST_ZONE"].Cells[mapID][ZoneColumns.Decoration], FileManager.FileType.ZSC);
                 loadStep = "Loading Construction ZSC";
-                FileManager.Add("Construction", FileManager.STBs["LIST_ZONE"].Cells[mapID][13], FileManager.FileType.ZSC);
+                FileManager.Add("Construction", FileManager.STBs["LIST_ZONE"].Cells[mapID][ZoneColumns.Construction], FileManager.FileType.ZSC);
 
                 for(int i = 0; i < FileManager.IFOs.Count; i++)
                 {
@@ -670,11 +670,11 @@ namespace Map_Editor.Engine
                 return false;
 
             // Missing Decoration ZSC
-            if (FileManager.STBs["LIST_ZONE"].Cells[id][12].Trim().Length == 0)
+            if (ZoneColumns.Cell(FileManager.STBs["LIST_ZONE"], id, ZoneColumns.Decoration).Trim().Length == 0)
                 return false;
 
             // Missing Construction ZSC
-            if (FileManager.STBs["LIST_ZONE"].Cells[id][13].Trim().Length == 0)
+            if (ZoneColumns.Cell(FileManager.STBs["LIST_ZONE"], id, ZoneColumns.Construction).Trim().Length == 0)
                 return false;
 
             return true;

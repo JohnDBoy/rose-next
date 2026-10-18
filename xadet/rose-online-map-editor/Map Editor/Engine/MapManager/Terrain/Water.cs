@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Map_Editor.Engine.Map;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -111,8 +112,40 @@ namespace Map_Editor.Engine.Terrain
 
             waterTextures = new Texture2D[24];
 
+            // A missing frame repeats the previous one (the 668 dump has frame 1 only); with
+            // no frame at all the water is drawn in a flat blue.
+            int missingFrames = 0;
+
             for (int i = 0; i < 24; i++)
-                waterTextures[i] = GameData.LoadTexture(game.GraphicsDevice, string.Format(@"3Ddata\JUNON\WATER\OCEAN01_{0:00}.DDS", i + 1));
+            {
+                string framePath = string.Format(@"3Ddata\JUNON\WATER\OCEAN01_{0:00}.DDS", i + 1);
+
+                if (GameData.Exists(framePath))
+                    waterTextures[i] = GameData.LoadTexture(game.GraphicsDevice, framePath);
+                else
+                    missingFrames++;
+            }
+
+            if (missingFrames > 0)
+            {
+                Output.WriteLine(Output.MessageType.Normal, string.Format("Water: {0} of 24 frames of 3Ddata\\JUNON\\WATER\\OCEAN01_xx.DDS missing; repeating the frames found", missingFrames));
+
+                Texture2D fallback = Array.Find(waterTextures, delegate(Texture2D t) { return t != null; });
+
+                if (fallback == null)
+                {
+                    fallback = new Texture2D(game.GraphicsDevice, 1, 1, 1, TextureUsage.None, SurfaceFormat.Color);
+                    fallback.SetData(new Color[] { new Color(40, 90, 140) });
+                }
+
+                for (int i = 0; i < 24; i++)
+                {
+                    if (waterTextures[i] == null)
+                        waterTextures[i] = fallback;
+                    else
+                        fallback = waterTextures[i];
+                }
+            }
 
             currentTexture = 0;
 

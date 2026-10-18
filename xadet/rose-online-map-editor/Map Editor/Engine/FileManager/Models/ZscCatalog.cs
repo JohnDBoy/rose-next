@@ -15,10 +15,6 @@ namespace Map_Editor.Engine.Models
     /// </summary>
     public static class ZscCatalog
     {
-        public const int LIST_ZONE_DECORATION = 12;
-        public const int LIST_ZONE_CONSTRUCTION = 13;
-        public const int LIST_ZONE_NAME = 27;
-
         public class Table
         {
             public string Key;          // normalized path, the identity
@@ -92,14 +88,14 @@ namespace Map_Editor.Engine.Models
                 {
                     for (int row = 0; row < listZone.Cells.Count; row++)
                     {
-                        if (listZone.Cells[row].Count <= LIST_ZONE_NAME)
+                        if (listZone.Cells[row].Count <= ZoneColumns.NameKey)
                             continue;
 
                         string zoneName = null;
                         try
                         {
                             if (names != null)
-                                zoneName = names.Search(listZone.Cells[row][LIST_ZONE_NAME]);
+                                zoneName = names.Search(listZone.Cells[row][ZoneColumns.NameKey]);
                         }
                         catch
                         {
@@ -107,8 +103,8 @@ namespace Map_Editor.Engine.Models
                         if (string.IsNullOrEmpty(zoneName))
                             zoneName = "zone " + row;
 
-                        AddTable(byKey, listZone.Cells[row][LIST_ZONE_DECORATION], "Decoration", zoneName);
-                        AddTable(byKey, listZone.Cells[row][LIST_ZONE_CONSTRUCTION], "Construction", zoneName);
+                        AddTable(byKey, listZone.Cells[row][ZoneColumns.Decoration], "Decoration", zoneName);
+                        AddTable(byKey, listZone.Cells[row][ZoneColumns.Construction], "Construction", zoneName);
                     }
                 }
 

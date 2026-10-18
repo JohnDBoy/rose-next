@@ -301,6 +301,7 @@
     <Compile Include="Engine\FileManager\FileManager.cs" />
     <Compile Include="Engine\FileManager\GameData.cs" />
     <Compile Include="Engine\FileManager\VfsArchive.cs" />
+    <Compile Include="Engine\FileManager\ZoneColumns.cs" />
     <Compile Include="Engine\FileManager\Map\HIM.cs" />
     <Compile Include="Engine\FileManager\Map\IFO.cs" />
     <Compile Include="Engine\FileManager\Map\LIT.cs" />

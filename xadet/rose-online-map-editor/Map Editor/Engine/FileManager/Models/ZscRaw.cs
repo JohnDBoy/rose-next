@@ -23,6 +23,11 @@ namespace Map_Editor.Engine.Models
     /// after the part count. A part is (u16 mesh, u16 material, props); a dummy
     /// is (u16 effect, u16 type, props); props are (u8 tag, u8 len, bytes)*
     /// ended by a zero tag.
+    ///
+    /// Bytes after the last object are kept in <see cref="Trailing"/> and written
+    /// back after the objects. The game reads the declared object count and stops
+    /// there; Rednim (668) tables end with an extra block starting "A2C", and
+    /// third-party editors leave junk.
     /// </summary>
     public class ZscRaw
     {
@@ -76,6 +81,7 @@ namespace Map_Editor.Engine.Models
         public List<Material> Materials = new List<Material>();
         public List<byte[]> Effects = new List<byte[]>();
         public List<Entry> Objects = new List<Entry>();
+        public byte[] Trailing = new byte[0];
 
         public ZscRaw()
         {
@@ -142,8 +148,10 @@ namespace Map_Editor.Engine.Models
                 Objects.Add(e);
             }
 
-            if (o != data.Length)
-                throw new InvalidDataException(string.Format("ZSC has {0} trailing bytes after the last object", data.Length - o));
+            if (o > data.Length)
+                throw new InvalidDataException("ZSC ends inside its last object");
+
+            Trailing = Slice(data, ref o, data.Length - o);
         }
 
         public byte[] ToBytes()
@@ -195,6 +203,8 @@ namespace Map_Editor.Engine.Models
                 }
                 w.Write(e.BoundingBox);
             }
+
+            w.Write(Trailing);
 
             w.Flush();
             return ms.ToArray();

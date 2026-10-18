@@ -273,6 +273,11 @@ namespace Map_Editor.Engine.RenderManager
         private List<Object> objectList { get; set; }
 
         /// <summary>
+        /// Meshes that failed to parse, by path, so they are reported and tried once.
+        /// </summary>
+        private static Dictionary<string, bool> unreadableModels = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
         /// Gets or sets the batch objects.
         /// </summary>
         /// <value>The batch objects.</value>
@@ -344,7 +349,24 @@ namespace Map_Editor.Engine.RenderManager
                     return i;
             }
 
-            ZMS newModel = new ZMS(modelPath);
+            if (unreadableModels.ContainsKey(modelPath))
+                return -1;
+
+            ZMS newModel;
+
+            // One mesh the reader cannot parse skips its object instead of failing the
+            // whole map load (a Luna Clan Field mesh in the 668 dump did). Logged once.
+            try
+            {
+                newModel = new ZMS(modelPath);
+            }
+            catch (Exception ex)
+            {
+                unreadableModels[modelPath] = true;
+                Output.WriteLine(Output.MessageType.Error, string.Format("Cannot read mesh {0} ({1}: {2}); objects using it are skipped", modelPath, ex.GetType().Name, ex.Message));
+
+                return -1;
+            }
 
             if (newModel.VertexCount == 0)
                 return -1;

@@ -389,6 +389,48 @@ Clear-Content '..\..\data\Map Editor.log'
 
 ## Compatibility Fixes Already Made
 
+- **Rednim (668) data opens directly (2026-10-18).** Copy the editor into
+  `Testclients\668\Extracted` and run it there; nothing to switch on. Four
+  differences, each detected from the data:
+  - **LIST_ZONE gained a column.** "WorldMap Visible" sits at game column 11, so
+    every column from the object table on moved one right (decoration 12 -> 13,
+    construction 13 -> 14, planet 20 -> 21, name key 27 -> 28, editor columns).
+    `ZoneColumns.Detect` (`Engine/FileManager/ZoneColumns.cs`, run right after
+    LIST_ZONE loads) checks which columns hold the `.ZSC` paths and logs
+    `LIST_ZONE has the Rednim (668) layout`. Every LIST_ZONE read past game column
+    10 must go through `ZoneColumns`; a hard-coded index shows the area size
+    ("12000") as the map name and loads no objects. New Map refuses on that
+    layout (it writes a classic row).
+  - **STLs live in `LANGUAGE\`**, not `3DDATA\STB\`: `FileManager.AddStl` falls back.
+    Block 1 is English, which is what `STL.Search` reads.
+  - **20 ZSCs end with an extra block** (starts `A2C`; PART_NPC, most Junon and
+    Eldeon tables, Orlo). The game reads the declared object count and stops, so
+    `ZscRaw` keeps the bytes in `Trailing` and writes them back after the objects;
+    it used to refuse the table, which left PART_NPC empty.
+  - **The dump has 1 of the 24 ocean frames.** `Water` repeats the frames it finds
+    (a flat blue if none); a missing frame used to throw out of
+    `MapManager.Initialize`, leaving `Water`/`Animation` null, and every map load
+    then died with a NullReferenceException.
+  Still missing, harmlessly: `ZONETYPEINFO.STB` (the tile brush palette is empty;
+  the terrain draws from the ZON). IFO and ZON lump types match ours, so Save
+  works, but it writes into the dump folder. A mesh `ZMS.Load` cannot parse is
+  now logged once (`Cannot read mesh ...`) and its objects skipped
+  (`ObjectManager`): one on Luna Clan Field (zone 59) used to abort the whole map
+  load with an `OverflowException`. Checked with `--shots` on 70 of the 81 668
+  zones, and the user opened all of them by hand (2026-10-18).
+  **Patchy object lighting on Zatana is the data**, not the editor: 375 of its
+  2,569 decoration parts (13 on Orlo Clan Field, 0 on our maps) have no LIT
+  entry -- e.g. the ORGATE gate in 37_31 has 5 of 8 parts -- so they draw at
+  full texture brightness beside lightmapped neighbours, as the client would
+  (ambient .86 + sun). Colosseum lacks a quarter of its atlases. Non-power-of-two
+  atlases (384/320/192/448 px) load at their real size and are fine.
+- **Back-to-back `--shots` runs freeze at "Loading Heightmaps" (known, not fixed).**
+  `Heightmap.Load` creates a throwaway `GraphicsDevice` per HIM block on the load
+  thread (to resize its lightmap), and that creation hung 3 times in ~75 runs
+  launched seconds apart, twice right after the previous instance was killed. Don't
+  batch zones in quick succession; space the runs out, or share one helper device
+  per map load first.
+
 - **NPCs and monsters are drawn in their stand pose (2026-10-06).** The editor used to
   draw a skinned character mesh's raw vertices, i.e. the bind pose the artist skinned
   it in: most characters stood in a T/A-pose, and rigs whose bind pose is far from

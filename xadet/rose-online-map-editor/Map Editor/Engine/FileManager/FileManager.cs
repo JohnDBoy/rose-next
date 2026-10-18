@@ -143,6 +143,7 @@ namespace Map_Editor.Engine
 
             Output.WriteLine(Output.MessageType.Normal, "- Loading 3DDATA\\STB\\LIST_ZONE.STB [Key: LIST_ZONE]");
             Add("LIST_ZONE", "3DDATA\\STB\\LIST_ZONE.STB", FileType.STB);
+            ZoneColumns.Detect(STBs["LIST_ZONE"]);
 
             Output.WriteLine(Output.MessageType.Normal, "- Loading 3DDATA\\STB\\LIST_SKY.STB [Key: LIST_SKY]");
             Add("LIST_SKY", "3DDATA\\STB\\LIST_SKY.STB", FileType.STB);
@@ -161,14 +162,9 @@ namespace Map_Editor.Engine
 
             Output.WriteLine(Output.MessageType.Event, "Loading STLs");
 
-            Output.WriteLine(Output.MessageType.Normal, "- Loading 3DDATA\\STB\\LIST_ZONE_S.STL [Key: LIST_ZONE_S]");
-            Add("LIST_ZONE_S", "3DDATA\\STB\\LIST_ZONE_S.STL", FileType.STL);
-
-            Output.WriteLine(Output.MessageType.Normal, "- Loading 3DDATA\\STB\\LIST_NPC_S.STL [Key: LIST_NPC_S]");
-            Add("LIST_NPC_S", "3DDATA\\STB\\LIST_NPC_S.STL", FileType.STL);
-
-            Output.WriteLine(Output.MessageType.Normal, "- Loading 3DDATA\\STB\\STR_PLANET.STL [Key: STR_PLANET]");
-            Add("STR_PLANET", "3DDATA\\STB\\STR_PLANET.STL", FileType.STL);
+            AddStl("LIST_ZONE_S");
+            AddStl("LIST_NPC_S");
+            AddStl("STR_PLANET");
 
             Output.WriteLine(Output.MessageType.Event, "Loading ZSCs");
 
@@ -185,6 +181,23 @@ namespace Map_Editor.Engine
 
             Output.WriteLine(Output.MessageType.Normal, "- Loading 3DDATA\\NPC\\LIST_NPC.CHR [Key: LIST_NPC]");
             Add("LIST_NPC", "3DDATA\\NPC\\LIST_NPC.CHR", FileType.CHR);
+        }
+
+        /// <summary>
+        /// Loads a string table from 3DDATA\STB, or from LANGUAGE where newer clients
+        /// keep them (Rednim's 668 dump has no STL under 3DDATA\STB).
+        /// </summary>
+        /// <param name="key">The table name, which is also its key.</param>
+        private static void AddStl(string key)
+        {
+            string filePath = string.Format("3DDATA\\STB\\{0}.STL", key);
+            string languagePath = string.Format("LANGUAGE\\{0}.STL", key);
+
+            if (!GameData.Exists(filePath) && GameData.Exists(languagePath))
+                filePath = languagePath;
+
+            Output.WriteLine(Output.MessageType.Normal, string.Format("- Loading {0} [Key: {1}]", filePath, key));
+            Add(key, filePath, FileType.STL);
         }
 
         /// <summary>

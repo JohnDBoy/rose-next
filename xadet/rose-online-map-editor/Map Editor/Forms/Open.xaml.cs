@@ -48,7 +48,7 @@ namespace Map_Editor.Forms
                 DataRow dataRow = dataTable.NewRow();
 
                 dataRow[0] = i;
-                dataRow[1] = FileManager.STLs["LIST_ZONE_S"].Search(FileManager.STBs["LIST_ZONE"].Cells[i][27]);
+                dataRow[1] = FileManager.STLs["LIST_ZONE_S"].Search(ZoneColumns.Cell(FileManager.STBs["LIST_ZONE"], i, ZoneColumns.NameKey));
 
                 dataTable.Rows.Add(dataRow);
             }
@@ -311,10 +311,10 @@ namespace Map_Editor.Forms
                 IsBackground = true
             }.Start();
 
-            Planet.Text = FileManager.STLs["STR_PLANET"].Search(FileManager.STBs["LIST_ZONE"].Cells[selectedMapID][20]);
+            Planet.Text = FileManager.STLs["STR_PLANET"].Search(ZoneColumns.Cell(FileManager.STBs["LIST_ZONE"], selectedMapID, ZoneColumns.Planet));
             ZONFile.Text = FileManager.STBs["LIST_ZONE"].Cells[selectedMapID][2];
-            DecorationZSC.Text = FileManager.STBs["LIST_ZONE"].Cells[selectedMapID][12];
-            ConstructionZSC.Text = FileManager.STBs["LIST_ZONE"].Cells[selectedMapID][13];
+            DecorationZSC.Text = ZoneColumns.Cell(FileManager.STBs["LIST_ZONE"], selectedMapID, ZoneColumns.Decoration);
+            ConstructionZSC.Text = ZoneColumns.Cell(FileManager.STBs["LIST_ZONE"], selectedMapID, ZoneColumns.Construction);
         }
     }
 }

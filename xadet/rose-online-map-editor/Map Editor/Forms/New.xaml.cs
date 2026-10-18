@@ -162,6 +162,14 @@ namespace Map_Editor.Forms
                 return;
             }
 
+            // The row below is written in the classic column layout.
+            if (ZoneColumns.IsRednim)
+            {
+                MessageBox.Show("This LIST_ZONE has the Rednim (668) layout, and new maps are written in the classic one. Create new maps in a classic data folder.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+
+                return;
+            }
+
             if (Name.Text.Length == 0)
             {
                 MessageBox.Show("You must enter a map name", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
