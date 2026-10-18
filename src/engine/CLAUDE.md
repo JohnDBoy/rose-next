@@ -165,6 +165,23 @@ drifting out of agreement, never bands and never a sharp onset; it is also
 self-limiting, since the mip level tracks screen size and a cell only falls under a
 texel once the part is a couple of pixels across.
 
+### Ground Overlay (Engine, 2026-10-18)
+
+`::setGroundOverlay(xyz_cm, argb, count)` hands the engine translucent triangles to lay on
+the terrain (the client's boss telegraphs). It **replaces** one buffer
+(`zz_scene_octree::ground_overlay`), so the client sends it every frame and an empty one
+when it has nothing; it never grows. `render_cull` draws it right after the terrain and
+before everything else (`draw_ground_overlay` ->
+`zz_renderer_d3d::draw_ground_triangles`): fixed function, vertex colours, z-tested, no
+z-write, so rocks hide it and characters stand over it. It is `DrawPrimitiveUP` from
+client memory, so nothing lives on the device and a reset has nothing to rebuild. Every
+raw render, texture-stage and transform state it changes is read back and restored, so
+the renderer's own flags (`state.use_alpha`, `use_fog`) stay true; only the shader
+setters go through the renderer, so its cache sees NULL. There is no decal system: the
+shape is geometry, sampled on the terrain by the client. Adding the buffer changed
+`zz_scene_octree`'s layout (a member of `zz_system`, which the client's dev UI includes):
+clean-rebuild `engine` and `client`, and ship `rosenext.exe` + `znzin.dll` together.
+
 ### Transparency Antialiasing (Engine, 2026-09-29)
 
 MSAA only smooths polygon edges; an alpha-tested cut-out (fences, leaves, railings)

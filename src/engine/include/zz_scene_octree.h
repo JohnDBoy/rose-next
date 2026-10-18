@@ -67,6 +67,11 @@ struct line_element{
 	vec3 vec2;
 };
 
+struct ground_overlay_vertex { // laid out as D3DFVF_XYZ | D3DFVF_DIFFUSE
+	vec3 pos;
+	unsigned long color; // D3DCOLOR, ARGB
+};
+
 struct obb2_element{
 	
 	vec3 center;
@@ -227,6 +232,15 @@ public:
 	void input_scene_axis(zz_visible *vis,float size);
 	void draw_scene_axis();
 	void reset_scene_axis();
+
+	// Ground overlay (2026-10-18): translucent coloured triangles laid on the terrain by
+	// the client -- the boss attack telegraphs (client groundtelegraph.cpp). One buffer,
+	// replaced whole by every set_ground_overlay() (the client sends it each frame, empty
+	// when there is nothing), so it never grows. Drawn by render_cull right after the
+	// terrain: z-tested, no z-write, so everything standing in it draws over it.
+	std::vector<ground_overlay_vertex> ground_overlay; // world, engine units
+	void set_ground_overlay(const float * xyz_cm, const unsigned long * colors, int vertex_count);
+	void draw_ground_overlay();
 
     bool fog_onoff_mode;
 

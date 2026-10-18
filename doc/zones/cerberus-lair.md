@@ -21,6 +21,11 @@ Things that will bite:
   cannot force a respawn). The lair's IFO has no spawn point; the C++ spawns the
   whelps, the Warden and the sleeper when a run starts (`RUN_SPAWNS`, `CRATER_X/Y`);
   between runs the lair is kept empty.
+- **Seal Burst draws its circle on the ground** while the Warden winds it up (2026-10-18,
+  awaiting the in-game test): `LIST_SKILL` col 83 = 1 (`SK_TELEGRAPH` in the importer),
+  drawn by the client (`src/client/groundtelegraph.h`). Any monster skill gets the same by
+  setting that cell. The importer's skill builders keep the `LMobSkill<row>` name keys
+  `name-monster-skills-players.py` gave them (col 86), so stage 2 no longer reverts them.
 - **The sleeper is on `TEAMNO_NPC` until the seal breaks.** `Is_ALLIED` makes team 1
   allied with everyone (same team, or a team product <= 100), so nothing can target
   it and its "enemies near" wake never fires -- a Hawk Shot reaches the crater from

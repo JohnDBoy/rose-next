@@ -316,6 +316,8 @@ SKILL_STB_REL = r"3DDATA\STB\LIST_SKILL.STB"
 SK_NAME, SK_LINE, SK_CAST_FX, SK_CAST_LOC, SK_HIT_FX, SK_HIT_LOC = 0, 1, 56, 57, 74, 75
 SK_RANGE, SK_RADIUS, SK_POWER, SK_STATUS, SK_SUCCESS, SK_DURATION = 6, 8, 9, 11, 13, 14
 SK_CAST_MOTION, SK_SKILL_MOTION, SK_FIRE_LOC = 52, 68, 72
+SK_TELEGRAPH = 83                   # 1: the client draws the area on the ground while
+                                    # it is cast (src/client/groundtelegraph.h)
 
 # ---- Hellfire Breath: two fireballs from the snout (2026-10-09, "make it feel like a boss")
 BREATH = 7022
@@ -368,7 +370,8 @@ SEAL_CELLS = {SK_RADIUS: 800, SK_POWER: 200,
               SK_CAST_MOTION: SEAL_MOTION, 53: 50, SK_SKILL_MOTION: SEAL_MOTION + 1,
               SK_CAST_FX: 1635, SK_CAST_LOC: 999,                # _lighting_casting_01
               62: 400, 63: 999, 64: 131,                         # shockwave_01 + 3598's sound
-              SK_HIT_FX: 1634, SK_HIT_LOC: 999, 76: 1572}        # _lighting_hit_01 + its sound
+              SK_HIT_FX: 1634, SK_HIT_LOC: 999, 76: 1572,        # _lighting_hit_01 + its sound
+              SK_TELEGRAPH: 1}                                   # the 8 m circle on the ground
 BREATH_REACH = 14                   # m
 WAKE_RANGE = 14                     # m
 BITE = LEAP                         # 5.5 m area hit with fire on it
@@ -988,13 +991,25 @@ def stage2_seal_clips(ours, dry):
               f"{f' (motions +{added})' if added else ''}")
 
 
+SK_STL_KEY = 86
+
+
+def named(sk, n, row):
+    """Keep the row's own name key: name-monster-skills-players.py gives a monster skill
+    its own LMobSkill<row> key in col 86, and a rebuild from the source row would put the
+    source's key (and name) back."""
+    if sk.rows > n and sk.d[n][SK_STL_KEY].startswith(b"LMobSkill"):
+        row[SK_STL_KEY] = sk.d[n][SK_STL_KEY]
+    return row
+
+
 def seal_row(sk):
     row = list(sk.d[SEAL_SRC])
     row[SK_NAME] = SEAL_NAME.encode()
     row[SK_LINE] = b(SEAL)
     for c, v in SEAL_CELLS.items():
         row[c] = b(v)
-    return row
+    return named(sk, SEAL, row)
 
 
 # The skeleton is the plain wolf's (WOLF3\RUNA_WOLF3_BONE.ZMD, byte-identical), and
@@ -1060,7 +1075,7 @@ def breath_row(sk):
     row[SK_LINE] = b(BREATH)
     for c, v in BREATH_CELLS.items():
         row[c] = b(v)
-    return row
+    return named(sk, BREATH, row)
 
 
 def leap_row(sk):
@@ -1071,7 +1086,7 @@ def leap_row(sk):
     row[SK_RADIUS] = b(LEAP_RADIUS)
     row[SK_CAST_FX], row[SK_CAST_LOC] = b(LEAP_CAST_FX), b"999"
     row[SK_HIT_FX], row[SK_HIT_LOC] = b(LEAP_HIT_FX), b"999"
-    return row
+    return named(sk, LEAP, row)
 
 
 def stage2_extras(ours, dry):

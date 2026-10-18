@@ -15,6 +15,7 @@
 #include "..\Network\CNetwork.h"
 #include "../GameCommon/Skill.h"
 #include "../CommandFilter.h"
+#include "../groundtelegraph.h"
 
 enum SKILL_STATE {
     SKILL_NONE_STATE = 0,
@@ -293,11 +294,20 @@ CObjAI::ProcSkillCastingAction(int iServerTarget, CObjCHAR* pTarget) {
         m_nToDoSkillIDX = 0;
 
         if (this->GetANI_Casting() || this->IsA(OBJ_MOB)) {
+            const float fCastSpeed = g_SkillList.Get_CastingAniSPEED(m_nActiveSkillIDX);
             this->Set_MOTION(this->GetANI_Casting(),
                 0,
-                g_SkillList.Get_CastingAniSPEED(m_nActiveSkillIDX),
+                fCastSpeed,
                 false,
                 1);
+            // A boss's flagged area skill: draw where it lands while it charges
+            // (groundtelegraph.h). The cast lasts one play of the clip just set.
+            if (this->IsA(OBJ_MOB) && SKILL_TELEGRAPH(m_nActiveSkillIDX)) {
+                DWORD dwCastMS = 0;
+                if (m_pCurMOTION && m_pCurMOTION->m_wFPS && fCastSpeed > 0.f)
+                    dwCastMS = m_pCurMOTION->Get_NeedTIME(m_pCurMOTION->Get_TotalFRAME(), fCastSpeed);
+                CGroundTelegraphs::Instance().OnCastStart((CObjCHAR*)this, m_nActiveSkillIDX, dwCastMS);
+            }
             return 5;
         } else
             assert(0 && "Invalid Casting animation");

@@ -9957,6 +9957,12 @@ void InputSceneLine(float Vec1[3], float Vec2[3])
 }
 
 ZZ_DLL
+void setGroundOverlay(const float * pXYZ, const unsigned long * pColors, int iVertexCount)
+{
+	znzin->scene.set_ground_overlay(pXYZ, pColors, iVertexCount);
+}
+
+ZZ_DLL
 void InputSceneOBB2(float Center[3], float RotationWXYZ[4], float xLength, float yLength, float zLength)
 {
 	vec3 center(Center);  

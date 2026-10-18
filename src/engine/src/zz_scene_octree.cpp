@@ -478,6 +478,7 @@ void zz_scene_octree::render_cull ()
 		pass = 1; render_bterrain();
 
 		pass = 0; render_rterrain();
+		draw_ground_overlay(); // telegraphs: on the terrain, under everything else
 
 		// render opaque
 		pass = 0; render_opaque();
@@ -502,6 +503,7 @@ void zz_scene_octree::render_cull ()
 		render_oterrain();
 		render_bterrain();
 		render_rterrain();
+		draw_ground_overlay(); // telegraphs: on the terrain, under everything else
 		render_opaque();
 		render_transparent();
 		render_glow();	
@@ -1388,6 +1390,30 @@ void zz_scene_octree::draw_scene_line()
 	    scene_line_number = 0;
 	}
 
+}
+
+// draw_ground_triangles reads it as D3DFVF_XYZ | D3DFVF_DIFFUSE
+static_assert(sizeof(ground_overlay_vertex) == 16, "ground_overlay_vertex must be 3 floats + a D3DCOLOR");
+
+void zz_scene_octree::set_ground_overlay(const float * xyz_cm, const unsigned long * colors, int vertex_count)
+{
+	if (!xyz_cm || !colors || vertex_count < 3) {
+		ground_overlay.clear();
+		return;
+	}
+	vertex_count -= vertex_count % 3; // whole triangles only
+	ground_overlay.resize(vertex_count);
+	for (int i = 0; i < vertex_count; ++i) {
+		ground_overlay[i].pos.set(xyz_cm[3*i] * ZZ_SCALE_IN, xyz_cm[3*i + 1] * ZZ_SCALE_IN, xyz_cm[3*i + 2] * ZZ_SCALE_IN);
+		ground_overlay[i].color = colors[i];
+	}
+}
+
+void zz_scene_octree::draw_ground_overlay()
+{
+	if (ground_overlay.empty()) return;
+	zz_renderer_d3d * r = (zz_renderer_d3d*)znzin->renderer;
+	r->draw_ground_triangles(&ground_overlay[0], (int)ground_overlay.size());
 }
 
 void zz_scene_octree::input_scene_obb2(vec3& center, quat& rotation, float xlength, float ylength, float zlength)

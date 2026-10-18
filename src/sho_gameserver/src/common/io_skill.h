@@ -201,7 +201,10 @@ enum enumSKILL_TAGER_FILTER {
 #define SKILL_HIT_DUMMY_SOUND(I, T) \
     g_SkillList.m_SkillDATA.get_int32(I, 79 + 3 * T) //	더미 타격 효과음
 
-#define SKILL_AREA_HIT_EFFECT(I) g_SkillList.m_SkillDATA.get_int32(I, 83) //	지역 타격 효과
+// Col 83 was the area hit effect, read by nothing (only the header row filled). Since
+// 2026-10-18 it marks a monster skill whose area is drawn on the ground while it is cast
+// (client groundtelegraph.cpp): 1 = telegraph.
+#define SKILL_TELEGRAPH(I) g_SkillList.m_SkillDATA.get_int32(I, 83)
 #define SKILL_AREA_HIT_SOUND(I) g_SkillList.m_SkillDATA.get_int32(I, 84) //	지역 타격 효과음
 
 #define SKILL_LEVELUP_NEED_ZULY(I) \

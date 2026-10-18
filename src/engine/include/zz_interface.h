@@ -3325,6 +3325,13 @@ void InputSceneCylinder(float x, float y, float z, float length, float r);
 ZZ_DLL
 void InputSceneLine(float Vec1[3], float Vec2[3]);
 
+/// The ground overlay (2026-10-18): replaces the translucent triangles laid on the terrain
+/// this frame -- boss attack telegraphs. pXYZ: 3 floats per vertex, world cm; pColors: one
+/// ARGB per vertex; three vertices a triangle. Drawn after the terrain, z-tested, no z-write.
+/// Kept until the next call: send it every frame, with iVertexCount 0 when there is nothing.
+ZZ_DLL
+void setGroundOverlay(const float * pXYZ, const unsigned long * pColors, int iVertexCount);
+
 ZZ_DLL
 void InputSceneAxis(HNODE hVisible, float Size);
 

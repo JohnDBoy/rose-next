@@ -243,6 +243,25 @@ Left-click, hover, and non-drag cursor motion otherwise flow through the queued 
 
 `CUserInputState::IsEnemy` (`jcommandstate.cpp`) is the client's single hostile/friendly verdict for players (attack click, cursor, `CheckCastingTargetFilter`). It switches on the target's `pvp_state`: in an `AllExceptParty` zone (Junon Cartel, Crusader Training Camp, Lion's Plains, Union War, Desert of the Dead) it answers "enemy" for anyone not in the party list, and in an `All` zone for everyone — including the avatar itself, which the party list never contains. So Cure (type 11, target filter 3 `FRIEND_ALL`) on yourself printed "Invalid target" in those zones while Healing (type 10, a self-type skill that skips the filter) worked (alpha test #2, 2026-09-22). `IsEnemy` now returns false for `g_pAVATAR` before the switch. The server's `CObjAVT::Is_ALLIED` already had the `pDestCHAR == this` case.
 
+## Boss Attack Telegraphs (2026-10-18, awaiting the in-game test)
+
+A monster casting a skill flagged in `LIST_SKILL` col 83 (`SKILL_TELEGRAPH`; the column was
+the dead "area hit effect") shows its area on the ground for the length of the cast: a
+translucent red disc with a bright rim and a fill that grows to the rim as the cast runs,
+then a flash when it fires. `CGroundTelegraphs` (`groundtelegraph.*`) starts one in
+`CObjAI::ProcSkillCastingAction` (the client's real cast start; the length is one play of
+the cast clip at its casting speed, which is how the server times the cast), polls each
+frame from `CObjectMANAGER::ProcOBJECT`, and forgets them in `Clear`. A cast is over when
+`m_nActiveSkillIDX` no longer holds the skill (`Casting_END` covers fire, stop, stun,
+death, cancel); fired = `m_nDoingSkillIDX` holds it in that frame; a hard limit covers the
+one path that skips `Casting_END` (`SetCMD_MOVE`). The area is a circle of
+`SKILL_SCOPE_RADIUS` around where the cast began: a monster casts every area skill on
+itself (type 7 through `SetCMD_Skill2OBJ`, whose aim `Goto_TARGET` resets to the caster on
+both sides). The geometry samples `CTERRAIN::GetHeight` per vertex (lifted 20 cm: bilinear
+heights against a triangulated mesh) and goes to the engine's ground overlay
+(`::setGroundOverlay`, see `src/engine/CLAUDE.md`) every frame. First user: the Warden's
+Seal Burst (7023, `import-cerberus.py`).
+
 ## Summon Control (CTRL+Click)
 
 CTRL+click lets a player command their summons (move / attack) instead of moving the avatar. The logic is in `CUserInputState::TrySummonControlClick` (`jcommandstate.cpp`), called at the top of **both** `ClickObject` and `DBClickObject` for the active `CSevenHeartUserInput` (and `CDefaultUserInput`):

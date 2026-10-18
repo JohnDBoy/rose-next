@@ -5259,6 +5259,106 @@ void zz_renderer_d3d::draw_camera_frustum()
 
 }
 
+// The ground overlay (zz_scene_octree::draw_ground_overlay; 2026-10-18): translucent
+// coloured triangles over the terrain drawn so far. Fixed function, vertex colours only, no
+// texture; z-tested, no z-write. Drawn from client memory (DrawPrimitiveUP), so nothing
+// lives on the device and a reset has nothing to rebuild. Every raw state it changes is
+// read back and restored, so the renderer's own bookkeeping (state.use_alpha, use_fog, ...)
+// stays true; only the shader setters go through the renderer, whose cache must see NULL.
+void zz_renderer_d3d::draw_ground_triangles (const void * vertices, int vertex_count)
+{
+	struct GROUND_VERTEX {
+		D3DXVECTOR3 pos;
+		D3DCOLOR diffuse;
+	};
+
+	if (!vertices || vertex_count < 3) return;
+
+	zz_camera * camera = znzin->get_camera();
+	if (!camera) return;
+
+	// Into view space here, as draw_line does (a driver once misplaced large world
+	// coordinates sent through the view matrix); the device gets identity world and view.
+	mat4 modelview, projection;
+	camera->get_transform(zz_camera::ZZ_MATRIX_MODELVIEW, modelview);
+	camera->get_transform(zz_camera::ZZ_MATRIX_PROJECTION, projection);
+
+	static std::vector<GROUND_VERTEX> view_space;
+	view_space.resize(vertex_count);
+	const GROUND_VERTEX * in = static_cast<const GROUND_VERTEX *>(vertices);
+	vec3 world, eye;
+	for (int i = 0; i < vertex_count; ++i) {
+		world.set(in[i].pos.x, in[i].pos.y, in[i].pos.z);
+		mult(eye, modelview, world);
+		view_space[i].pos = D3DXVECTOR3(eye.x, eye.y, eye.z);
+		view_space[i].diffuse = in[i].diffuse;
+	}
+
+	static const D3DRENDERSTATETYPE saved_rs[] = {
+		D3DRS_ZENABLE, D3DRS_ZWRITEENABLE, D3DRS_ZFUNC, D3DRS_ALPHABLENDENABLE,
+		D3DRS_SRCBLEND, D3DRS_DESTBLEND, D3DRS_BLENDOP, D3DRS_ALPHATESTENABLE,
+		D3DRS_CULLMODE, D3DRS_LIGHTING, D3DRS_FOGENABLE,
+	};
+	static const struct { DWORD stage; D3DTEXTURESTAGESTATETYPE type; } saved_tss[] = {
+		{0, D3DTSS_COLOROP}, {0, D3DTSS_COLORARG1}, {0, D3DTSS_ALPHAOP}, {0, D3DTSS_ALPHAARG1},
+		{1, D3DTSS_COLOROP}, {1, D3DTSS_ALPHAOP},
+	};
+	const int num_rs = sizeof(saved_rs) / sizeof(saved_rs[0]);
+	const int num_tss = sizeof(saved_tss) / sizeof(saved_tss[0]);
+	DWORD rs_values[num_rs], tss_values[num_tss];
+	int i;
+	for (i = 0; i < num_rs; ++i) d3d_device->GetRenderState(saved_rs[i], &rs_values[i]);
+	for (i = 0; i < num_tss; ++i) d3d_device->GetTextureStageState(saved_tss[i].stage, saved_tss[i].type, &tss_values[i]);
+	D3DXMATRIX saved_world, saved_view, saved_projection;
+	d3d_device->GetTransform(D3DTS_WORLD, &saved_world);
+	d3d_device->GetTransform(D3DTS_VIEW, &saved_view);
+	d3d_device->GetTransform(D3DTS_PROJECTION, &saved_projection);
+
+	set_vertex_shader(ZZ_HANDLE_NULL);
+	set_pixel_shader(ZZ_HANDLE_NULL);
+	d3d_device->SetFVF(D3DFVF_XYZ | D3DFVF_DIFFUSE);
+
+	d3d_device->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
+	d3d_device->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
+	d3d_device->SetRenderState(D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
+	d3d_device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+	d3d_device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+	d3d_device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+	d3d_device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+	d3d_device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+	d3d_device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+	d3d_device->SetRenderState(D3DRS_LIGHTING, FALSE);
+	d3d_device->SetRenderState(D3DRS_FOGENABLE, FALSE);
+	d3d_device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+	d3d_device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
+	d3d_device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+	d3d_device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_DIFFUSE);
+	d3d_device->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
+	d3d_device->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+
+	D3DXMATRIX identity;
+	D3DXMatrixIdentity(&identity);
+	d3d_device->SetTransform(D3DTS_WORLD, &identity);
+	d3d_device->SetTransform(D3DTS_VIEW, &identity);
+	d3d_device->SetTransform(D3DTS_PROJECTION, (const D3DXMATRIX *)&projection);
+
+	const int max_triangles_per_call = 20000;
+	int triangles = vertex_count / 3;
+	const GROUND_VERTEX * next = &view_space[0];
+	while (triangles > 0) {
+		const int batch = (triangles < max_triangles_per_call) ? triangles : max_triangles_per_call;
+		d3d_device->DrawPrimitiveUP(D3DPT_TRIANGLELIST, batch, next, sizeof(GROUND_VERTEX));
+		next += batch * 3;
+		triangles -= batch;
+	}
+
+	d3d_device->SetTransform(D3DTS_WORLD, &saved_world);
+	d3d_device->SetTransform(D3DTS_VIEW, &saved_view);
+	d3d_device->SetTransform(D3DTS_PROJECTION, &saved_projection);
+	for (i = 0; i < num_rs; ++i) d3d_device->SetRenderState(saved_rs[i], rs_values[i]);
+	for (i = 0; i < num_tss; ++i) d3d_device->SetTextureStageState(saved_tss[i].stage, saved_tss[i].type, tss_values[i]);
+}
+
 void zz_renderer_d3d::draw_shadowmap()
 {
    

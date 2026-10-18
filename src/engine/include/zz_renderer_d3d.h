@@ -355,6 +355,9 @@ public:
 	mat4 matrix_pop (void);
 
 	void draw_line (vec3 from, vec3 to, vec3 rgb);
+	// Translucent world-space triangles over what is drawn so far (the ground overlay,
+	// zz_scene_octree::draw_ground_overlay). vertices: vec3 position + D3DCOLOR each.
+	void draw_ground_triangles (const void * vertices, int vertex_count);
     void draw_arrow(float size, int color);
 	void draw_axis(float size);
     void draw_axis(float *q, float *v, float size);
