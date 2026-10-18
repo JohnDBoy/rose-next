@@ -1225,6 +1225,13 @@ CObjAI::SetCMD_Skill2OBJ(WORD wSrvDIST,
     /// ó�� ���ۻ��´� ĳ���� ���º��� ����..
     //-----------------------------------------------------------------------------------------
     m_SkillActionState = SKILL_CASTING_STATE;
+    // A new cast waits for its own GSV_SKILL_START. The watchdog's stamp is cleared only
+    // when a start arrives or the watchdog fires, so a cast the server cancelled another
+    // way (a stun on the caster: Skill_ApplyIngSTATUS -> SetCMD_STOP, no packet) left it
+    // set, and the caster's next cast was abandoned on its first wait -- its start then
+    // found nothing to start and the hit landed with no cast or telegraph (Warden of the
+    // Seal, 2026-10-18: a 38 s old stamp).
+    m_dwRemoteCastWaitSince = 0;
     static_cast<CObjCHAR*>(this)->ResetOwedSwingBeforeCast();
 
     return false;
