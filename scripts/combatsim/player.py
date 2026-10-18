@@ -358,8 +358,12 @@ class StatBlock:
         df = short(int(tdef + tgdef + (STR + 5) * 0.35 + (L + 15) * 0.7) + add[AT["DEF"]])
         df = short(df + psv(AT["PSV_DEF_POW"], df))
         sub = b.equip["subwpn"]
+        self.shield_def = 0
         if sub.id and gd.item_type(9, sub.id) == 261:            # shield
             df = short(df + psv(AT["PSV_SHIELD_DEF"], df))
+            # the shield's own Defense, item + refine: what a shield skill adds (calculation.cpp
+            # Get_ShieldDEF)
+            self.shield_def = (gd.item_def(9, sub.id) or 0) + gd.grade(sub.grade, 2)
         self.defence = df
         self.def_grade = tgrade
 

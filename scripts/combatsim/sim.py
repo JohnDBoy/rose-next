@@ -260,6 +260,7 @@ class Simulation:
         p.base_value = st.base_ability
         p.charm = st.cur["CHARM"]
         p.katar_crit = b.job in F.KATAR_CRIT_JOBS and st.wtype == F.WEAPON_TYPE_KATAR
+        p.shield_def = st.shield_def
         for buff in b.buffs:
             self._apply_buff(p, buff)
         p.hp, p.mp = p.max_hp, p.max_mp

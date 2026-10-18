@@ -94,6 +94,12 @@ def normal_attack(rng, a, d, hit_cnt):
 # Katar skill criticals (calculation.cpp Is_KatarSkillCRITICAL, 2026-10-16): a Hawker or
 # Raider holding a katar lands any damage skill as a critical on the normal-swing roll.
 KATAR_SKILL_CRITICAL = 1.5
+
+# Shield skills (calculation.cpp Is_ShieldSKILL, 2026-10-18): a skill that requires a shield
+# deals SHIELD_SKILL_DEF_RATE % more per point of the shield's own Defense (item + refine).
+SHIELD_SKILL_DEF_RATE = 2.0
+SHIELD_SKILL_MAX_BONUS = 250.0
+WEAPON_TYPE_SHIELD = 261
 KATAR_CRIT_JOBS = (311, 321)
 WEAPON_TYPE_KATAR = 251
 
@@ -161,6 +167,8 @@ def skill_damage(rng, a, d, sk, hit_cnt):
                       * 0.01 * (120 - d.level + a.level)
                       / (d.get_def + d.get_res * 0.3 + d.get_avoid * 0.4 + 10) / 100.0 + 20)
 
+    if WEAPON_TYPE_SHIELD in sk.need_weapon:     # a shield skill hits with the shield
+        dmg = int(dmg * (100 + min(SHIELD_SKILL_MAX_BONUS, a.shield_def * SHIELD_SKILL_DEF_RATE)) / 100.0)
     if sk.crit_rate > 0:                         # critical burst (io_skill.h, cols 49/50)
         if a.is_user and cri_success_rate(rng, a) < sk.crit_roll:
             dmg = int(dmg * sk.crit_rate / 100.0)

@@ -29,6 +29,8 @@ Jrose also has, one Muse buff).
 | Raider | Eruption (katar area), Shun'ei-zan (dual, critical burst) | Jrose | `import-raider-skills.py` |
 | Scout | Arrow Shower (area, poison), Deadly Snipe (bow finisher) | 667 + Jrose | `import-scout-knight-skills.py` |
 | Knight | Volcanic Shot, Star Gazer (crossbow) | Jrose | `import-scout-knight-skills.py` |
+| Mage | Diabolos' Curse (dispel + slow), Shadow Servant (area nuke) | Jrose | `import-mage-knight-skills.py` |
+| Knight | Shield Bash (requires a shield, scales with it), Gaia Presser (1H area) | 667 + Jrose | `import-mage-knight-skills.py` |
 
 ## Artisan (gun + launcher)
 
@@ -80,21 +82,32 @@ Sharpen Arrow, Hawk Shot and Call Hawk; its other bow skills are shared Hawker o
 | Stun Arrow | 668 1595 (Hawker, bow) | **new**: `kneel_bow_cast` | ours | A kneeling shot |
 | Zero Range Shot | Jrose 4291 (crossbow) | `skill_Longinus_01` -- **now Final Strike's** | 3 new | Skip: it would look like the Champion's skill |
 
-## Knight
+## Knight (melee)
+
+Surveyed 2026-10-18; **done:** Shield Bash and Gaia Presser. **A skill can require a shield**: col 30 = 261 matches the off-hand
+(`CUserDATA` need-weapon check compares `SUBWPN_TYPE(L)` too).
 
 | Skill | From | Animation | Effects | Notes |
 |---|---|---|---|---|
-| Rain of Arrows | 667 620 (crossbow) | **new** motion `bow_arrowshower_m1` | | Area for the crossbow Knight |
-| Shield Reflect | 667 565 | ours | `_reflect_01.eft` (new) | |
+| Shield Bash / Lunge / Throw | 667/668 575 / 570 / 580 (Knight, shield) | **ours, unused**: `s_shielda_m1` (2.0 s, three blows) -- no skill plays it | ours (`_shiedla_01`, `image_cut_*`) | Zero new files. Bash stuns 2 s, Lunge debuffs, Throw reaches 15 m. One clip for all three |
+| Third Step | Jrose 481 (Knight, 1H sword / mace, lv 100) | **ours, unused**: `skill_ThirdStab_01` (3 stabs) | ours | Slows Movement and Attack Speed. Zero new files |
+| Gaia Presser | Jrose 6031 (Knight, mace, lv 210) | ours (spin attack) | 7 new | Area: Defense and Movement Speed down (Jrose also raises your ATK) |
+| Gale Smash | Jrose 6021 (Knight, 1H sword, lv 210) | ours | 9 new | A draining strike. Drain heals are never announced to the client (open item) |
+| Shield Reflect | 667 565 | ours | ours | Self buff |
+| Rain of Arrows | 667 620 (crossbow) | `bow_arrowshower_m1` (now ours: Arrow Shower) | | Same look as Arrow Shower |
 
 ## Mage / Cleric / Muse
 
+Surveyed 2026-10-18 (Mage); **done:** Diabolos' Curse and Shadow Servant. **Dispel works**: LIST_STATUS 37 "Dispelled" (ING_CLEAR_GOOD)
+strips every beneficial status; only monster skills use it today.
+
 | Skill | From | Animation | Effects | Notes |
 |---|---|---|---|---|
-| Diabolos' Curse | Jrose 4251 (Mage, staff, lv 180) | **new**: `SKILL_MAGIC_ABNORMALITY_M02` | 13 new files | Strips the target's buffs and slows it |
-| Holy Heal | Jrose 1331 (wand, lv 220, no class set) | **new**: `MASTAR_WAND_SKILL_03` | 7 new files | Heals allies around you; you cannot move while it runs (Cleric material) |
-| Hailstorm | 667 915 (Muse) | ours | 6 new files, 5.3 KB | The cleanest import found in 2026-08 |
-| Frost Ring, Blaze, Elemental Wave | 667 1190 / 1250 / 1265 (Mage) | ours | 1-2 new effects each | |
+| Diabolos' Curse | Jrose 4251 (Mage, staff, lv 180) | **new**: `skill_magic_abnormality_m02` (0.9 s) | 13 new (pentagram + demon-fire bolt, `muse_skill01*`) | Strips the target's buffs and slows it -- no player skill dispels |
+| Shadow Servant | Jrose 6061 (Mage, staff, lv 210) | ours (`extent_skill01`) | 7 new (a dark cross) | Type 7 area nuke; Defense, Magic Resistance and Accuracy down (two fit) |
+| Hailstorm | 667 915 (Muse) | ours | 6 new | Around you |
+| Frost Ring, Elemental Wave | 667 1190 / 1265 (Mage) | ours | 5 / 3 new | Around you |
+| Holy Heal | Jrose 1331 (wand, lv 220, no class set) | **new**: `MASTAR_WAND_SKILL_03` | 7 new | Cleric material (the Cleric is being redone) |
 
 ## Hunting for more
 

@@ -162,6 +162,7 @@ class Combatant:
         self.dummy_skill_power = 0
         self.charm = 0
         self.katar_crit = False   # a Hawker / Raider with a katar: skills can crit
+        self.shield_def = 0       # an avatar's shield's own Defense (item + refine)
         self.base_value = None    # Get_BaseAbilityValue override (the player's pre-buff stat)
         self.st = Status(self.refresh)
         self.refresh()

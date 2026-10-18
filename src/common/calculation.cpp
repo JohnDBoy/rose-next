@@ -361,6 +361,44 @@ Is_KatarSkillCRITICAL(CObjCHAR* pATK) {
 }
 
 //-------------------------------------------------------------------------------------------------
+// Shield skills (2026-10-18): a skill that requires a shield (SKILL_NEED_WEAPON 261, which
+// the need-weapon check matches against the off-hand) hits with it, for
+// SHIELD_SKILL_DEF_RATE percent more damage per point of the shield's own Defense -- its
+// item DEF plus its refine grade's, the two numbers Cal_DEFENCE sums for it -- so upgrading
+// and refining the shield makes Shield Bash hit harder, up to SHIELD_SKILL_MAX_BONUS
+// percent. At 1% a strong shield hit only ~1.35x a weak one in game; at 2% a weak shield
+// (~25 DEF) gives +50% and a strong one (~70) +140%, and the cap holds the level-240 shield
+// at +9 (205) to +250%. Shield Barrier and Endure also require a shield but deal no
+// damage. scripts/combatsim mirrors it (formulas.skill_damage).
+static const float SHIELD_SKILL_DEF_RATE = 2.0f;
+static const float SHIELD_SKILL_MAX_BONUS = 250.0f;
+static const int WEAPON_TYPE_SHIELD = 261;
+
+static bool
+Is_ShieldSKILL(short nSkillIDX) {
+    for (int nI = 0; nI < SKILL_NEED_WEAPON_CNT; nI++) {
+        int nNeed = SKILL_NEED_WEAPON(nSkillIDX, nI);
+        if (0 == nNeed)
+            break;
+        if (nNeed == WEAPON_TYPE_SHIELD)
+            return true;
+    }
+    return false;
+}
+
+static int
+Get_ShieldDEF(CObjCHAR* pATK) {
+    if (!pATK->IsUSER())
+        return 0;
+    tagITEM sShield = static_cast<CObjAVT*>(pATK)->Get_EquipITEM(EQUIP_IDX_WEAPON_L);
+    if (!sShield.GetHEADER() || !sShield.GetLife()
+        || ITEM_TYPE(sShield.GetTYPE(), sShield.GetItemNO()) != WEAPON_TYPE_SHIELD)
+        return 0;
+    return ITEM_DEFENCE(sShield.GetTYPE(), sShield.GetItemNO())
+        + ITEMGRADE_DEF(sShield.GetGrade());
+}
+
+//-------------------------------------------------------------------------------------------------
 // ÀÏ¹Ý ¹°¸® µ¥¹ÌÁö °è»ê½Ä...
 int
 CCal::Get_BasicDAMAGE(CObjCHAR* pATK, CObjCHAR* pDEF, WORD wHitCNT, int iSuc) {
@@ -763,6 +801,14 @@ CCal::Get_SkillDAMAGE(CObjCHAR* pATK, CObjCHAR* pDEF, short nSkillIDX, WORD wHit
                 }
             }
         }
+    }
+
+    // a shield skill hits with the shield (see Is_ShieldSKILL)
+    if (Is_ShieldSKILL(nSkillIDX)) {
+        float fBonus = Get_ShieldDEF(pATK) * SHIELD_SKILL_DEF_RATE;
+        if (fBonus > SHIELD_SKILL_MAX_BONUS)
+            fBonus = SHIELD_SKILL_MAX_BONUS;
+        iDamage = (int)(iDamage * (100 + fBonus) / 100.f);
     }
 
     // a critical-burst skill rolls its own critical (io_skill.h SKILL_CRITICAL_RATE), in
