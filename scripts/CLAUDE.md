@@ -217,6 +217,21 @@ Our `data/` is a translated iROSE dump with gaps; the reference dumps in `C:\Use
   differs. Survey sheets in `build/skill-icon-quality/`, undo in `build/skill-icons-667/` +
   `LIST_SKILL.icons-667.json`, review sheets `report-*.png`. Client-only; re-bake.
 
+- `scripts/upgrade-item-icons.py` — **the item sheets ICON01-50 were DXT5 too** (2026-10-19), the
+  skill sheets' problem on 50 sheets: ~300-400 colours per 40 px icon. Our items come from several
+  clients and every reference dump numbers and lays out its sheets differently (668's ICON22 holds our
+  ICON33), so **twins are found by picture, never by position**: `--survey` compares every cell's
+  4x4 block means against every cell of the uncompressed sheets of 668 (32-bit), tsuki (24/32),
+  667/Jrose/RoseZA/139/ruff (16-bit), and writes review sheets to `build/item-icon-quality/`. The
+  full-pixel diff is DXT noise and does not separate twins; the block-mean distance does (<= 6 match,
+  <= 12 doubtful). **A label drawn on the icon defeats every average** ("+10" vs "+50", a scroll's
+  town name): the worst 4x4 block catches it (~110 for a different label, <= ~60 for a true twin),
+  and such pairs are not twins. Candidates that are themselves decoded DXT (<= 4 colours in almost
+  every 4x4 block) are skipped. `--apply` pastes the *reviewed* `plan.json` (whole cell, RGB, our alpha
+  kept) and rewrites each sheet as 32-bit BGRA with no mip chain; `--verify` re-reads every pasted cell.
+  Applied 2026-10-19 after the user reviewed the sheets: 5,855 icons on 49 sheets (ICON21 had no
+  twin; 1,076 icons with no twin stay as they were). Originals in `build/item-icons-crisp/`,
+  `--restore` (whole file). Client-only; re-bake.
 - `scripts/fix-hair-block0.py` — **hair ids are zero-based blocks of five** starting at 0, 5, 10 ... (base, three
   under-a-hat variants, an empty "no hair" fifth slot), and a cap adds its hair type
   (LIST_CAP game col 33, 0-4) to the character's hair id to pick the model under it. Our
