@@ -33,8 +33,9 @@ dump survey (`doc/skill-candidates.md`) and approved their looks in game from GM
   skills belonged to the melee kit): star shards on the target's spot that **slow**
   everything there and lower its **Defense** -- Slow Shot for a pack. Follows Slow Shot.
 
-Arrow Shower and Star Gazer are type 7, like Luna Stone and Ice Bang: they land where the
-target stood at the key press, and the client plays the bullet's effect at that spot.
+Arrow Shower and Star Gazer are type 7, like Luna Stone and Ice Bang: they land on a spot,
+aimed with the mouse on the ground since 2026-10-19 (the client's skillaim.h; before, where
+the target stood at the key press), and the client plays the bullet's effect at that spot.
 Volcanic Shot and Deadly Snipe are type 3 with mode 1 (attack the target after); our own
 bow shots are type 6, but the test proved type 3 with a bullet.
 
