@@ -5,6 +5,7 @@
 
 #include "zoneobjects.h"
 #include "groundtelegraph.h"
+#include "skillaim.h"
 #include "network/cnetwork.h"
 
 #include "OBJECT.h"
@@ -225,6 +226,7 @@ void
 CObjectMANAGER::Clear(short nExceptObjIndex) {
     CZoneObjects::Instance().Forget(); // every object goes: drop the dynamic ones' bookkeeping
     CGroundTelegraphs::Instance().Forget(); // and the casts they were drawing
+    CSkillAim::Instance().Cancel(); // and an area skill being aimed
     if (g_pNet) {
         g_pNet->tuning_preview.set_active(false);
         g_pNet->tuning_preview.invalidate();
@@ -1005,6 +1007,7 @@ CObjectMANAGER::Get_NextCHAR() {
 void
 CObjectMANAGER::ProcOBJECT() {
     CZoneObjects::Instance().Update(); // dynamic zone objects: the fades
+    CSkillAim::Instance().Update(); // an area skill being aimed: its preview, first
     CGroundTelegraphs::Instance().Update(); // boss attack telegraphs
     /*
         static int iO;

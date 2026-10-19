@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "../skillaim.h"
 
 #include "CSkillCommand.h"
 #include "OBJECT.h"
@@ -448,6 +449,11 @@ CSkillCommand::Execute() {
     //-------------------------------------------------------------------------------
     if (g_pAVATAR->Get_STATE() == CS_SIT)
         return false;
+
+    // An area skill that lands on a spot is aimed with the mouse, not cast at the target
+    // (skillaim.h, 2026-10-19); any other skill cancels an aim in progress.
+    if (CSkillAim::Instance().OnSkillPressed(m_iSlotNO))
+        return true;
 
     int iTarget = g_UserInputSystem.GetCurrentTarget();
     CObjCHAR* pObjCHAR = g_pObjMGR->Get_CharOBJ(iTarget, true);

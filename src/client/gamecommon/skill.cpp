@@ -624,7 +624,9 @@ CSkillManager::GetSkillTargetType(int iSkillIndex) {
 
         case SKILL_ACTION_AREA_TARGET: ///< 지역 공격마법( 당근 범위.. )!!! 허나 지금은 UI문제로
                                        ///< 타겟 오브젝트의 위치로 시전..
-            return SKILL_TARGET_OBJECT;
+            // The UI they waited for (2026-10-19): aimed with the mouse on the ground,
+            // CSkillAim; the spot goes out as CLI_POSITION_SKILL.
+            return SKILL_TARGET_GROUND;
     }
 
     return SKILL_TARGET_NONE;
@@ -956,7 +958,12 @@ CSkillManager::FireSkill(int iSkillSlotIDX, int iTargetObj, D3DXVECTOR3& PosTO) 
         }
     }
 
-    int iCurrentTarget = g_UserInputSystem.GetCurrentTarget();
+    // A skill aimed at the ground has no target: whoever happens to be selected (a party
+    // member, say) must not make its target filter refuse it.
+    int iCurrentTarget =
+        (CSkillManager::GetSkillTargetType(pSkill->GetSkillIndex()) == SKILL_TARGET_GROUND)
+            ? 0
+            : g_UserInputSystem.GetCurrentTarget();
 
     //타켓에 대한 판별
     if (CSkillManager::CheckConditionForFireSkill(pSkill->GetSkillIndex(), iCurrentTarget) == false)
@@ -1165,6 +1172,10 @@ CSkillManager::CheckCastingTargetFilter(int iSkillIDX, CObjCHAR* pCaster, int iT
 
     switch (iSkillTargetType) {
         case SKILL_TARGET_NONE:
+            return true;
+        // Aimed at the ground (CSkillAim): there is no target to filter. The filter says
+        // whom the area may hurt, and the server applies it to every one it finds.
+        case SKILL_TARGET_GROUND:
             return true;
     }
 

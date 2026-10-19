@@ -518,6 +518,9 @@
     <ClCompile Include="BoneEffectBudget.cpp">
       <Filter>Source Files\OBJECT</Filter>
     </ClCompile>
+    <ClCompile Include="skillaim.cpp">
+      <Filter>Source Files\OBJECT</Filter>
+    </ClCompile>
     <ClCompile Include="groundtelegraph.cpp">
       <Filter>Source Files\OBJECT</Filter>
     </ClCompile>
@@ -1697,6 +1700,9 @@
       <Filter>Source Files\OBJECT</Filter>
     </ClInclude>
     <ClInclude Include="BoneEffectBudget.h">
+      <Filter>Source Files\OBJECT</Filter>
+    </ClInclude>
+    <ClInclude Include="skillaim.h">
       <Filter>Source Files\OBJECT</Filter>
     </ClInclude>
     <ClInclude Include="groundtelegraph.h">

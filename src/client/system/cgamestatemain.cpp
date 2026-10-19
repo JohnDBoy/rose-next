@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "../skillaim.h"
 
 #include "system/cgame.h"
 #include "system/cgamestatemain.h"
@@ -776,6 +777,26 @@ CGameStateMain::ProcMouseInput(UINT uiMsg, WPARAM wParam, LPARAM lParam) {
     m_ScreenPOS.m_nX = (short)ptMouse.x;
     m_ScreenPOS.m_nY = (short)ptMouse.y;
 
+    // Aiming an area skill (skillaim.h): a left click casts it, a right click without a
+    // drag puts it away. The UI has already had its look above.
+    CSkillAim& refAim = CSkillAim::Instance();
+    if (refAim.IsAiming()) {
+        switch (uiMsg) {
+            case WM_LBUTTONDOWN:
+            case WM_LBUTTONDBLCLK:
+                refAim.OnLeftClick();
+                return 1;
+            case WM_RBUTTONDOWN:
+                refAim.OnRightDown(ptMouse.x, ptMouse.y);
+                return 1;
+            case WM_RBUTTONUP:
+                refAim.OnRightUp(ptMouse.x, ptMouse.y);
+                return 1;
+            default:
+                break;
+        }
+    }
+
     switch (uiMsg) {
         case WM_LBUTTONDOWN: {
             // set screen mouse position & world position
@@ -1162,6 +1183,7 @@ bool
 CGameStateMain::On_WM_CHAR(WPARAM wParam, LPARAM lParam) {
     switch (wParam) {
         case VK_ESCAPE: {
+            CSkillAim::Instance().Cancel();
             g_UserInputSystem.ClearMouseState();
         } break;
         case VK_RETURN:

@@ -277,6 +277,33 @@ Burst (7023, a circle) and Cerberus's Hellfire Breath (7022, a cone), `import-ce
 -- a stun-cancelled cast used to leave the remote-cast watchdog's stamp set and drop the
 caster's next cast (fixed in `SetCMD_Skill2OBJ`).
 
+## Ground Aiming For Area Skills (2026-10-19, validated in game)
+
+A skill that lands on a spot (type 7, `SKILL_ACTION_AREA_TARGET`: Arrow Shower, Luna Stone,
+Ice Bang, Star Gazer, Shadow Servant, Exceed Break) is aimed with the mouse: the key press
+enters aim mode (`CSkillAim`, `skillaim.*`), its area follows the mouse on the ground in a
+blue-white preview with a ring at its range, and a left click casts it there as
+`CLI_POSITION_SKILL` -- which the server always took from any spot (`SetCMD_Skill2POS`). The
+spot is **clamped to the range** (`SKILL_DISTANCE` - 50 cm), never walked into: the user chose
+the modern behaviour so an auto-walk cannot carry a player into a boss telegraph. A strip or
+cone points from the player toward the mouse. Same key again, another skill, a right click
+without a drag (a drag turns the camera), Esc, death or a zone change cancel it. Skills
+centred on the caster (type 17) are unchanged. No option to cast on the target the old way:
+"we're modernizing".
+
+- `GetSkillTargetType` returns the original team's unused `SKILL_TARGET_GROUND` for type 7
+  (they had shipped "cast at the target's position, because of UI problems"). `FireSkill`
+  checks a ground cast with no target, and `CheckCastingTargetFilter` passes it: all six
+  skills carry filter 5 (enemy PC + monster), which refuses a missing target -- the server
+  applies the filter to every victim anyway.
+- The ground under the mouse is found each frame by marching the camera ray (`::getRay`,
+  origin cm, unit direction) against `CTERRAIN::GetHeight` and halving the last step; the
+  regular pick (`CGameStateMain::Pick_POSITION`) runs only when the mouse stops.
+- Clicks are taken in `CGameStateMain::ProcMouseInput` after `g_itMGR.MsgProc`, so a click on
+  a classic dialog (or a UI2 panel, consumed earlier) never casts.
+- The preview is drawn by `CGroundTelegraphs::SetPreview` (the boss telegraphs' overlay
+  owns the one engine buffer, so everything on the ground goes through it).
+
 ## Summon Control (CTRL+Click)
 
 CTRL+click lets a player command their summons (move / attack) instead of moving the avatar. The logic is in `CUserInputState::TrySummonControlClick` (`jcommandstate.cpp`), called at the top of **both** `ClickObject` and `DBClickObject` for the active `CSevenHeartUserInput` (and `CDefaultUserInput`):

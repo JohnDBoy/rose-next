@@ -2,6 +2,8 @@
 
 #include <vector>
 
+#include <d3dx9math.h>
+
 class CObjCHAR;
 
 /// Boss attack telegraphs (2026-10-18): while a monster casts a skill flagged in
@@ -41,6 +43,12 @@ public:
     /// CObjectMANAGER::Clear deleted every object: drop them all.
     void Forget();
 
+    /// The player's own area skill while it is aimed (CSkillAim, 2026-10-19), set every
+    /// frame until ClearPreview: its area at posAim -- or, for a strip or cone, from
+    /// posCaster toward posAim -- in a friendly colour, and a faint ring at its range.
+    void SetPreview(const D3DXVECTOR3& posCaster, const D3DXVECTOR3& posAim, short nSkillIDX);
+    void ClearPreview() { m_bPreview = false; }
+
 private:
     enum Shape { SHAPE_CIRCLE, SHAPE_CONE, SHAPE_STRIP };
 
@@ -62,6 +70,11 @@ private:
     CGroundTelegraphs() {}
     /// A cone or a strip toward the caster's aim; without one, the circle the server uses.
     static void Aim(Telegraph& t, CObjCHAR* pCaster);
+    /// t's cone or strip pointed at aimX, aimY, if its skill has one and the spot is not at
+    /// t's own position; else it stays a circle.
+    static void PointAt(Telegraph& t, float aimX, float aimY);
+    /// The area, a bright rim over its outline (and a cone's or strip's sides).
+    void AddOutline(const Telegraph& t, unsigned long rgb, unsigned long alphaArea, unsigned long alphaRim);
     bool StillCasting(const Telegraph& t) const;
     float Height(const Telegraph& t, float fX, float fY) const;
 
@@ -87,4 +100,7 @@ private:
     std::vector<float> m_XYZ; // this frame's triangles
     std::vector<unsigned long> m_Colors;
     bool m_bSent = false; // the engine holds a non-empty overlay
+    bool m_bPreview = false;
+    Telegraph m_Preview; // the aimed area
+    Telegraph m_PreviewRange; // the ring at the skill's range, around the player
 };

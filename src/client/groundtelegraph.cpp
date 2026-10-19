@@ -32,6 +32,13 @@ const unsigned long ALPHA_FILL_EDGE = 0x90;
 const float RIM_CM = 60.f;
 const float EDGE_CM = 40.f;
 
+// the player's own aim (SetPreview): blue-white, never mistaken for a boss's red
+const unsigned long RGB_AIM = 0x70C8FF;
+const unsigned long ALPHA_AIM_AREA = 0x28;
+const unsigned long ALPHA_AIM_RIM = 0xA0;
+const unsigned long ALPHA_RANGE = 0x50; // the ring at the skill's range
+const float RANGE_RING_CM = 30.f;
+
 unsigned long
 Argb(unsigned long alpha, unsigned long rgb) {
     return (alpha << 24) | (rgb & 0xFFFFFF);
@@ -105,11 +112,17 @@ void
 CGroundTelegraphs::Aim(Telegraph& t, CObjCHAR* pCaster) {
     // A cone or a strip points where the server aimed it; without an aim (or aimed at the
     // caster's own feet) the server measures a circle of its length, and so do we.
+    if (pCaster->m_bSkillAimActive)
+        PointAt(t, pCaster->m_PosSkillAIM.x, pCaster->m_PosSkillAIM.y);
+}
+
+void
+CGroundTelegraphs::PointAt(Telegraph& t, float aimX, float aimY) {
     const short nSkillIDX = t.nSkillIDX;
-    if (!pCaster->m_bSkillAimActive || !SKILL_SCOPE_AIMED(nSkillIDX))
+    if (!SKILL_SCOPE_AIMED(nSkillIDX))
         return;
-    const float dx = pCaster->m_PosSkillAIM.x - t.fX;
-    const float dy = pCaster->m_PosSkillAIM.y - t.fY;
+    const float dx = aimX - t.fX;
+    const float dy = aimY - t.fY;
     const float fAim = sqrtf(dx * dx + dy * dy);
     const int iAngle = SKILL_SCOPE_ANGLE(nSkillIDX);
     if (fAim < 1.f || (SKILL_SCOPE_CONE(nSkillIDX) && iAngle >= 360))
@@ -176,6 +189,14 @@ CGroundTelegraphs::Update() {
         ++i;
     }
 
+    if (m_bPreview) {
+        // the player's own aim: a faint ring at the range, the area in the friendly colour
+        const float R = m_PreviewRange.fLength;
+        this->AddSector(m_PreviewRange, R - RANGE_RING_CM, R, -PI, PI, Argb(0, RGB_AIM),
+            Argb(ALPHA_RANGE, RGB_AIM));
+        this->AddOutline(m_Preview, RGB_AIM, ALPHA_AIM_AREA, ALPHA_AIM_RIM);
+    }
+
     if (!m_XYZ.empty()) {
         ::setGroundOverlay(&m_XYZ[0], &m_Colors[0], (int)m_Colors.size());
         m_bSent = true;
@@ -192,6 +213,43 @@ CGroundTelegraphs::Forget() {
         ::setGroundOverlay(NULL, NULL, 0);
         m_bSent = false;
     }
+}
+
+void
+CGroundTelegraphs::SetPreview(const D3DXVECTOR3& posCaster, const D3DXVECTOR3& posAim, short nSkillIDX) {
+    Telegraph t = {};
+    t.nObjIdx = -1;
+    t.pCaster = NULL;
+    t.nSkillIDX = nSkillIDX;
+    t.shape = SHAPE_CIRCLE;
+    t.fDirX = 1.f;
+    t.fDirY = 0.f;
+    t.fHalfAngle = PI;
+    t.fLength = (float)SKILL_SCOPE_RADIUS(nSkillIDX);
+    if (SKILL_SCOPE_AIMED(nSkillIDX)) {
+        // a strip or cone starts at the caster and points at the aim
+        t.fX = posCaster.x;
+        t.fY = posCaster.y;
+        t.fZ = posCaster.z;
+        PointAt(t, posAim.x, posAim.y);
+    } else {
+        // a circle lands on the aim
+        t.fX = posAim.x;
+        t.fY = posAim.y;
+        t.fZ = posAim.z;
+    }
+    m_Preview = t;
+
+    Telegraph r = t;
+    r.shape = SHAPE_CIRCLE;
+    r.fX = posCaster.x;
+    r.fY = posCaster.y;
+    r.fZ = posCaster.z;
+    r.fDirX = 1.f;
+    r.fDirY = 0.f;
+    r.fLength = (float)SKILL_DISTANCE(nSkillIDX);
+    m_PreviewRange = r;
+    m_bPreview = t.fLength > 0.f && r.fLength > 0.f;
 }
 
 float
@@ -312,6 +370,29 @@ CGroundTelegraphs::AddArea(const Telegraph& t, float fFrom, float fReach, unsign
 }
 
 void
+CGroundTelegraphs::AddOutline(const Telegraph& t, unsigned long rgb, unsigned long alphaArea,
+    unsigned long alphaRim) {
+    const float L = t.fLength;
+    this->AddArea(t, 0.f, L, Argb(alphaArea, rgb), Argb(alphaArea, rgb));
+    this->AddArea(t, L - RIM_CM, L, Argb(0, rgb), Argb(alphaRim, rgb));
+    if (t.shape == SHAPE_CONE) {
+        // the two sides, from the point to the arc; inward = toward the aim
+        for (int side = -1; side <= 1; side += 2) {
+            const float a = atan2f(t.fDirY, t.fDirX) + side * t.fHalfAngle;
+            const float ex = cosf(a), ey = sinf(a);
+            this->AddEdge(t, t.fX, t.fY, t.fX + ex * L, t.fY + ey * L, side * ey, -side * ex, RIM_CM,
+                Argb(alphaRim, rgb), Argb(0, rgb));
+        }
+    } else if (t.shape == SHAPE_STRIP) {
+        for (int side = -1; side <= 1; side += 2) {
+            const float px = -t.fDirY * side * t.fHalfWidth, py = t.fDirX * side * t.fHalfWidth;
+            this->AddEdge(t, t.fX + px, t.fY + py, t.fX + px + t.fDirX * L, t.fY + py + t.fDirY * L,
+                t.fDirY * side, -t.fDirX * side, RIM_CM, Argb(alphaRim, rgb), Argb(0, rgb));
+        }
+    }
+}
+
+void
 CGroundTelegraphs::AddTelegraph(const Telegraph& t, unsigned long now) {
     const float L = t.fLength;
 
@@ -326,24 +407,7 @@ CGroundTelegraphs::AddTelegraph(const Telegraph& t, unsigned long now) {
     if (p > 1.f)
         p = 1.f;
 
-    // The area, and a bright rim over its outline.
-    this->AddArea(t, 0.f, L, Argb(ALPHA_AREA, RGB_AREA), Argb(ALPHA_AREA, RGB_AREA));
-    this->AddArea(t, L - RIM_CM, L, Argb(0, RGB_AREA), Argb(ALPHA_RIM, RGB_AREA));
-    if (t.shape == SHAPE_CONE) {
-        // the two sides, from the point to the arc; inward = toward the aim
-        for (int side = -1; side <= 1; side += 2) {
-            const float a = atan2f(t.fDirY, t.fDirX) + side * t.fHalfAngle;
-            const float ex = cosf(a), ey = sinf(a);
-            this->AddEdge(t, t.fX, t.fY, t.fX + ex * L, t.fY + ey * L, side * ey, -side * ex, RIM_CM,
-                Argb(ALPHA_RIM, RGB_AREA), Argb(0, RGB_AREA));
-        }
-    } else if (t.shape == SHAPE_STRIP) {
-        for (int side = -1; side <= 1; side += 2) {
-            const float px = -t.fDirY * side * t.fHalfWidth, py = t.fDirX * side * t.fHalfWidth;
-            this->AddEdge(t, t.fX + px, t.fY + py, t.fX + px + t.fDirX * L, t.fY + py + t.fDirY * L,
-                t.fDirY * side, -t.fDirX * side, RIM_CM, Argb(ALPHA_RIM, RGB_AREA), Argb(0, RGB_AREA));
-        }
-    }
+    this->AddOutline(t, RGB_AREA, ALPHA_AREA, ALPHA_RIM);
 
     // The fill: grows from the caster to the rim over the cast, a brighter leading edge.
     const float fFill = L * p;
