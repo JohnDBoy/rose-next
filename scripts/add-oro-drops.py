@@ -131,9 +131,9 @@ TIER_MATS = {"RING":   [9, 10, 49, 50],      # Tiar, Damascus, Transparent/Patte
 
 # ---------------------------------------------------------------- equipment
 # Jrose lv200-210. Was 1420-1425 + 1450 + 1447 until 2026-10-20: weapon-ladder-pass.py
-# made Photon Cannon (1424) the lv230 Arcidian line's launcher, and the user retired
-# the other five (1420-1423, 1425) -- their models are the lv230 Arcidian line's, and
-# no weapon may share a higher tier's look; they wait for models of their own.
+# made Photon Cannon (1424) the lv230 Arcidian line's launcher, and the other five
+# (1420-1423, 1425) wore the lv230 Arcidian line's models -- no weapon may share a
+# higher tier's look -- and were erased (erase-retired-weapons.py).
 WPN_ORO_210 = [1450, 1447]
 ARMOUR_240 = {T_CAP: [989, 990, 991, 992],     # Royal Guardian / Sun Prophet /
               T_BODY: [916, 917, 918, 919],    # Jackal Bandit / Serpent Trader

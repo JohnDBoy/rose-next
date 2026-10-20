@@ -28,10 +28,9 @@ Reaver, Befoul Axe, Heat Ray Gun and Intrepid Wand, kept in two folders. The fir
 cut moved them to 230 with the line, which left the tier with doubles; the user's rule
 is that **lv230 non-red weapons have no doubles**, so they are not touched here, and
 then the stricter rule: **no weapon may wear a higher tier's look** -- they are
-**retired** (rows kept at lv210, owned copies still work) until they get models of
-their own: no shop sells them and `add-oro-drops.py` dropped them from the Golden
-Ring pool (`WPN_ORO_210`, `--rewrite`). Photon Cannon (1424), in the same pool, is the
-line's launcher: it goes to 230 and left the Ring pool too.
+**erased** (`erase-retired-weapons.py`; first out of every shop and out of the Golden
+Ring pool, `add-oro-drops.py` `WPN_ORO_210` `--rewrite`). Photon Cannon (1424), in the
+same pool, is the line's launcher: it goes to 230 and left the Ring pool too.
 
 Dual Tornado Rifles (381, dual guns, a test weapon) stays at 210: no lv230 dual gun
 exists to trade with.
@@ -97,10 +96,6 @@ SWAP = {
     241: (1375, 1363), 242: (1376, 1364), 251: (1377, 1365), 252: (1378, 1366),
     271: (1379, 1367),
 }
-# The other lv210 Jrose rows: row -> the line weapon whose model it shares. Untouched
-# here and retired (sold and dropped nowhere) until they get models of their own --
-# no weapon may wear a higher tier's look (user).
-LOOKALIKE = {1420: 1369, 1421: 1370, 1422: 1372, 1423: 1374, 1425: 1376}
 
 ROSE_LEVEL = 100
 ROSE = {211: 1382, 212: 1385, 221: 1388, 222: 1391, 223: 1394, 231: 1397, 232: 1400,

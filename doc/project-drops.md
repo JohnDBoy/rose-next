@@ -128,7 +128,7 @@ drops**, chosen so Karkia never duplicates Oro (whose merchant Huzam sells 210 a
 | lv240 (13, the mythical names) | 1383, 1386, 1389, 1392, 1395, 1398, 1401, 1404, 1407, 1410, 1413, 1416, 1419 | **reserved for drops** |
 
 Left out of both: the partial lv210 set (1420–1425; 1424 Photon Cannon is the lv230 Arcidian line's
-launcher since 2026-10-20, the other five share its models and are retired, sold and dropped nowhere, until they get models of their own) duplicates Oro's tier, and the
+launcher since 2026-10-20, the other five wore its models and were erased, `erase-retired-weapons.py`) duplicates Oro's tier, and the
 low oddments (1447–1453, levels 150–205) sit far below Karkia's 215–240 band.
 
 The lv240 set — Bahamut, Phoenix, Griffon, Unicorn, Albion, Quetzalcoatl, Aerie,
@@ -261,7 +261,8 @@ Design choices, and why:
   animal. The table is generated, so 57 rows cost the same as four.
 - **Weapons are what Karkia left unused**: the Jrose lv210 set 1420–1425 with 1447/1450
   in the Golden Ring, then the shared lv220 and lv235 pools. Five-wide windows rotate
-  through the pool per species.
+  through the pool per species. (Since 2026-10-20 the Ring pool is 1447/1450 alone:
+  1424 became lv230 and the other five were erased -- see `weapon-ladder-pass.py`.)
 - **The lv240 armour is Oro's signature**, as the mythical weapons are Karkia's. It was
   drop-only since the armour pass and dropped nowhere. Body and cap come from the
   Fossil Sanctuary's field buckets, gauntlets and boots from its four kings.

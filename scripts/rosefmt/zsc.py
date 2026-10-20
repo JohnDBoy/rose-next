@@ -128,6 +128,32 @@ class Zsc:
                 + struct.pack("<H", len(self.objects))
                 + self.objects_blob())
 
+    def without(self, mesh_idx=(), mat_idx=()):
+        """The file with these mesh and material records removed, every object's
+        part indices remapped past the gap. A removed record must be referenced by
+        no object left (empty its objects first). Effects are spliced as they are."""
+        drop_m, drop_t = set(mesh_idx), set(mat_idx)
+        for i, (_c, parts, _d, _b) in enumerate(self.objects):
+            for m, t, _p in parts:
+                if m in drop_m or t in drop_t:
+                    raise ValueError("object %d still uses a removed record" % i)
+        mmap, tmap = {}, {}
+        for old in range(len(self.meshes)):
+            if old not in drop_m:
+                mmap[old] = len(mmap)
+        for old in range(len(self.materials)):
+            if old not in drop_t:
+                tmap[old] = len(tmap)
+        meshes = [m for i, m in enumerate(self.meshes) if i not in drop_m]
+        mats = [x for i, x in enumerate(self.materials) if i not in drop_t]
+        objects = [(c, [(mmap[m], tmap[t], p) for m, t, p in parts], d, b)
+                   for c, parts, d, b in self.objects]
+        out = [struct.pack("<H", len(meshes))] + [m + NUL for m in meshes]
+        out += [struct.pack("<H", len(mats))] + [p + NUL + flags for p, flags in mats]
+        out += [self.d[self.mat_end:self.objcnt_pos], struct.pack("<H", len(objects))]
+        out += [serialize_object(o) for o in objects]
+        return b"".join(out)
+
     def rebuild_with(self, extra_meshes=(), extra_mats=()):
         """``rebuild()`` plus records appended to the mesh and material lists --
         for replacing an object in place with one that needs paths the table
