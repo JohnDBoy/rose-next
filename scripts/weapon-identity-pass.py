@@ -90,6 +90,8 @@ SKIP.update({r: "668 unique" for r in (904, 911, 918, 922, 929, 935, 936, 943, 9
 # pass's originals would put them back.
 SKIP.update({r: "weapon ladder" for r in list(range(1355, 1380)) + [1424]
              + list(range(1382, 1419, 3))})
+# Imported after this pass by import-tsuki-weapons.py, on the post-pass scale.
+SKIP.update({r: "tsuki weapon" for r in (124, 125, 126, 424, 425)})
 
 
 def R(level):

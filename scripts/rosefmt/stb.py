@@ -167,6 +167,29 @@ class Stb:
         self.rows = game_rows
         return add
 
+    def add_column(self, name=b"", width=None):
+        """Append one blank game column titled ``name``; returns its index.
+
+        The header is rebuilt from its parsed fields (row height, one width per
+        column + 1, column names, row names), so it refuses a header the parse
+        could not follow. ``width`` defaults to the last column's."""
+        if not self.colnames or len(self.widths) != self.cols + 2:
+            raise FormatError("%s: header not parsed, cannot add a column" % self.path)
+        if isinstance(name, str):
+            name = name.encode(self.encoding)
+        widths = list(self.widths) + [self.widths[-1] if width is None else width]
+        h = io.BytesIO()
+        h.write(struct.pack("<I", self.row_height))
+        h.write(struct.pack("<%dH" % len(widths), *widths))
+        for n in list(self.colnames) + [name] + list(self.rownames):
+            h.write(write_pstr16(n))
+        self.header = h.getvalue()
+        self.widths, self.colnames = tuple(widths), list(self.colnames) + [name]
+        for row in self.d:
+            row.append(b"")
+        self.cols += 1
+        return self.cols - 1
+
     def to_bytes(self):
         out = io.BytesIO()
         out.write(MAGIC)
