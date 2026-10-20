@@ -1,5 +1,10 @@
 """Import the 667 client's level-220 class sets as a second level-230 tier.
 
+**Since 2026-10-20 this is the only level-230 set:** `armour-ladder-pass.py` made
+Unit Core a level-110 cosmetic. The trade below (more DEF, less RES, slower boots)
+was kept as it is, by the user's call ("we'll see how it goes"), though the set it
+was a trade against is gone. Astraea sells it beside Sulfa now.
+
 Sixteen items -- four class lines x four slots -- written into blank rows
 **262-265** of all four armour tables, alongside Unit Core rather than above it:
 

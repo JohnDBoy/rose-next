@@ -128,6 +128,22 @@ class Zsc:
                 + struct.pack("<H", len(self.objects))
                 + self.objects_blob())
 
+    def rebuild_with(self, extra_meshes=(), extra_mats=()):
+        """``rebuild()`` plus records appended to the mesh and material lists --
+        for replacing an object in place with one that needs paths the table
+        does not hold yet. ``extra_mats`` are ``(path, 36-byte flags)`` pairs,
+        and the objects in ``self.objects`` index them past the existing ones."""
+        out = [struct.pack("<H", len(self.meshes) + len(extra_meshes)),
+               self.d[2:self.mesh_end]]
+        out += [m + NUL for m in extra_meshes]
+        out += [struct.pack("<H", len(self.materials) + len(extra_mats)),
+                self.d[self.mesh_end + 2:self.mat_end]]
+        out += [p + NUL + flags for p, flags in extra_mats]
+        out += [self.d[self.mat_end:self.objcnt_pos],
+                struct.pack("<H", len(self.objects)),
+                self.objects_blob()]
+        return b"".join(out)
+
 
 def serialize_object(o):
     """One object record, exactly as ``Zsc.__init__`` parsed it."""

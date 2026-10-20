@@ -1,5 +1,10 @@
 """Fill the 225 and 230 gap between Crystal/Steam (220) and Egyptian (240).
 
+**Superseded 2026-10-20:** `armour-ladder-pass.py` made Steam Refined a level-90
+and Unit Core a level-110 cosmetic set (the user graded both looks vanity, not end
+game), so `--verify` here reports their stats and levels as drift. The 225 gap is
+simply gone; the ladder steps 200/210/220/230/240.
+
 Thirty-two items -- two tiers x four class lines x four slots -- written into
 blank rows **254-257** (225) and **258-261** (230) of all four armour tables.
 

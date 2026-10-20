@@ -88,7 +88,9 @@ Memories became reachable in stage 7a and stage 8 imported them, so she is the o
 NPC in the game for whom that stock was already written into her lines.
 
 She also sells the **armour**, in her two remaining tab columns: the level-225
-Refined Steam and level-230 Unit Core tiers, 16 items each. She is the only armour
+Refined Steam and level-230 Unit Core tiers, 16 items each (since 2026-10-20 the
+level-220 Legendary Crystal and the Legionnaire line instead: armour-ladder-pass.py
+turned those two into level 90/110 cosmetics). She is the only armour
 seller Karkia has -- the [Starsteel Armourer], and the only NPC there whose `.CON`
 opens a store *and* whose role fits -- so there is nothing to split across. The
 level-240 Egyptian tier is deliberately **not** sold: it is the cap tier and is
@@ -146,12 +148,14 @@ def armour_grid(first_row, classes=4):
 
     `first_row` is the Soldier row; the four class variants are consecutive, and
     every slot table uses the same row number for a given class -- which is true
-    because import-midtier-armour.py wrote them that way on purpose.
+    because import-midtier-armour.py wrote them that way on purpose. A tier whose
+    tables disagree (the retail-numbered Crystal set) passes {type: Soldier row}.
     """
     out = {}
     for r, (typ, _name) in enumerate(ARMOUR_PIECES):
+        first = first_row[typ] if isinstance(first_row, dict) else first_row
         for c in range(classes):
-            out[r * GRID_COLS + c] = (typ, first_row + c)
+            out[r * GRID_COLS + c] = (typ, first + c)
     return out
 
 # LIST_NPC shop-tab columns. Col 24 is the fourth tab, which the client draws
@@ -237,16 +241,17 @@ NEW_TABS = [
      [(T_NATURAL, n) for n in ARROWS + BULLETS + SHELLS]
      + [(T_USE, REPAIR_HAMMER)]),
     (565, "Karkia Materials", [(T_NATURAL, n) for n in MATERIALS_SOLD]),
-    # The two mid tiers, one per tab, each a 4x4 block: class across, body part
-    # down. Astraea is the only armour seller Karkia has, so both hang off her.
-    (566, "Refined Steam lv225", armour_grid(254)),
-    (567, "Unit Core lv230", armour_grid(258)),
-    # The second lv230 set (import-legionnaire-armour.py, rows 262-265). It is
-    # deliberately NOT Astraea's: her three tabs are full, and a fourth would be
-    # col 24, which the client draws only for openStore(npc, 1). Splitting the
-    # tier across two sellers in two zones is better than the alternative anyway
-    # -- the choice between the two lv230 sets is the point, and a player who
-    # sees both on one counter picks by the bigger number instead of by profile.
+    # A 4x4 block per tab: class across, body part down. 566/567 first held the
+    # two mid tiers, Refined Steam lv225 and Unit Core lv230; armour-ladder-pass.py
+    # (2026-10-20) made those level 90/110 cosmetics, sold in Junon Polis, so 566
+    # sells the lv220 tier (Legendary Crystal) and 567 is empty and unreferenced.
+    (566, "Legendary Crystal lv220",
+     armour_grid({T_CAP: 977, T_BODY: 904, T_ARMS: 880, T_FOOT: 878})),
+    (567, "Unit Core lv230", {}),
+    # The second lv230 set (import-legionnaire-armour.py, rows 262-265). It was
+    # first kept off Astraea's counter on purpose, so the choice between two lv230
+    # sets was made by profile in two zones; with Unit Core gone it is the tier,
+    # and both Sulfa and Astraea sell it.
     (568, "Forgotten Armors", armour_grid(262)),
 ]
 
@@ -276,7 +281,7 @@ NPC_TABS = {
     # exist, so he costs no new stock. Astraea is the armourer and sells the
     # reagents she talks about; armour when there is armour to sell.
     4089: (563, 564, 0),     # [General Store] Ginias
-    4108: (565, 566, 567),   # [Starsteel Armourer] Astraea -- materials + both tiers
+    4108: (565, 566, 568),   # [Starsteel Armourer] Astraea -- materials, lv220, lv230
 }
 
 # Sellers whose union column must be cleared, or the shop refuses to open for

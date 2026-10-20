@@ -1,5 +1,10 @@
 """Import Jrose's Steam set as a level-220 **alternate** to Crystal.
 
+**Superseded 2026-10-20:** `armour-ladder-pass.py` made these rows a level-70
+cosmetic set (the user graded the look vanity, not end game), so `--verify` here
+reports its stats and level as drift. The import itself is still how the rows got
+their models.
+
 Sixteen items -- four class lines x four slots -- written into blank rows
 **250-253** of `LIST_CAP`, `LIST_BODY`, `LIST_ARMS` and `LIST_FOOT`.
 
