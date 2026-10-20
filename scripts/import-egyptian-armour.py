@@ -1,6 +1,10 @@
 """Import the 667 "Egyptian" armour as our level-240 tier -- the first full set
 above Crystal, and the first armour import this project has done.
 
+**Level 225 since 2026-10-20** (`armour-endgame-sets.py`): Jrose's Norse set took
+240 and the user moved this "very Oro-coded" set down, onto the 25% point of the
+Crystal->old-240 line. Its Oro drops (Fossil Sanctuary, lv225-240) still fit.
+
 Sixteen items: four class lines x four slots, appended to `LIST_CAP`,
 `LIST_BODY`, `LIST_ARMS` and `LIST_FOOT`.
 

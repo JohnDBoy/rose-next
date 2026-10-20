@@ -135,6 +135,8 @@ TIER_MATS = {"RING":   [9, 10, 49, 50],      # Tiar, Damascus, Transparent/Patte
 # (1420-1423, 1425) wore the lv230 Arcidian line's models -- no weapon may share a
 # higher tier's look -- and were erased (erase-retired-weapons.py).
 WPN_ORO_210 = [1450, 1447]
+# The Egyptian set: lv240 when this was written, lv225 since 2026-10-20
+# (armour-endgame-sets.py) -- still a fit for the Fossil Sanctuary (lv225-240).
 ARMOUR_240 = {T_CAP: [989, 990, 991, 992],     # Royal Guardian / Sun Prophet /
               T_BODY: [916, 917, 918, 919],    # Jackal Bandit / Serpent Trader
               T_ARMS: [892, 893, 894, 895],

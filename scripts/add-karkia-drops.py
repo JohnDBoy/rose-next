@@ -70,6 +70,12 @@ anywhere in the game** until now:
     the drop encoding was widened -- ids above 999 could not be addressed by a
     drop cell before. See rose/common/drop_item_code.h.
 
+**Armour (2026-10-20, `armour-endgame-sets.py`):** the OG cinematic set (lv230)
+rides the three lv228-240 field tables as extra redirects paid for by one material
+each (still 12 slots; 2.5% / 5.8% / 5.8% an OG piece per kill), and the Norse set
+(lv240) the five boss tables, two redirects on top (~5.5% a piece per boss kill,
+mythicals unchanged at ~37%). Both are drop-only by the user's call.
+
 The Jrose *back* items are deliberately not here: they cap at level 150 (DEF
 5-29), so dropping one off a level-238 monster would be wrong. They want a pass
 of their own aimed at the 100-150 band.
@@ -113,6 +119,7 @@ COMMON_SLOTS = 30           # the main roll is RANDOM(30)
 LAST_SLOT = 49              # slot 50 reads col 51 on a 51-column table -> dead
 
 T_BACK, T_WEAPON, T_SUBWPN, T_USE, T_NATURAL = 6, 8, 9, 10, 12
+T_CAP, T_BODY, T_ARMS, T_FOOT = 2, 3, 4, 5
 
 # LIST_NPC columns
 COL_DROP_TYPE, COL_DROP_MONEY, COL_DROP_ITEM = 18, 19, 20
@@ -192,19 +199,45 @@ WPN_235 = [1437, 1438, 1439, 1440, 1441, 1442, 1443, 1444, 1445, 1446]
 WPN_240 = [1383, 1386, 1389, 1392, 1395, 1398, 1401, 1404, 1407, 1410, 1413,
            1416, 1419]
 
+# Jrose armour sets (armour-endgame-sets.py, 2026-10-20), drop-only by the user's
+# call: the OG cinematic outfits (lv230, rows 266-269) off the lv228-240 field tables,
+# the Norse set (lv240, rows 270-273) off bosses only "for now". Ordered body, cap,
+# gloves, boots with the four classes inside each, so any 4-5 wide window mixes classes.
+def armour_pool(first):
+    return [(t, first + c) for t in (T_BODY, T_CAP, T_ARMS, T_FOOT) for c in range(4)]
+
+
+ARM_OG = armour_pool(266)
+ARM_NORSE = armour_pool(270)
+
+
+def windows(pool, start, sizes):
+    """Consecutive windows of `pool` (wrapping), one per size, from `start` on."""
+    out, i = [], start
+    for n in sizes:
+        out.append([pool[(i + k) % len(pool)] for k in range(n)])
+        i += n
+    return out
+
 # ---------------------------------------------------------------- the tables
 # common: slots 0.. in order. A ("redirect", group) entry costs one common slot
 #         and makes that group reachable.
 # groups: group number -> the five items in its window.
-def field(mats, uses, shields, weapons, extra=None):
+def field(mats, uses, shields, weapons, extra=None, armour=()):
+    """`armour` windows (the OG set) each take a redirect and the next free group,
+    paid for by one fewer material, so a table still fills 12 slots."""
     common = [(T_NATURAL, m) for m in mats[:8]] + [(T_USE, u) for u in uses]
-    common = common[:10 if extra is None else 9]
+    common = common[:(10 if extra is None else 9) - len(armour)]
     groups = {1: [(T_SUBWPN, s) for s in shields],
               2: [(T_WEAPON, w) for w in weapons]}
     common += [("redirect", 1), ("redirect", 2)]
     if extra:
         groups[3] = [(T_WEAPON, w) for w in extra]
         common.insert(-2, ("redirect", 3))
+    for window in armour:
+        g = max(groups) + 1
+        groups[g] = list(window)
+        common.append(("redirect", g))
     return common, groups
 
 
@@ -224,18 +257,23 @@ def elite(weapons, shields, mats):
     return common, groups
 
 
-def boss(mythicals, shields, mats=None):
+def boss(mythicals, shields, mats=None, armour=()):
     """Eight mythical slots -> 36% per kill, then materials and a shield.
 
     `mats` takes two slots rather than the one it used to, so the seal chain
     (759 + 761) can come off Hebarn's officers while the Drakes pay their own
     stone. Twelve of a row's slots are used either way; there is room.
+    `armour` windows (the Norse set) come on top, a redirect each: bosses pay more.
     """
     common = [(T_WEAPON, w) for w in mythicals[:8]]
     common += [(T_SUBWPN, s) for s in shields[:2]]
     common += [(T_NATURAL, m) for m in (mats or MAT_BOSS)[:2]]
     common += [(T_USE, USE_BOSS[0])]
-    return common, {}
+    groups = {}
+    for g, window in enumerate(armour, 1):
+        groups[g] = list(window)
+        common.append(("redirect", g))
+    return common, groups
 
 
 TABLES = {
@@ -245,27 +283,37 @@ TABLES = {
           field(MAT_CEMETERY, USE_FIELD, OFF_OFFICER, WPN_220[5:10])),
     902: ("D-Seed (lv215)",
           field(MAT_CEMETERY, USE_FIELD, OFF_DSEED, [WPN_220[10]] + WPN_220[:4])),
+    # The OG set (lv230) rides the three lv228-240 field tables: 4 + 9 + 9 window
+    # slots cover all 16 pieces (906 has only group 4 left, 4 wide).
     906: ("Alpha roster (10 mobs, lv228-240)",
-          field(MAT_SPIRE, USE_FIELD, OFF_SPIRE, WPN_235[:5], extra=WPN_235[5:])),
+          field(MAT_SPIRE, USE_FIELD, OFF_SPIRE, WPN_235[:5], extra=WPN_235[5:],
+                armour=windows(ARM_OG, 0, [4]))),
     # --- the flashback zones, stage 7b --------------------------------------
     909: ("Memories wildlife (lv230-232)",
-          field(MAT_MEMORIES, USE_FIELD, OFF_MEMORIES, WPN_235[:5])),
+          field(MAT_MEMORIES, USE_FIELD, OFF_MEMORIES, WPN_235[:5],
+                armour=windows(ARM_OG, 4, [5, 4]))),
     910: ("ELITE Basilissa Melitta (lv238)",
           elite(WPN_235[5:], OFF_QUEEN, MAT_GARDEN)),
     911: ("Garden wildlife (lv235-240)",
-          field(MAT_GARDEN, USE_FIELD, OFF_GARDEN, WPN_235[5:])),
+          field(MAT_GARDEN, USE_FIELD, OFF_GARDEN, WPN_235[5:],
+                armour=windows(ARM_OG, 13, [5, 4]))),
+    # The Norse set (lv240) is boss-only: two windows per boss (10 of 16 pieces),
+    # started 3 apart so the five bosses together cover the set several times.
     903: ("BOSS Hebarn Officer Pazugenti (lv240)",
-          boss([1389, 1398, 1404, 1407, 1419, 1395, 1392, 1386], OFF_BOSS)),
+          boss([1389, 1398, 1404, 1407, 1419, 1395, 1392, 1386], OFF_BOSS,
+               armour=windows(ARM_NORSE, 0, [5, 5]))),
     904: ("BOSS Hebarn Officer Scylla Mira (lv240)",
-          boss([1383, 1386, 1392, 1401, 1410, 1413, 1416, 1389], OFF_BOSS)),
+          boss([1383, 1386, 1392, 1401, 1410, 1413, 1416, 1389], OFF_BOSS,
+               armour=windows(ARM_NORSE, 3, [5, 5]))),
     905: ("BOSS Corroded Golem + Revived Veteran (lv238/235)",
-          boss([1395, 1404, 1416, 1413, 1401, 1410, 1383, 1398], OFF_BOSS)),
+          boss([1395, 1404, 1416, 1413, 1401, 1410, 1383, 1398], OFF_BOSS,
+               armour=windows(ARM_NORSE, 6, [5, 5]))),
     907: ("BOSS Deadly Drake (lv238, Cemetery)",
           boss([1389, 1392, 1395, 1398, 1401, 1404, 1407, 1410], OFF_BOSS,
-               MAT_DRAKE)),
+               MAT_DRAKE, armour=windows(ARM_NORSE, 9, [5, 5]))),
     908: ("BOSS Deadly Drake Alpha (lv240, Spire Village)",
           boss([1383, 1386, 1413, 1416, 1419, 1389, 1398, 1404], OFF_BOSS,
-               MAT_DRAKE)),
+               MAT_DRAKE, armour=windows(ARM_NORSE, 12, [5, 5]))),
 }
 
 # Zone-number rows mirror the dominant table for that zone, so the 20% fallback
