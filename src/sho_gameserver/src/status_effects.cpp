@@ -167,7 +167,7 @@ StatusEffects::UpdateIngSTATUS(CObjCHAR* pCharOBJ,
 }
 
 void
-StatusEffects::UpdateIngPOTION(short nIngStbIDX, short nTotValue, short nAdjPerSEC) {
+StatusEffects::UpdateIngPOTION(short nIngStbIDX, short nTotValue, DWORD dwTotTIME) {
     // 반드시 적용 가능여부 판단한후 호출되어야 한다 !!!
     short nTypeIDX = STATE_TYPE(nIngStbIDX);
 
@@ -178,13 +178,23 @@ StatusEffects::UpdateIngPOTION(short nIngStbIDX, short nTotValue, short nAdjPerS
 
     m_nIngSTBIdx[nTypeIDX] = nIngStbIDX;
 
-    m_POTION[nTypeIDX].m_dwTotTIME = (1000 * nTotValue / nAdjPerSEC); // 전체 필요시간
+    m_POTION[nTypeIDX].m_dwTotTIME = dwTotTIME; // 전체 필요시간
 
     assert(m_POTION[nTypeIDX].m_dwTotTIME);
 
     m_POTION[nTypeIDX].m_dwAccTIME = 0; // 누적시간.
     m_POTION[nTypeIDX].m_nTotVALUE = nTotValue;
     m_POTION[nTypeIDX].m_nAccVALUE = 0;
+}
+
+int
+StatusEffects::GetPotionRemaining(short nIngStbIDX) {
+    const short nTypeIDX = STATE_TYPE(nIngStbIDX);
+    if (ING_INC_HP != nTypeIDX && ING_INC_MP != nTypeIDX)
+        return 0;
+    if (!this->IsSET(c_dwIngFLAG[nTypeIDX]))
+        return 0;
+    return m_POTION[nTypeIDX].m_nTotVALUE - m_POTION[nTypeIDX].m_nAccVALUE;
 }
 
 short

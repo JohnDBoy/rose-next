@@ -34,6 +34,9 @@ STBDATA g_TblJEWELITEM;
 STBDATA g_TblNATUAL;
 STBDATA g_TblQUESTITEM;
 STBDATA g_PatITEM;
+// never loaded here: only for the shared item code (citem.cpp UseItem_PotionDurationMS),
+// which the world server links but never calls
+STBDATA g_TblSTATE;
 
 /*
 STBDATA			 g_TblEFFECT;

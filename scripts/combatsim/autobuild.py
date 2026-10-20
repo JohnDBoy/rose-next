@@ -709,14 +709,17 @@ def shop_items(gd):
     return gd._shop_items
 
 
-def best_food(gd, kind):
-    """The shop-sold food that restores the most HP (kind "hp") or MP ("mp")."""
+def best_food(gd, kind, level=None):
+    """The shop-sold food that restores the most HP (kind "hp") or MP ("mp") that a
+    character of `level` may eat (the food ladder's use requirement, LIST_USEITEM cols
+    17/18 = AT_LEVEL 31 / min level; scripts/food-ladder.py)."""
     ui = gd.stb("LIST_USEITEM")
     want = 16 if kind == "hp" else 17         # USEITEM_ADD_DATA_TYPE: AT_HP / AT_MP
     sold = shop_items(gd)
     c = [(ui.i(r, 20), r) for r in range(1, ui.rows)
          if ui.i(r, 4) == FOOD_TYPE and ui.i(r, 19) == want and ui.i(r, 24)
-         and (10, r) in sold]
+         and (10, r) in sold
+         and (level is None or ui.i(r, 17) != 31 or ui.i(r, 18) <= level)]
     return max(c)[1] if c else 0
 
 
@@ -786,8 +789,8 @@ def make_build(gd, job, level, female=False, gear="best", weapon_types=None, rou
                if combat_buff_rank(gd, gd.skill(r)) is not None and gd.skill(r).duration >= 30]
     if route == "support":
         b.name += " (support route)"
-    b.potions = dict(enabled=True, hp=best_food(gd, "hp"), hp_below=FOOD_HP_BELOW,
-                     mp=best_food(gd, "mp"), mp_below=FOOD_MP_BELOW)
+    b.potions = dict(enabled=True, hp=best_food(gd, "hp", level), hp_below=FOOD_HP_BELOW,
+                     mp=best_food(gd, "mp", level), mp_below=FOOD_MP_BELOW)
     b.skill_spacing = 0 if job in SPAM_JOBS else SKILL_SPACING
     sp = (f"{spent['passive'] + spent['active']} skill points (passives {spent['passive']}, "
           f"actives {spent['active']}, {left} left)")

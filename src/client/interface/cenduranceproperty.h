@@ -231,6 +231,9 @@ public:
     virtual int GetIconNO();
 
     bool Proc(CObjCHAR* pObjCHAR);
+
+    /// what this heal over time still has to give (UseItem_PotionCanReplace)
+    int GetRemainingValue();
 };
 
 class CEnduranceGoddess: public CEnduranceProperty {

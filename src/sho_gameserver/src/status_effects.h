@@ -177,7 +177,11 @@ public:
         short nAdjVALUE,
         short nSkillIDX,
         int iTargetObjIDX = 0);
-    void UpdateIngPOTION(short nIngStbIDX, short nTotValue, short nAdjPerSEC);
+    /// a heal over time: nTotValue over dwTotTIME ms (UseItem_PotionDurationMS)
+    void UpdateIngPOTION(short nIngStbIDX, short nTotValue, DWORD dwTotTIME);
+    /// what the running heal over time of this status's type (HP or MP) has left to give;
+    /// 0 when none runs or the status is not one (UseItem_PotionCanReplace)
+    int GetPotionRemaining(short nIngStbIDX);
 
     DWORD Proc(CObjCHAR* pCharOBJ, DWORD dwPassTIME);
 

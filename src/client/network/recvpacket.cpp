@@ -2517,10 +2517,15 @@ CRecvPACKET::Recv_gsv_USE_ITEM() {
                                 STATE_APPLY_ABILITY_VALUE(USEITME_STATUS_STB(wUseItemNO), i);
                             if (iStepValue) {
                                 int iApplyValue = USEITEM_ADD_DATA_VALUE(wUseItemNO);
+                                // a heal over time runs col 21 seconds (UseItem_PotionDurationMS),
+                                // any other status item col 20 / the status row's value per second
+                                int iDurationMS = UseItem_PotionDurationMS(wUseItemNO);
+                                if (!iDurationMS)
+                                    iDurationMS = (iApplyValue * 1000) / iStepValue;
 
                                 pAVT->AddEnduranceEntity(wUseItemNO,
                                     iStateNO1,
-                                    (iApplyValue * 1000) / iStepValue,
+                                    iDurationMS,
                                     ENDURANCE_TYPE_USEITEM);
                             }
                         }
@@ -2551,10 +2556,15 @@ CRecvPACKET::Recv_gsv_USE_ITEM() {
                             STATE_APPLY_ABILITY_VALUE(USEITME_STATUS_STB(wUseItemNO), i);
                         if (iStepValue) {
                             int iApplyValue = USEITEM_ADD_DATA_VALUE(wUseItemNO);
+                            // a heal over time runs col 21 seconds (UseItem_PotionDurationMS),
+                            // any other status item col 20 / the status row's value per second
+                            int iDurationMS = UseItem_PotionDurationMS(wUseItemNO);
+                            if (!iDurationMS)
+                                iDurationMS = (iApplyValue * 1000) / iStepValue;
 
                             pAVT->AddEnduranceEntity(wUseItemNO,
                                 iStateNO1,
-                                (iApplyValue * 1000) / iStepValue,
+                                iDurationMS,
                                 ENDURANCE_TYPE_USEITEM);
                         }
                     }

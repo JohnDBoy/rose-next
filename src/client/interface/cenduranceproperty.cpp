@@ -1338,6 +1338,19 @@ CEnduranceItem::GetIconNO() {
     return STATE_SYMBOL(m_iStatusSTBNO);
 }
 
+int
+CEnduranceItem::GetRemainingValue() {
+    int iRemaining = 0;
+    for (int i = 0; i < STATE_APPLY_ABILITY_CNT; i++) {
+        if (!STATE_APPLY_ING_STB(USEITME_STATUS_STB(m_iEndityIdx), i))
+            continue;
+        const int iLeft = USEITEM_ADD_DATA_VALUE(m_iEndityIdx) - m_iTotalAppliedProperty[i];
+        if (iLeft > iRemaining)
+            iRemaining = iLeft;
+    }
+    return iRemaining;
+}
+
 /// if return value is false, this endurance entity is expired.
 bool
 CEnduranceItem::Proc(CObjCHAR* pObjCHAR) {

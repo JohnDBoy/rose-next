@@ -344,6 +344,32 @@ CTCmdItemUseInInventory::Exec(CTObject* pObj) {
             g_itMGR.AppendChatMsg(STR_CANTUSE_WARPSCROLL_CURRENTZONE, IT_MGR::CHAT_TYPE_SYSTEM);
             return true;
         }
+    } else if (iType
+        && g_pAVATAR->GetCur_AbilityValue(iType) < USEITEM_NEED_DATA_VALUE(Item.GetItemNO())) {
+        /// below the use requirement (the food ladder's level per tier): the server refuses
+        /// it without a word (classUSER::Use_InventoryITEM), so say it here
+        g_itMGR.AppendChatMsg(STR_NOT_ENOUGH_CONDITION, IT_MGR::CHAT_TYPE_SYSTEM);
+        return true;
+    }
+
+    /// Heal over time: a new one replaces the running one only if it heals at least what
+    /// that one still has to give -- the server refuses it the same way.
+    if (UseItem_PotionDurationMS(Item.GetItemNO())) {
+        const int iIngSTB = USEITME_STATUS_STB(Item.GetItemNO());
+        for (int i = 0; i < STATE_APPLY_ABILITY_CNT; i++) {
+            const int iIng = STATE_APPLY_ING_STB(iIngSTB, i);
+            if (!iIng || !STATE_APPLY_ABILITY_VALUE(iIngSTB, i))
+                continue;
+            CEnduranceProperty* pRunning =
+                g_pAVATAR->m_EndurancePack.GetEntityByStateType(STATE_TYPE(iIng));
+            if (pRunning && pRunning->GeteEntityType() == ENDURANCE_TYPE_USEITEM
+                && !UseItem_PotionCanReplace(Item.GetItemNO(),
+                    static_cast<CEnduranceItem*>(pRunning)->GetRemainingValue())) {
+                g_itMGR.AppendChatMsg("What you took last still heals more than this.",
+                    IT_MGR::CHAT_TYPE_SYSTEM);
+                return true;
+            }
+        }
     }
 
     switch (ITEM_TYPE(Item.GetTYPE(), Item.GetItemNO())) {

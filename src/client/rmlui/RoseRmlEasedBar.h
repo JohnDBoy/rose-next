@@ -2,27 +2,32 @@
 #define _ROSE_RML_EASED_BAR_H_
 
 /**
- * A gauge fill that eases from where it is drawn now towards a new target over
- * 400 ms, restarting from its current position whenever the target moves --
- * the 667 CTGuage behaviour ( Get_PercentValue, 0x190 ms ). Numbers shown next
- * to the bar stay exact and immediate; only the fill eases.
+ * A gauge fill that eases towards its value: each frame it closes a share of the
+ * remaining gap, so a jump settles in about kEaseMs (the 667 CTGuage's 400 ms) and a
+ * value that moves every frame is followed smoothly. Numbers shown next to the bar
+ * stay exact and immediate; only the fill eases.
+ *
+ * It used to restart a 400 ms linear slide whenever the value changed. A heal over
+ * time raises HP a little nearly every frame (CEnduranceItem::Proc), so the slide
+ * restarted every frame from where it stood and the bar froze for the whole heal --
+ * the hits taken meanwhile looked ignored, then the bar jumped (2026-10-20, the food
+ * ladder's 20 s foods made it obvious).
  *
  * Call Reset() when the bar starts showing something else ( another target, a
  * panel coming back into view ) so it snaps instead of sliding from stale data.
  */
 
 #include <windows.h>
+#include <math.h>
 
 struct RoseRmlEasedBar {
     static const DWORD kEaseMs = 400;
 
-    float fFrom;
-    float fTo;
     float fShown;
-    DWORD dwStart;
+    DWORD dwLast;
     bool bPrimed;
 
-    RoseRmlEasedBar(): fFrom(0.0f), fTo(0.0f), fShown(0.0f), dwStart(0), bPrimed(false) {}
+    RoseRmlEasedBar(): fShown(0.0f), dwLast(0), bPrimed(false) {}
 
     void Reset() { bPrimed = false; }
 
@@ -30,22 +35,23 @@ struct RoseRmlEasedBar {
     /// i.e. when the bound width needs dirtying.
     bool Step(float fTarget, DWORD dwNow) {
         if (!bPrimed) {
-            fFrom = fTo = fShown = fTarget;
-            dwStart = dwNow;
+            fShown = fTarget;
+            dwLast = dwNow;
             bPrimed = true;
             return true;
         }
 
-        if (fTarget != fTo) {
-            fFrom = fShown;
-            fTo = fTarget;
-            dwStart = dwNow;
-        }
+        const DWORD dwDt = dwNow - dwLast;
+        dwLast = dwNow;
+        if (fShown == fTarget)
+            return false;
 
-        float t = (float)(dwNow - dwStart) / (float)kEaseMs;
-        if (t > 1.0f)
-            t = 1.0f;
-        const float fNext = fFrom + (fTo - fFrom) * t;
+        /// time constant kEaseMs / 3: 95% of a jump is covered within kEaseMs
+        const float fGap = fTarget - fShown;
+        const float fShare = 1.0f - expf(-3.0f * (float)dwDt / (float)kEaseMs);
+        float fNext = fShown + fGap * fShare;
+        if (fabsf(fTarget - fNext) < 0.05f) /// a twentieth of a percent: done
+            fNext = fTarget;
         if (fNext == fShown)
             return false;
 

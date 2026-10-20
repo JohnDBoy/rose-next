@@ -1120,10 +1120,14 @@ class Fight:
             self.last_potion[kind] = self.t
             self.log.potions[kind] += 1
             if status:
+                # heal over time (UseItem_PotionDurationMS): col 20 over col 21 seconds,
+                # or the status row's rate per second when col 21 is blank
                 per_sec = next((v for _, v in (gd.state_apply(status, n) for n in range(2)) if v), 0)
-                if per_sec:
+                seconds = ui.i(row, 21)
+                if seconds > 0 or per_sec:
+                    tot_time = seconds * 1000 if seconds > 0 else 1000 * total // per_sec
                     self.potion_run[kind] = dict(total=total, acc=0, acc_time=0,
-                                                 tot_time=max(1, 1000 * total // per_sec))
+                                                 tot_time=max(1, tot_time))
             else:
                 if kind == "hp":
                     gain = min(total, self.p.max_hp - self.p.hp)

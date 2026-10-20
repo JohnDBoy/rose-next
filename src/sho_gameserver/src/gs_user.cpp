@@ -1108,15 +1108,21 @@ classUSER::Use_pITEM(tagITEM* pITEM) {
     // 지속성 효과 아이템인가 ??
     if (USEITME_STATUS_STB(pITEM->m_nItemNo)) {
         short nIngSTB = USEITME_STATUS_STB(pITEM->m_nItemNo);
-        // short nDuringTime;
+        // heal over time: col 20 over UseItem_PotionDurationMS. It replaces a running one
+        // that has less left to give (Use_InventoryITEM refused the item otherwise), not by
+        // the status rows' index order as retail did.
+        const DWORD dwTotTIME = (DWORD)UseItem_PotionDurationMS(pITEM->m_nItemNo);
         for (short nI = 0; nI < STATE_APPLY_ABILITY_CNT; nI++) {
             if (!STATE_APPLY_ABILITY_VALUE(nIngSTB, nI))
                 continue;
 
-            if (this->m_IngSTATUS.IsEnableApplayITEM(STATE_APPLY_ING_STB(nIngSTB, nI))) {
-                this->m_IngSTATUS.UpdateIngPOTION(STATE_APPLY_ING_STB(nIngSTB, nI),
+            const short nIng = STATE_APPLY_ING_STB(nIngSTB, nI);
+            if (dwTotTIME
+                && UseItem_PotionCanReplace(pITEM->m_nItemNo,
+                    this->m_IngSTATUS.GetPotionRemaining(nIng))) {
+                this->m_IngSTATUS.UpdateIngPOTION(nIng,
                     USEITEM_ADD_DATA_VALUE(pITEM->m_nItemNo),
-                    STATE_APPLY_ABILITY_VALUE(nIngSTB, nI));
+                    dwTotTIME);
             }
         }
     } else {
@@ -1282,6 +1288,19 @@ classUSER::Use_InventoryITEM(t_PACKET* pPacket) {
             && dwCurTime - this->m_dwCoolTIME[nCoolTimeType] + USEITEM_RESTORE_COOLDOWN_SLACK_MS
                 < (DWORD)iRestoreCoolMS)
             return true;
+    }
+
+    /// Heal over time (food, Vials, Bottles): one runs per HP / MP, and a new one replaces it
+    /// only if it heals at least what that one still has to give. Refused, the item is kept;
+    /// the client refuses the same press first (CItemCommand, with a chat line).
+    if (UseItem_PotionDurationMS(pITEM->m_nItemNo)) {
+        const short nIngSTB = USEITME_STATUS_STB(pITEM->m_nItemNo);
+        for (short nI = 0; nI < STATE_APPLY_ABILITY_CNT; nI++) {
+            if (STATE_APPLY_ABILITY_VALUE(nIngSTB, nI)
+                && !UseItem_PotionCanReplace(pITEM->m_nItemNo,
+                    this->m_IngSTATUS.GetPotionRemaining(STATE_APPLY_ING_STB(nIngSTB, nI))))
+                return true;
+        }
     }
 
     //	DWORD dwClearedSTATUS = 0;

@@ -25,6 +25,17 @@ int UseItem_RestoreCooldownMS(int iUseItemNo);
 // its send, the server from the packets' arrival
 #define USEITEM_RESTORE_COOLDOWN_SLACK_MS 300
 
+// Heal over time -- food and the Vials / Bottles: a use item with a status row (LIST_STATUS
+// type ING_INC_HP / ING_INC_MP). It restores col 20 in total over col 21 seconds, so every
+// tier of a kind takes the same time and a higher tier heals more (2026-10-20). A row with
+// col 21 blank keeps the retail timing, col 20 / the status row's value per second.
+// 0 = not a heal over time. The server (StatusEffects::UpdateIngPOTION) and the client
+// (its status icon and HP prediction) both time it from here.
+int UseItem_PotionDurationMS(int iUseItemNo);
+// One heal over time runs per HP / MP. A new one replaces the running one only if it heals
+// at least what that one still has to give (`iRemaining`); otherwise the item is kept.
+bool UseItem_PotionCanReplace(int iUseItemNo, int iRemaining);
+
 #pragma pack(push, 1)
 struct tagPartITEM {
     unsigned int m_nItemNo : 11;

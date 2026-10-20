@@ -752,6 +752,13 @@ CItem::GetToolTip(CInfo& ToolTip, DWORD dwDialogType, DWORD dwType) {
                                     USEITEM_ADD_DATA_TYPE(nItemIdx)),
                                 USEITEM_ADD_DATA_VALUE(nItemIdx),
                                 USEITEM_ADD_DATA_PERCENT(nItemIdx)));
+                        else if (int iPotionMS = UseItem_PotionDurationMS(nItemIdx))
+                            /// heal over time: the total and how long it takes
+                            ToolTip.AddString(CStr::Printf("[%s %d over %g s]",
+                                CStringManager::GetSingleton().GetAbility(
+                                    USEITEM_ADD_DATA_TYPE(nItemIdx)),
+                                USEITEM_ADD_DATA_VALUE(nItemIdx),
+                                iPotionMS / 1000.0));
                         else
                             ToolTip.AddString(CStr::Printf("[%s %d]",
                                 CStringManager::GetSingleton().GetAbility(

@@ -420,6 +420,34 @@ UseItem_RestoreCooldownMS(int iUseItemNo) {
     return iMS > 0 ? iMS : 0;
 }
 
+int
+UseItem_PotionDurationMS(int iUseItemNo) {
+    if (iUseItemNo <= 0 || iUseItemNo >= (int)g_TblUSEITEM.row_count)
+        return 0;
+    const int iIngSTB = USEITME_STATUS_STB(iUseItemNo);
+    const int iTotal = USEITEM_ADD_DATA_VALUE(iUseItemNo);
+    if (iIngSTB <= 0 || iIngSTB >= (int)g_TblSTATE.row_count || iTotal <= 0)
+        return 0;
+    const int iType = STATE_TYPE(iIngSTB);
+    if (ING_INC_HP != iType && ING_INC_MP != iType)
+        return 0;
+
+    const int iSec = USEITEM_POTION_DURATION_SEC(iUseItemNo);
+    if (iSec > 0)
+        return iSec * 1000;
+    for (int i = 0; i < STATE_APPLY_ABILITY_CNT; i++) {
+        const int iPerSec = STATE_APPLY_ABILITY_VALUE(iIngSTB, i);
+        if (iPerSec > 0)
+            return 1000 * iTotal / iPerSec;
+    }
+    return 0;
+}
+
+bool
+UseItem_PotionCanReplace(int iUseItemNo, int iRemaining) {
+    return iRemaining <= 0 || USEITEM_ADD_DATA_VALUE(iUseItemNo) >= iRemaining;
+}
+
 #ifndef __SERVER
 int
 tagBaseITEM::GetHitRate() {
