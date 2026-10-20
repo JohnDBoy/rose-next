@@ -4,11 +4,15 @@
 //! (`Painter::prepare_painting`), but not the depth mask, so that is restored
 //! here. The pane needs `NativeOptions::depth_buffer`: without one the depth
 //! test passes everything and back faces show through.
+//!
+//! Vertices are posed on the CPU ([`Scene::pose`]) and streamed into dynamic
+//! buffers each paint: a few thousand vertices, cheaper than a skinning shader
+//! and the same code the headless renderer uses.
 
 use eframe::egui_glow::ShaderVersion;
 use eframe::glow::{self, HasContext};
 
-use crate::preview::{Mat4, Scene, Vertex, BACKGROUND};
+use crate::preview::{Mat4, Posed, Scene, Vertex, BACKGROUND};
 
 pub struct GlScene {
     program: glow::Program,
@@ -19,6 +23,8 @@ pub struct GlScene {
 }
 
 struct GpuMesh {
+    /// Index into the scene's meshes (empty ones are not uploaded).
+    source: usize,
     vao: glow::VertexArray,
     vbo: glow::Buffer,
     ebo: glow::Buffer,
@@ -124,7 +130,7 @@ impl GlScene {
         }
     }
 
-    /// Replace whatever was uploaded with `scene`.
+    /// Replace whatever was uploaded with `scene`; [`GlScene::paint`] fills the vertices.
     pub fn upload(&mut self, gl: &glow::Context, scene: &Scene) -> Result<(), String> {
         self.clear(gl);
         unsafe {
@@ -132,7 +138,7 @@ impl GlScene {
                 let texture = upload_texture(gl, image.width, image.height, &image.rgba)?;
                 self.textures.push(texture);
             }
-            for mesh in &scene.meshes {
+            for (source, mesh) in scene.meshes.iter().enumerate() {
                 if mesh.indices.is_empty() {
                     continue;
                 }
@@ -140,10 +146,10 @@ impl GlScene {
                 gl.bind_vertex_array(Some(vao));
                 let vbo = gl.create_buffer()?;
                 gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
-                gl.buffer_data_u8_slice(
+                gl.buffer_data_size(
                     glow::ARRAY_BUFFER,
-                    as_bytes(&mesh.vertices),
-                    glow::STATIC_DRAW,
+                    (mesh.vertex_count() * std::mem::size_of::<Vertex>()) as i32,
+                    glow::DYNAMIC_DRAW,
                 );
                 let ebo = gl.create_buffer()?;
                 gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ebo));
@@ -166,6 +172,7 @@ impl GlScene {
                 }
                 gl.bind_vertex_array(None);
                 self.meshes.push(GpuMesh {
+                    source,
                     vao,
                     vbo,
                     ebo,
@@ -179,17 +186,26 @@ impl GlScene {
         Ok(())
     }
 
-    /// `scissor` is the pane in GL pixels (x, y from the bottom, width, height):
-    /// egui scissors to the shape's clip rect, which can be the whole window,
-    /// and the clear below would wipe every panel drawn before the pane.
+    /// `posed` is the uploaded scene's [`Scene::pose`]. `scissor` is the pane in
+    /// GL pixels (x, y from the bottom, width, height): egui scissors to the
+    /// shape's clip rect, which can be the whole window, and the clear below
+    /// would wipe every panel drawn before the pane.
     pub fn paint(
         &self,
         gl: &glow::Context,
+        posed: &Posed,
         view_projection: &Mat4,
         light: [f32; 3],
         scissor: [i32; 4],
     ) {
         unsafe {
+            for mesh in &self.meshes {
+                if let Some(vertices) = posed.get(mesh.source) {
+                    gl.bind_buffer(glow::ARRAY_BUFFER, Some(mesh.vbo));
+                    gl.buffer_sub_data_u8_slice(glow::ARRAY_BUFFER, 0, as_bytes(vertices));
+                }
+            }
+            gl.bind_buffer(glow::ARRAY_BUFFER, None);
             gl.enable(glow::SCISSOR_TEST);
             gl.scissor(scissor[0], scissor[1], scissor[2], scissor[3]);
             gl.clear_color(BACKGROUND[0], BACKGROUND[1], BACKGROUND[2], BACKGROUND[3]);

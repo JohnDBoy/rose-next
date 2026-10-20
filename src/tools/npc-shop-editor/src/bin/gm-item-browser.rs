@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
 
@@ -9,7 +10,10 @@ use npc_shop_editor::assets::{self, Assets};
 use npc_shop_editor::catalog::{Catalog, CatalogItem, Filter, RangeFilter};
 use npc_shop_editor::data::ItemCategory;
 use npc_shop_editor::icons::IconStore;
-use npc_shop_editor::preview::{self, AvatarModels, Camera, Scene, Sex, Slot, MIN_ZOOM};
+use npc_shop_editor::preview::{
+    self, Action, Animation, AvatarModels, Camera, Framing, Outfit, Posed, Scene, Sex, Slot,
+    MIN_ZOOM,
+};
 use npc_shop_editor::preview_gl::GlScene;
 use npc_shop_editor::monsters::{
     Monster, MonsterCatalog, MonsterFilter, Severity, StatusFilter, MAX_SPAWN_COUNT, PACKAGE_TABLES,
@@ -47,25 +51,17 @@ fn main() -> eframe::Result<()> {
         std::process::exit(check(&root, codec));
     }
     if args.first().is_some_and(|a| a == "--preview") {
-        // Headless: render one item's 3D preview to a PNG, the way the pane
-        // draws it, and list what could not be loaded. Exit 1 on any note.
-        let female = args.iter().any(|a| a == "--female");
-        args.retain(|a| a != "--female");
-        let parsed = (|| {
-            let root = PathBuf::from(args.get(1)?);
-            let category: u8 = args.get(2)?.to_str()?.parse().ok()?;
-            let id: i32 = args.get(3)?.to_str()?.parse().ok()?;
-            let out = PathBuf::from(args.get(4)?);
-            let number = |i: usize| args.get(i).and_then(|a| a.to_str()?.parse::<f32>().ok());
-            Some((root, category, id, out, number(5).unwrap_or(0.0), number(6).unwrap_or(1.0)))
-        })();
-        let Some((root, category, id, out, yaw, zoom)) = parsed else {
+        // Headless: render an outfit's 3D preview to a PNG, the way the pane
+        // draws it, and list what could not be shown. Exit 1 on any note.
+        let Some(preview) = PreviewArgs::parse(&args[1..]) else {
             eprintln!(
-                "usage: gm-item-browser --preview <data> <type> <id> <out.png> [yaw degrees] [zoom] [--female]"
+                "usage: gm-item-browser --preview <data> <out.png> <type:id>[,<type:id>...] \
+                 [--female] [--motion idle|battle|walk|run|attack|sitting|bind] \
+                 [--time seconds] [--yaw degrees] [--zoom z]"
             );
             std::process::exit(2);
         };
-        std::process::exit(preview_png(&root, codec, category, id, female, (yaw, zoom), &out));
+        std::process::exit(preview.run(codec));
     }
     if args.first().is_some_and(|a| a == "--package-monsters") {
         // Used by scripts/package-gm-item-browser.ps1. The release build has no
@@ -177,62 +173,120 @@ fn check(root: &Path, codec: Codec) -> i32 {
     i32::from(failed)
 }
 
-/// `--preview`: what the 3D pane would show for one item, as a PNG.
-fn preview_png(
-    root: &Path,
-    codec: Codec,
-    category: u8,
-    id: i32,
-    female: bool,
-    (yaw, zoom): (f32, f32),
-    out: &Path,
-) -> i32 {
-    let Some(category) = ItemCategory::ALL.iter().copied().find(|c| *c as u8 == category) else {
-        eprintln!("unknown item type {category}");
-        return 2;
-    };
-    let assets = match Assets::open(root) {
-        Ok(assets) => assets,
-        Err(e) => {
-            eprintln!("cannot open {}: {e:#}", root.display());
+/// `--preview`: what the 3D pane would show for an outfit, as a PNG.
+struct PreviewArgs {
+    root: PathBuf,
+    out: PathBuf,
+    /// The last one is the item looked at.
+    worn: Vec<(ItemCategory, i32)>,
+    sex: Sex,
+    action: Action,
+    time: f32,
+    camera: Camera,
+}
+
+impl PreviewArgs {
+    fn parse(args: &[OsString]) -> Option<Self> {
+        let args: Vec<String> = args.iter().map(|a| a.to_string_lossy().into_owned()).collect();
+        let mut positional = Vec::new();
+        let (mut sex, mut action, mut time) = (Sex::Male, Action::Idle, 0.0);
+        let mut camera = Camera::default();
+        let mut values = args.iter();
+        while let Some(arg) = values.next() {
+            let mut number = || values.next()?.parse::<f32>().ok();
+            match arg.as_str() {
+                "--female" => sex = Sex::Female,
+                "--motion" => action = Action::parse(values.next()?)?,
+                "--time" => time = number()?,
+                "--yaw" => camera.yaw = number()?.to_radians(),
+                "--zoom" => camera.zoom = number()?,
+                _ => positional.push(arg.clone()),
+            }
+        }
+        let [root, out, items] = positional.as_slice() else {
+            return None;
+        };
+        let worn = items
+            .split(',')
+            .map(|item| {
+                let (category, id) = item.split_once(':')?;
+                let category: u8 = category.parse().ok()?;
+                let category = ItemCategory::ALL.iter().copied().find(|c| *c as u8 == category)?;
+                Some((category, id.parse().ok()?))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(Self {
+            root: root.into(),
+            out: out.into(),
+            worn,
+            sex,
+            action,
+            time,
+            camera,
+        })
+    }
+
+    fn run(&self, codec: Codec) -> i32 {
+        let assets = match Assets::open(&self.root) {
+            Ok(assets) => assets,
+            Err(e) => {
+                eprintln!("cannot open {}: {e:#}", self.root.display());
+                return 1;
+            }
+        };
+        let started = std::time::Instant::now();
+        let models = AvatarModels::load(&assets, codec);
+        let loaded = started.elapsed();
+        let focus = self.worn.last().map(|&(category, _)| category);
+        let outfit = models.outfit(self.sex, &self.worn, focus);
+        let started = std::time::Instant::now();
+        let scene = models.build(&assets, &outfit);
+        let built = started.elapsed();
+        let mut notes: Vec<String> = models.warnings.iter().chain(&scene.notes).cloned().collect();
+        let animation = models
+            .motion(&assets, &outfit, self.action)
+            .unwrap_or_else(|e| {
+                notes.push(e);
+                None
+            });
+        let started = std::time::Instant::now();
+        let posed = scene.pose(animation.as_ref(), self.time);
+        let posing = started.elapsed();
+        let framing = scene.framing(animation.as_ref());
+        println!(
+            "{outfit:?}\n{} meshes, {} triangles, {} textures; tables {loaded:?}, outfit {built:?}, \
+             one pose {posing:?}",
+            scene.meshes.len(),
+            scene.triangles(),
+            scene.textures.len(),
+        );
+        match &animation {
+            Some(animation) => println!(
+                "motion {} ({:.2} s), at {:.2} s",
+                animation.path,
+                animation.duration(),
+                self.time
+            ),
+            None => println!("bind pose"),
+        }
+        println!("bounds {:?} .. {:?}", framing.min, framing.max);
+        let (width, height) = (360, 480);
+        let rgba = preview::render(&scene, &posed, &framing, &self.camera, width, height);
+        if let Err(e) = image::save_buffer(
+            &self.out,
+            &rgba,
+            width as u32,
+            height as u32,
+            image::ColorType::Rgba8,
+        ) {
+            eprintln!("cannot write {}: {e}", self.out.display());
             return 1;
         }
-    };
-    let started = std::time::Instant::now();
-    let models = AvatarModels::load(&assets, codec);
-    let loaded = started.elapsed();
-    let sex = if female { Sex::Female } else { Sex::Male };
-    let Some(outfit) = models.outfit(sex, category, id) else {
-        eprintln!("{} items are not worn on the body", category.display());
-        return 2;
-    };
-    let started = std::time::Instant::now();
-    let scene = models.build(&assets, &outfit);
-    println!(
-        "{outfit:?}
-{} meshes, {} triangles, {} textures; tables {loaded:?}, item {:?}",
-        scene.meshes.len(),
-        scene.triangles(),
-        scene.textures.len(),
-        started.elapsed()
-    );
-    println!("bounds {:?} .. {:?}", scene.min, scene.max);
-    let camera = Camera {
-        yaw: yaw.to_radians(),
-        zoom,
-        ..Camera::default()
-    };
-    let (width, height) = (360, 480);
-    let rgba = preview::render(&scene, &camera, width, height);
-    if let Err(e) = image::save_buffer(out, &rgba, width as u32, height as u32, image::ColorType::Rgba8) {
-        eprintln!("cannot write {}: {e}", out.display());
-        return 1;
+        for note in &notes {
+            println!("note: {note}");
+        }
+        i32::from(!notes.is_empty())
     }
-    let notes: Vec<_> = models.warnings.iter().chain(&scene.notes).collect();
-    for note in &notes {
-        println!("note: {note}");
-    }
-    i32::from(!notes.is_empty())
 }
 
 /// egui ships Latin-only fonts, so a correctly decoded Japanese or Korean name
@@ -468,17 +522,32 @@ struct Browser {
     preview: PreviewPane,
 }
 
-/// The 3D view of the selected wearable item.
+/// The 3D view: the items put on, on a character, in motion.
 struct PreviewPane {
     /// Read on the first preview after each load.
     models: Option<AvatarModels>,
     /// The loaded data has avatar models (the tester package does not).
     available: bool,
     sex: Sex,
+    action: Action,
+    paused: bool,
     camera: Camera,
-    /// What `scene` shows: (type, id, sex).
-    shown: Option<(ItemCategory, i32, Sex)>,
+    /// Seconds into the motion.
+    clock: f32,
+    /// One item per slot, with its name: selecting an item puts it on, and
+    /// it stays on until taken off.
+    worn: Vec<(Slot, ItemCategory, i32, String)>,
+    /// The last selection put on, so a selection is put on once.
+    put_on: Option<(ItemCategory, i32)>,
+    /// What `scene` shows: (worn items, item looked at, sex).
+    shown: Option<(Vec<(ItemCategory, i32)>, Option<ItemCategory>, Sex)>,
+    outfit: Option<Outfit>,
     scene: Option<Arc<Scene>>,
+    /// The action `animation` and `framing` were made for.
+    animated: Option<Action>,
+    animation: Option<Animation>,
+    framing: Option<Framing>,
+    motion_note: Option<String>,
     gl: Arc<Mutex<GlState>>,
 }
 
@@ -488,19 +557,32 @@ impl PreviewPane {
             models: None,
             available: false,
             sex: Sex::Male,
+            action: Action::Idle,
+            paused: false,
             camera: Camera::default(),
+            clock: 0.0,
+            worn: Vec::new(),
+            put_on: None,
             shown: None,
+            outfit: None,
             scene: None,
+            animated: None,
+            animation: None,
+            framing: None,
+            motion_note: None,
             gl: Arc::new(Mutex::new(GlState::default())),
         }
     }
 
-    /// Forget the scene and tables; the next preview rereads them.
+    /// Forget the tables and what is worn: item numbers belong to one data folder.
     fn reset(&mut self) {
-        self.models = None;
-        self.available = false;
-        self.shown = None;
-        self.scene = None;
+        *self = Self {
+            sex: self.sex,
+            action: self.action,
+            camera: self.camera,
+            gl: self.gl.clone(),
+            ..Self::new()
+        };
     }
 }
 
@@ -509,8 +591,8 @@ impl PreviewPane {
 #[derive(Default)]
 struct GlState {
     renderer: Option<GlScene>,
-    /// Built on the UI thread, uploaded on the next paint.
-    pending: Option<Arc<Scene>>,
+    /// The scene in the GPU buffers.
+    uploaded: Option<Arc<Scene>>,
     error: Option<String>,
 }
 
@@ -519,6 +601,8 @@ impl GlState {
         &mut self,
         gl: &eframe::glow::Context,
         info: &egui::PaintCallbackInfo,
+        scene: &Arc<Scene>,
+        posed: &Posed,
         view_projection: &preview::Mat4,
         light: [f32; 3],
     ) {
@@ -531,10 +615,11 @@ impl GlState {
         let Some(renderer) = &mut self.renderer else {
             return;
         };
-        if let Some(scene) = self.pending.take() {
-            if let Err(e) = renderer.upload(gl, &scene) {
+        if !self.uploaded.as_ref().is_some_and(|u| Arc::ptr_eq(u, scene)) {
+            if let Err(e) = renderer.upload(gl, scene) {
                 self.error = Some(format!("Could not upload the model: {e}"));
             }
+            self.uploaded = Some(scene.clone());
         }
         // The pane, cut to what of it is visible.
         let (pane, clip) = (info.viewport_in_pixels(), info.clip_rect_in_pixels());
@@ -543,7 +628,8 @@ impl GlState {
         let right = (pane.left_px + pane.width_px).min(clip.left_px + clip.width_px);
         let top = (pane.from_bottom_px + pane.height_px).min(clip.from_bottom_px + clip.height_px);
         if right > left && top > bottom {
-            renderer.paint(gl, view_projection, light, [left, bottom, right - left, top - bottom]);
+            let scissor = [left, bottom, right - left, top - bottom];
+            renderer.paint(gl, posed, view_projection, light, scissor);
         }
     }
 }
@@ -1396,7 +1482,10 @@ impl Browser {
             self.refresh();
         }
         // Before the details panel, so the preview gets the full height.
-        if self.selected_wearable().is_some() {
+        self.wear_selection();
+        if self.preview.available
+            && (self.selected_wearable().is_some() || !self.preview.worn.is_empty())
+        {
             egui::SidePanel::right("preview")
                 .default_width(340.0)
                 .width_range(260.0..=720.0)
@@ -1416,8 +1505,8 @@ impl Browser {
         }
     }
 
-    /// (type, id) of the selected item when it is worn on the body and the
-    /// data has models to show it with.
+    /// (type, id) of the selected item when it is worn and the data has
+    /// models to show it with.
     fn selected_wearable(&self) -> Option<(ItemCategory, i32)> {
         if !self.preview.available {
             return None;
@@ -1426,57 +1515,105 @@ impl Browser {
         Slot::for_category(item.category).map(|_| (item.category, item.id))
     }
 
-    /// The selected item on a bare character, drawn by `preview_gl`.
-    fn preview_pane(&mut self, ui: &mut egui::Ui) {
-        let Some((category, id)) = self.selected_wearable() else {
+    /// Put a newly selected item on, in place of whatever its slot held.
+    fn wear_selection(&mut self) {
+        let selection = self.selected_wearable();
+        if selection == self.preview.put_on {
+            return;
+        }
+        self.preview.put_on = selection;
+        let Some((category, id)) = selection else {
             return;
         };
+        let Some(slot) = Slot::for_category(category) else {
+            return;
+        };
+        let name = self
+            .selected
+            .and_then(|i| self.catalog.as_ref()?.items.get(i))
+            .map_or_else(String::new, |item| item.item.name.clone());
+        let worn = &mut self.preview.worn;
+        worn.retain(|(s, ..)| *s != slot);
+        worn.push((slot, category, id, name));
+        worn.sort_by_key(|(s, ..)| *s);
+    }
+
+    /// The worn items on a character, drawn by `preview_gl`.
+    fn preview_pane(&mut self, ui: &mut egui::Ui) {
+        let focus = self.selected_wearable().map(|(category, _)| category);
+        let (assets, codec) = (self.assets.clone(), self.codec);
+        let pane = &mut self.preview;
         ui.heading("3D preview");
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.preview.sex, Sex::Male, "Male");
-            ui.selectable_value(&mut self.preview.sex, Sex::Female, "Female");
+            ui.selectable_value(&mut pane.sex, Sex::Male, "Male");
+            ui.selectable_value(&mut pane.sex, Sex::Female, "Female");
             ui.separator();
             if ui.button("Reset view").clicked() {
-                self.preview.camera = Camera::default();
+                pane.camera = Camera::default();
             }
         });
-        let key = (category, id, self.preview.sex);
-        if self.preview.shown != Some(key) {
-            self.preview.shown = Some(key);
-            self.preview.scene = None;
-            if let Some(assets) = &self.assets {
-                let codec = self.codec;
-                let models = self
-                    .preview
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_id_source("preview_motion")
+                .selected_text(pane.action.label())
+                .show_ui(ui, |ui| {
+                    for action in Action::ALL {
+                        ui.selectable_value(&mut pane.action, action, action.label());
+                    }
+                })
+                .response
+                .on_hover_text("The motion the client plays for this action with the weapon worn.");
+            ui.add_enabled(pane.animation.is_some(), egui::Checkbox::new(&mut pane.paused, "Pause"));
+        });
+        let worn: Vec<(ItemCategory, i32)> = pane.worn.iter().map(|w| (w.1, w.2)).collect();
+        let key = (worn, focus, pane.sex);
+        if pane.shown.as_ref() != Some(&key) {
+            pane.scene = None;
+            pane.outfit = None;
+            pane.animated = None;
+            if let Some(assets) = &assets {
+                let models = pane
                     .models
                     .get_or_insert_with(|| AvatarModels::load(assets, codec));
-                if let Some(outfit) = models.outfit(self.preview.sex, category, id) {
-                    let scene = Arc::new(models.build(assets, &outfit));
-                    if let Ok(mut gl) = self.preview.gl.lock() {
-                        gl.pending = Some(scene.clone());
-                    }
-                    self.preview.scene = Some(scene);
-                }
+                let outfit = models.outfit(pane.sex, &key.0, focus);
+                pane.scene = Some(Arc::new(models.build(assets, &outfit)));
+                pane.outfit = Some(outfit);
             }
+            pane.shown = Some(key);
         }
-        let Some(scene) = self.preview.scene.clone() else {
+        let (Some(scene), Some(outfit), Some(assets), Some(models)) =
+            (pane.scene.clone(), &pane.outfit, &assets, &pane.models)
+        else {
             return;
         };
-        let notes: Vec<String> = self
-            .preview
-            .models
+        if pane.animated != Some(pane.action) {
+            (pane.animation, pane.motion_note) = match models.motion(assets, outfit, pane.action) {
+                Ok(animation) => (animation, None),
+                Err(e) => (None, Some(e)),
+            };
+            pane.framing = Some(scene.framing(pane.animation.as_ref()));
+            pane.animated = Some(pane.action);
+            pane.clock = 0.0;
+        }
+        if pane.animation.is_some() && !pane.paused {
+            pane.clock += ui.input(|i| i.stable_dt).min(0.1);
+            ui.ctx().request_repaint();
+        }
+        let notes: Vec<String> = models
+            .warnings
             .iter()
-            .flat_map(|m| &m.warnings)
             .chain(&scene.notes)
+            .chain(&pane.motion_note)
             .cloned()
             .collect();
-        let reserved = if notes.is_empty() { 30.0 } else { 150.0 };
+        let reserved = 60.0
+            + 24.0 * pane.worn.len().max(1) as f32
+            + if notes.is_empty() { 0.0 } else { 140.0 };
         let size = egui::vec2(
             ui.available_width(),
             (ui.available_height() - reserved).max(220.0),
         );
         let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
-        let camera = &mut self.preview.camera;
+        let camera = &mut pane.camera;
         if response.dragged() {
             let delta = response.drag_delta();
             camera.yaw -= delta.x * 0.01;
@@ -1491,21 +1628,50 @@ impl Browser {
         if response.double_clicked() {
             *camera = Camera::default();
         }
-        let (view_projection, light) = camera.matrices(&scene, rect.aspect_ratio());
-        let gl = self.preview.gl.clone();
+        let framing = pane.framing.unwrap_or_else(|| scene.framing(None));
+        let (view_projection, light) = camera.matrices(&framing, rect.aspect_ratio());
+        let posed = scene.pose(pane.animation.as_ref(), pane.clock);
+        let gl = pane.gl.clone();
         ui.painter().add(egui::PaintCallback {
             rect,
             callback: Arc::new(eframe::egui_glow::CallbackFn::new(move |info, painter| {
                 if let Ok(mut gl) = gl.lock() {
-                    gl.paint(painter.gl(), &info, &view_projection, light);
+                    gl.paint(painter.gl(), &info, &scene, &posed, &view_projection, light);
                 }
             })),
         });
-        let gl_error = self.preview.gl.lock().ok().and_then(|gl| gl.error.clone());
+        let gl_error = pane.gl.lock().ok().and_then(|gl| gl.error.clone());
         if let Some(error) = gl_error {
             ui.colored_label(Color32::LIGHT_RED, error);
         }
-        ui.small("Drag to turn, scroll to zoom in on the item, double-click to reset.");
+        ui.small("Drag to turn, scroll to zoom in on the selected item, double-click to reset.");
+        ui.horizontal(|ui| {
+            ui.strong("Wearing");
+            if ui
+                .small_button("Clear")
+                .on_hover_text("Take everything off but the selected item.")
+                .clicked()
+            {
+                pane.worn.clear();
+                pane.put_on = None;
+            }
+        });
+        if pane.worn.is_empty() {
+            ui.small("Nothing: select an item to put it on.");
+        }
+        let mut take_off = None;
+        for (i, (slot, _, id, name)) in pane.worn.iter().enumerate() {
+            ui.horizontal(|ui| {
+                if ui.small_button("Take off").clicked() {
+                    take_off = Some(i);
+                }
+                ui.label(RichText::new(slot.label()).weak());
+                ui.label(name).on_hover_text(format!("ID {id}"));
+            });
+        }
+        if let Some(i) = take_off {
+            pane.worn.remove(i);
+        }
         if !notes.is_empty() {
             ui.label(RichText::new(format!("Not shown ({})", notes.len())).color(AMBER));
             egui::ScrollArea::vertical()

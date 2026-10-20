@@ -40,21 +40,28 @@ level × the HP column, as the server and client compute it.
 
 ### 3D item preview
 
-Selecting a helmet, body, gauntlets, boots, face item or back item opens a
-**3D preview** pane: the item on a bare character (face 1 and the first
-haircut, bare body/arms/feet for the other slots), male or female. Drag to turn,
-scroll to zoom (the view closes in on the item as it zooms), double-click to
-reset. Anything that could not be drawn is listed under **Not shown**.
+Selecting anything worn (helmet, body, gauntlets, boots, face item, back item,
+weapon or off-hand) opens a **3D preview** pane and puts the item on a
+character, male or female. Items stay on as you select others, one per slot, so
+an outfit builds up; **Wearing** lists them, **Take off** removes one, **Clear**
+keeps only the selected item. Empty slots show face 1, the first haircut and the
+bare body. The character plays the motion the client would for the chosen
+action (idle, battle stance, walk, run, attack, sitting) with the weapon worn,
+or stands in the bind pose. Drag to turn, scroll to zoom (the view closes in on
+the selected item), double-click to reset. Anything that could not be drawn is
+listed under **Not shown**.
 
 It builds the model as the client does (`src/preview.rs` has the source refs):
-the item number is the object index in the slot's `3DDATA/AVATAR/LIST_*.ZSC`
-for that sex; hats swap the haircut by `HELMET_HAIR_TYPE` (LIST_CAP column 33);
-face and hair hang off the head bone and hats, masks and back items off skeleton
-dummies (`MALE.ZMD` / `FEMALE.ZMD`, bind pose, no animation); texture alpha is
+the item number is the object index in the slot's `LIST_*.ZSC` for that sex;
+hats swap the haircut by `HELMET_HAIR_TYPE` (LIST_CAP column 33); face and hair
+hang off the head bone, hats, masks and back items off skeleton dummies, weapons
+off the hand/shield dummies their parts name; the motion is
+`TYPE_MOTION[action][weapon motion type]` -> FILE_MOTION (female file, else the
+male one), skinned on the CPU over `MALE.ZMD` / `FEMALE.ZMD`; texture alpha is
 honoured only where the engine honours it (alpha flag on, not specular). It
 works on reference dumps too: open Jrose's loose `3Ddata` folder (its `data.idx`
-is encrypted). Weapons and vehicles are not previewed. The tester package ships
-no models, so it shows no pane.
+is encrypted). Vehicles and item glow effects are not shown. The tester package
+ships no models, so it shows no pane.
 
 Use **Open data folder** to choose another loose data set, or **Open VFS** to
 select a game's `data.idx`. The tool also accepts an extracted folder's `3DDATA`
@@ -163,11 +170,12 @@ the data warnings and which fallback fonts loaded (it renders one probe frame,
 so a font egui cannot parse fails here rather than at the window). Exit code 1
 means a catalog failed to load; warnings alone exit 0.
 
-`gm-item-browser.exe --preview <folder> <type> <id> <out.png> [yaw] [zoom] [--female]`
-renders one item's preview to a PNG on the CPU (same scene and camera as the
-pane, nearest-pixel texturing) and prints what it loaded and anything not shown;
-exit code 1 if anything was not shown. Use it to check model placement without
-the window.
+`gm-item-browser.exe --preview <folder> <out.png> <type:id>[,<type:id>...] [--female]
+[--motion idle|battle|walk|run|attack|sitting|bind] [--time seconds] [--yaw degrees] [--zoom z]`
+renders an outfit (the last item is the one looked at) to a PNG on the CPU, with
+the same scene, motion and camera as the pane but nearest-pixel texturing, and
+prints the motion file and anything not shown; exit code 1 if anything was not
+shown. Use it to check placement and motions without the window.
 
 ## Validation
 
