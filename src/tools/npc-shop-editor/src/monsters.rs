@@ -676,7 +676,32 @@ impl Chr {
 pub struct Zsc {
     pub meshes: Vec<String>,
     pub materials: Vec<String>,
+    /// How each of `materials` is drawn, same indices.
+    pub material_flags: Vec<ZscMaterial>,
     pub objects: Vec<ZscObject>,
+}
+
+/// The draw state of a ZSC material that the item preview honours.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ZscMaterial {
+    /// Use the texture's alpha (`setMaterialUseAlpha`).
+    pub alpha: bool,
+    pub two_sided: bool,
+    pub alpha_test: bool,
+    /// 0..255, compared against the texture's alpha when `alpha_test` is set.
+    pub alpha_ref: i16,
+    pub specular: bool,
+}
+
+impl ZscMaterial {
+    /// Whether texture alpha shows at all. The engine blends only with the
+    /// alpha flag on, never for specular materials (their alpha is the gloss
+    /// mask), and alpha-tests only while blending (`zz_material_colormap`,
+    /// `zz_material::apply_shared_property`). Jrose bodies are alpha-tested
+    /// specular DXT5: honouring the test alone erased them.
+    pub fn uses_texture_alpha(&self) -> bool {
+        self.alpha && !self.specular
+    }
 }
 
 pub struct ZscObject {
@@ -687,7 +712,14 @@ pub struct ZscPart {
     pub mesh: i16,
     pub material: i16,
     pub animations: Vec<String>,
+    /// `SWITCH_BONEIDX` / `SWITCH_DUMMYIDX`, -1 when the part has none.
+    pub bone: i16,
+    pub dummy: i16,
 }
+
+/// `SWITCH_BONEIDX` and `SWITCH_DUMMYIDX` in `client/io_model.cpp`.
+const ZSC_BONE_TAG: u8 = 5;
+const ZSC_DUMMY_TAG: u8 = 6;
 
 /// `SWITCH_ANI` .. `SWITCH_ANI + MAX_MESH_ANI_TYPE` in `client/io_model.cpp`.
 const ZSC_ANIMATION_TAGS: std::ops::Range<u8> = 8..29;
@@ -698,11 +730,26 @@ impl Zsc {
         let meshes = r.strings().context("mesh list")?;
         let material_count = r.count()?;
         let mut materials = Vec::with_capacity(material_count);
+        let mut material_flags = Vec::with_capacity(material_count);
         for _ in 0..material_count {
             materials.push(r.cstring()?);
-            // skin, alpha, two-sided, alpha test/ref, z test/write, blend,
+            // skin, alpha, two-sided, alpha test/ref, z write/test, blend,
             // specular (9 x i16), alpha (f32), glow type (i16), glow (3 x f32)
-            r.take(9 * 2 + 4 + 2 + 12)?;
+            let _skin = r.i16()?;
+            let alpha = r.i16()? != 0;
+            let two_sided = r.i16()? != 0;
+            let alpha_test = r.i16()? != 0;
+            let alpha_ref = r.i16()?;
+            r.take(3 * 2)?; // z write, z test, blend
+            let specular = r.i16()? != 0;
+            r.take(4 + 2 + 12)?;
+            material_flags.push(ZscMaterial {
+                alpha,
+                two_sided,
+                alpha_test,
+                alpha_ref,
+                specular,
+            });
         }
         let _effects = r.strings().context("effect list")?;
         let object_count = r.count()?;
@@ -719,6 +766,7 @@ impl Zsc {
                     let mesh = r.i16()?;
                     let material = r.i16()?;
                     let mut animations = Vec::new();
+                    let (mut bone, mut dummy) = (-1, -1);
                     loop {
                         let tag = r.u8()?;
                         if tag == 0 {
@@ -726,7 +774,12 @@ impl Zsc {
                         }
                         let len = r.u8()? as usize;
                         let payload = r.take(len)?;
-                        if ZSC_ANIMATION_TAGS.contains(&tag) {
+                        let index = || payload.get(..2).map(|b| i16::from_le_bytes([b[0], b[1]]));
+                        if tag == ZSC_BONE_TAG {
+                            bone = index().unwrap_or(-1);
+                        } else if tag == ZSC_DUMMY_TAG {
+                            dummy = index().unwrap_or(-1);
+                        } else if ZSC_ANIMATION_TAGS.contains(&tag) {
                             let end = payload
                                 .iter()
                                 .position(|&b| b == 0)
@@ -741,6 +794,8 @@ impl Zsc {
                         mesh,
                         material,
                         animations,
+                        bone,
+                        dummy,
                     });
                 }
                 for _ in 0..r.count()? {
@@ -763,6 +818,7 @@ impl Zsc {
         Ok(Self {
             meshes,
             materials,
+            material_flags,
             objects,
         })
     }

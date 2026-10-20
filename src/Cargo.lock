@@ -2407,6 +2407,7 @@ dependencies = [
  "egui_extras",
  "encoding_rs",
  "env_logger",
+ "image 0.24.9",
  "log",
  "rfd",
  "roselib",

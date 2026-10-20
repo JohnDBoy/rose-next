@@ -1,8 +1,10 @@
 pub mod assets;
 pub mod catalog;
 pub mod data;
-mod dds;
+pub mod dds;
 pub mod icons;
 pub mod monsters;
+pub mod preview;
+pub mod preview_gl;
 pub mod text;
 pub mod zones;

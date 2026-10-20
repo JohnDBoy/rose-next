@@ -22,6 +22,7 @@ roselib = { git = "https://github.com/rminderhoud/rose-tools" }
 byteorder = "1"
 encoding_rs = "0.8"
 ab_glyph = "0.2"
+image = { version = "0.24", default-features = false, features = ["png"] }
 log = "0.4"
 env_logger = "0.11"
 

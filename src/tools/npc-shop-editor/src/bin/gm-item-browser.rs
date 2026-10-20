@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::path::{Path, PathBuf};
-use std::sync::{mpsc, Arc};
+use std::sync::{mpsc, Arc, Mutex};
 
 use egui::{Color32, RichText};
 use egui_extras::{Column, TableBuilder};
@@ -9,6 +9,8 @@ use npc_shop_editor::assets::{self, Assets};
 use npc_shop_editor::catalog::{Catalog, CatalogItem, Filter, RangeFilter};
 use npc_shop_editor::data::ItemCategory;
 use npc_shop_editor::icons::IconStore;
+use npc_shop_editor::preview::{self, AvatarModels, Camera, Scene, Sex, Slot, MIN_ZOOM};
+use npc_shop_editor::preview_gl::GlScene;
 use npc_shop_editor::monsters::{
     Monster, MonsterCatalog, MonsterFilter, Severity, StatusFilter, MAX_SPAWN_COUNT, PACKAGE_TABLES,
 };
@@ -44,6 +46,27 @@ fn main() -> eframe::Result<()> {
         };
         std::process::exit(check(&root, codec));
     }
+    if args.first().is_some_and(|a| a == "--preview") {
+        // Headless: render one item's 3D preview to a PNG, the way the pane
+        // draws it, and list what could not be loaded. Exit 1 on any note.
+        let female = args.iter().any(|a| a == "--female");
+        args.retain(|a| a != "--female");
+        let parsed = (|| {
+            let root = PathBuf::from(args.get(1)?);
+            let category: u8 = args.get(2)?.to_str()?.parse().ok()?;
+            let id: i32 = args.get(3)?.to_str()?.parse().ok()?;
+            let out = PathBuf::from(args.get(4)?);
+            let number = |i: usize| args.get(i).and_then(|a| a.to_str()?.parse::<f32>().ok());
+            Some((root, category, id, out, number(5).unwrap_or(0.0), number(6).unwrap_or(1.0)))
+        })();
+        let Some((root, category, id, out, yaw, zoom)) = parsed else {
+            eprintln!(
+                "usage: gm-item-browser --preview <data> <type> <id> <out.png> [yaw degrees] [zoom] [--female]"
+            );
+            std::process::exit(2);
+        };
+        std::process::exit(preview_png(&root, codec, category, id, female, (yaw, zoom), &out));
+    }
     if args.first().is_some_and(|a| a == "--package-monsters") {
         // Used by scripts/package-gm-item-browser.ps1. The release build has no
         // console, so the packager redirects stderr and checks the exit code.
@@ -78,6 +101,9 @@ fn main() -> eframe::Result<()> {
             viewport: egui::ViewportBuilder::default()
                 .with_inner_size([1320.0, 820.0])
                 .with_min_inner_size([1100.0, 650.0]),
+            // The 3D item preview depth-tests; without a depth buffer back
+            // faces draw through.
+            depth_buffer: 24,
             ..Default::default()
         },
         Box::new(move |cc| Box::new(Browser::new(cc, root, codec))),
@@ -149,6 +175,64 @@ fn check(root: &Path, codec: Codec) -> i32 {
         if fonts.is_empty() { "none (CJK names draw as boxes)".to_string() } else { fonts.join(", ") }
     );
     i32::from(failed)
+}
+
+/// `--preview`: what the 3D pane would show for one item, as a PNG.
+fn preview_png(
+    root: &Path,
+    codec: Codec,
+    category: u8,
+    id: i32,
+    female: bool,
+    (yaw, zoom): (f32, f32),
+    out: &Path,
+) -> i32 {
+    let Some(category) = ItemCategory::ALL.iter().copied().find(|c| *c as u8 == category) else {
+        eprintln!("unknown item type {category}");
+        return 2;
+    };
+    let assets = match Assets::open(root) {
+        Ok(assets) => assets,
+        Err(e) => {
+            eprintln!("cannot open {}: {e:#}", root.display());
+            return 1;
+        }
+    };
+    let started = std::time::Instant::now();
+    let models = AvatarModels::load(&assets, codec);
+    let loaded = started.elapsed();
+    let sex = if female { Sex::Female } else { Sex::Male };
+    let Some(outfit) = models.outfit(sex, category, id) else {
+        eprintln!("{} items are not worn on the body", category.display());
+        return 2;
+    };
+    let started = std::time::Instant::now();
+    let scene = models.build(&assets, &outfit);
+    println!(
+        "{outfit:?}
+{} meshes, {} triangles, {} textures; tables {loaded:?}, item {:?}",
+        scene.meshes.len(),
+        scene.triangles(),
+        scene.textures.len(),
+        started.elapsed()
+    );
+    println!("bounds {:?} .. {:?}", scene.min, scene.max);
+    let camera = Camera {
+        yaw: yaw.to_radians(),
+        zoom,
+        ..Camera::default()
+    };
+    let (width, height) = (360, 480);
+    let rgba = preview::render(&scene, &camera, width, height);
+    if let Err(e) = image::save_buffer(out, &rgba, width as u32, height as u32, image::ColorType::Rgba8) {
+        eprintln!("cannot write {}: {e}", out.display());
+        return 1;
+    }
+    let notes: Vec<_> = models.warnings.iter().chain(&scene.notes).collect();
+    for note in &notes {
+        println!("note: {note}");
+    }
+    i32::from(!notes.is_empty())
 }
 
 /// egui ships Latin-only fonts, so a correctly decoded Japanese or Korean name
@@ -379,6 +463,89 @@ struct Browser {
     codec: Codec,
     /// Set when no CJK fallback font could be loaded from the system.
     font_note: Option<String>,
+    /// The loaded data, kept for the 3D preview's lazy reads.
+    assets: Option<Arc<Assets>>,
+    preview: PreviewPane,
+}
+
+/// The 3D view of the selected wearable item.
+struct PreviewPane {
+    /// Read on the first preview after each load.
+    models: Option<AvatarModels>,
+    /// The loaded data has avatar models (the tester package does not).
+    available: bool,
+    sex: Sex,
+    camera: Camera,
+    /// What `scene` shows: (type, id, sex).
+    shown: Option<(ItemCategory, i32, Sex)>,
+    scene: Option<Arc<Scene>>,
+    gl: Arc<Mutex<GlState>>,
+}
+
+impl PreviewPane {
+    fn new() -> Self {
+        Self {
+            models: None,
+            available: false,
+            sex: Sex::Male,
+            camera: Camera::default(),
+            shown: None,
+            scene: None,
+            gl: Arc::new(Mutex::new(GlState::default())),
+        }
+    }
+
+    /// Forget the scene and tables; the next preview rereads them.
+    fn reset(&mut self) {
+        self.models = None;
+        self.available = false;
+        self.shown = None;
+        self.scene = None;
+    }
+}
+
+/// GPU side of the pane, touched only inside paint callbacks (where eframe's
+/// GL context is current) and on exit.
+#[derive(Default)]
+struct GlState {
+    renderer: Option<GlScene>,
+    /// Built on the UI thread, uploaded on the next paint.
+    pending: Option<Arc<Scene>>,
+    error: Option<String>,
+}
+
+impl GlState {
+    fn paint(
+        &mut self,
+        gl: &eframe::glow::Context,
+        info: &egui::PaintCallbackInfo,
+        view_projection: &preview::Mat4,
+        light: [f32; 3],
+    ) {
+        if self.renderer.is_none() && self.error.is_none() {
+            match GlScene::new(gl) {
+                Ok(renderer) => self.renderer = Some(renderer),
+                Err(e) => self.error = Some(format!("3D preview unavailable: {e}")),
+            }
+        }
+        let Some(renderer) = &mut self.renderer else {
+            return;
+        };
+        if let Some(scene) = self.pending.take() {
+            if let Err(e) = renderer.upload(gl, &scene) {
+                self.error = Some(format!("Could not upload the model: {e}"));
+            }
+        }
+        // The pane, cut to what of it is visible.
+        let (pane, clip) = (info.viewport_in_pixels(), info.clip_rect_in_pixels());
+        let left = pane.left_px.max(clip.left_px);
+        let bottom = pane.from_bottom_px.max(clip.from_bottom_px);
+        let right = (pane.left_px + pane.width_px).min(clip.left_px + clip.width_px);
+        let top = (pane.from_bottom_px + pane.height_px).min(clip.from_bottom_px + clip.height_px);
+        if right > left && top > bottom {
+            renderer.paint(gl, view_projection, light, [left, bottom, right - left, top - bottom]);
+        }
+    }
 }
 
 impl Browser {
@@ -408,6 +575,8 @@ impl Browser {
             quantity: 1,
             mobs: MonsterView::new(),
             copied: None,
+            assets: None,
+            preview: PreviewPane::new(),
         };
         if let Some(root) = root {
             app.load(root, &cc.egui_ctx);
@@ -426,6 +595,8 @@ impl Browser {
         self.error = None;
         self.load_notes.clear();
         self.icons = IconStore::empty(Path::new("."));
+        self.assets = None;
+        self.preview.reset();
         let (tx, rx) = mpsc::channel();
         let ctx = ctx.clone();
         let codec = self.codec;
@@ -466,6 +637,8 @@ impl Browser {
                 return;
             }
         };
+        self.preview.available = preview::has_avatar_models(&loaded.assets);
+        self.assets = Some(loaded.assets.clone());
         match (loaded.items, loaded.monsters) {
             (Err(items), Err(monsters)) => {
                 self.error = Some(format!("Items: {items}\n\nMonsters: {monsters}"));
@@ -1201,6 +1374,13 @@ impl eframe::App for Browser {
             Tab::Monsters => self.monsters_page(ctx),
         }
     }
+
+    fn on_exit(&mut self, gl: Option<&eframe::glow::Context>) {
+        let renderer = self.preview.gl.lock().ok().and_then(|mut state| state.renderer.take());
+        if let (Some(gl), Some(mut renderer)) = (gl, renderer) {
+            renderer.destroy(gl);
+        }
+    }
 }
 
 impl Browser {
@@ -1215,6 +1395,13 @@ impl Browser {
         if old_filter != self.filter {
             self.refresh();
         }
+        // Before the details panel, so the preview gets the full height.
+        if self.selected_wearable().is_some() {
+            egui::SidePanel::right("preview")
+                .default_width(340.0)
+                .width_range(260.0..=720.0)
+                .show(ctx, |ui| self.preview_pane(ui));
+        }
         egui::TopBottomPanel::bottom("details")
             .min_height(112.0)
             .show(ctx, |ui| {
@@ -1226,6 +1413,109 @@ impl Browser {
         if old_sort != (self.sort, self.descending) {
             self.refresh();
             ctx.request_repaint();
+        }
+    }
+
+    /// (type, id) of the selected item when it is worn on the body and the
+    /// data has models to show it with.
+    fn selected_wearable(&self) -> Option<(ItemCategory, i32)> {
+        if !self.preview.available {
+            return None;
+        }
+        let item = &self.catalog.as_ref()?.items.get(self.selected?)?.item;
+        Slot::for_category(item.category).map(|_| (item.category, item.id))
+    }
+
+    /// The selected item on a bare character, drawn by `preview_gl`.
+    fn preview_pane(&mut self, ui: &mut egui::Ui) {
+        let Some((category, id)) = self.selected_wearable() else {
+            return;
+        };
+        ui.heading("3D preview");
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut self.preview.sex, Sex::Male, "Male");
+            ui.selectable_value(&mut self.preview.sex, Sex::Female, "Female");
+            ui.separator();
+            if ui.button("Reset view").clicked() {
+                self.preview.camera = Camera::default();
+            }
+        });
+        let key = (category, id, self.preview.sex);
+        if self.preview.shown != Some(key) {
+            self.preview.shown = Some(key);
+            self.preview.scene = None;
+            if let Some(assets) = &self.assets {
+                let codec = self.codec;
+                let models = self
+                    .preview
+                    .models
+                    .get_or_insert_with(|| AvatarModels::load(assets, codec));
+                if let Some(outfit) = models.outfit(self.preview.sex, category, id) {
+                    let scene = Arc::new(models.build(assets, &outfit));
+                    if let Ok(mut gl) = self.preview.gl.lock() {
+                        gl.pending = Some(scene.clone());
+                    }
+                    self.preview.scene = Some(scene);
+                }
+            }
+        }
+        let Some(scene) = self.preview.scene.clone() else {
+            return;
+        };
+        let notes: Vec<String> = self
+            .preview
+            .models
+            .iter()
+            .flat_map(|m| &m.warnings)
+            .chain(&scene.notes)
+            .cloned()
+            .collect();
+        let reserved = if notes.is_empty() { 30.0 } else { 150.0 };
+        let size = egui::vec2(
+            ui.available_width(),
+            (ui.available_height() - reserved).max(220.0),
+        );
+        let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
+        let camera = &mut self.preview.camera;
+        if response.dragged() {
+            let delta = response.drag_delta();
+            camera.yaw -= delta.x * 0.01;
+            camera.pitch = (camera.pitch + delta.y * 0.01).clamp(-1.3, 1.3);
+        }
+        if response.hovered() {
+            let scroll = ui.input(|i| i.smooth_scroll_delta.y);
+            if scroll != 0.0 {
+                camera.zoom = (camera.zoom * (-scroll * 0.002).exp()).clamp(MIN_ZOOM, 3.0);
+            }
+        }
+        if response.double_clicked() {
+            *camera = Camera::default();
+        }
+        let (view_projection, light) = camera.matrices(&scene, rect.aspect_ratio());
+        let gl = self.preview.gl.clone();
+        ui.painter().add(egui::PaintCallback {
+            rect,
+            callback: Arc::new(eframe::egui_glow::CallbackFn::new(move |info, painter| {
+                if let Ok(mut gl) = gl.lock() {
+                    gl.paint(painter.gl(), &info, &view_projection, light);
+                }
+            })),
+        });
+        let gl_error = self.preview.gl.lock().ok().and_then(|gl| gl.error.clone());
+        if let Some(error) = gl_error {
+            ui.colored_label(Color32::LIGHT_RED, error);
+        }
+        ui.small("Drag to turn, scroll to zoom in on the item, double-click to reset.");
+        if !notes.is_empty() {
+            ui.label(RichText::new(format!("Not shown ({})", notes.len())).color(AMBER));
+            egui::ScrollArea::vertical()
+                .id_source("preview_notes")
+                .max_height(110.0)
+                .show(ui, |ui| {
+                    for note in &notes {
+                        ui.small(note);
+                    }
+                });
         }
     }
 

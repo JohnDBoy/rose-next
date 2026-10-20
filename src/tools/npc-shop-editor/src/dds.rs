@@ -1,5 +1,6 @@
 //! Minimal DDS decoder covering the formats ROSE uses for ICON*.DDS:
-//! DXT1 (BC1), DXT3 (BC2), DXT5 (BC3), and A8R8G8B8 / X8R8G8B8 uncompressed.
+//! DXT1 (BC1), DXT3 (BC2), DXT5 (BC3), and A8R8G8B8 / X8R8G8B8 uncompressed;
+//! plus 16- and 24-bit RGB, which avatar textures use (Jrose ships R8G8B8).
 
 use anyhow::{anyhow, Result};
 
@@ -76,8 +77,9 @@ pub fn decode(data: &[u8]) -> Result<DecodedImage> {
                 None
             },
         ))
-    } else if (pf_flags & DDPF_RGB) != 0 && rgb_bit_count == 16 {
-        Ok(decode_rgb16(pixel_data, width, height, r_mask, g_mask, b_mask))
+    } else if (pf_flags & DDPF_RGB) != 0 && matches!(rgb_bit_count, 16 | 24) {
+        let bytes = rgb_bit_count as usize / 8;
+        Ok(decode_rgb_opaque(pixel_data, width, height, bytes, r_mask, g_mask, b_mask))
     } else {
         Err(anyhow!(
             "unsupported DDS format (flags=0x{:x}, bpp={})",
@@ -337,10 +339,12 @@ fn decode_rgb32(
     }
 }
 
-fn decode_rgb16(
+/// 2- or 3-byte pixels without alpha.
+fn decode_rgb_opaque(
     data: &[u8],
     width: u32,
     height: u32,
+    bytes: usize,
     r_mask: u32,
     g_mask: u32,
     b_mask: u32,
@@ -348,11 +352,11 @@ fn decode_rgb16(
     let n = (width * height) as usize;
     let mut rgba = vec![0u8; n * 4];
     for i in 0..n {
-        let off = i * 2;
-        if off + 2 > data.len() {
+        let off = i * bytes;
+        let Some(pixel) = data.get(off..off + bytes) else {
             break;
-        }
-        let px = u16::from_le_bytes([data[off], data[off + 1]]) as u32;
+        };
+        let px = pixel.iter().rev().fold(0u32, |px, &b| (px << 8) | u32::from(b));
         let out = i * 4;
         rgba[out] = mask_to_byte(px, r_mask);
         rgba[out + 1] = mask_to_byte(px, g_mask);
