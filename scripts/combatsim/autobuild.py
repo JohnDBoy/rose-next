@@ -38,10 +38,10 @@ MELEE_JOBS = (111, 121, 122, 311, 321)
 # refines. Only the upgrades may carry an item prefix (Saint, Demon, Golden ...): a
 # level-80 player has two or three prefixed items at most (user guidance, 2026-10-14).
 SET_SLOTS = ("cap", "body", "arms", "foot")
-# Level 70/90/110 cosmetic sets (Steam, Refined Steam, Unit Core; armour-ladder-pass.py):
-# rows 250-261 of every armour table, 90% of the real set's DEF/RES. Nobody wears them
-# for stats, and class_set takes the newest full tier -- 90 and 110 sit just above the
-# vanilla 88/104 sets -- so they are never candidates. Item types: cap 2 ... foot 5.
+# Level-10 cosmetic sets (Steam, Refined Steam, Unit Core; armour-ladder-pass.py): rows
+# 250-261 of every armour table, 90% of the vanilla lv10 set's DEF/RES, worn as
+# costumes. Nobody wears them for stats, so they are never candidates (class_set would
+# otherwise see four sets in the lv10 tier). Item types: cap 2 ... foot 5.
 COSMETIC_ARMOUR = {2: range(250, 262), 3: range(250, 262), 4: range(250, 262),
                    5: range(250, 262)}
 AVERAGE_LAG = (10, 25)             # armour required level, this many levels behind

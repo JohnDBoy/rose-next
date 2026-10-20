@@ -104,13 +104,20 @@ ARMOUR_SLOTS = [
 CLASSES = ["Soldier", "Muse", "Hawker", "Dealer"]
 
 # Huzam's tabs: (label, table, item type, required level, expected item count).
-# lv210 is 19, not 13, since 2026-09: the Jrose weapon import (rows 1420-1425)
+# lv210 was 19, not 13, from 2026-09: the Jrose weapon import (rows 1420-1425)
 # added six more at that level, and no other shop sells them -- imported ids
 # above 999 can never drop, so a shop is the only way they reach a player.
+# Since 2026-10-20 (weapon-ladder-pass.py) the lv210 and plain lv230 lines traded
+# tiers: lv210 = Dual Tornado Rifles + the Viper line (14), lv230 = the Arcidian
+# line + Photon Cannon (13). Never sold, so left out of the counts: red boss loot
+# (prefix 22, the Jrose dungeon set at 230) and the five Jrose lv210 rows whose models
+# are the Arcidian line's (retired until they get models of their own).
 WEAPON_TABS = [
-    ("Weapons lv210", "LIST_WEAPON", 8, 210, 19),
+    ("Weapons lv210", "LIST_WEAPON", 8, 210, 14),
     ("Weapons lv230", "LIST_WEAPON", 8, 230, 13),
 ]
+BOSS_LOOT_PREFIX = b"22"
+RETIRED = {1420, 1421, 1422, 1423, 1425}
 # The off-hand tab, explicit since 2026-10-01: repackage-subweapons.py turned
 # most of the imported "shields" into Support Tools and Charms, so "every
 # LIST_SUBWPN row at level 210/230" no longer means "the shields". Huzam sells
@@ -143,8 +150,11 @@ def req_level(z, row):
 
 def rows_at_level(m, table, level):
     z = m.Stb(os.path.join(STB, table + ".STB"))
+    prefix = z.key_column() - 1             # STR_ITEMPREFIX id; 22 = red boss loot
     return [r for r in range(1, z.rows)
-            if z.get(r, 0).strip() and req_level(z, r) == level]
+            if z.get(r, 0).strip() and req_level(z, r) == level
+            and z.get(r, prefix).strip() != BOSS_LOOT_PREFIX
+            and not (table == "LIST_WEAPON" and r in RETIRED)]
 
 
 def armour_tab(k):

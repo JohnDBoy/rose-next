@@ -235,7 +235,9 @@ SUPPLIES = [3, 6, 35,        # Health Vial (L), Health Bottle (L) / (XL)
 # the STL text, so `check_captions` asserts the two agree.
 NEW_TABS = [
     (561, "Karkia Arms lv215", [(T_WEAPON, n) for n in ARMS_215]),
-    (562, "Karkia Arms lv225", [(T_WEAPON, n) for n in ARMS_225]),
+    # The Rose set (ARMS_225) went to level 100 and to Luna's shops
+    # (weapon-ladder-pass.py, 2026-10-20); 562 is empty and unreferenced.
+    (562, "Karkia Arms lv225", {}),
     (563, "Potions", [(T_USE, n) for n in SUPPLIES]),
     (564, "Ammo/Arrows",
      [(T_NATURAL, n) for n in ARROWS + BULLETS + SHELLS]
@@ -265,7 +267,7 @@ NEW_TABS = [
 # His old tabs 478-481 are *our* low-level rows, shared with Crune: level 38-77
 # stock in a level 215-240 zone. Repointing leaves Crune untouched.
 NPC_TABS = {
-    4019: (561, 562, 564),   # [Spire Warrior] Gelt  -- arms and ammunition
+    4019: (561, 564, 0),     # [Spire Warrior] Gelt  -- arms and ammunition
     # Sulfa stands beside Gelt in Spire Village and sold nothing: no tabs, and a
     # dialog with no store call. She is a Spire *warrior*, so plate is in
     # character, and the village is the first Karkia zone a player reaches --
@@ -274,7 +276,7 @@ NPC_TABS = {
     # QEX1 append (`quest-editor con-store ../data 4017 sulfa`), the same
     # mechanism Belfa got.
     4017: (568, 0, 0),       # [Spire Warrior] Sulfa -- the Legionnaire tier
-    4103: (561, 562, 564),   # [Master Smith] Belfa  -- the Tower staging shop
+    4103: (561, 564, 0),     # [Master Smith] Belfa  -- the Tower staging shop
     4142: (563, 0, 0),       # [Shrine Maiden] Nemo  -- "short of supplies"
     # Memories, reachable since stage 7a. Ginias is the General Store, so he
     # carries the church's consumables and the ammunition -- both rows already

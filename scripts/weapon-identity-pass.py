@@ -85,6 +85,11 @@ SKIP = {1380: "GM Sword"}
 # post-pass scale: a re-run would take them as originals and scale them twice.
 SKIP.update({r: "668 unique" for r in (904, 911, 918, 922, 929, 935, 936, 943, 955,
                                        962, 970, 979, 986, 994, 995)})
+# Re-tiered by weapon-ladder-pass.py (2026-10-20) with post-pass values: the lv210 and
+# plain lv230 lines traded tiers, the Rose set went to level 100. A re-run from this
+# pass's originals would put them back.
+SKIP.update({r: "weapon ladder" for r in list(range(1355, 1380)) + [1424]
+             + list(range(1382, 1419, 3))})
 
 
 def R(level):

@@ -45,6 +45,10 @@ TYPE_NAMES = {
 
 # Our own measured tier increment is about +9% ATK per 15 levels (185 -> 200), so
 # `step` is that rate carried over the tier's distance from our level-200 top.
+#
+# Since 2026-10-20 the two tiers below trade places (weapon-ladder-pass.py, the user's
+# look survey): "r2" is the lv210 line and "newwep" (with Jrose's Photon Cannon as its
+# launcher) the lv230 one. The req_level / step values here are what was imported.
 TIERS = {
     # QQ-iROSE's "r2" set: one model per type under 3ddata/weapon/r2/, and the
     # only complete set in that data set whose art we do not already own. It

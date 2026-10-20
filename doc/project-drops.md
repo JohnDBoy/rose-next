@@ -122,12 +122,13 @@ drops**, chosen so Karkia never duplicates Oro (whose merchant Huzam sells 210 a
 | tier | ids | where |
 |---|---|---|
 | lv215 "Mirere" (13, all weapon types) | 1381, 1384, 1387, 1390, 1393, 1396, 1399, 1402, 1405, 1408, 1411, 1414, 1417 | **shop** (Gelt) |
-| lv225 (13, all weapon types) | 1382, 1385, 1388, 1391, 1394, 1397, 1400, 1403, 1406, 1409, 1412, 1415, 1418 | **shop** (Gelt) |
+| the Rose set (13, all weapon types; lv225, **lv100 since 2026-10-20**) | 1382, 1385, 1388, 1391, 1394, 1397, 1400, 1403, 1406, 1409, 1412, 1415, 1418 | **shop** (Gelt; since 2026-10-20 Luna: Pavrick, Sergei, Pabel -- `weapon-ladder-pass.py`) |
 | lv220 (11) | 1426–1436 | **reserved for drops** |
 | lv235 (10) | 1437–1446 | **reserved for drops** |
 | lv240 (13, the mythical names) | 1383, 1386, 1389, 1392, 1395, 1398, 1401, 1404, 1407, 1410, 1413, 1416, 1419 | **reserved for drops** |
 
-Left out of both: the partial lv210 set (1420–1425) duplicates Oro's tier, and the
+Left out of both: the partial lv210 set (1420–1425; 1424 Photon Cannon is the lv230 Arcidian line's
+launcher since 2026-10-20, the other five share its models and are retired, sold and dropped nowhere, until they get models of their own) duplicates Oro's tier, and the
 low oddments (1447–1453, levels 150–205) sit far below Karkia's 215–240 band.
 
 The lv240 set — Bahamut, Phoenix, Griffon, Unicorn, Albion, Quetzalcoatl, Aerie,

@@ -130,7 +130,11 @@ TIER_MATS = {"RING":   [9, 10, 49, 50],      # Tiar, Damascus, Transparent/Patte
              "FOSSIL": [16, 17, 50, 60]}     # Orihalcon, Adamantium, Patterned Leather, Lace
 
 # ---------------------------------------------------------------- equipment
-WPN_ORO_210 = [1420, 1421, 1422, 1423, 1424, 1425, 1450, 1447]   # Jrose lv200-210
+# Jrose lv200-210. Was 1420-1425 + 1450 + 1447 until 2026-10-20: weapon-ladder-pass.py
+# made Photon Cannon (1424) the lv230 Arcidian line's launcher, and the user retired
+# the other five (1420-1423, 1425) -- their models are the lv230 Arcidian line's, and
+# no weapon may share a higher tier's look; they wait for models of their own.
+WPN_ORO_210 = [1450, 1447]
 ARMOUR_240 = {T_CAP: [989, 990, 991, 992],     # Royal Guardian / Sun Prophet /
               T_BODY: [916, 917, 918, 919],    # Jackal Bandit / Serpent Trader
               T_ARMS: [892, 893, 894, 895],
@@ -361,6 +365,9 @@ def main():
     ap.add_argument("--restore", action="store_true")
     ap.add_argument("--simulate", action="store_true",
                     help="print drop rates per table shape (no writes)")
+    ap.add_argument("--rewrite", action="store_true",
+                    help="re-plan in place: rewrite only the ITEM_DROP rows this script "
+                         "already owns, keeping the sidecar's originals")
     args = ap.parse_args()
 
     import rosedata as oro  # the shared data layer (was import-oro.py)
@@ -432,8 +439,31 @@ def main():
               f"{len(bad)} problem(s)" + ("\n  " + "\n  ".join(bad[:10]) if bad else ""))
         return 1 if bad else 0
 
+    if args.rewrite:
+        # A pool edit only changes table contents, so rewrite the rows in place: a
+        # --restore + apply would also redo the legacy relocations and every row.
+        if not saved:
+            sys.exit("no sidecar -- apply first")
+        changed = 0
+        for row, (label, cells) in sorted(tables.items()):
+            if str(row) not in saved["drop_rows"]:
+                sys.exit(f"row {row} ({label}) is not one this script wrote -- "
+                         "--restore and re-apply instead")
+            if all(gi(drop, row, 1 + s) == cells.get(s, 0) for s in range(kd.LAST_SLOT + 1)):
+                continue
+            for s in range(kd.LAST_SLOT + 1):
+                v = cells.get(s, 0)
+                drop.set(row, 1 + s, str(v).encode("latin-1") if v else b"")
+            changed += 1
+            print(f"   row {row:<4} {label}")
+        if changed and not args.dry_run:
+            with open(DROP_STB, "wb") as fh:
+                fh.write(drop.to_bytes())
+        print(f"{changed} row(s) {'would be ' if args.dry_run else ''}rewritten")
+        return 0
+
     if saved:
-        print("already applied -- --restore first to re-plan")
+        print("already applied -- --restore first to re-plan (or --rewrite after a pool edit)")
         return 0
 
     live = live_rows(npc, drop)

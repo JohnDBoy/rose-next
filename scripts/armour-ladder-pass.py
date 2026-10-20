@@ -1,14 +1,14 @@
 """The armour ladder after the user's survey (2026-10-20): three vanity sets become
-level 70/90/110 cosmetics, Crystal takes Rose Brasil's "Legendary Crystal" look, and
-the lv210 caps get the female models they never had.
+level-10 cosmetics, Crystal takes Rose Brasil's "Legendary Crystal" look, and the
+lv210 caps get the female models they never had.
 
 The survey (user, 2026-10-20) graded every set from 200 up by how it looks:
 
     240  Royal Guardian / Sun Prophet / Jackal / Serpent   end game, Oro-coded   keep
     230  Legionnaire / Spitfire / Spinosaur / Assailant    end game              keep
-    230  Unit Core (Sol / Jupiter / Diana / Pluto)         vanity, power-ranger  -> lv110
-    225  Refined Steam                                     vanity                -> lv90
-    220  Steam                                             vanity                -> lv70
+    230  Unit Core (Sol / Jupiter / Diana / Pluto)         vanity, power-ranger  -> lv10
+    225  Refined Steam                                     vanity                -> lv10
+    220  Steam                                             vanity                -> lv10
     220  Crystal                                           end game, incomplete  -> Legendary look
     210  Viking / Vampire / Witch ... (8 classes)          end game              keep
     200  vanilla                                           keep
@@ -22,33 +22,29 @@ is gone (import-legionnaire-armour.py's docstring describes that trade).
 
 --- 1. the vanity sets become cosmetics (rows 250-261 of all four tables)
 
-Same rows, so every copy a player owns converts in place. Levels 70 / 90 / 110 and
-**still class-locked**: the costume slots go through `Check_EquipCondition`
-(gs_user.cpp, receive_client_equip_costume_item), so a level-70 Soldier set is a
-costume for any Soldier-line character from 70 up -- that is the "cosmetic for higher
-levels" use, with no code change.
+Same rows, so every copy a player owns converts in place. **Level 10 and still
+class-locked**: the costume slots go through `Check_EquipCondition` (gs_user.cpp,
+receive_client_equip_costume_item), so a Soldier-line set is a costume for any
+Soldier-line character -- that is the whole use, with no code change. The first cut
+put them at 70 / 90 / 110 and sold them in Junon Polis; the user's verdict was that
+the level limit "was a bad idea" and a shop "just confusing", so they are level 10
+and **sold nowhere** (where they come from is the user's to decide). Re-running this
+script puts the first cut's Junon cells back: any cell an earlier run wrote that the
+plan no longer covers returns to its recorded original.
 
-Stats come from the vanilla class set of the same line around that level (rows 34-37
-+ 30 per class: Chrome/Mighty/Kurash/Plate at 70/88/104/120 for the Soldier line),
-interpolated to the cosmetic's level, then:
+Stats are the vanilla level-10 class set of the same line (row 31 + 30 per class:
+Soldier Armor, Spiritual Vest, Hunter Chest, Brown Vest ...), then:
 
     DEF, RES        x0.9 -- a cosmetic is never an upgrade over the real set
-    bonus           the class line's own piece bonus x0.9 (Muse caps' and bodies');
-                    a body with none gets the vanilla Look outfits' Max HP (Junior
-                    Look 55 +126 ... Magic School Look 98 +196; 145/180/215 here)
-    price, quality, durability, boots move speed   the interpolated vanilla values
+    bonus           the class line's own piece bonus x0.9 (the Muse body's +MP)
+    price, quality, durability, boots move speed   the vanilla values
     rare type (col 30)   1, as the vanilla rows (12/14/24/35 behaved as 0 anyway:
                     only 3 and 4 mean anything, `drop_rule_from_int`)
 
 The 220+ bonus pair (+85 / +72 class stats, +1,075 Max HP on the body) is dropped.
 Names and descriptions stay: they never mentioned a tier. Weight and the craft columns
-are left alone. **The combat sim must skip them** (`combatsim/autobuild.COSMETIC_ARMOUR`):
-its `class_set` takes the newest tier with a full set, and 90/110 sit just above the
-vanilla 88/104 sets.
-
-Sold in Junon Polis beside each class line's own shop sets, one set per column in the
-free columns 5-7 of Saki's Soldier (482) / Hawker (483) and Lisa's Muse (486) / Dealer
-(487) tabs; column 4 stays empty as a break. Steam used to be sold nowhere.
+are left alone. **The combat sim skips them** (`combatsim/autobuild.COSMETIC_ARMOUR`),
+or the level-10 tier would hold four sets.
 
 --- 2. Crystal takes the Legendary Crystal look (CAP 977-980, BODY 904-907, ARMS
 880-883, FOOT 878-881)
@@ -141,14 +137,13 @@ COL_LEVEL = 20
 COL_BONUS = (23, 24, 25, 26, 27, 28)      # two (condition, ability, amount) triples
 COL_DURABILITY, COL_RARE, COL_DEF, COL_RES = 29, 30, 31, 32
 COL_SPEED = 33                             # LIST_FOOT only
-AT_MAX_HP = 38
 
 # --- 1. cosmetics -----------------------------------------------------------
-COSMETIC = {"Steam": (250, 70), "Refined Steam": (254, 90), "Unit Core": (258, 110)}
-# vanilla class sets of the Soldier line; + 30 per class line (Muse 64.., Hawker 94..)
-VANILLA = {70: 34, 88: 35, 104: 36, 120: 37}
+# Level 10 for all three (user, 2026-10-20: the first cut's 70/90/110 "was a bad idea")
+COSMETIC = {"Steam": (250, 10), "Refined Steam": (254, 10), "Unit Core": (258, 10)}
+# vanilla class sets of the Soldier line; + 30 per class line (Muse 61.., Hawker 91..)
+VANILLA = {10: 31, 70: 34, 88: 35, 104: 36, 120: 37}
 COSMETIC_SHARE = 0.9
-LOOK_MAX_HP = {70: 145, 90: 180, 110: 215}
 
 # --- 2. Legendary Crystal ---------------------------------------------------
 CRYSTAL_ROW = {"cap": 977, "body": 904, "arms": 880, "foot": 878}
@@ -179,10 +174,6 @@ FEMALE_210 = {
 
 # --- 4. shops ---------------------------------------------------------------
 GRID_COLS, SELL_SLOTS = 8, 48
-# Junon Polis class tabs: rows body / cap / arms / foot, as their shop sets are laid out
-JUNON_TAB = {"Soldier": 482, "Muse": 486, "Hawker": 483, "Dealer": 487}
-JUNON_ROW = {"body": 0, "cap": 1, "arms": 2, "foot": 3}
-JUNON_COL = {"Steam": 5, "Refined Steam": 6, "Unit Core": 7}
 ASTRAEA, ASTRAEA_TABS = 4108, (565, 566, 568)
 TAB_COLS = (21, 22, 23)
 LEGENDARY_TAB, LEGENDARY_CAPTION = 566, "Legendary Crystal lv220"
@@ -267,9 +258,6 @@ def cosmetic_plan(stbs):
                 if ability and ability == num(s, b, 24):
                     want[24] = str(ability)
                     want[25] = str(max(1, int(round(lerp(25) * COSMETIC_SHARE))))
-                elif slot == "body":
-                    want[24] = str(AT_MAX_HP)
-                    want[25] = str(LOOK_MAX_HP[level])
                 if slot == "foot":
                     want[COL_SPEED] = str(int(round(lerp(COL_SPEED))))
                 plan[(slot, row)] = want
@@ -430,13 +418,9 @@ def female_210_objects(rewires, files, mcap):
 
 
 def shop_plan(sell):
-    """{(row, col): str} for LIST_SELL."""
+    """{(row, col): str} for LIST_SELL. The cosmetics are sold nowhere: the first cut's
+    Junon Polis slots go back to what they held, through `retired_cells`."""
     out = {}
-    for setname, (first, _lv) in COSMETIC.items():
-        for ci, cls in enumerate(CLASSES):
-            for slot in SLOTS:
-                slot_idx = JUNON_ROW[slot] * GRID_COLS + JUNON_COL[setname]
-                out[(JUNON_TAB[cls], 2 + slot_idx)] = str(ITEM_TYPE[slot] * 1000 + first + ci)
     for s in range(SELL_SLOTS):
         out[(LEGENDARY_TAB, 2 + s)] = ""
         out[(RETIRED_TAB, 2 + s)] = ""
@@ -506,6 +490,14 @@ def main():
         cells[("LIST_SELL", r, c)] = v
     for c, tab in zip(TAB_COLS, ASTRAEA_TABS):
         cells[("LIST_NPC", ASTRAEA, c)] = str(tab)
+    man = json.load(open(MANIFEST)) if os.path.isfile(MANIFEST) else {}
+    # a cell an earlier run wrote that the plan no longer covers goes back to what it
+    # held (the first cut's Junon Polis shop slots); icon cells are tracked on their own
+    for key, old in man.get("cells", {}).items():
+        t, r, c = key.split(",")
+        k = (t, int(r), int(c))
+        if k not in cells and not (k[2] == COL_ICON and "%s,%s" % (t, r) in man.get("icons", {})):
+            cells[k] = old
     tables = {TABLE[s]: stbs[s] for s in SLOTS}
     tables.update({"LIST_SELL": sell, "LIST_NPC": npc})
     cell_todo = {k: v for k, v in cells.items() if cell(tables[k[0]], k[1], k[2]) != v}
@@ -530,7 +522,6 @@ def main():
     female_210_objects(rewires, files, rewires["LIST_MCAP"])
 
     # ---- icons: Brasil's own, unless a previous run already placed them
-    man = json.load(open(MANIFEST)) if os.path.isfile(MANIFEST) else {}
     icon_rows = {}
     for slot in SLOTS:
         brz = Stb(os.path.join(BRASIL, "3DDATA", "STB", TABLE[slot] + ".STB"))
@@ -542,7 +533,7 @@ def main():
             icon_rows[(slot, row)] = num(brz, BRASIL_ROW[cls], COL_ICON)
 
     # ---- report
-    print("Cosmetics (rows 250-261):")
+    print("Cosmetics (rows 250-261, sold nowhere):")
     for setname, (first, level) in COSMETIC.items():
         for ci, cls in enumerate(CLASSES):
             d = sum(int(cells[(TABLE[s], first + ci, COL_DEF)]) for s in SLOTS)
