@@ -578,6 +578,16 @@ CObjMOB::Change_CHAR(int iCharIDX) {
     this->m_iOriMaxHP = ClampedMobMaxHP(iCharIDX);
     this->m_iHP = m_iOriMaxHP;
 
+    /// Level, DEF, RES and AVOID read the table through m_nCharIdx, but these are
+    /// cached by Init, so the new form fought with the old one's. Every Ghost Seed
+    /// is ATK 1 / HIT 1: the Candle and Yigore Ghosts they turn into landed 6-8%
+    /// of their swings at any dodge, and for 5 damage.
+    this->m_nCritical = (short)(NPC_LEVEL(iCharIDX) * 0.6f);
+    this->stats.attack_speed = NPC_ATK_SPEED(iCharIDX);
+    this->stats.attack_power = NPC_ATK(iCharIDX);
+    this->stats.hit_rate = NPC_HIT(iCharIDX);
+    this->update_speed();
+
     classPACKET* pCPacket = Packet_AllocNLock();
     if (!pCPacket)
         return false;
