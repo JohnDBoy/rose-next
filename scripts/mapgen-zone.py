@@ -2516,7 +2516,7 @@ def bake_object_lightmaps(s, p):
                         cfg={k: v for k, v in lc.items() if k in objlight.OBJECT_DEFAULT},
                         terrain_cfg={k: v for k, v in lc.items() if k in lighting.DEFAULT}, x0=p.x0, y0=p.y0)
     images = {(slot, name): a for slot, r in res.items() for name, a in r["atlases"].items()}
-    dds = lighting.encode_dds(images, mips=3)
+    dds = lighting.encode_dds(images, mips=3, uncompressed=bool(lc.get("uncompressed")))
     out = {}
     n_parts = n_skip = 0
     for slot, r in res.items():
@@ -2534,7 +2534,7 @@ def objlight_checks(s, p, zdir, check):
     """Phase 8 step 3, from disk: every .lit entry is one the client can
     follow without reading out of bounds (ordinal within its IFO lump, part
     within its ZSC object, cell within its atlas), no two parts share a
-    cell, every atlas is a square DXT5 with exactly 3 mip levels, every
+    cell, every atlas is a square DXT5 (32-bit if opted in) with exactly 3 mip levels, every
     record of both lumps is lit, and the cells are about as bright as
     retail's with nothing black in them."""
     fp = footprints(s)
@@ -2582,7 +2582,7 @@ def objlight_checks(s, p, zdir, check):
                         else:
                             with open(path, "rb") as f:
                                 head = f.read(128)
-                            atlases[(stem, name)] = (lighting.dds_info(head), path)
+                            atlases[(stem, name)] = (lighting.dds_info(head)[:3] + (lighting.dds_format(head),), path)
                     info = atlases[(stem, name)]
                     if info is None:
                         bad.append("%s missing %s" % (stem, name))
@@ -2607,7 +2607,7 @@ def objlight_checks(s, p, zdir, check):
         if info is None:
             continue
         (w, h, mips, four), path = info
-        if four != "DXT5" or mips != 3:
+        if four != lighting.lightmap_format(want_uncompressed(s)) or mips != 3:
             bad.append("%s %s %s %d mips" % (stem, name, four, mips))
         a = np.asarray(Image.open(path).convert("RGB")).astype(np.float32)
         lum = a[..., 0] * 0.299 + a[..., 1] * 0.587 + a[..., 2] * 0.114
@@ -2616,7 +2616,7 @@ def objlight_checks(s, p, zdir, check):
             r0, c0 = divmod(pos, max(ppw, 1))
             samples.append(lum[r0 * P:(r0 + 1) * P:2, c0 * P:(c0 + 1) * P:2].ravel())
     check(not bad, "object lightmaps: every entry within its IFO lump, ZSC object and atlas, no shared cell, "
-                   "DXT5 with 3 mips (%d parts, %d atlases) %s" % (n_parts, len(atlases), bad[:4] or ""))
+                   "%s with 3 mips (%d parts, %d atlases) %s" % (lighting.lightmap_format(want_uncompressed(s)), n_parts, len(atlases), bad[:4] or ""))
     check(unlit == 0, "every decoration and building record is lightmapped (%d left vertex-lit; %d outside "
                       "their chunk for the client, dropped by it and left out)" % (unlit, dropped))
     if samples:
@@ -2644,6 +2644,12 @@ def light_inputs(s, p):
     return placed, shapes, water
 
 
+def want_uncompressed(s):
+    """The layout opted into uncompressed lightmaps ("lighting": {"uncompressed": true})."""
+    lc = s.get("lighting")
+    return isinstance(lc, dict) and bool(lc.get("uncompressed"))
+
+
 def bake_lightmaps(s, p):
     """Plane lightmaps for every chunk (mapgen/lighting.py), or None when the
     spec has no "lighting" section or no terrain."""
@@ -2653,7 +2659,7 @@ def bake_lightmaps(s, p):
     placed, shapes, water = light_inputs(s, p)
     t0 = time.time()
     lm = lighting.bake(p.field, placed, shapes, water, lc if isinstance(lc, dict) else {})
-    dds = lighting.encode_dds(lighting.chunk_images(lm, p.width, p.height))
+    dds = lighting.encode_dds(lighting.chunk_images(lm, p.width, p.height), uncompressed=want_uncompressed(s))
     print("lightmaps: %d chunks baked in %.0f s (%d objects cast light)" % (len(dds), time.time() - t0, len(placed)))
     return {(p.x0 + cx, p.y0 + cy): b for (cx, cy), b in dds.items()}
 
@@ -2675,11 +2681,12 @@ def lightmap_checks(s, p, zdir, check):
             continue
         with open(path, "rb") as f:
             head = f.read(128)
-        w, h, mips, four = lighting.dds_info(head)
-        if (w, h, four) != (512, 512, "DXT5") or mips != 10:
+        w, h, mips, _ = lighting.dds_info(head)
+        four = lighting.dds_format(head)
+        if (w, h, four) != (512, 512, lighting.lightmap_format(want_uncompressed(s))) or mips != 10:
             bad.append("%s %dx%d %s %d mips" % (stem, w, h, four, mips))
         imgs[(x - p.x0, y - p.y0)] = np.asarray(Image.open(path).convert("RGB")).astype(np.float32)[::-1]
-    check(not bad, "every chunk has a 512 px DXT5 plane lightmap with a full mip chain %s" % (bad[:3] or ""))
+    check(not bad, "every chunk has a 512 px %s plane lightmap with a full mip chain %s" % (lighting.lightmap_format(want_uncompressed(s)), bad[:3] or ""))
     if len(imgs) != p.width * p.height:
         return
     P = lighting.PX

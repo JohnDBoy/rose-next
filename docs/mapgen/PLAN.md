@@ -1260,3 +1260,15 @@ can be added without rewriting it.
   saved per map; backups, verify, restore; doc/relighting-maps.md). Tested
   on Shibuya (relit in data/, not yet baked into the VFS) and a full
   bake-twice-restore cycle on Character Select.
+- 2026-10-22 — Uncompressed lightmaps, opt-in. `lighting.encode_dds` can write
+  32-bit BGRA instead of DXT5: a lightmap is a smooth gradient drawn
+  modulate2x, so DXT's 5:6:5 endpoints show as doubled banding, 4x4 blocks on
+  shadow edges and tinted greys. Tried as the default on Riverwatch, Ledgewood
+  and Shibuya (rebuilt with `build --out`: every non-texture file
+  byte-identical to the installed zone, so a rebuild reproduces a zone). It
+  worked in game, but 4x the bytes (bake 2.95 -> 3.26 GB) and each 512 px
+  level logged "slow texture create" (~2 ms); the user's call: DXT5 stays the
+  default, uncompressed is for original maps or one to show off -- a layout's
+  `"lighting": {"uncompressed": true}`, relight's `--set uncompressed=true`.
+  Checks follow the choice. Riverwatch and Ledgewood then uninstalled (zones 12
+  and 13 free again; layouts kept); Shibuya re-baked DXT5.

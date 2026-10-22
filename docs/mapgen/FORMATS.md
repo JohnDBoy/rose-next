@@ -473,7 +473,8 @@ Settled from code; numbers from `scripts/mapgen-lightmap-survey.py`.
 **What mapgen writes (phase 8 step 2):** one
 `x_y/x_y_PLANELIGHTINGMAP.DDS` per chunk (the HIM's stem), 512 px, DXT5,
 full mip chain, legacy DX9 header (texconv `-dx9 -m 0 -nowic -if BOX`),
-349,680 bytes like retail's. Baked over the whole map, so edges agree; the
+349,680 bytes like retail's; uncompressed 32-bit BGRA (~1.4 MB) when the
+layout sets `"lighting": {"uncompressed": true}`. Baked over the whole map, so edges agree; the
 verify round-trip skips `.dds` (no codec) and `lightmap_checks` reads them
 back instead.
 
@@ -543,7 +544,7 @@ Settled from the client source and the shipped shaders (phase 8 step 3):
 
 **What mapgen writes (phase 8 step 3):** per chunk, both `.lit` files and
 `x_y/LIGHTMAP/OBJECT_<px>_<k>.DDS` / `BUILDING_<px>_<k>.DDS` atlases
-(DXT5, legacy header, exactly 3 mips), every part of every record of lumps
+(DXT5, or 32-bit BGRA if opted in; legacy header, exactly 3 mips), every part of every record of lumps
 1 and 3 listed, entries and catalogue as retail writes them. A layout with
 `"lighting": {"objects": false}` writes the empty 8-byte LITs instead
 (File > New's).

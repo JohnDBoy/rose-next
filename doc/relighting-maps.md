@@ -78,6 +78,10 @@ defaults, then the map's saved file, then `--settings`, then each `--set`.
   With no sun term, only the darkening in corners and under objects remains.
 - **Only fix the objects** after editing a map whose ground lighting you
   want to keep (retail maps were hand-baked): `--set terrain=false`.
+- **A showcase map**: `--set uncompressed=true` writes the lightmaps as 32-bit
+  instead of DXT5 -- smooth shadow fades, no blocky shadow edges, neutral
+  greys -- at 4x the size (Shibuya, 49 chunks: 65 -> 261 MB) and ~2 ms per lightmap when it
+  loads. Keep it for original maps or one you want to highlight.
 
 ## Undo
 

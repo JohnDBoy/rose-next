@@ -36,6 +36,8 @@ from . import areas, catalogue, ifo, lighting, lit, objlight, prefab, tiles
 SETTINGS = [
     ("terrain", "switch", "Rebake the ground lightmaps (true/false). false keeps the zone's current ones."),
     ("objects", "switch", "Rebake the object lightmaps (true/false). false keeps the zone's current ones."),
+    ("uncompressed", "switch", "Write the lightmaps uncompressed 32-bit instead of DXT5 (true/false): no "
+                               "banding or blocks in soft shadows, but 4x the size. For maps to show off."),
     ("brightness", "light", "Overall brightness, a multiplier on open_rgb: 1.0 = default, 1.15 = 15% brighter."),
     ("open_rgb", "light", "Colour of open ground in full sun, R,G,B. 128,128,128 = the textures as painted; "
                           "retail Junon is 161,156,151 (x1.23, slightly warm). Sets the tint of everything."),
@@ -77,7 +79,7 @@ SETTINGS = [
     ("sky_bias_cm", "advanced", "Sky occlusion tolerance, cm."),
     ("atlas_max_px", "advanced", "Largest object lightmap atlas, pixels (512 = retail)."),
 ]
-SWITCHES = {"terrain": True, "objects": True, "brightness": 1.0, "plants": [], "not_plants": []}
+SWITCHES = {"terrain": True, "objects": True, "uncompressed": False, "brightness": 1.0, "plants": [], "not_plants": []}
 COLOURS = ("open_rgb", "water_rgb")
 LISTS = ("plants", "not_plants")
 
@@ -94,7 +96,7 @@ def parse_value(key, text):
     if key not in defaults():
         raise ValueError("%r is not a setting (python scripts/relight-zone.py settings)" % key)
     t = str(text).strip()
-    if key in ("terrain", "objects"):
+    if key in ("terrain", "objects", "uncompressed"):
         if t.lower() not in ("true", "false", "1", "0", "yes", "no"):
             raise ValueError("%s: true or false" % key)
         return t.lower() in ("true", "1", "yes")
@@ -368,7 +370,7 @@ def bake(zone, settings, cell_base, log=print):
             slot = (zone.x0 + cx, zone.y0 + cy)
             if slot in zone.chunks:
                 images[slot] = img
-        dds = lighting.encode_dds(images)
+        dds = lighting.encode_dds(images, uncompressed=s["uncompressed"])
         for slot, blob in dds.items():
             ch = zone.chunks[slot]
             cdir = ch["dir"] or os.path.join(zone.zdir, ch["stem"])
@@ -383,7 +385,7 @@ def bake(zone, settings, cell_base, log=print):
                             terrain_cfg=t_cfg, x0=zone.x0, y0=zone.y0,
                             log=lambda m: log(m) if "object lighting" in m else None)
         images = {(slot, name): a for slot, r in res.items() for name, a in r["atlases"].items()}
-        dds = lighting.encode_dds(images, mips=3)
+        dds = lighting.encode_dds(images, mips=3, uncompressed=s["uncompressed"])
         n_parts = 0
         for slot, r in res.items():
             ch = zone.chunks[slot]
@@ -444,15 +446,19 @@ def check_zone(zone, audit, files=None):
             path = os.path.join(cdir, f)
             if f.lower().endswith("_planelightingmap.dds") and ours(path):
                 with open(path, "rb") as fh:
-                    w, h, mips, four = lighting.dds_info(fh.read(128))
-                if four != "DXT5" or w != h or mips < 2:
+                    head = fh.read(128)
+                w, h, mips, _ = lighting.dds_info(head)
+                four = lighting.dds_format(head)
+                if four not in lighting.LIGHTMAP_FORMATS or w != h or mips < 2:
                     problems.append("%s/%s: %s %dx%d, %d mips" % (ch["stem"], f, four, w, h, mips))
         for f in (os.listdir(lm) if lm else []):
             path = os.path.join(lm, f)
             if ATLAS_RE.match(f) and ours(path):
                 with open(path, "rb") as fh:
-                    w, h, mips, four = lighting.dds_info(fh.read(128))
-                if four != "DXT5" or w != h or mips != 3:
+                    head = fh.read(128)
+                w, h, mips, _ = lighting.dds_info(head)
+                four = lighting.dds_format(head)
+                if four not in lighting.LIGHTMAP_FORMATS or w != h or mips != 3:
                     problems.append("%s/%s: atlas %s %dx%d, %d mips" % (ch["stem"], f, four, w, h, mips))
     return problems, warnings
 

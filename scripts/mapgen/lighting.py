@@ -473,12 +473,30 @@ TEXCONV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "
                        "directxtex-2020.9.30", "texconv.exe")
 
 
-def encode_dds(images, mips=0):
-    """{key: (h, w, 3) uint8} -> {key: DDS bytes}: DXT5 with the legacy DX9
-    header, a full mip chain (mips=0, plane lightmaps, as retail) or exactly
-    `mips` levels (object atlases: 3, so no quality preset samples a level
-    small enough to bleed between cells). Encoded by the vendored texconv
-    (-nowic -if BOX, see add-dds-mipmaps.py: WIC darkens downsampled mips)."""
+LIGHTMAP_FORMATS = ("DXT5", "BGRA32")       # what we write, by dds_format's names
+
+
+def lightmap_format(uncompressed):
+    return "BGRA32" if uncompressed else "DXT5"
+
+
+def encode_dds(images, mips=0, uncompressed=False):
+    """{key: (h, w, 3) uint8} -> {key: DDS bytes}: DXT5 (or, opted in,
+    uncompressed 32-bit BGRA) with the legacy DX9 header, a full mip chain
+    (mips=0, plane lightmaps, as retail) or exactly `mips` levels (object
+    atlases: 3, so no quality preset samples a level small enough to bleed
+    between cells). Encoded by the vendored texconv (-nowic -if BOX, see
+    add-dds-mipmaps.py: WIC darkens downsampled mips).
+
+    Uncompressed is opt-in (a layout's "lighting": {"uncompressed": true},
+    relight's `--set uncompressed=true`): for an original map or one to show
+    off. A lightmap is a smooth gradient drawn modulate2x, so DXT's 5:6:5
+    endpoints show as doubled banding in soft shadows, 4x4 blocks on shadow
+    edges and tinted greys. But it is 4x the bytes, and a 512 px level costs
+    ~2 ms to create (logged as "r_d3d: slow texture create"). Tried as the
+    default on 2026-10-22 (Riverwatch, Ledgewood, Shibuya): the user judged
+    the difference not worth the space for ordinary maps. Lightmaps are
+    opaque, so upgrade-dxt-textures.py's alpha-aware mip rules do not apply."""
     out = {}
     with tempfile.TemporaryDirectory() as tmp:
         names = {}
@@ -487,7 +505,7 @@ def encode_dds(images, mips=0):
             Image.fromarray(a, "RGB").save(os.path.join(tmp, name + ".png"))
             names[key] = name
         cmd = [os.path.abspath(TEXCONV), "-nologo", "-y", "-dx9", "-m", str(mips), "-nowic", "-if", "BOX",
-               "-f", "DXT5", "-o", tmp] + [os.path.join(tmp, n + ".png") for n in names.values()]
+               "-f", "B8G8R8A8_UNORM" if uncompressed else "DXT5", "-o", tmp] + [os.path.join(tmp, n + ".png") for n in names.values()]
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
             raise RuntimeError("texconv failed: %s" % (r.stdout or r.stderr)[-400:])
@@ -501,3 +519,11 @@ def dds_info(data):
     """(width, height, mip count, fourcc) of a DDS file's header (``rosefmt.dds.info``)."""
     from rosefmt import dds
     return dds.info(data)
+
+
+def dds_format(data):
+    """A DDS header's pixel format as the checks name it: the fourcc ("DXT5"), or
+    "BGRA32" etc. for an uncompressed file (whose fourcc field is zero)."""
+    from rosefmt import dds
+    h = dds.parse_header(data[:dds.HEADER_LEN + dds.DX10_LEN])
+    return h.fourcc.decode("latin-1") if h.compressed else ("BGRA%d" % h.bit_count)

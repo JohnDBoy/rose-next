@@ -20,7 +20,7 @@ How the client uses them (verified 2026-10-03, docs/mapgen/FORMATS.md
   object's part count crashes or corrupts the client.
 * The material cache is keyed by (cell, atlas): two parts sharing a cell
   draw with the first one's texture. Every part gets its own cell.
-* Atlases: DXT5, exactly 3 mip levels (setMipmapLevel(3); a fuller chain
+* Atlases: DXT5 (uncompressed 32-bit when opted in, lighting.encode_dds), exactly 3 mip levels (setMipmapLevel(3); a fuller chain
   bleeds between cells at display quality 3/4), each island's colour
   spread to its cell's edges (cells have no gutter; the uv1 inset is only
   0.02 of a cell).
