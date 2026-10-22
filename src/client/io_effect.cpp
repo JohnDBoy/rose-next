@@ -10,8 +10,13 @@
 #include "Util\\VFSManager.h"
 
 #include "CObjCHAR.h"
+#include "System/FrameProfiler.h"
 
 #include <assert.h>
+#include <ctype.h>
+#include <map>
+#include <string>
+#include <vector>
 
 /////////////////////////////////////////////////////////////////////////////////////
 /// CParticle
@@ -20,18 +25,77 @@ CParticle::~CParticle() {
     this->UnregisterFromNZINE();
 }
 
+namespace {
+/// .ptl bytes by normalised path, kept for the life of the process.
+///
+/// Every CEffect builds its emitters from the particle file again, and a crowd
+/// spawning at once paid that per emitter: 30 Frozen Thorns re-entering view
+/// measured 64 emitters at 6.4 ms in one frame, 1.9 ms of it IsExistFile
+/// (~30 us a lookup) and 4.1 ms reading + parsing the .ptl through the VFS.
+/// The files are small (a few hundred bytes to a few KB) and few, so each is
+/// read once and every later emitter parses from memory. An empty entry marks a
+/// file that does not exist, so a broken effect logs once instead of per spawn.
+std::map<std::string, std::vector<char>> s_PtlCache;
+
+const std::vector<char>&
+GetPtlBytes(const char* szParticleFile) {
+    std::string key(szParticleFile ? szParticleFile : "");
+    for (std::string::iterator it = key.begin(); it != key.end(); ++it)
+        *it = (*it == '/') ? '\\' : (char)toupper((unsigned char)*it);
+
+    std::map<std::string, std::vector<char>>::iterator found = s_PtlCache.find(key);
+    if (found != s_PtlCache.end())
+        return found->second;
+
+    std::vector<char>& bytes = s_PtlCache[key];
+    if (!(CVFSManager::GetSingleton()).IsExistFile(szParticleFile)) {
+        LogString(LOG_DEBUG_, "ERROR:: Particle File [%s] not found...\n", szParticleFile);
+        return bytes;
+    }
+    CFileSystem* pFileSystem = (CVFSManager::GetSingleton()).GetFileSystem();
+    if (pFileSystem->OpenFile(szParticleFile)) {
+        pFileSystem->ReadToMemory();
+        const char* pData = (const char*)pFileSystem->GetData();
+        if (pData && pFileSystem->GetSize() > 0)
+            bytes.assign(pData, pData + pFileSystem->GetSize());
+        pFileSystem->CloseFile();
+    }
+    (CVFSManager::GetSingleton()).ReturnToManager(pFileSystem);
+    return bytes;
+}
+} // namespace
+
 bool
 CParticle::RegisterToNZIN(char* szName, char* szParticleFile) {
-    if ((CVFSManager::GetSingleton()).IsExistFile(szParticleFile) == false) {
-        LogString(LOG_DEBUG_, "ERROR:: Particle File [%s] not found...\n", szParticleFile);
-        return false;
+    /// Step timing for the frame-spike log (FrameProfiler::EffectStep).
+    const bool bTime = FrameProfiler::IsSpikeLogEnabled();
+    LARGE_INTEGER qpf, t0, t1;
+    if (bTime) {
+        ::QueryPerformanceFrequency(&qpf);
+        ::QueryPerformanceCounter(&t0);
     }
+
+    const std::vector<char>& ptl = GetPtlBytes(szParticleFile);
+    if (bTime) {
+        ::QueryPerformanceCounter(&t1);
+        FrameProfiler::NoteEffectStep(FrameProfiler::FX_EXISTS,
+            (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qpf.QuadPart);
+    }
+    if (ptl.empty())
+        return false;
 
     m_hVisible = ::loadVisible(NULL, NULL, NULL, NULL);
     if (!m_hVisible)
         return false;
 
-    m_hParticle = ::loadParticle(szName, szParticleFile);
+    if (bTime)
+        ::QueryPerformanceCounter(&t0);
+    m_hParticle = ::loadParticleFromMem(szName, &ptl[0], (int)ptl.size());
+    if (bTime) {
+        ::QueryPerformanceCounter(&t1);
+        FrameProfiler::NoteEffectStep(FrameProfiler::FX_PTL,
+            (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qpf.QuadPart);
+    }
     if (!m_hParticle) {
         ::unloadVisible(m_hVisible);
         m_hVisible = NULL;
@@ -475,9 +539,26 @@ CEffect::Create(CEffectDATA* pEffectDATA) {
 
     m_iEffectCnt++;
 
+    /// Step timing for the frame-spike log (FrameProfiler::EffectStep). The
+    /// existence check and the .ptl load are timed inside RegisterToNZIN and are
+    /// parts of FX_EMITTERS, not additions to it.
+    const bool bTime = FrameProfiler::IsSpikeLogEnabled();
+    LARGE_INTEGER qpf, t0, t1;
+    if (bTime) {
+        ::QueryPerformanceFrequency(&qpf);
+        ::QueryPerformanceCounter(&t0);
+        FrameProfiler::NoteEffect();
+    }
+
     m_hRootNODEs[0] = ::loadVisible(szName, NULL, NULL, NULL);
     m_hRootNODEs[1] = ::loadVisible(szName2, NULL, NULL, NULL);
     _ASSERT(m_hRootNODEs[0] && m_hRootNODEs[1]);
+    if (bTime) {
+        ::QueryPerformanceCounter(&t1);
+        FrameProfiler::NoteEffectStep(FrameProfiler::FX_ROOTS,
+            (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qpf.QuadPart);
+        t0 = t1;
+    }
 
     int iC;
     HNODE hMesh, hMat, hMotion;
@@ -512,6 +593,13 @@ CEffect::Create(CEffectDATA* pEffectDATA) {
                     m_pEffectDATA->m_pParticle[iC].m_iAniLoopCnt);
             }
         }
+    }
+
+    if (bTime) {
+        ::QueryPerformanceCounter(&t1);
+        FrameProfiler::NoteEffectStep(FrameProfiler::FX_EMITTERS,
+            (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qpf.QuadPart);
+        t0 = t1;
     }
 
     if (pEffectDATA->m_iMeshAniCNT) {
@@ -571,6 +659,11 @@ CEffect::Create(CEffectDATA* pEffectDATA) {
             ::setRepeatCount(m_pMeshEffect[iC].GetMORPHER(),
                 m_pEffectDATA->m_pMeshAni[iC].m_iRepeatCNT);
         }
+    }
+    if (bTime) {
+        ::QueryPerformanceCounter(&t1);
+        FrameProfiler::NoteEffectStep(FrameProfiler::FX_MESH,
+            (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qpf.QuadPart);
     }
     return true;
 }

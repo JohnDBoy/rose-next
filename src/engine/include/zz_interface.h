@@ -1848,6 +1848,18 @@ int getParticleBatchFallback ( void );
 ZZ_SCRIPT
 int getParticleBatchSavedDrawCalls ( void );
 
+/// Particle-system loads (loadParticle / loadParticleFromMem) since the last
+/// resetParticleLoadStats(): how many, and microseconds in the VFS open
+/// (iPart 0), the read + parse (1) and restore_device_objects (2).
+ZZ_SCRIPT
+int getParticleLoadCount ( void );
+
+ZZ_SCRIPT
+int getParticleLoadUsec ( int iPart );
+
+ZZ_SCRIPT
+int resetParticleLoadStats ( void );
+
 /// Resource loads that were forced to run synchronously at first-render time
 /// (zz_manager::flush_entrance) instead of being amortised through the lazy
 /// entrance line. Per-frame count/ms plus the worst frame seen since reset.

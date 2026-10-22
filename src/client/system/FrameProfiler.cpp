@@ -55,6 +55,19 @@ struct SpikeSnapshot {
     int spawn_count;
     double spawn_step[SPAWN_STEP_COUNT];
     double terrain_step[TERRAIN_STEP_COUNT];
+    int fx_count;
+    double fx_step[FX_STEP_COUNT];
+    int ptl_count;
+    float ptl_open_ms;
+    float ptl_parse_ms;
+    float ptl_restore_ms;
+    double obj_step[OBJ_STEP_COUNT];
+    int obj_proc_count;
+    int obj_delete_count;
+    double obj_worst_ms;
+    int obj_worst_type;
+    int obj_worst_char;
+    int obj_worst_cmd;
 };
 SpikeSnapshot s_worst;
 bool s_worst_valid = false;
@@ -74,6 +87,19 @@ double s_spawn_step[SPAWN_STEP_COUNT];
 
 /// Per-frame terrain sub-pass detail. Fed from CPatchManager.
 double s_terrain_step[TERRAIN_STEP_COUNT];
+
+/// Per-frame effect-construction detail. Fed from CEffect::Create.
+int s_fx_count = 0;
+double s_fx_step[FX_STEP_COUNT];
+
+/// Per-frame ProcOBJECT detail, and the single most expensive Proc().
+double s_obj_step[OBJ_STEP_COUNT];
+int s_obj_proc_count = 0;
+int s_obj_delete_count = 0;
+double s_obj_worst_ms = 0.0;
+int s_obj_worst_type = 0;
+int s_obj_worst_char = 0;
+int s_obj_worst_cmd = 0;
 
 /// Engine immediate-flush counters, sampled by CaptureFlushStats() while they are
 /// still valid. See the header for why EndFrame() cannot read them itself.
@@ -173,7 +199,11 @@ void EmitSpike(const SpikeSnapshot& s, int others) {
              "terr[cull={:.1f} ins={:.1f} prox={:.1f} type={:.1f} del={:.1f} "
              "mapload={:.1f} addmap={:.1f} reorg={:.1f}] | "
              "present[end={:.1f} swap={:.1f} mgr={:.1f} slp={:.1f}] | "
-             "flush={} | tex[n={} read={:.1f} create={:.1f}] | others={}",
+             "flush={} | tex[n={} read={:.1f} create={:.1f}] | "
+             "fx[n={} roots={:.1f} emitters={:.1f} (exists={:.1f} ptl={:.1f}) mesh={:.1f}] | "
+             "ptl[n={} open={:.1f} parse={:.1f} restore={:.1f}] | "
+             "obj[mgr={:.1f} proc={:.1f}/{} del={:.1f}/{} worst={:.1f}ms type={} char={} cmd={}] | "
+             "others={}",
         s.frame_ms,
         s.avg_ms,
         s.slot[SLOT_NETINPUT],
@@ -227,6 +257,25 @@ void EmitSpike(const SpikeSnapshot& s, int others) {
         s.tex_count,
         s.tex_read_ms,
         s.tex_create_ms,
+        s.fx_count,
+        s.fx_step[FX_ROOTS],
+        s.fx_step[FX_EMITTERS],
+        s.fx_step[FX_EXISTS],
+        s.fx_step[FX_PTL],
+        s.fx_step[FX_MESH],
+        s.ptl_count,
+        s.ptl_open_ms,
+        s.ptl_parse_ms,
+        s.ptl_restore_ms,
+        s.obj_step[OBJ_MANAGERS],
+        s.obj_step[OBJ_PROC],
+        s.obj_proc_count,
+        s.obj_step[OBJ_DELETE],
+        s.obj_delete_count,
+        s.obj_worst_ms,
+        s.obj_worst_type,
+        s.obj_worst_char,
+        s.obj_worst_cmd,
         others);
 }
 
@@ -267,6 +316,22 @@ void NoteSpike(double frame_ms, double frame_accounted, DWORD now) {
         s_worst.spawn_step[i] = s_spawn_step[i];
     for (int i = 0; i < TERRAIN_STEP_COUNT; ++i)
         s_worst.terrain_step[i] = s_terrain_step[i];
+    s_worst.fx_count = s_fx_count;
+    for (int i = 0; i < FX_STEP_COUNT; ++i)
+        s_worst.fx_step[i] = s_fx_step[i];
+    // Engine counters, reset by BeginFrame, so these are this frame's loads.
+    s_worst.ptl_count = ::getParticleLoadCount();
+    s_worst.ptl_open_ms = ::getParticleLoadUsec(0) / 1000.0f;
+    s_worst.ptl_parse_ms = ::getParticleLoadUsec(1) / 1000.0f;
+    s_worst.ptl_restore_ms = ::getParticleLoadUsec(2) / 1000.0f;
+    for (int i = 0; i < OBJ_STEP_COUNT; ++i)
+        s_worst.obj_step[i] = s_obj_step[i];
+    s_worst.obj_proc_count = s_obj_proc_count;
+    s_worst.obj_delete_count = s_obj_delete_count;
+    s_worst.obj_worst_ms = s_obj_worst_ms;
+    s_worst.obj_worst_type = s_obj_worst_type;
+    s_worst.obj_worst_char = s_obj_worst_char;
+    s_worst.obj_worst_cmd = s_obj_worst_cmd;
     s_worst_valid = true;
 }
 
@@ -303,6 +368,19 @@ void BeginFrame() {
         s_spawn_step[i] = 0.0;
     for (int i = 0; i < TERRAIN_STEP_COUNT; ++i)
         s_terrain_step[i] = 0.0;
+    s_fx_count = 0;
+    for (int i = 0; i < FX_STEP_COUNT; ++i)
+        s_fx_step[i] = 0.0;
+    for (int i = 0; i < OBJ_STEP_COUNT; ++i)
+        s_obj_step[i] = 0.0;
+    s_obj_proc_count = 0;
+    s_obj_delete_count = 0;
+    s_obj_worst_ms = 0.0;
+    s_obj_worst_type = 0;
+    s_obj_worst_char = 0;
+    s_obj_worst_cmd = 0;
+    if (s_spike_log_ms > 0)
+        ::resetParticleLoadStats();
     s_frame_start = Now();
 }
 
@@ -340,6 +418,36 @@ void NoteSpawnStep(SpawnStep step, double ms) {
     if (step < 0 || step >= SPAWN_STEP_COUNT)
         return;
     s_spawn_step[step] += ms;
+}
+
+void NoteEffect() {
+    ++s_fx_count;
+}
+
+void NoteEffectStep(EffectStep step, double ms) {
+    if (step < 0 || step >= FX_STEP_COUNT)
+        return;
+    s_fx_step[step] += ms;
+}
+
+void NoteObjStep(ObjStep step, double ms) {
+    if (step < 0 || step >= OBJ_STEP_COUNT)
+        return;
+    s_obj_step[step] += ms;
+}
+
+void NoteObjDelete() {
+    ++s_obj_delete_count;
+}
+
+void NoteObjProc(int objType, int charNo, int command, double ms) {
+    ++s_obj_proc_count;
+    if (ms > s_obj_worst_ms) {
+        s_obj_worst_ms = ms;
+        s_obj_worst_type = objType;
+        s_obj_worst_char = charNo;
+        s_obj_worst_cmd = command;
+    }
 }
 
 void NoteTerrainStep(TerrainStep step, double ms) {

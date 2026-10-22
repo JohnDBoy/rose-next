@@ -5286,7 +5286,10 @@ HNODE loadParticleFromMem ( ZSTRING pParticleName, ZSTRING pParticleMem, int iMe
 	zz_vfs_mem fs;
 	if (!fs.open(pParticleMem, iMemSize)) return 0;
 
-	if (!part->load(&fs, false /* for_now */ )) return 0;
+	// Same rule as loadParticle: the client's .ptl cache builds every effect
+	// emitter through here, so it must not defer device objects differently.
+	bool nowload = !state->use_delayed_loading;
+	if (!part->load(&fs, nowload)) return 0;
 
 	part->set_bvolume_type(ZZ_BV_OBB);
 	part->set_collision_level(ZZ_CL_NONE);
@@ -5418,6 +5421,34 @@ int getParticleBatchSavedDrawCalls ( void )
 {
 	CHECK_INTERFACE(getParticleBatchSavedDrawCalls);
 	return zz_particle_emitter::GetBatchStats().saved;
+}
+
+ZZ_SCRIPT
+int getParticleLoadCount ( void )
+{
+	CHECK_INTERFACE(getParticleLoadCount);
+	return zz_particle_emitter::GetLoadStats().count;
+}
+
+ZZ_SCRIPT
+int getParticleLoadUsec ( int iPart )
+{
+	CHECK_INTERFACE(getParticleLoadUsec);
+	const zz_particle_load_stats& stats = zz_particle_emitter::GetLoadStats();
+	switch (iPart) {
+		case 0: return stats.open_usec;
+		case 1: return stats.parse_usec;
+		case 2: return stats.restore_usec;
+	}
+	return 0;
+}
+
+ZZ_SCRIPT
+int resetParticleLoadStats ( void )
+{
+	CHECK_INTERFACE(resetParticleLoadStats);
+	zz_particle_emitter::ResetLoadStats();
+	return 1;
 }
 
 //--------------------------------------------------------------------------------

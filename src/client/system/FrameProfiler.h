@@ -158,6 +158,41 @@ enum SpawnStep {
 void NoteSpawnStep(SpawnStep step, double ms);
 void NoteSpawn();
 
+/// Steps of CEffect::Create, accumulated per frame -- every effect built that
+/// frame, hit sparks and skill effects as well as spawn auras.
+///
+/// Thirty Frozen Thorns re-entering view measured bone=6.0 ms for 38 spawns, and
+/// CreateBoneEFFECT is effect construction: two named root nodes, then per
+/// emitter a VFS existence check, a scene node and the .ptl load. FX_PTL is split
+/// again inside the engine (ptl[open parse restore]); whether the time is the
+/// archive or the parse decides between caching the bytes and caching the parse.
+enum EffectStep {
+    FX_ROOTS = 0, // the two named root nodes (loadVisible)
+    FX_EMITTERS,  // every emitter end to end; FX_EXISTS and FX_PTL are inside it
+    FX_EXISTS,    // the .ptl bytes: a cache hit, or the first IsExistFile + read
+    FX_PTL,       // ::loadParticleFromMem per emitter (parse from memory)
+    FX_MESH,      // the mesh parts
+    FX_STEP_COUNT
+};
+void NoteEffectStep(EffectStep step, double ms);
+void NoteEffect();
+
+/// What ProcOBJECT's time was, beyond "obj=". Frames of obj=17.9 and 10.7 ms
+/// arrived with no packets and no spawns against a 1.3-1.9 ms steady state, and
+/// ProcOBJECT is three jobs: the zone-object/aim/telegraph managers, Proc() on
+/// every character, and Del_Object for each one whose Proc() returned 0. The
+/// single worst Proc() is kept with who it was, which separates "one object did
+/// something enormous" from "every object a little" from "a wave of deletions".
+enum ObjStep {
+    OBJ_MANAGERS = 0, // CZoneObjects / CSkillAim / CGroundTelegraphs updates
+    OBJ_PROC,         // Proc() over the character list
+    OBJ_DELETE,       // Del_Object for characters whose Proc() returned 0
+    OBJ_STEP_COUNT
+};
+void NoteObjStep(ObjStep step, double ms);
+void NoteObjDelete();
+void NoteObjProc(int objType, int charNo, int command, double ms);
+
 /// Sub-passes of CPatchManager::Update_VisiblePatchManager, accumulated per frame.
 ///
 /// SetCenterPosition is the largest single cost left after the motion, mipmap and

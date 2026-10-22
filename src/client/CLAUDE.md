@@ -213,6 +213,10 @@ Particle tiers are stored on `CEffect` and applied particle-only:
 
 The debug HUD line starts with `BoneFx:` and reports groups, effects, emitters, active particles, runtime cap, configured emit rate, tier counts, and top NPC id. Use it to validate cases like Frozen Thorn (`NPC 1528`) without relying on the generic `Fx` line.
 
+## Particle File Cache (`CParticle::RegisterToNZIN`)
+
+Every `CEffect` builds its emitters from the `.ptl` again, so a crowd spawning at once paid the file per emitter. 30 Frozen Thorns re-entering view (~50 spawns, 64 emitters) measured 6.4 ms in one frame: 1.9 ms `IsExistFile` (~30 µs a lookup) and 4.1 ms reading + parsing through the VFS. `IO_Effect.cpp` now keeps each `.ptl`'s bytes in a process-lifetime map (key: upper-cased path, `/` → `\`) and builds every emitter with `::loadParticleFromMem`; the same burst measured **0.5 ms**. An empty entry marks a missing file, which therefore logs once, not per spawn. `loadParticleFromMem` was given `loadParticle`'s `use_delayed_loading` rule so the two paths prepare device objects identically. The frame-spike log's `fx[...]` / `ptl[...]` groups time this (see `FrameProfiler::EffectStep`).
+
 ## Bone Particle Texture Batching
 
 `CCharMODEL::CreateBoneEFFECT` and `CObjCHAR::New_ModelDummyEFFECT` also mark their `CEffect` particles with `SetParticleBatchRenderHint(true)`. These are the only client opt-in paths for particle batching; gameplay particles and normal world effects must not be hinted unless they are separately audited.

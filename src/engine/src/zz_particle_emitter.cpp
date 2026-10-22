@@ -36,6 +36,15 @@ LPDIRECT3DVERTEXBUFFER9 zz_particle_emitter::m_vbParticles = NULL;
 LPDIRECT3DVERTEXBUFFER9 zz_particle_emitter::m_vbParticles_point = NULL;
 int zz_particle_emitter::vb_ref_count = 0;
 zz_particle_batch_stats zz_particle_emitter::s_BatchStats = { 0, 0, 0, 0, 0 };
+zz_particle_load_stats zz_particle_emitter::s_LoadStats = { 0, 0, 0, 0 };
+
+static int zz_particle_usec_since(const LARGE_INTEGER& start)
+{
+	LARGE_INTEGER now, freq;
+	QueryPerformanceCounter(&now);
+	QueryPerformanceFrequency(&freq);
+	return (int)((double)(now.QuadPart - start.QuadPart) * 1000000.0 / (double)freq.QuadPart);
+}
 
 zz_particle_emitter::zz_particle_emitter() : pos_channel(NULL), zz_animatable()
 {
@@ -75,6 +84,9 @@ zz_particle_emitter::~zz_particle_emitter()
 
 bool zz_particle_emitter::load (zz_vfs * fs, bool loadnow)
 {
+	LARGE_INTEGER parse_start;
+	QueryPerformanceCounter(&parse_start);
+
 	Init();
 
 	uint32 iSequenceCnt = 0;
@@ -92,9 +104,14 @@ bool zz_particle_emitter::load (zz_vfs * fs, bool loadnow)
 	reset_bvolume();
 	set_collision_level(ZZ_CL_NONE);
 	set_cast_shadow(false);
+	s_LoadStats.parse_usec += zz_particle_usec_since(parse_start);
+	++s_LoadStats.count;
 
 	if (loadnow) {
+		LARGE_INTEGER restore_start;
+		QueryPerformanceCounter(&restore_start);
 		restore_device_objects();
+		s_LoadStats.restore_usec += zz_particle_usec_since(restore_start);
 	}
 
 	return true;
@@ -157,10 +174,13 @@ bool zz_particle_emitter::load (const char* fname, bool loadnow)
 {
 	zz_vfs fs;
 
+	LARGE_INTEGER open_start;
+	QueryPerformanceCounter(&open_start);
 	if( fs.open( fname, zz_vfs::ZZ_VFS_READ ) == false )
 	{
 		return false;
 	}
+	s_LoadStats.open_usec += zz_particle_usec_since(open_start);
 
 	return load(&fs, loadnow);
 }

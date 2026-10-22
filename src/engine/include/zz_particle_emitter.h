@@ -133,6 +133,17 @@ struct zz_particle_batch_stats {
 	int saved;
 };
 
+// Particle-system loads since the client last reset them (once per frame while
+// the frame spike log is on). Every CEffect builds its emitters from the .ptl
+// again, so a burst of spawns pays this per emitter; the split says whether
+// the time is the VFS open, the read + parse, or restore_device_objects.
+struct zz_particle_load_stats {
+	int count;
+	int open_usec;
+	int parse_usec;
+	int restore_usec;
+};
+
 class zz_particle_emitter : public zz_animatable {
 public:
 	std::string m_strLastError;
@@ -204,6 +215,8 @@ public:
 
 	static void RenderParticleListWithBatching(const std::vector<zz_visible*>& particle_nodes);
 	static const zz_particle_batch_stats& GetBatchStats(void) { return s_BatchStats; }
+	static const zz_particle_load_stats& GetLoadStats(void) { return s_LoadStats; }
+	static void ResetLoadStats(void) { s_LoadStats.count = s_LoadStats.open_usec = s_LoadStats.parse_usec = s_LoadStats.restore_usec = 0; }
 
 	virtual bool apply_motion (void);
 
@@ -240,6 +253,7 @@ private:
 	static LPDIRECT3DVERTEXBUFFER9 m_vbParticles_point;
 	static int vb_ref_count;
 	static zz_particle_batch_stats s_BatchStats;
+	static zz_particle_load_stats s_LoadStats;
 	zz_device_resource res;
 
 	virtual void before_render ();

@@ -7,6 +7,7 @@
 #include "groundtelegraph.h"
 #include "skillaim.h"
 #include "network/cnetwork.h"
+#include "System/FrameProfiler.h"
 
 #include "OBJECT.h"
 #include "CObjMORPH.h"
@@ -1006,9 +1007,22 @@ CObjectMANAGER::Get_NextCHAR() {
 
 void
 CObjectMANAGER::ProcOBJECT() {
+    /// Step timing for the frame-spike log (FrameProfiler::ObjStep).
+    const bool bTime = FrameProfiler::IsSpikeLogEnabled();
+    LARGE_INTEGER qpf, t0, t1;
+    if (bTime) {
+        ::QueryPerformanceFrequency(&qpf);
+        ::QueryPerformanceCounter(&t0);
+    }
+
     CZoneObjects::Instance().Update(); // dynamic zone objects: the fades
     CSkillAim::Instance().Update(); // an area skill being aimed: its preview, first
     CGroundTelegraphs::Instance().Update(); // boss attack telegraphs
+    if (bTime) {
+        ::QueryPerformanceCounter(&t1);
+        FrameProfiler::NoteObjStep(FrameProfiler::OBJ_MANAGERS,
+            (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qpf.QuadPart);
+    }
     /*
         static int iO;
         for (iO=MIN_OBJECTS; iO<MAX_CLIENT_OBJECTS; iO++) {
@@ -1032,12 +1046,34 @@ CObjectMANAGER::ProcOBJECT() {
     pNode = m_CharLIST.GetHeadNode();
     while (pNode) {
         if (m_pOBJECTS[pNode->DATA]) {
-            if (!m_pOBJECTS[pNode->DATA]->Proc()) {
+            if (bTime)
+                ::QueryPerformanceCounter(&t0);
+            const int iProc = m_pOBJECTS[pNode->DATA]->Proc();
+            if (bTime) {
+                ::QueryPerformanceCounter(&t1);
+                const double ms = (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qpf.QuadPart;
+                FrameProfiler::NoteObjStep(FrameProfiler::OBJ_PROC, ms);
+                // Re-read the slot rather than trust it: only identify an object still there.
+                CObjCHAR* pCHAR = (CObjCHAR*)m_pOBJECTS[pNode->DATA];
+                if (pCHAR)
+                    FrameProfiler::NoteObjProc(pCHAR->Get_TYPE(), pCHAR->Get_CharNO(), pCHAR->Get_COMMAND(), ms);
+                else
+                    FrameProfiler::NoteObjProc(-1, 0, 0, ms);
+            }
+            if (!iProc) {
                 classDLLNODE<int>* pDelNode;
                 pDelNode = pNode;
                 pNode = m_CharLIST.GetNextNode(pNode);
 
+                if (bTime)
+                    ::QueryPerformanceCounter(&t0);
                 this->Del_Object(pDelNode->DATA);
+                if (bTime) {
+                    ::QueryPerformanceCounter(&t1);
+                    FrameProfiler::NoteObjStep(FrameProfiler::OBJ_DELETE,
+                        (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qpf.QuadPart);
+                    FrameProfiler::NoteObjDelete();
+                }
 
                 continue;
             }
