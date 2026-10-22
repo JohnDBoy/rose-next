@@ -7,6 +7,7 @@
 #include "GameProc/CDayNNightProc.h"
 #include "rose/io/stb.h"
 #include "CObjGROUND.h"
+#include "System/FrameProfiler.h"
 
 // UINT CObjFIXED::m_iLightMapTAG = 0;
 
@@ -483,6 +484,15 @@ CObjFIXED::SetLightMap(short nPartSEQ,
         szLightMapFile,
         szName);
 
+    /// Step timing for the frame-spike log (FrameProfiler::LitStep).
+    const bool bTime = FrameProfiler::IsSpikeLogEnabled();
+    LARGE_INTEGER qpf, t0, t1;
+    if (bTime) {
+        ::QueryPerformanceFrequency(&qpf);
+        ::QueryPerformanceCounter(&t0);
+        FrameProfiler::NoteLitPart();
+    }
+
     // 기본 메트리얼의 정보로 새로운 메트이얼을 생성한다.
     m_pLightMapMaterial[nPartIdx] =
         g_MatFILE.Add_MATERIAL(pMAT->m_DATA->m_RealFileName.Get(), // char *szFileName,
@@ -501,13 +511,36 @@ CObjFIXED::SetLightMap(short nPartSEQ,
             pMAT->m_DATA->m_nGlowType, // short nGlowType
             pMAT->m_DATA->m_fGlowColor // float fGlowColor[3]
         );
+    if (bTime) {
+        ::QueryPerformanceCounter(&t1);
+        FrameProfiler::NoteLitStep(FrameProfiler::LIT_ADDMAT,
+            (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qpf.QuadPart);
+        t0 = t1;
+    }
 
     if (m_pLightMapMaterial[nPartIdx]) {
         HNODE hLightMapMAT = g_MatFILE.KEY_HNODE(m_pLightMapMaterial[nPartIdx]);
+        if (bTime) {
+            ::QueryPerformanceCounter(&t1);
+            FrameProfiler::NoteLitStep(FrameProfiler::LIT_BUILD,
+                (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qpf.QuadPart);
+            t0 = t1;
+        }
         if (hLightMapMAT) {
             ::setMaterialLightmap(hLightMapMAT, szLightMapFile, iXPos, iYPos, iWidth, iHeight);
+            if (bTime) {
+                ::QueryPerformanceCounter(&t1);
+                FrameProfiler::NoteLitStep(FrameProfiler::LIT_LIGHTMAP,
+                    (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qpf.QuadPart);
+                t0 = t1;
+            }
             ::setVisibleMaterial(m_pHNODES[nPartIdx], 0, hLightMapMAT);
             ::setReceiveShadow(m_pHNODES[nPartIdx], 1);
+            if (bTime) {
+                ::QueryPerformanceCounter(&t1);
+                FrameProfiler::NoteLitStep(FrameProfiler::LIT_BIND,
+                    (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qpf.QuadPart);
+            }
         }
     }
 }

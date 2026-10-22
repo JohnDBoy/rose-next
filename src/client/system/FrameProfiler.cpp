@@ -28,6 +28,10 @@ unsigned int s_spike_log_ms = 0;
 /// kind added there goes unreported here instead of reading past the array.
 const int kFlushKindCount = 5;
 
+/// Mirrors io_terrain.h's MAP_LUMP_TYPE (LUMP_MAP_MAX = 13), local for the same
+/// reason as kFlushKindCount; NoteCellLump bounds-checks against it.
+const int kCellLumpCount = 13;
+
 /// The held candidate for the current rate-limit window.
 ///
 /// The limiter keeps the **worst** frame of a window, not the first. Keeping the
@@ -68,6 +72,10 @@ struct SpikeSnapshot {
     int obj_worst_type;
     int obj_worst_char;
     int obj_worst_cmd;
+    double cell_step[CELL_STEP_COUNT];
+    double cell_lump[kCellLumpCount];
+    int lit_parts;
+    double lit_step[LIT_STEP_COUNT];
 };
 SpikeSnapshot s_worst;
 bool s_worst_valid = false;
@@ -100,6 +108,12 @@ double s_obj_worst_ms = 0.0;
 int s_obj_worst_type = 0;
 int s_obj_worst_char = 0;
 int s_obj_worst_cmd = 0;
+
+/// Per-frame map-cell load detail. Fed from CMAP::Load / CObjFIXED::SetLightMap.
+double s_cell_step[CELL_STEP_COUNT];
+double s_cell_lump[kCellLumpCount];
+int s_lit_parts = 0;
+double s_lit_step[LIT_STEP_COUNT];
 
 /// Engine immediate-flush counters, sampled by CaptureFlushStats() while they are
 /// still valid. See the header for why EndFrame() cannot read them itself.
@@ -203,6 +217,10 @@ void EmitSpike(const SpikeSnapshot& s, int others) {
              "fx[n={} roots={:.1f} emitters={:.1f} (exists={:.1f} ptl={:.1f}) mesh={:.1f}] | "
              "ptl[n={} open={:.1f} parse={:.1f} restore={:.1f}] | "
              "obj[mgr={:.1f} proc={:.1f}/{} del={:.1f}/{} worst={:.1f}ms type={} char={} cmd={}] | "
+             "cell[him={:.1f} til={:.1f} ifo={:.1f} lit={:.1f} quad={:.1f}] | "
+             "ifo[obj={:.1f} cnst={:.1f} eff={:.1f} snd={:.1f} morph={:.1f} water={:.1f} "
+             "evt={:.1f} other={:.1f}] | "
+             "lit[n={} addmat={:.1f} build={:.1f} lmap={:.1f} bind={:.1f}] | "
              "others={}",
         s.frame_ms,
         s.avg_ms,
@@ -276,6 +294,27 @@ void EmitSpike(const SpikeSnapshot& s, int others) {
         s.obj_worst_type,
         s.obj_worst_char,
         s.obj_worst_cmd,
+        s.cell_step[CELL_HIM],
+        s.cell_step[CELL_TIL],
+        s.cell_step[CELL_IFO],
+        s.cell_step[CELL_LIT],
+        s.cell_step[CELL_QUAD],
+        // MAP_LUMP_TYPE: 1 object, 2 mob, 3 cnst, 4 sound, 5 effect, 6 morph,
+        // 7 water, 8 regen, 10 warp, 11 collision, 12 event object
+        s.cell_lump[1],
+        s.cell_lump[3],
+        s.cell_lump[5],
+        s.cell_lump[4],
+        s.cell_lump[6],
+        s.cell_lump[7],
+        s.cell_lump[12],
+        s.cell_lump[0] + s.cell_lump[2] + s.cell_lump[8] + s.cell_lump[9] + s.cell_lump[10]
+            + s.cell_lump[11],
+        s.lit_parts,
+        s.lit_step[LIT_ADDMAT],
+        s.lit_step[LIT_BUILD],
+        s.lit_step[LIT_LIGHTMAP],
+        s.lit_step[LIT_BIND],
         others);
 }
 
@@ -332,6 +371,13 @@ void NoteSpike(double frame_ms, double frame_accounted, DWORD now) {
     s_worst.obj_worst_type = s_obj_worst_type;
     s_worst.obj_worst_char = s_obj_worst_char;
     s_worst.obj_worst_cmd = s_obj_worst_cmd;
+    for (int i = 0; i < CELL_STEP_COUNT; ++i)
+        s_worst.cell_step[i] = s_cell_step[i];
+    for (int i = 0; i < kCellLumpCount; ++i)
+        s_worst.cell_lump[i] = s_cell_lump[i];
+    s_worst.lit_parts = s_lit_parts;
+    for (int i = 0; i < LIT_STEP_COUNT; ++i)
+        s_worst.lit_step[i] = s_lit_step[i];
     s_worst_valid = true;
 }
 
@@ -379,6 +425,13 @@ void BeginFrame() {
     s_obj_worst_type = 0;
     s_obj_worst_char = 0;
     s_obj_worst_cmd = 0;
+    for (int i = 0; i < CELL_STEP_COUNT; ++i)
+        s_cell_step[i] = 0.0;
+    for (int i = 0; i < kCellLumpCount; ++i)
+        s_cell_lump[i] = 0.0;
+    s_lit_parts = 0;
+    for (int i = 0; i < LIT_STEP_COUNT; ++i)
+        s_lit_step[i] = 0.0;
     if (s_spike_log_ms > 0)
         ::resetParticleLoadStats();
     s_frame_start = Now();
@@ -448,6 +501,28 @@ void NoteObjProc(int objType, int charNo, int command, double ms) {
         s_obj_worst_char = charNo;
         s_obj_worst_cmd = command;
     }
+}
+
+void NoteCellStep(CellStep step, double ms) {
+    if (step < 0 || step >= CELL_STEP_COUNT)
+        return;
+    s_cell_step[step] += ms;
+}
+
+void NoteCellLump(int lumpType, double ms) {
+    if (lumpType < 0 || lumpType >= kCellLumpCount)
+        return;
+    s_cell_lump[lumpType] += ms;
+}
+
+void NoteLitStep(LitStep step, double ms) {
+    if (step < 0 || step >= LIT_STEP_COUNT)
+        return;
+    s_lit_step[step] += ms;
+}
+
+void NoteLitPart() {
+    ++s_lit_parts;
 }
 
 void NoteTerrainStep(TerrainStep step, double ms) {

@@ -1033,10 +1033,6 @@ CVFS_Manager::FileExists(const char* FileName) {
     if (FileName == NULL)
         return false;
 
-    /// 밖에 존재하는 파일일 경우에도 true를 리턴한다
-    if (_access(FileName, 0) == 0)
-        return true;
-
     __ConvertPath(FileName,
         uprFileName); /// Pack파일내를 검사할때는 대문자 파일 이름을 사용해야 한다
 
@@ -1052,6 +1048,14 @@ CVFS_Manager::FileExists(const char* FileName) {
                 return true;
         }
     }
+
+    /// Loose files on disk count too, but probe for them only after the
+    /// archive lookup. _access is a filesystem call (~30 us measured per
+    /// IsExistFile, 2026-10-22) that fails for every packed asset, and it ran
+    /// first, so every existence check paid it -- and a dense map cell asks once
+    /// per lightmapped object part (CMatLIST::Add_MATERIAL). Same answer, order only.
+    if (_access(FileName, 0) == 0)
+        return true;
 
     return false;
 }

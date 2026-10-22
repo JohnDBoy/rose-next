@@ -193,6 +193,35 @@ void NoteObjStep(ObjStep step, double ms);
 void NoteObjDelete();
 void NoteObjProc(int objType, int charNo, int command, double ms);
 
+/// Inside one map-cell load (terr[mapload=]), accumulated per frame.
+///
+/// mapload measured 2-8 ms per cell in Eldeon's town and it is no longer file
+/// I/O: the HUD's MapIO row put it in `ifo` (creating the cell's objects) and
+/// `lit` (a unique lightmap material per object part). The spike line carries
+/// CMAP::Load's own phases, the ifo time per object lump, and lit per part.
+enum CellStep {
+    CELL_HIM = 0, // heightmap
+    CELL_TIL,     // tile map
+    CELL_IFO,     // object lumps (split again by lump type)
+    CELL_LIT,     // the two .lit files -> CObjFIXED::SetLightMap per part
+    CELL_QUAD,    // quad patch build
+    CELL_STEP_COUNT
+};
+void NoteCellStep(CellStep step, double ms);
+/// ReadObjINFO time for one lump; lumpType is the MAP_LUMP_TYPE index.
+void NoteCellLump(int lumpType, double ms);
+
+/// Steps of CObjFIXED::SetLightMap, one object part each.
+enum LitStep {
+    LIT_ADDMAT = 0, // CMatLIST::Add_MATERIAL: IsExistFile + key + register
+    LIT_BUILD,      // KEY_HNODE: the engine material (loadColormapMaterial + setters)
+    LIT_LIGHTMAP,   // setMaterialLightmap: lightmap texture + transform
+    LIT_BIND,       // setVisibleMaterial + setReceiveShadow
+    LIT_STEP_COUNT
+};
+void NoteLitStep(LitStep step, double ms);
+void NoteLitPart();
+
 /// Sub-passes of CPatchManager::Update_VisiblePatchManager, accumulated per frame.
 ///
 /// SetCenterPosition is the largest single cost left after the motion, mipmap and

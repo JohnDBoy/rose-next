@@ -2594,6 +2594,7 @@ CMAP::Load(char* szFileName, short nZoneMapXIDX, short nZoneMapYIDX) {
     pFileSystem->CloseFile();
 
     CTERRAIN::s_MapIoStats.m_fHimMs = phase_timer.ElapsedMs();
+    FrameProfiler::NoteCellStep(FrameProfiler::CELL_HIM, CTERRAIN::s_MapIoStats.m_fHimMs);
     phase_timer = CStopwatch();
 
     ///////////////////////////////////////////////////////////////////////////////
@@ -2649,6 +2650,7 @@ CMAP::Load(char* szFileName, short nZoneMapXIDX, short nZoneMapYIDX) {
     pFileSystem->CloseFile();
 
     CTERRAIN::s_MapIoStats.m_fTilMs = phase_timer.ElapsedMs();
+    FrameProfiler::NoteCellStep(FrameProfiler::CELL_TIL, CTERRAIN::s_MapIoStats.m_fTilMs);
     phase_timer = CStopwatch();
 
     ///////////////////////////////////////////////////////////////////////////////
@@ -2696,8 +2698,21 @@ CMAP::Load(char* szFileName, short nZoneMapXIDX, short nZoneMapYIDX) {
             case LUMP_TERRAIN_MORPH:
             case LUMP_TERRAIN_WARP:
             case LUMP_TERRAIN_COLLISION:
-            case LUMP_TERRAIN_EVENT_OBJECT:
+            case LUMP_TERRAIN_EVENT_OBJECT: {
+                /// Per-lump timing for the frame-spike log (FrameProfiler::NoteCellLump).
+                LARGE_INTEGER qpf, t0, t1;
+                const bool bTime = FrameProfiler::IsSpikeLogEnabled();
+                if (bTime) {
+                    ::QueryPerformanceFrequency(&qpf);
+                    ::QueryPerformanceCounter(&t0);
+                }
                 ReadObjINFO(pFileSystem, iOffset, iType);
+                if (bTime) {
+                    ::QueryPerformanceCounter(&t1);
+                    FrameProfiler::NoteCellLump(iType,
+                        (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qpf.QuadPart);
+                }
+            } break;
             default:
                 break;
         }
@@ -2708,6 +2723,7 @@ CMAP::Load(char* szFileName, short nZoneMapXIDX, short nZoneMapYIDX) {
     (CVFSManager::GetSingleton()).ReturnToManager(pFileSystem);
 
     CTERRAIN::s_MapIoStats.m_fIfoMs = phase_timer.ElapsedMs();
+    FrameProfiler::NoteCellStep(FrameProfiler::CELL_IFO, CTERRAIN::s_MapIoStats.m_fIfoMs);
     phase_timer = CStopwatch();
 
     // load construct light map ...
@@ -2726,6 +2742,7 @@ CMAP::Load(char* szFileName, short nZoneMapXIDX, short nZoneMapYIDX) {
     LogString(LOG_DEBUG_, ">>>>>>> load MAP :: %d, %d \n", m_nZoneMapXIDX, m_nZoneMapYIDX);
 
     CTERRAIN::s_MapIoStats.m_fLitMs = phase_timer.ElapsedMs();
+    FrameProfiler::NoteCellStep(FrameProfiler::CELL_LIT, CTERRAIN::s_MapIoStats.m_fLitMs);
     phase_timer = CStopwatch();
 
     // Load quadManager
@@ -2735,6 +2752,7 @@ CMAP::Load(char* szFileName, short nZoneMapXIDX, short nZoneMapYIDX) {
     m_QuadManager.SetExPatchTotal();
 
     CTERRAIN::s_MapIoStats.m_fQuadMs = phase_timer.ElapsedMs();
+    FrameProfiler::NoteCellStep(FrameProfiler::CELL_QUAD, CTERRAIN::s_MapIoStats.m_fQuadMs);
     return this;
 }
 
