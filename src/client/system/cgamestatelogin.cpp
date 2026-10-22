@@ -121,6 +121,7 @@ CGameStateLogin::Enter(int iPrevStateID) {
 
     /// Init skybox
     CSkyDOME::Init(g_GameDATA.m_hShader_sky, g_GameDATA.m_hLight, 0);
+    CSkyDOME::WarmAll(g_GameDATA.m_hShader_sky);
 
     //::setDelayedLoad( 1 );
 

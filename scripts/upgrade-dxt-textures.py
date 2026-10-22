@@ -458,13 +458,23 @@ def verify():
     return bad == 0
 
 
-def restore():
+def restore(only=None):
+    """Put the originals back: all of them, or only the `only` paths (relative to
+    data/3DDATA, any case), which also leave the manifest."""
     m = load_manifest()
     ours = index(DATA)
-    for rel in sorted(m["written"]):
+    rels = sorted(m["written"]) if not only else [r.lower().replace("/", "\\") for r in only]
+    for rel in rels:
+        if rel not in m["written"]:
+            raise SystemExit("%s was not written by this tool" % rel)
         shutil.copy2(os.path.join(BACKUP, rel), ours[rel])
-    print("restored %d textures" % len(m["written"]))
-    os.remove(MANIFEST)
+        del m["written"][rel]
+    print("restored %d textures" % len(rels))
+    if m["written"]:
+        with open(MANIFEST, "w") as f:
+            json.dump(m, f, indent=1)
+    else:
+        os.remove(MANIFEST)
 
 
 def main():
@@ -472,15 +482,15 @@ def main():
     ap.add_argument("--survey", action="store_true", help="match and write the review sheets (writes only build/)")
     ap.add_argument("--apply", action="store_true", help="write the surveyed plan.json matches into data/")
     ap.add_argument("--verify", action="store_true")
-    ap.add_argument("--restore", action="store_true")
+    ap.add_argument("--restore", nargs="*", metavar="REL", help="put the originals back: all, or these paths under data/3DDATA")
     ap.add_argument("--rewrite", action="store_true", help="re-encode every texture in the manifest from its source")
     ap.add_argument("--fix-mips", nargs="+", metavar="DDS", help="rebuild these files' mips from their own mip 0")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--include-doubtful", action="store_true")
     ap.add_argument("--max-size", type=int, default=MAX_SIZE, help="largest side to consider (default %d)" % MAX_SIZE)
     args = ap.parse_args()
-    if args.restore:
-        return restore()
+    if args.restore is not None:
+        return restore(args.restore)
     if args.rewrite:
         return rewrite()
     if args.fix_mips:

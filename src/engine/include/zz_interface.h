@@ -3014,6 +3014,14 @@ HNODE loadSkyMaterial (
 ZZ_SCRIPT 
 int setSkyMaterialBlendRatio ( HNODE hMat, float fBlendRatio );
 
+/// Keeps every texture of a material resident: the texture manager never
+/// unbinds a locked texture to reclaim memory. For textures that must not be
+/// rebuilt in the middle of play (the client pins each sky's for the session).
+/// @hMat material handle
+/// @return number of textures locked; 0 on a null handle
+ZZ_DLL
+int lockMaterialTextures ( HNODE hMat );
+
 /// 비져블의 AABB를 얻는다.
 /// @hVisible_In 비져블 핸들
 /// @fMin_Out 바운딩 박스의 최저 지점

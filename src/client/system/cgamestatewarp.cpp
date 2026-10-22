@@ -126,6 +126,13 @@ CGameStateWarp::Leave(int iNextStateID) {
 
     pauseSpriteSFX(false);
 
+    // Same as CGameStatePrepareMain::Leave: build what arriving queued (our avatar,
+    // a cart) behind the last loading frame, not on the first frames in the world.
+    const DWORD flush_start = timeGetTime();
+    ::setDelayedLoad(2);
+    ::doLogf("warp: flushed delayed loads in %lu ms before the first world frame\n",
+        (unsigned long)(timeGetTime() - flush_start));
+
     return 0;
 }
 

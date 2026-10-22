@@ -186,6 +186,17 @@ CGameStatePrepareMain::Leave(int iNextStateID) {
     ///카트 탑승 상태에 따른 액티브 스킬 활성화/비활성화 Setting
     g_pAVATAR->GetSkillSlot()->SetActiveSkillEnableByRideState(false);
 
+    // Build what entering the zone queued (the sky dome's textures, our own
+    // avatar's) now, behind the last loading frame. ThreadFunc turned delayed
+    // loading back on before Leave() runs, so the resource amortiser used to
+    // build them on the first frames in the world: an arrival hitch (a 1024 px
+    // uncompressed sky is 2-11 ms). The log line orders against the engine's
+    // "slow texture create" lines: sky creates must come before it.
+    const DWORD flush_start = timeGetTime();
+    ::setDelayedLoad(2);
+    ::doLogf("prepare-main: flushed delayed loads in %lu ms before the first world frame\n",
+        (unsigned long)(timeGetTime() - flush_start));
+
     return 0;
 }
 

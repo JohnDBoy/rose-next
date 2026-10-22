@@ -9111,6 +9111,27 @@ int setSkyMaterialBlendRatio ( HNODE hMat, float fBlendRatio )
 }
 
 ZZ_DLL
+int lockMaterialTextures ( HNODE hMat )
+{
+	CHECK_INTERFACE( lockMaterialTextures );
+
+	zz_material * mat = reinterpret_cast<zz_material*>(hMat);
+
+	if (!mat) return 0;
+
+	// zz_manager_texture unbinds a texture unused for 10 s unless it is locked;
+	// a reference alone keeps the node, not the device texture.
+	int locked = 0;
+	for (int i = 0; i < mat->get_num_textures(); ++i) {
+		if (zz_texture * tex = mat->get_texture(i)) {
+			tex->lock_texture();
+			++locked;
+		}
+	}
+	return locked;
+}
+
+ZZ_DLL
 int getVisibleAABB ( HNODE hVisible_In, float fMin_Out[3], float fMax_Out[3] )
 {
 	CHECK_INTERFACE( getVisibleAABB );

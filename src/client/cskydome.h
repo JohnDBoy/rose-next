@@ -27,6 +27,7 @@ public:
     static CSkyDOME* GetInstance() { return m_pInstance; }
 
     static bool Init(HNODE hShader, HNODE hLight, short nSkyIDX);
+    static void WarmAll(HNODE hShader);
     static void Free() { SAFE_DELETE(m_pInstance); }
     static HNODE GetHNODE() { return (m_pInstance) ? m_pInstance->m_hSKY : 0; }
 };
