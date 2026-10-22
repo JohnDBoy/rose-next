@@ -91,8 +91,10 @@ zz_particle_emitter::~zz_particle_emitter()
 
 bool zz_particle_emitter::load (zz_vfs * fs, bool loadnow)
 {
-	LARGE_INTEGER parse_start;
-	QueryPerformanceCounter(&parse_start);
+	const bool stats = g_zz_frame_stats; // see setFrameStatsEnabled
+	LARGE_INTEGER parse_start = {};
+	if (stats)
+		QueryPerformanceCounter(&parse_start);
 
 	Init();
 
@@ -111,14 +113,18 @@ bool zz_particle_emitter::load (zz_vfs * fs, bool loadnow)
 	reset_bvolume();
 	set_collision_level(ZZ_CL_NONE);
 	set_cast_shadow(false);
-	s_LoadStats.parse_usec += zz_particle_usec_since(parse_start);
-	++s_LoadStats.count;
+	if (stats) {
+		s_LoadStats.parse_usec += zz_particle_usec_since(parse_start);
+		++s_LoadStats.count;
+	}
 
 	if (loadnow) {
-		LARGE_INTEGER restore_start;
-		QueryPerformanceCounter(&restore_start);
+		LARGE_INTEGER restore_start = {};
+		if (stats)
+			QueryPerformanceCounter(&restore_start);
 		restore_device_objects();
-		s_LoadStats.restore_usec += zz_particle_usec_since(restore_start);
+		if (stats)
+			s_LoadStats.restore_usec += zz_particle_usec_since(restore_start);
 	}
 
 	return true;
@@ -176,15 +182,21 @@ void * zz_particle_emitter::LockParticleRing (LPDIRECT3DVERTEXBUFFER9 vb, int ve
 	}
 
 	void * data = NULL;
-	LARGE_INTEGER t0, t1;
-	QueryPerformanceCounter(&t0);
-	HRESULT hr = vb->Lock(cursor * stride, vertex_count * stride, &data, flags);
-	QueryPerformanceCounter(&t1);
-	zz_render_pass_add(ZZ_RPASS_PLOCK, t0.QuadPart, t1.QuadPart);
-	zz_render_pass_count(ZZ_RPASS_PLOCK, 1);
-	if (flags == D3DLOCK_DISCARD) {
-		zz_render_pass_add(ZZ_RPASS_PDISCARD, t0.QuadPart, t1.QuadPart);
-		zz_render_pass_count(ZZ_RPASS_PDISCARD, 1);
+	HRESULT hr;
+	if (g_zz_frame_stats) {
+		LARGE_INTEGER t0, t1;
+		QueryPerformanceCounter(&t0);
+		hr = vb->Lock(cursor * stride, vertex_count * stride, &data, flags);
+		QueryPerformanceCounter(&t1);
+		zz_render_pass_add(ZZ_RPASS_PLOCK, t0.QuadPart, t1.QuadPart);
+		zz_render_pass_count(ZZ_RPASS_PLOCK, 1);
+		if (flags == D3DLOCK_DISCARD) {
+			zz_render_pass_add(ZZ_RPASS_PDISCARD, t0.QuadPart, t1.QuadPart);
+			zz_render_pass_count(ZZ_RPASS_PDISCARD, 1);
+		}
+	}
+	else {
+		hr = vb->Lock(cursor * stride, vertex_count * stride, &data, flags);
 	}
 	if (FAILED(hr)) {
 		cursor = capacity; // start over with a DISCARD next time
@@ -223,13 +235,16 @@ bool zz_particle_emitter::load (const char* fname, bool loadnow)
 {
 	zz_vfs fs;
 
-	LARGE_INTEGER open_start;
-	QueryPerformanceCounter(&open_start);
+	const bool stats = g_zz_frame_stats; // see setFrameStatsEnabled
+	LARGE_INTEGER open_start = {};
+	if (stats)
+		QueryPerformanceCounter(&open_start);
 	if( fs.open( fname, zz_vfs::ZZ_VFS_READ ) == false )
 	{
 		return false;
 	}
-	s_LoadStats.open_usec += zz_particle_usec_since(open_start);
+	if (stats)
+		s_LoadStats.open_usec += zz_particle_usec_since(open_start);
 
 	return load(&fs, loadnow);
 }

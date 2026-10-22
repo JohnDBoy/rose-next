@@ -120,6 +120,12 @@ enum zz_render_pass_slot {
 	ZZ_RPASS_COUNT
 };
 
+// Every engine-side frame statistic (the render passes, the particle locks and
+// particle loads) is gated on this, off by default: the client turns it on only
+// while its frame spike log is enabled (setFrameStatsEnabled), so normal play
+// reads no clocks and keeps no counters for it.
+extern bool g_zz_frame_stats;
+
 void zz_render_pass_add (int slot, long long t0, long long t1);
 void zz_render_pass_count (int slot, int nodes);
 int zz_render_pass_get_usec (int slot);

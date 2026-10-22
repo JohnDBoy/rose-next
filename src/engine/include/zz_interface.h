@@ -1875,6 +1875,12 @@ int getRenderPassNodes ( int iPass );
 ZZ_SCRIPT
 int resetRenderPassStats ( void );
 
+/// Turns the engine's frame statistics on or off: the render-pass, particle-lock
+/// and particle-load timers and counters above. Off by default, so normal play
+/// reads no clocks for them; the client enables it only with its frame spike log.
+ZZ_SCRIPT
+int setFrameStatsEnabled ( int iEnabled );
+
 /// Resource loads that were forced to run synchronously at first-render time
 /// (zz_manager::flush_entrance) instead of being amortised through the lazy
 /// entrance line. Per-frame count/ms plus the worst frame seen since reset.

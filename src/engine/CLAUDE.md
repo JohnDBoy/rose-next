@@ -177,6 +177,12 @@ emitters and occasionally stalled to 7 ms -- the driver running out of buffer re
 `rpass[...]` group times every scene pass (`zz_render_pass_slot`) and the particle locks
 (`lock=` / `discard=`); start there for any render-phase spike.
 
+**Engine frame statistics are off unless the client's spike log is on.** Every engine-side
+timer and counter (render passes, particle locks, particle loads) checks `g_zz_frame_stats`,
+which the client sets through `setFrameStatsEnabled` from `FrameProfiler::SetSpikeLogMs`
+(i.e. `[VIDEO] FRAME_SPIKE_LOG_MS > 0`). Normal play reads no clocks for them. Gate any new
+engine timer the same way -- ungated, its accumulators also never reset and wrap.
+
 ### Ground Overlay (Engine, 2026-10-18)
 
 `::setGroundOverlay(xyz_cm, argb, count)` hands the engine translucent triangles to lay on

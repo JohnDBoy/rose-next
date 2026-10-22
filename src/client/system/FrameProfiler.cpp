@@ -457,25 +457,27 @@ void BeginFrame() {
         s_spawn_step[i] = 0.0;
     for (int i = 0; i < TERRAIN_STEP_COUNT; ++i)
         s_terrain_step[i] = 0.0;
-    s_fx_count = 0;
-    for (int i = 0; i < FX_STEP_COUNT; ++i)
-        s_fx_step[i] = 0.0;
-    for (int i = 0; i < OBJ_STEP_COUNT; ++i)
-        s_obj_step[i] = 0.0;
-    s_obj_proc_count = 0;
-    s_obj_delete_count = 0;
-    s_obj_worst_ms = 0.0;
-    s_obj_worst_type = 0;
-    s_obj_worst_char = 0;
-    s_obj_worst_cmd = 0;
-    for (int i = 0; i < CELL_STEP_COUNT; ++i)
-        s_cell_step[i] = 0.0;
-    for (int i = 0; i < kCellLumpCount; ++i)
-        s_cell_lump[i] = 0.0;
-    s_lit_parts = 0;
-    for (int i = 0; i < LIT_STEP_COUNT; ++i)
-        s_lit_step[i] = 0.0;
+    // Detail fed only while the spike log is on (every feeder checks
+    // IsSpikeLogEnabled), so there is nothing to clear when it is off.
     if (s_spike_log_ms > 0) {
+        s_fx_count = 0;
+        for (int i = 0; i < FX_STEP_COUNT; ++i)
+            s_fx_step[i] = 0.0;
+        for (int i = 0; i < OBJ_STEP_COUNT; ++i)
+            s_obj_step[i] = 0.0;
+        s_obj_proc_count = 0;
+        s_obj_delete_count = 0;
+        s_obj_worst_ms = 0.0;
+        s_obj_worst_type = 0;
+        s_obj_worst_char = 0;
+        s_obj_worst_cmd = 0;
+        for (int i = 0; i < CELL_STEP_COUNT; ++i)
+            s_cell_step[i] = 0.0;
+        for (int i = 0; i < kCellLumpCount; ++i)
+            s_cell_lump[i] = 0.0;
+        s_lit_parts = 0;
+        for (int i = 0; i < LIT_STEP_COUNT; ++i)
+            s_lit_step[i] = 0.0;
         ::resetParticleLoadStats();
         ::resetRenderPassStats();
     }
@@ -502,6 +504,9 @@ void End(Slot slot) {
 
 void SetSpikeLogMs(unsigned int ms) {
     s_spike_log_ms = ms;
+    // The engine's own frame statistics (render passes, particle locks and loads)
+    // are off unless this log is on, so normal play reads no clocks for them.
+    ::setFrameStatsEnabled(ms > 0 ? 1 : 0);
 }
 
 bool IsSpikeLogEnabled() {
@@ -549,7 +554,7 @@ void NoteObjProc(int objType, int charNo, int command, double ms) {
 }
 
 void NoteCellStep(CellStep step, double ms) {
-    if (step < 0 || step >= CELL_STEP_COUNT)
+    if (s_spike_log_ms == 0 || step < 0 || step >= CELL_STEP_COUNT)
         return;
     s_cell_step[step] += ms;
 }

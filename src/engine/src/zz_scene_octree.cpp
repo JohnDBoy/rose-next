@@ -456,6 +456,8 @@ void zz_scene_octree::render_sky_glow ()
 // Render-pass statistics since the client last reset them (once per frame while
 // its frame spike log is on). Accumulated, not assigned, so a frame that
 // renders the scene more than once still reports all of it.
+bool g_zz_frame_stats = false;
+
 static int s_render_pass_usec[ZZ_RPASS_COUNT];
 static int s_render_pass_nodes[ZZ_RPASS_COUNT];
 
@@ -504,10 +506,16 @@ void zz_scene_octree::render_cull ()
 
 	// Per-pass time for the client's frame spike log (getRenderPassUsec). A
 	// frame whose render phase jumps 5-8 ms with nothing loading names its pass.
+	// Only while g_zz_frame_stats is on; otherwise the pass just runs.
 	LARGE_INTEGER pass_t0, pass_t1;
 	#define ZZ_TIMED_PASS(slot, call) \
-		{ QueryPerformanceCounter(&pass_t0); call; QueryPerformanceCounter(&pass_t1); \
-		  zz_render_pass_add(slot, pass_t0.QuadPart, pass_t1.QuadPart); }
+		do { \
+			if (g_zz_frame_stats) { \
+				QueryPerformanceCounter(&pass_t0); call; QueryPerformanceCounter(&pass_t1); \
+				zz_render_pass_add(slot, pass_t0.QuadPart, pass_t1.QuadPart); \
+			} \
+			else { call; } \
+		} while (0)
 
 	// render terrain in 1st pass
 	if (state->use_multipass) {
@@ -557,6 +565,8 @@ void zz_scene_octree::render_cull ()
 	}
 	#undef ZZ_TIMED_PASS
 
+	if (!g_zz_frame_stats)
+		return;
 	zz_render_pass_count(ZZ_RPASS_OTERRAIN, num_oterrain);
 	zz_render_pass_count(ZZ_RPASS_BTERRAIN, num_bterrain);
 	zz_render_pass_count(ZZ_RPASS_RTERRAIN, num_rterrain);

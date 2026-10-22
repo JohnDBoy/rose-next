@@ -2852,6 +2852,13 @@ void renderScene ( void )
 	CHECK_INTERFACE(renderScene);
 #endif
 	
+	if (!g_zz_frame_stats) {
+		znzin->view->render();
+		// this should be out of renderScene() and should be in front of beginSprite()
+		znzin->renderer->post_process();
+		return;
+	}
+
 	LARGE_INTEGER t0, t1;
 	QueryPerformanceCounter(&t0);
 	znzin->view->render();
@@ -2869,8 +2876,9 @@ ZZ_SCRIPT
 void clearScreen ( void )
 {
 	CHECK_INTERFACE(clearScreen);
-	LARGE_INTEGER t0, t1;
-	QueryPerformanceCounter(&t0);
+	LARGE_INTEGER t0 = {}, t1 = {};
+	if (g_zz_frame_stats)
+		QueryPerformanceCounter(&t0);
 
 	if(znzin->screen_sfx.get_widescreen_mode())
 		znzin->screen_sfx.pre_clear_wide();
@@ -2884,8 +2892,10 @@ void clearScreen ( void )
 	znzin->sprite_sfx.pre_render();
 	znzin->screen_sfx.pre_render();
 
-	QueryPerformanceCounter(&t1);
-	zz_render_pass_add(ZZ_RPASS_CLEAR, t0.QuadPart, t1.QuadPart);
+	if (g_zz_frame_stats) {
+		QueryPerformanceCounter(&t1);
+		zz_render_pass_add(ZZ_RPASS_CLEAR, t0.QuadPart, t1.QuadPart);
+	}
 }
 
 // for internal use
@@ -5482,6 +5492,16 @@ int resetRenderPassStats ( void )
 {
 	CHECK_INTERFACE(resetRenderPassStats);
 	zz_render_pass_reset();
+	return 1;
+}
+
+ZZ_SCRIPT
+int setFrameStatsEnabled ( int iEnabled )
+{
+	CHECK_INTERFACE(setFrameStatsEnabled);
+	g_zz_frame_stats = (iEnabled != 0);
+	zz_render_pass_reset();
+	zz_particle_emitter::ResetLoadStats();
 	return 1;
 }
 
