@@ -453,6 +453,44 @@ void zz_scene_octree::render_sky_glow ()
 	}
 }
 
+// Render-pass statistics since the client last reset them (once per frame while
+// its frame spike log is on). Accumulated, not assigned, so a frame that
+// renders the scene more than once still reports all of it.
+static int s_render_pass_usec[ZZ_RPASS_COUNT];
+static int s_render_pass_nodes[ZZ_RPASS_COUNT];
+
+void zz_render_pass_add (int slot, long long t0, long long t1)
+{
+	static LARGE_INTEGER freq = { 0 };
+	if (freq.QuadPart == 0) QueryPerformanceFrequency(&freq);
+	if (slot < 0 || slot >= ZZ_RPASS_COUNT) return;
+	s_render_pass_usec[slot] += (int)((t1 - t0) * 1000000 / freq.QuadPart);
+}
+
+void zz_render_pass_count (int slot, int nodes)
+{
+	if (slot < 0 || slot >= ZZ_RPASS_COUNT) return;
+	s_render_pass_nodes[slot] += nodes;
+}
+
+int zz_render_pass_get_usec (int slot)
+{
+	return (slot < 0 || slot >= ZZ_RPASS_COUNT) ? 0 : s_render_pass_usec[slot];
+}
+
+int zz_render_pass_get_nodes (int slot)
+{
+	return (slot < 0 || slot >= ZZ_RPASS_COUNT) ? 0 : s_render_pass_nodes[slot];
+}
+
+void zz_render_pass_reset ()
+{
+	for (int i = 0; i < ZZ_RPASS_COUNT; ++i) {
+		s_render_pass_usec[i] = 0;
+		s_render_pass_nodes[i] = 0;
+	}
+}
+
 void zz_scene_octree::render_cull ()
 {
 	//ZZ_PROFILER_INSTALL(Prender_cull);
@@ -463,53 +501,70 @@ void zz_scene_octree::render_cull ()
 	int& pass = state->current_pass;
 
 	znzin->renderer->enable_fog(false);
-	
+
+	// Per-pass time for the client's frame spike log (getRenderPassUsec). A
+	// frame whose render phase jumps 5-8 ms with nothing loading names its pass.
+	LARGE_INTEGER pass_t0, pass_t1;
+	#define ZZ_TIMED_PASS(slot, call) \
+		{ QueryPerformanceCounter(&pass_t0); call; QueryPerformanceCounter(&pass_t1); \
+		  zz_render_pass_add(slot, pass_t0.QuadPart, pass_t1.QuadPart); }
+
 	// render terrain in 1st pass
 	if (state->use_multipass) {
 		// 1. render sky
-		pass = 0; render_sky2();
+		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_SKY, render_sky2());
 
 		// 2. render terrains
-		pass = 0; render_oterrain();
-		pass = 1; render_oterrain();
+		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_OTERRAIN, render_oterrain());
+		pass = 1; ZZ_TIMED_PASS(ZZ_RPASS_OTERRAIN, render_oterrain());
 
 		// 2. render terrains
-		pass = 0; render_bterrain();
-		pass = 1; render_bterrain();
+		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_BTERRAIN, render_bterrain());
+		pass = 1; ZZ_TIMED_PASS(ZZ_RPASS_BTERRAIN, render_bterrain());
 
-		pass = 0; render_rterrain();
-		draw_ground_overlay(); // telegraphs: on the terrain, under everything else
+		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_RTERRAIN, render_rterrain());
+		ZZ_TIMED_PASS(ZZ_RPASS_OVERLAY, draw_ground_overlay()); // telegraphs: on the terrain, under everything else
 
 		// render opaque
-		pass = 0; render_opaque();
-		pass = 1; render_opaque();
+		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_OPAQUE, render_opaque());
+		pass = 1; ZZ_TIMED_PASS(ZZ_RPASS_OPAQUE, render_opaque());
 
-		pass = 0; render_transparent();
-		pass = 1; render_transparent();
+		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_TRANSPARENT, render_transparent());
+		pass = 1; ZZ_TIMED_PASS(ZZ_RPASS_TRANSPARENT, render_transparent());
 
 		// render transparent
-		pass = 0; render_glow();
+		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_GLOW, render_glow());
 
 		// render ocean
-		pass = 0; render_ocean();
+		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_OCEAN, render_ocean());
 
 		// render particles
-		pass = 0; render_particle();
+		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_PARTICLE, render_particle());
 	}
 	else { // if single pass
 		pass = 0;
 
-		render_sky2();
-		render_oterrain();
-		render_bterrain();
-		render_rterrain();
-		draw_ground_overlay(); // telegraphs: on the terrain, under everything else
-		render_opaque();
-		render_transparent();
-		render_glow();	
-		render_ocean();
-		render_particle();
+		ZZ_TIMED_PASS(ZZ_RPASS_SKY, render_sky2());
+		ZZ_TIMED_PASS(ZZ_RPASS_OTERRAIN, render_oterrain());
+		ZZ_TIMED_PASS(ZZ_RPASS_BTERRAIN, render_bterrain());
+		ZZ_TIMED_PASS(ZZ_RPASS_RTERRAIN, render_rterrain());
+		ZZ_TIMED_PASS(ZZ_RPASS_OVERLAY, draw_ground_overlay()); // telegraphs: on the terrain, under everything else
+		ZZ_TIMED_PASS(ZZ_RPASS_OPAQUE, render_opaque());
+		ZZ_TIMED_PASS(ZZ_RPASS_TRANSPARENT, render_transparent());
+		ZZ_TIMED_PASS(ZZ_RPASS_GLOW, render_glow());
+		ZZ_TIMED_PASS(ZZ_RPASS_OCEAN, render_ocean());
+		ZZ_TIMED_PASS(ZZ_RPASS_PARTICLE, render_particle());
 	}
+	#undef ZZ_TIMED_PASS
+
+	zz_render_pass_count(ZZ_RPASS_OTERRAIN, num_oterrain);
+	zz_render_pass_count(ZZ_RPASS_BTERRAIN, num_bterrain);
+	zz_render_pass_count(ZZ_RPASS_RTERRAIN, num_rterrain);
+	zz_render_pass_count(ZZ_RPASS_OPAQUE, num_visible);
+	zz_render_pass_count(ZZ_RPASS_TRANSPARENT, num_delayed);
+	zz_render_pass_count(ZZ_RPASS_GLOW, num_glows);
+	zz_render_pass_count(ZZ_RPASS_OCEAN, num_ocean);
+	zz_render_pass_count(ZZ_RPASS_PARTICLE, num_particles);
 }
 
 void zz_scene_octree::render_shadowmap_objects (vector<zz_visible*>& nodes, const vec3& compare_pos, float maximum_distance_square)

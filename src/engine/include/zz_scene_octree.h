@@ -100,6 +100,32 @@ enum zz_render_component {
 };
 */
 
+// Render passes timed for the client's frame spike log; see getRenderPassUsec.
+enum zz_render_pass_slot {
+	ZZ_RPASS_SKY = 0,
+	ZZ_RPASS_OTERRAIN,
+	ZZ_RPASS_BTERRAIN,
+	ZZ_RPASS_RTERRAIN,
+	ZZ_RPASS_OVERLAY,     // draw_ground_overlay (telegraphs)
+	ZZ_RPASS_OPAQUE,
+	ZZ_RPASS_TRANSPARENT,
+	ZZ_RPASS_GLOW,
+	ZZ_RPASS_OCEAN,
+	ZZ_RPASS_PARTICLE,
+	ZZ_RPASS_CLEAR,       // clearScreen
+	ZZ_RPASS_VIEW,        // the whole view->render(), so its own extras show as the gap
+	ZZ_RPASS_POST,        // renderer->post_process
+	ZZ_RPASS_PLOCK,       // particle vertex-buffer locks (inside PARTICLE); nodes = lock count
+	ZZ_RPASS_PDISCARD,    // the subset of those that wrapped with DISCARD
+	ZZ_RPASS_COUNT
+};
+
+void zz_render_pass_add (int slot, long long t0, long long t1);
+void zz_render_pass_count (int slot, int nodes);
+int zz_render_pass_get_usec (int slot);
+int zz_render_pass_get_nodes (int slot);
+void zz_render_pass_reset ();
+
 // simple octree scene interface
 //--------------------------------------------------------------------------------
 class zz_scene_octree : public zz_scene {

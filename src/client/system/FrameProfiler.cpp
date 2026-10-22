@@ -32,6 +32,10 @@ const int kFlushKindCount = 5;
 /// reason as kFlushKindCount; NoteCellLump bounds-checks against it.
 const int kCellLumpCount = 13;
 
+/// Mirrors the engine's zz_render_pass_slot (zz_scene_octree.h), ZZ_RPASS_COUNT = 15.
+/// The engine's getters bounds-check, so a pass added there just goes unreported.
+const int kRenderPassCount = 15;
+
 /// The held candidate for the current rate-limit window.
 ///
 /// The limiter keeps the **worst** frame of a window, not the first. Keeping the
@@ -76,6 +80,8 @@ struct SpikeSnapshot {
     double cell_lump[kCellLumpCount];
     int lit_parts;
     double lit_step[LIT_STEP_COUNT];
+    float rpass_ms[kRenderPassCount];
+    int rpass_nodes[kRenderPassCount];
 };
 SpikeSnapshot s_worst;
 bool s_worst_valid = false;
@@ -221,6 +227,9 @@ void EmitSpike(const SpikeSnapshot& s, int others) {
              "ifo[obj={:.1f} cnst={:.1f} eff={:.1f} snd={:.1f} morph={:.1f} water={:.1f} "
              "evt={:.1f} other={:.1f}] | "
              "lit[n={} addmat={:.1f} build={:.1f} lmap={:.1f} bind={:.1f}] | "
+             "rpass[clear={:.1f} view={:.1f} (sky={:.1f} oter={:.1f}/{} bter={:.1f}/{} "
+             "rter={:.1f}/{} ovl={:.1f} opq={:.1f}/{} trn={:.1f}/{} glow={:.1f}/{} "
+             "ocean={:.1f}/{} part={:.1f}/{} [lock={:.1f}/{} discard={:.1f}/{}]) post={:.1f}] | "
              "others={}",
         s.frame_ms,
         s.avg_ms,
@@ -315,6 +324,35 @@ void EmitSpike(const SpikeSnapshot& s, int others) {
         s.lit_step[LIT_BUILD],
         s.lit_step[LIT_LIGHTMAP],
         s.lit_step[LIT_BIND],
+        // zz_render_pass_slot: 0 sky, 1-3 terrain (opaque/blend/rough), 4 overlay,
+        // 5 opaque, 6 transparent, 7 glow, 8 ocean, 9 particle, 10 clear, 11 view, 12 post,
+        // 13 particle locks, 14 the locks that wrapped (DISCARD)
+        s.rpass_ms[10],
+        s.rpass_ms[11],
+        s.rpass_ms[0],
+        s.rpass_ms[1],
+        s.rpass_nodes[1],
+        s.rpass_ms[2],
+        s.rpass_nodes[2],
+        s.rpass_ms[3],
+        s.rpass_nodes[3],
+        s.rpass_ms[4],
+        s.rpass_ms[5],
+        s.rpass_nodes[5],
+        s.rpass_ms[6],
+        s.rpass_nodes[6],
+        s.rpass_ms[7],
+        s.rpass_nodes[7],
+        s.rpass_ms[8],
+        s.rpass_nodes[8],
+        s.rpass_ms[9],
+        s.rpass_nodes[9],
+        // 13/14: particle vertex-buffer locks inside the particle pass (nodes = count)
+        s.rpass_ms[13],
+        s.rpass_nodes[13],
+        s.rpass_ms[14],
+        s.rpass_nodes[14],
+        s.rpass_ms[12],
         others);
 }
 
@@ -378,6 +416,11 @@ void NoteSpike(double frame_ms, double frame_accounted, DWORD now) {
     s_worst.lit_parts = s_lit_parts;
     for (int i = 0; i < LIT_STEP_COUNT; ++i)
         s_worst.lit_step[i] = s_lit_step[i];
+    // Engine counters, reset by BeginFrame, so these are this frame's passes.
+    for (int i = 0; i < kRenderPassCount; ++i) {
+        s_worst.rpass_ms[i] = ::getRenderPassUsec(i) / 1000.0f;
+        s_worst.rpass_nodes[i] = ::getRenderPassNodes(i);
+    }
     s_worst_valid = true;
 }
 
@@ -432,8 +475,10 @@ void BeginFrame() {
     s_lit_parts = 0;
     for (int i = 0; i < LIT_STEP_COUNT; ++i)
         s_lit_step[i] = 0.0;
-    if (s_spike_log_ms > 0)
+    if (s_spike_log_ms > 0) {
         ::resetParticleLoadStats();
+        ::resetRenderPassStats();
+    }
     s_frame_start = Now();
 }
 

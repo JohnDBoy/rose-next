@@ -141,6 +141,7 @@
 #include "zz_log.h"
 #include "zz_particle_event.h"
 #include "zz_particle_event_sequence.h"
+#include "zz_particle_emitter.h"
 
 #include <algorithm>
 #include <D3DX9.h>
@@ -839,31 +840,24 @@ bool zz_particle_event_sequence::Render( LPDIRECT3DVERTEXBUFFER9 pVB, int iVBSiz
 	m_texParticle->flush_device(false);
 	m_texParticle->set(0);
 
-	VERTEX_PARTICLE *pVertices;
-	VERTEX_PARTICLE_POINT *pVerticesPoint; // for point sprite version
+	VERTEX_PARTICLE *pVertices = NULL;
+	VERTEX_PARTICLE_POINT *pVerticesPoint = NULL; // for point sprite version
 
 	DWORD dwNumParticlesToRender = 0;
 
-	// Lock the vertex buffer.  We fill the vertex buffer in small
-	// chunks, using D3DLOCK_NOOVERWRITE.  When we are done filling
-	// each chunk, we call DrawPrim, and lock the next chunk.  When
-	// we run out of space in the vertex buffer, we start over at
-	// the beginning, using D3DLOCK_DISCARD.
-	if (this->m_iImplementType == 0) {
-		if(FAILED(hr = pVB->Lock( 0, iVBSize * sizeof(VERTEX_PARTICLE_POINT),
-			(void **) &pVerticesPoint, D3DLOCK_DISCARD)))
-		{
-			return reset_render_state();
-		}
-	}
-	else {
-		assert((iVBSize%6) == 0); // must be a multiple of 6
-		if(FAILED(hr = pVB->Lock( 0, iVBSize * sizeof(VERTEX_PARTICLE),
-			(void **) &pVertices, D3DLOCK_DISCARD)))
-		{
-			return reset_render_state();
-		}
-	}
+	// The vertex buffer is a ring shared by every emitter (see
+	// zz_particle_emitter::LockParticleRing): each chunk is locked at the next
+	// free span with D3DLOCK_NOOVERWRITE, and only a wrap discards. The comment
+	// that stood here described exactly that, but every lock used DISCARD.
+	// Locking is lazy, at the first live particle, so an emitter with nothing
+	// alive locks nothing; each lock asks for at most the live particles left.
+	assert(m_iImplementType == 0 || (iVBSize%6) == 0); // must be a multiple of 6
+	const int verts_per_particle = (m_iImplementType == 0) ? 1 : 6;
+	const int chunk_particles = (m_iImplementType == 0) ? iVBSize : iVBSize / 6;
+	int remaining_particles = GetNumActiveParticles();
+	int locked_particles = 0;
+	int start_vertex = 0;
+	bool locked = false;
 
 	int i;
 	vec3 pos[6];
@@ -902,6 +896,17 @@ bool zz_particle_event_sequence::Render( LPDIRECT3DVERTEXBUFFER9 pVB, int iVBSiz
 		// Render each particle a bunch of times to get a blurring effect
 		if ((m_Particles && m_Particles->IsAlive(q)) || (m_WorldParticles && m_WorldParticles->IsAlive(q)))
 		{
+			if (!locked) {
+				locked_particles = ZZ_MIN(chunk_particles, ZZ_MAX(1, remaining_particles));
+				void * data = zz_particle_emitter::LockParticleRing(pVB,
+					locked_particles * verts_per_particle, start_vertex);
+				if (!data)
+					return reset_render_state();
+				pVerticesPoint = (VERTEX_PARTICLE_POINT *)data;
+				pVertices = (VERTEX_PARTICLE *)data;
+				locked = true;
+			}
+
 			zz_particle * part;
 			if (m_Particles)
 				part = &m_Particles->GetAt(q);
@@ -988,33 +993,24 @@ bool zz_particle_event_sequence::Render( LPDIRECT3DVERTEXBUFFER9 pVB, int iVBSiz
 			}
 
 			++dwNumParticlesToRender;
-			if( dwNumParticlesToRender == ((m_iImplementType == 0) ? iVBSize : iVBSize/6))
+			if( dwNumParticlesToRender == (DWORD)locked_particles)
 			{
 				// Done filling this chunk of the vertex buffer.  Lets unlock and
-				// draw this portion so we can begin filling the next chunk.
+				// draw this portion; the next live particle locks the next chunk.
 
-				pVB->Unlock();
+				zz_particle_emitter::UnlockParticleRing(pVB, dwNumParticlesToRender * verts_per_particle);
+				locked = false;
+				remaining_particles -= (int)dwNumParticlesToRender;
 
 				try {
 					if (m_iImplementType == 0) {
-						if(FAILED(hr = m_pd3dDevice->DrawPrimitive( 
-							D3DPT_POINTLIST, 0, dwNumParticlesToRender)))
-							return reset_render_state();
-						if(FAILED(hr = pVB->Lock(0, iVBSize * sizeof(VERTEX_PARTICLE_POINT),
-							(void **) &pVerticesPoint, D3DLOCK_DISCARD)))
+						if(FAILED(hr = m_pd3dDevice->DrawPrimitive(
+							D3DPT_POINTLIST, start_vertex, dwNumParticlesToRender)))
 							return reset_render_state();
 					}
 					else {
-						if(FAILED(hr = m_pd3dDevice->DrawPrimitive( 
-							D3DPT_TRIANGLELIST, 0, dwNumParticlesToRender*2)))
-							return reset_render_state();
-
-						// Lock the next chunk of the vertex buffer.  If we are at the 
-						// end of the vertex buffer, DISCARD the vertex buffer and start
-						// at the beginning.  Otherwise, specify NOOVERWRITE, so we can
-						// continue filling the VB while the previous chunk is drawing.
-						if(FAILED(hr = pVB->Lock(0, iVBSize * sizeof(VERTEX_PARTICLE),
-							(void **) &pVertices, D3DLOCK_DISCARD)))
+						if(FAILED(hr = m_pd3dDevice->DrawPrimitive(
+							D3DPT_TRIANGLELIST, start_vertex, dwNumParticlesToRender*2)))
 							return reset_render_state();
 					}
 				}
@@ -1030,7 +1026,8 @@ bool zz_particle_event_sequence::Render( LPDIRECT3DVERTEXBUFFER9 pVB, int iVBSiz
 	}
 
 	// Unlock the vertex buffer
-	pVB->Unlock();
+	if (locked)
+		zz_particle_emitter::UnlockParticleRing(pVB, dwNumParticlesToRender * verts_per_particle);
 
 	try {
 		// Render any remaining particles
@@ -1038,7 +1035,7 @@ bool zz_particle_event_sequence::Render( LPDIRECT3DVERTEXBUFFER9 pVB, int iVBSiz
 			// Render any remaining particles
 			if( dwNumParticlesToRender )
 			{
-				if(FAILED(hr = m_pd3dDevice->DrawPrimitive( D3DPT_POINTLIST, 0, dwNumParticlesToRender )))
+				if(FAILED(hr = m_pd3dDevice->DrawPrimitive( D3DPT_POINTLIST, start_vertex, dwNumParticlesToRender )))
 					return reset_render_state();
 			}
 			// Reset render states
@@ -1048,7 +1045,7 @@ bool zz_particle_event_sequence::Render( LPDIRECT3DVERTEXBUFFER9 pVB, int iVBSiz
 		else {
 			if( dwNumParticlesToRender )
 			{
-				if(FAILED(hr = m_pd3dDevice->DrawPrimitive( D3DPT_TRIANGLELIST, 0, dwNumParticlesToRender*2 )))
+				if(FAILED(hr = m_pd3dDevice->DrawPrimitive( D3DPT_TRIANGLELIST, start_vertex, dwNumParticlesToRender*2 )))
 					return reset_render_state();
 			}
 		}

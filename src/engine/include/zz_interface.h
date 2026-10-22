@@ -1860,6 +1860,21 @@ int getParticleLoadUsec ( int iPart );
 ZZ_SCRIPT
 int resetParticleLoadStats ( void );
 
+/// Render-pass time (microseconds) and node count since the last
+/// resetRenderPassStats(). iPass follows zz_render_pass_slot (zz_scene_octree.h):
+/// 0 sky, 1 opaque terrain, 2 blend terrain, 3 rough terrain, 4 ground overlay,
+/// 5 opaque, 6 transparent, 7 glow, 8 ocean, 9 particle, 10 clearScreen,
+/// 11 the whole view render (passes 0-9 plus the view's own extras), 12 post_process,
+/// 13 particle vertex-buffer locks (nodes = count), 14 the locks that wrapped (DISCARD).
+ZZ_SCRIPT
+int getRenderPassUsec ( int iPass );
+
+ZZ_SCRIPT
+int getRenderPassNodes ( int iPass );
+
+ZZ_SCRIPT
+int resetRenderPassStats ( void );
+
 /// Resource loads that were forced to run synchronously at first-render time
 /// (zz_manager::flush_entrance) instead of being amortised through the lazy
 /// entrance line. Per-frame count/ms plus the worst frame seen since reset.

@@ -25,12 +25,19 @@
 #include "zz_renderer_d3d.h"
 #include "zz_motion.h"
 #include "zz_texture.h"
+#include "zz_scene_octree.h"
 
 ZZ_IMPLEMENT_DYNCREATE(zz_particle_emitter, zz_animatable)
 
 inline DWORD FtoDW( FLOAT f ) { return *((DWORD*)&f); }
 
-const int MAX_PARTICLE_NUM = 1000;
+const int MAX_PARTICLE_NUM = 1000;  // most particles one draw may carry
+const int RING_PARTICLE_NUM = 8192; // ring capacity of the shared buffers, in particles
+
+// Ring cursors, in vertices. Starting (and reset) at capacity forces the first
+// lock after a buffer is created to DISCARD.
+static int s_ring_cursor_point = RING_PARTICLE_NUM;
+static int s_ring_cursor_quad = RING_PARTICLE_NUM * 6;
 LPDIRECT3DDEVICE9 zz_particle_emitter::m_pd3dDevice = NULL;
 LPDIRECT3DVERTEXBUFFER9 zz_particle_emitter::m_vbParticles = NULL;
 LPDIRECT3DVERTEXBUFFER9 zz_particle_emitter::m_vbParticles_point = NULL;
@@ -154,6 +161,48 @@ void zz_particle_emitter::SetRuntimeBudget(float emit_scale, int max_particles, 
 	}
 }
 
+void * zz_particle_emitter::LockParticleRing (LPDIRECT3DVERTEXBUFFER9 vb, int vertex_count, int& start_vertex_out)
+{
+	const bool points = (vb == m_vbParticles_point);
+	const int stride = points ? sizeof(VERTEX_PARTICLE_POINT) : sizeof(VERTEX_PARTICLE);
+	const int capacity = points ? RING_PARTICLE_NUM : RING_PARTICLE_NUM * 6;
+	int& cursor = points ? s_ring_cursor_point : s_ring_cursor_quad;
+
+	vertex_count = ZZ_MAX(1, ZZ_MIN(vertex_count, capacity));
+	DWORD flags = D3DLOCK_NOOVERWRITE;
+	if (cursor + vertex_count > capacity) {
+		cursor = 0;
+		flags = D3DLOCK_DISCARD;
+	}
+
+	void * data = NULL;
+	LARGE_INTEGER t0, t1;
+	QueryPerformanceCounter(&t0);
+	HRESULT hr = vb->Lock(cursor * stride, vertex_count * stride, &data, flags);
+	QueryPerformanceCounter(&t1);
+	zz_render_pass_add(ZZ_RPASS_PLOCK, t0.QuadPart, t1.QuadPart);
+	zz_render_pass_count(ZZ_RPASS_PLOCK, 1);
+	if (flags == D3DLOCK_DISCARD) {
+		zz_render_pass_add(ZZ_RPASS_PDISCARD, t0.QuadPart, t1.QuadPart);
+		zz_render_pass_count(ZZ_RPASS_PDISCARD, 1);
+	}
+	if (FAILED(hr)) {
+		cursor = capacity; // start over with a DISCARD next time
+		return NULL;
+	}
+
+	start_vertex_out = cursor;
+	return data;
+}
+
+void zz_particle_emitter::UnlockParticleRing (LPDIRECT3DVERTEXBUFFER9 vb, int used_vertices)
+{
+	const bool points = (vb == m_vbParticles_point);
+	int& cursor = points ? s_ring_cursor_point : s_ring_cursor_quad;
+	vb->Unlock();
+	cursor += ZZ_MAX(0, used_vertices);
+}
+
 bool zz_particle_emitter::CanRenderInParticleBatch(void)
 {
 	if (!m_bBatchRenderHint || !IsRunning() || m_Sequences.empty())
@@ -201,20 +250,22 @@ bool zz_particle_emitter::restore_device_objects ()
 
 	// create vertex buffer
 	if (m_vbParticles_point == NULL) {
-		if(FAILED(hr = m_pd3dDevice->CreateVertexBuffer(MAX_PARTICLE_NUM * sizeof( VERTEX_PARTICLE_POINT ),
-			usage | D3DUSAGE_POINTS, 
-			D3DFVF_PARTICLE_POINT, D3DPOOL_DEFAULT, &m_vbParticles_point, NULL ))) 
+		if(FAILED(hr = m_pd3dDevice->CreateVertexBuffer(RING_PARTICLE_NUM * sizeof( VERTEX_PARTICLE_POINT ),
+			usage | D3DUSAGE_POINTS,
+			D3DFVF_PARTICLE_POINT, D3DPOOL_DEFAULT, &m_vbParticles_point, NULL )))
 		{
 			return false;
 		}
+		s_ring_cursor_point = RING_PARTICLE_NUM;
 	}
 	if (m_vbParticles == NULL) {
-		if(FAILED(hr = m_pd3dDevice->CreateVertexBuffer(MAX_PARTICLE_NUM * 6 * sizeof( VERTEX_PARTICLE ),
-			usage, 
-			D3DFVF_PARTICLE, D3DPOOL_DEFAULT, &m_vbParticles, NULL ))) 
+		if(FAILED(hr = m_pd3dDevice->CreateVertexBuffer(RING_PARTICLE_NUM * 6 * sizeof( VERTEX_PARTICLE ),
+			usage,
+			D3DFVF_PARTICLE, D3DPOOL_DEFAULT, &m_vbParticles, NULL )))
 		{
 			return false;
 		}
+		s_ring_cursor_quad = RING_PARTICLE_NUM * 6;
 	}
 
 	// restore device objects for each event sequence
@@ -429,9 +480,16 @@ void zz_particle_emitter::RenderParticleListWithBatching(const std::vector<zz_vi
 			m_pd3dDevice->SetStreamSource( 0, m_vbParticles_point, 0, sizeof(VERTEX_PARTICLE_POINT) );
 			m_pd3dDevice->SetFVF( D3DFVF_PARTICLE_POINT );
 
-			VERTEX_PARTICLE_POINT *pVerticesPoint = NULL;
-			if (FAILED(m_vbParticles_point->Lock(0, MAX_PARTICLE_NUM * sizeof(VERTEX_PARTICLE_POINT),
-				(void **)&pVerticesPoint, D3DLOCK_DISCARD)))
+			int remaining = 0; // live particles left in this group: an upper bound per lock
+			for (std::vector<zz_particle_event_sequence *>::iterator seq_it = sequences.begin();
+				seq_it != sequences.end(); ++seq_it)
+				remaining += ZZ_MAX(0, (*seq_it)->GetNumActiveParticles());
+
+			int start = 0;
+			int chunk_capacity = ZZ_MIN(MAX_PARTICLE_NUM, remaining);
+			VERTEX_PARTICLE_POINT *pVerticesPoint =
+				(VERTEX_PARTICLE_POINT *)LockParticleRing(m_vbParticles_point, chunk_capacity, start);
+			if (!pVerticesPoint)
 				continue;
 
 			bool buffer_locked = true;
@@ -444,14 +502,16 @@ void zz_particle_emitter::RenderParticleListWithBatching(const std::vector<zz_vi
 				if (active_particles <= 0)
 					continue;
 
-				if (particles_in_chunk > 0 && particles_in_chunk + active_particles > MAX_PARTICLE_NUM) {
-					m_vbParticles_point->Unlock();
-					if (SUCCEEDED(m_pd3dDevice->DrawPrimitive(D3DPT_POINTLIST, 0, particles_in_chunk))) {
+				if (particles_in_chunk > 0 && particles_in_chunk + active_particles > chunk_capacity) {
+					UnlockParticleRing(m_vbParticles_point, particles_in_chunk);
+					if (SUCCEEDED(m_pd3dDevice->DrawPrimitive(D3DPT_POINTLIST, start, particles_in_chunk))) {
 						s_BatchStats.draw_calls++;
 						drew_group = true;
 					}
-					if (FAILED(m_vbParticles_point->Lock(0, MAX_PARTICLE_NUM * sizeof(VERTEX_PARTICLE_POINT),
-						(void **)&pVerticesPoint, D3DLOCK_DISCARD))) {
+					chunk_capacity = ZZ_MIN(MAX_PARTICLE_NUM, remaining);
+					pVerticesPoint =
+						(VERTEX_PARTICLE_POINT *)LockParticleRing(m_vbParticles_point, chunk_capacity, start);
+					if (!pVerticesPoint) {
 						buffer_locked = false;
 						break;
 					}
@@ -459,15 +519,16 @@ void zz_particle_emitter::RenderParticleListWithBatching(const std::vector<zz_vi
 				}
 
 				const int appended = sequence->AppendRenderPointVertices(pVerticesPoint + particles_in_chunk,
-					MAX_PARTICLE_NUM - particles_in_chunk);
+					chunk_capacity - particles_in_chunk);
 				particles_in_chunk += appended;
 				s_BatchStats.particles += appended;
+				remaining -= active_particles;
 			}
 
 			if (buffer_locked)
-				m_vbParticles_point->Unlock();
+				UnlockParticleRing(m_vbParticles_point, particles_in_chunk);
 			if (buffer_locked && particles_in_chunk > 0) {
-				if (SUCCEEDED(m_pd3dDevice->DrawPrimitive(D3DPT_POINTLIST, 0, particles_in_chunk))) {
+				if (SUCCEEDED(m_pd3dDevice->DrawPrimitive(D3DPT_POINTLIST, start, particles_in_chunk))) {
 					s_BatchStats.draw_calls++;
 					drew_group = true;
 				}
@@ -479,9 +540,16 @@ void zz_particle_emitter::RenderParticleListWithBatching(const std::vector<zz_vi
 			m_pd3dDevice->SetStreamSource( 0, m_vbParticles, 0, sizeof(VERTEX_PARTICLE) );
 			m_pd3dDevice->SetFVF( D3DFVF_PARTICLE );
 
-			VERTEX_PARTICLE *pVertices = NULL;
-			if (FAILED(m_vbParticles->Lock(0, MAX_PARTICLE_NUM * 6 * sizeof(VERTEX_PARTICLE),
-				(void **)&pVertices, D3DLOCK_DISCARD)))
+			int remaining = 0; // live particles left in this group: an upper bound per lock
+			for (std::vector<zz_particle_event_sequence *>::iterator seq_it = sequences.begin();
+				seq_it != sequences.end(); ++seq_it)
+				remaining += ZZ_MAX(0, (*seq_it)->GetNumActiveParticles());
+
+			int start = 0;
+			int chunk_capacity = ZZ_MIN(MAX_PARTICLE_NUM, remaining);
+			VERTEX_PARTICLE *pVertices =
+				(VERTEX_PARTICLE *)LockParticleRing(m_vbParticles, chunk_capacity * 6, start);
+			if (!pVertices)
 				continue;
 
 			bool buffer_locked = true;
@@ -494,14 +562,15 @@ void zz_particle_emitter::RenderParticleListWithBatching(const std::vector<zz_vi
 				if (active_particles <= 0)
 					continue;
 
-				if (particles_in_chunk > 0 && particles_in_chunk + active_particles > MAX_PARTICLE_NUM) {
-					m_vbParticles->Unlock();
-					if (SUCCEEDED(m_pd3dDevice->DrawPrimitive(D3DPT_TRIANGLELIST, 0, particles_in_chunk * 2))) {
+				if (particles_in_chunk > 0 && particles_in_chunk + active_particles > chunk_capacity) {
+					UnlockParticleRing(m_vbParticles, particles_in_chunk * 6);
+					if (SUCCEEDED(m_pd3dDevice->DrawPrimitive(D3DPT_TRIANGLELIST, start, particles_in_chunk * 2))) {
 						s_BatchStats.draw_calls++;
 						drew_group = true;
 					}
-					if (FAILED(m_vbParticles->Lock(0, MAX_PARTICLE_NUM * 6 * sizeof(VERTEX_PARTICLE),
-						(void **)&pVertices, D3DLOCK_DISCARD))) {
+					chunk_capacity = ZZ_MIN(MAX_PARTICLE_NUM, remaining);
+					pVertices = (VERTEX_PARTICLE *)LockParticleRing(m_vbParticles, chunk_capacity * 6, start);
+					if (!pVertices) {
 						buffer_locked = false;
 						break;
 					}
@@ -509,15 +578,16 @@ void zz_particle_emitter::RenderParticleListWithBatching(const std::vector<zz_vi
 				}
 
 				const int appended = sequence->AppendRenderVertices(pVertices + particles_in_chunk * 6,
-					MAX_PARTICLE_NUM - particles_in_chunk);
+					chunk_capacity - particles_in_chunk);
 				particles_in_chunk += appended;
 				s_BatchStats.particles += appended;
+				remaining -= active_particles;
 			}
 
 			if (buffer_locked)
-				m_vbParticles->Unlock();
+				UnlockParticleRing(m_vbParticles, particles_in_chunk * 6);
 			if (buffer_locked && particles_in_chunk > 0) {
-				if (SUCCEEDED(m_pd3dDevice->DrawPrimitive(D3DPT_TRIANGLELIST, 0, particles_in_chunk * 2))) {
+				if (SUCCEEDED(m_pd3dDevice->DrawPrimitive(D3DPT_TRIANGLELIST, start, particles_in_chunk * 2))) {
 					s_BatchStats.draw_calls++;
 					drew_group = true;
 				}

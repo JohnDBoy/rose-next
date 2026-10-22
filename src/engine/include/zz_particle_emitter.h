@@ -216,6 +216,15 @@ public:
 	static void RenderParticleListWithBatching(const std::vector<zz_visible*>& particle_nodes);
 	static const zz_particle_batch_stats& GetBatchStats(void) { return s_BatchStats; }
 	static const zz_particle_load_stats& GetLoadStats(void) { return s_LoadStats; }
+
+	// The two shared particle vertex buffers are rings. A lock takes the next
+	// free span of `vertex_count` vertices with D3DLOCK_NOOVERWRITE; only running
+	// off the end wraps to 0 with D3DLOCK_DISCARD. Draw from `start_vertex_out`.
+	// Both render paths used to DISCARD on every lock -- per sequence, per emitter
+	// -- and a frame whose particle pass doubled with fewer emitters than usual
+	// (3.1 -> 7.1 ms) is what that looks like once the driver runs out of renames.
+	static void * LockParticleRing (LPDIRECT3DVERTEXBUFFER9 vb, int vertex_count, int& start_vertex_out);
+	static void UnlockParticleRing (LPDIRECT3DVERTEXBUFFER9 vb, int used_vertices);
 	static void ResetLoadStats(void) { s_LoadStats.count = s_LoadStats.open_usec = s_LoadStats.parse_usec = s_LoadStats.restore_usec = 0; }
 
 	virtual bool apply_motion (void);

@@ -165,6 +165,18 @@ drifting out of agreement, never bands and never a sharp onset; it is also
 self-limiting, since the mip level tracks screen size and a cell only falls under a
 texel once the part is a couple of pixels across.
 
+### Particle Vertex Buffers Are Rings (Engine, 2026-10-22)
+
+The two shared particle vertex buffers (`zz_particle_emitter::m_vbParticles` / `_point`,
+8,192 particles each) are filled through `LockParticleRing` / `UnlockParticleRing`: the next
+free span with `D3DLOCK_NOOVERWRITE`, `D3DLOCK_DISCARD` only on wrap, draw from the returned
+start vertex. **Never lock them directly with `DISCARD`.** Both particle render paths used to,
+once per sequence per emitter (100+ a frame in a town): the particle pass cost ~3 ms for ~50
+emitters and occasionally stalled to 7 ms -- the driver running out of buffer renames. As rings:
+0.1-0.2 ms median, 0.5 ms worst, ~27 locks and 0-1 discards a frame. The frame spike log's
+`rpass[...]` group times every scene pass (`zz_render_pass_slot`) and the particle locks
+(`lock=` / `discard=`); start there for any render-phase spike.
+
 ### Ground Overlay (Engine, 2026-10-18)
 
 `::setGroundOverlay(xyz_cm, argb, count)` hands the engine translucent triangles to lay on
