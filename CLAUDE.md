@@ -236,7 +236,7 @@ The client installs `CrashHandler` (`src/client/CrashHandler.cpp`, from `winmain
   The debug script still catches it (`c0000409`, look for `_invalid_parameter` on
   the stack) -- reach for it straight away rather than reading code.
 - For a **freeze, don't kill the process**: `cdb -pv -p <pid>` attaches non-invasively and works even with cdb already attached.
-- The deployed `triggervfs.dll` does not match `bin/release`, so frames through it resolve to nonsense (`VGetVfsNames+0x…`) — disassemble the caller rather than trusting the symbol.
+- Check `triggervfs.dll` in the game folder matches `bin/release` before trusting its frames: a stale copy resolves to nonsense (`VGetVfsNames+0x…`). It was stale until 2026-10-22 (redeployed with the archive-first `FileExists`); if it drifts again, disassemble the caller rather than trusting the symbol.
 - **`client.log` survives a crash; `error.txt` does not.** The engine log is buffered, so a hard crash loses the whole session and the file still ends at the *previous* run's `log: end.` — which reads as "it never launched". The Rust-side `client.log` flushes per record, so read it first to see how far startup actually got.
 - **A crash right after a class-layout change is a stale-build artifact until proven otherwise.** Adding a member to a widely-included header (`zz_node.h` is the base of every engine object) after an *interrupted* build leaves some objects compiled against the old layout. Kill stray `cl`/`link`/`mspdbsrv`, delete `build/<config>`, rebuild serially before debugging anything else.
 
