@@ -30,6 +30,10 @@ struct t_OptionVideo {
     // main thread reads them (CMapFilePrefetcher, io_terrain.cpp). On by default;
     // set [VIDEO] MAP_PREFETCH=0 to A/B the chunk-load hitch against it.
     bool map_prefetch;
+    // CBoneEffectBudget's 8,000-particle ceiling. On by default; [VIDEO]
+    // BONE_FX_BUDGET=0 lifts it so every on-screen aura stays at full tier
+    // (off-screen ones still stop). For testing only.
+    bool bone_fx_budget;
     // Wall-clock microseconds per frame the engine may spend loading resources
     // ahead of when they are rendered. 0 = old behaviour (one node per update),
     // which force-loaded a whole map chunk's terrain meshes in a single frame.
@@ -179,6 +183,7 @@ public:
     UINT GetUseRoughMap() { return m_VideoOption.iUseRoughMap; }
     UINT GetShadowQuality() { return m_VideoOption.iShadowQuality; }
     bool GetMapPrefetch() { return m_VideoOption.map_prefetch; }
+    bool GetBoneFxBudget() { return m_VideoOption.bone_fx_budget; }
     UINT GetLoadBudgetUs() { return m_VideoOption.load_budget_us; }
     UINT GetTerrainInsertsPerFrame() { return m_VideoOption.terrain_inserts_per_frame; }
     UINT GetStreamSpikeLogMs() { return m_VideoOption.stream_spike_log_ms; }

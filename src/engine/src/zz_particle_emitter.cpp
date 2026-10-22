@@ -319,6 +319,11 @@ void zz_particle_emitter::RenderParticleListWithBatching(const std::vector<zz_vi
 		if (vis->is_a(ZZ_RUNTIME_TYPE(zz_particle_emitter)))
 			emitter = static_cast<zz_particle_emitter*>(vis);
 
+		// A stopped emitter (a budget-Off aura) draws nothing; render() would
+		// return at IsRunning() anyway. Skipping it keeps "fallback" honest.
+		if (emitter && !emitter->IsRunning())
+			continue;
+
 		if (!emitter || !emitter->CanRenderInParticleBatch()) {
 			s_BatchStats.fallback++;
 			vis->render();

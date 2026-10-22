@@ -142,6 +142,7 @@ CClientStorage::Load() {
         m_VideoOption.iShadowQuality = g_iMaxShadowQuality;
     m_VideoOption.background_render = ReadBool("VIDEO", "BACKGROUND_RENDER", true);
     m_VideoOption.map_prefetch = ReadBool("VIDEO", "MAP_PREFETCH", true);
+    m_VideoOption.bone_fx_budget = ReadBool("VIDEO", "BONE_FX_BUDGET", true);
     /// Amortised-loading budget. Does nothing for terrain meshes (measured lead
     /// time there is 1 frame, so there is no slack to exploit), but it is what
     /// fixes *textures*: their load_weight is "1 ms per KB", so a 350 KB lightmap
@@ -339,6 +340,7 @@ CClientStorage::Save() {
 
     WriteBool("VIDEO", "BACKGROUND_RENDER", m_VideoOption.background_render);
     WriteBool("VIDEO", "MAP_PREFETCH", m_VideoOption.map_prefetch);
+    WriteBool("VIDEO", "BONE_FX_BUDGET", m_VideoOption.bone_fx_budget);
 
     itoa(m_VideoOption.load_budget_us, szTemp, 10);
     WritePrivateProfileString("VIDEO", "LOAD_BUDGET_US", szTemp, g_szIniFileName);

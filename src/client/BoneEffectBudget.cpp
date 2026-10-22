@@ -2,15 +2,16 @@
 
 #include "BoneEffectBudget.h"
 #include "CObjCHAR.h"
+#include "cclientstorage.h"
 #include "OBJECT.h"
 
 namespace {
-// Particle texture batching removes most of the draw-call pressure for additive
-// bone auras, but particle simulation still has a real cost. Keep this relaxed
-// budget bounded so the tier system remains the safety net in dense scenes.
-const int kCapacityBudget = 480;
-const float kEmitRateBudget = 360.0f;
-const int kMaxFullDuplicates = 3;
+// A ceiling for pathological scenes, not a crowd limit. Measured 2026-10-22 on
+// the mid-range target (RTX 5060): 30 Frozen Thorns at full tier = 1,982 live
+// particles in 2 batched draws, 184 FPS, scnupd 0.8 ms, present 0.3 ms. The
+// old 480-particle / 360 emit/s / 3-copies-per-aura limits predate batching
+// and switched off a third of that pack for no measurable saving.
+const int kCapacityBudget = 8000;
 const DWORD kDemoteDelayMs = 250;
 const DWORD kPromoteDelayMs = 1000;
 
@@ -83,12 +84,6 @@ CBoneEffectBudget::Unregister(CEffect* pEffect) {
     }
 }
 
-unsigned __int64
-CBoneEffectBudget::MakeSignature(const Record& record) const {
-    return (static_cast<unsigned __int64>(record.npcId & 0xffff) << 48)
-        ^ static_cast<unsigned __int64>(record.effectHash);
-}
-
 int
 CBoneEffectBudget::CapacityForTier(const Record& record, EParticleEffectTier tier) const {
     switch (tier) {
@@ -105,56 +100,24 @@ CBoneEffectBudget::CapacityForTier(const Record& record, EParticleEffectTier tie
     }
 }
 
-float
-CBoneEffectBudget::EmitRateForTier(const Record& record, EParticleEffectTier tier) const {
-    switch (tier) {
-        case PARTICLE_EFFECT_TIER_REDUCED:
-            return record.configuredEmitRate * 0.35f;
-        case PARTICLE_EFFECT_TIER_MINIMAL:
-            return record.configuredEmitRate * 0.08f;
-        case PARTICLE_EFFECT_TIER_OFF:
-            return 0.0f;
-        case PARTICLE_EFFECT_TIER_FULL:
-        default:
-            return record.configuredEmitRate;
-    }
-}
-
 EParticleEffectTier
-CBoneEffectBudget::PickTier(
-    const Record& record,
-    int& usedCapacity,
-    float& usedEmitRate,
-    std::map<unsigned __int64, int>& fullDuplicateCounts) {
+CBoneEffectBudget::PickTier(const Record& record, int& usedCapacity) {
     if (!record.visible)
         return PARTICLE_EFFECT_TIER_OFF;
 
-    const unsigned __int64 signature = MakeSignature(record);
-    if (fullDuplicateCounts[signature] < kMaxFullDuplicates) {
-        const int fullCapacity = CapacityForTier(record, PARTICLE_EFFECT_TIER_FULL);
-        const float fullEmitRate = EmitRateForTier(record, PARTICLE_EFFECT_TIER_FULL);
-        if (usedCapacity + fullCapacity <= kCapacityBudget && usedEmitRate + fullEmitRate <= kEmitRateBudget) {
-            usedCapacity += fullCapacity;
-            usedEmitRate += fullEmitRate;
-            fullDuplicateCounts[signature]++;
-            return PARTICLE_EFFECT_TIER_FULL;
+    // [VIDEO] BONE_FX_BUDGET=0 lifts even the ceiling (testing only).
+    if (!g_ClientStorage.GetBoneFxBudget())
+        return PARTICLE_EFFECT_TIER_FULL;
+
+    // Records arrive nearest-first, so past the ceiling the farthest degrade.
+    const EParticleEffectTier tiers[] = {
+        PARTICLE_EFFECT_TIER_FULL, PARTICLE_EFFECT_TIER_REDUCED, PARTICLE_EFFECT_TIER_MINIMAL};
+    for (int i = 0; i < _countof(tiers); ++i) {
+        const int capacity = CapacityForTier(record, tiers[i]);
+        if (usedCapacity + capacity <= kCapacityBudget) {
+            usedCapacity += capacity;
+            return tiers[i];
         }
-    }
-
-    const int reducedCapacity = CapacityForTier(record, PARTICLE_EFFECT_TIER_REDUCED);
-    const float reducedEmitRate = EmitRateForTier(record, PARTICLE_EFFECT_TIER_REDUCED);
-    if (usedCapacity + reducedCapacity <= kCapacityBudget && usedEmitRate + reducedEmitRate <= kEmitRateBudget) {
-        usedCapacity += reducedCapacity;
-        usedEmitRate += reducedEmitRate;
-        return PARTICLE_EFFECT_TIER_REDUCED;
-    }
-
-    const int minimalCapacity = CapacityForTier(record, PARTICLE_EFFECT_TIER_MINIMAL);
-    const float minimalEmitRate = EmitRateForTier(record, PARTICLE_EFFECT_TIER_MINIMAL);
-    if (usedCapacity + minimalCapacity <= kCapacityBudget && usedEmitRate + minimalEmitRate <= kEmitRateBudget) {
-        usedCapacity += minimalCapacity;
-        usedEmitRate += minimalEmitRate;
-        return PARTICLE_EFFECT_TIER_MINIMAL;
     }
 
     return PARTICLE_EFFECT_TIER_OFF;
@@ -256,13 +219,10 @@ CBoneEffectBudget::Update() {
     });
 
     int usedCapacity = 0;
-    float usedEmitRate = 0.0f;
-    std::map<unsigned __int64, int> fullDuplicateCounts;
 
     for (std::vector<int>::iterator it = order.begin(); it != order.end(); ++it) {
         Record& record = m_Records[*it];
-        const EParticleEffectTier desiredTier =
-            PickTier(record, usedCapacity, usedEmitRate, fullDuplicateCounts);
+        const EParticleEffectTier desiredTier = PickTier(record, usedCapacity);
         ApplyTierWithHysteresis(record, desiredTier, now);
     }
 }

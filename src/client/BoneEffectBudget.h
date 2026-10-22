@@ -53,14 +53,8 @@ private:
     CBoneEffectBudget();
 
     void ApplyTierWithHysteresis(Record& record, EParticleEffectTier desiredTier, DWORD now);
-    EParticleEffectTier PickTier(
-        const Record& record,
-        int& usedCapacity,
-        float& usedEmitRate,
-        std::map<unsigned __int64, int>& fullDuplicateCounts);
-    unsigned __int64 MakeSignature(const Record& record) const;
+    EParticleEffectTier PickTier(const Record& record, int& usedCapacity);
     int CapacityForTier(const Record& record, EParticleEffectTier tier) const;
-    float EmitRateForTier(const Record& record, EParticleEffectTier tier) const;
 
     std::vector<Record> m_Records;
     BoneEffectBudgetStats m_Stats;
