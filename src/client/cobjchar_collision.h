@@ -102,6 +102,7 @@ public:
 
     void UpdateFootHeight_Avatar(void);
     void UpdateFootHeight_Other(void);
+    bool ProbeObjectFloor_Avatar(void); // return true if a walkable object floor was kept
 
     void UpdatePositionAfterCollision(void);
     void UpdatePositionAfterNonCollision(void);

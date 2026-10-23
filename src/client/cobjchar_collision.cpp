@@ -1293,11 +1293,61 @@ CObjCHAR_Collision::CollisionResponseNone_Avatar(void)
     m_vNext.z = m_fTerrainHeight;
     m_pObj->SetCollisionGroundNode(NULL);
     UpdateFootHeight_Avatar();
+    if (ProbeObjectFloor_Avatar()) {
+        UpdatePositionAfterNonCollision(); // on an object floor: the terrain's slope rule does not apply
+        return;
+    }
     if (!ApplySliding()) {
         StopMovingForCollision();
         return;
     }
     UpdatePositionAfterNonCollision();
+}
+
+//--------------------------------------------------------------------------------
+/// The avatar's spheres touched nothing this step, yet a walkway or bridge deck can still be
+/// right under its feet: at a deck's edge, or over a joint between its planks, the 15 cm foot
+/// sphere misses the mesh for a frame. The avatar then dropped to the terrain for that frame --
+/// a dip where the terrain lies just under the deck, and the slope rule refusing the step where
+/// that terrain is steep (Shadow Canyon's plank road and rope bridges, 2026-10-24). A walkable
+/// polygon floor (collision polygon, not "not moveable") within AVATAR_FLOOR_STEP of the feet
+/// keeps the avatar on the object. Walking off the deck leaves no floor in that band, so the
+/// terrain takes over as before; a deck far above or below is never reached.
+bool
+CObjCHAR_Collision::ProbeObjectFloor_Avatar(void)
+//--------------------------------------------------------------------------------
+{
+    const float AVATAR_FLOOR_STEP = 30.0f;
+    D3DXVECTOR3 DIRECTION_DOWN(0, 0, -1);
+    D3DXVECTOR3 origin(m_vCurrent.x, m_vCurrent.y, m_vCurrent.z + AVATAR_FLOOR_STEP);
+
+    HNODE hFloor = NULL;
+    float fFloor = m_fTerrainHeight;
+    for (std::vector<HNODE>::iterator it = m_ContactNodes.begin(); it != m_ContactNodes.end();
+         ++it) {
+        int level = ::getCollisionLevel(*it);
+        if (!ZZ_IS_POLYGON_LEVEL(level) || ZZ_IS_NOTMOVEABLE(level))
+            continue;
+
+        // a miss is ZZ_INFINITE, a null node 0: neither is a floor
+        float distance = ::shootRayVec3(*it, 1 /* nearest */, origin, DIRECTION_DOWN);
+        if (distance <= 0.0f || distance >= 1000000.0f)
+            continue;
+
+        float height = origin.z - distance;
+        if (height < m_vCurrent.z - AVATAR_FLOOR_STEP || height <= fFloor)
+            continue;
+
+        fFloor = height;
+        hFloor = *it;
+    }
+
+    if (NULL == hFloor)
+        return false;
+
+    m_vNext.z = fFloor;
+    m_pObj->SetCollisionGroundNode(hFloor);
+    return true;
 }
 
 //--------------------------------------------------------------------------------
