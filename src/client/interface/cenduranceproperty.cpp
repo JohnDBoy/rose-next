@@ -457,7 +457,7 @@ CEndurancePack::Draw() {
                 ///------------------------------------------------------------------------------
                 /// flash..
                 int iElapsedTime = g_GameDATA.GetGameTime() - pEntity->GetStartTime();
-                int iEnduranceTime = pEntity->GetEnduranceTime() * 1000;
+                int iEnduranceTime = pEntity->GetEnduranceTimeMs();
                 int iRemainedTime = abs(iEnduranceTime - iElapsedTime);
                 int iVisibility = 255;
                 if (iRemainedTime < 10000

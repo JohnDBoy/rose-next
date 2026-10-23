@@ -227,7 +227,7 @@ RoseRmlBuffBar::CollectBuffs(CObjCHAR* pChar, std::vector<BuffVM>& out, int iSki
         vm.name = pszName ? pszName : "";
 
         const int iElapsed = iNow - pEntity->GetStartTime();
-        const int iDuration = pEntity->GetEnduranceTime() * 1000;
+        const int iDuration = pEntity->GetEnduranceTimeMs();
         const int iRemain = abs(iDuration - iElapsed);
 
         if (i == ING_GODDESS) {

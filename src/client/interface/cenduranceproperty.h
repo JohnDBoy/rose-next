@@ -171,6 +171,12 @@ public:
 
     virtual int GetEntityIDX() { return m_iEndityIdx; };
     virtual int GetEnduranceTime() { return m_iEnduranceTime; }
+    /// The duration in ms, for display: a skill status holds seconds, a use item
+    /// ( potion, food ) holds ms -- CEnduranceItem::Proc compares it to elapsed ms.
+    int GetEnduranceTimeMs() {
+        return m_iEnduranceEndityType == ENDURANCE_TYPE_USEITEM ? m_iEnduranceTime
+                                                                : m_iEnduranceTime * 1000;
+    }
     virtual int GeteEntityType() { return m_iEnduranceEndityType; };
     virtual int GetStartTime() { return m_iStartTime; }
     virtual int GetStateSTBNO() { return m_iStatusSTBNO; }
