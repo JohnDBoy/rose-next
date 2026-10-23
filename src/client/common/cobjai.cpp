@@ -1630,6 +1630,20 @@ CObjAI::ProcCMD_MOVE() {
             }
 
             return 1;
+        } else if (pTarget->IsA(OBJ_MOB)) {
+            // A player in CMD_MOVE on a monster is the attack walk (Recv_gsv_ATTACK ->
+            // SetCombatAttackIntent), and m_PosGOTO is the monster's centre. Halt at
+            // attack range and let the server's CombatSwing start the attack: walking on
+            // put the player inside the monster whenever that swing came late, and the
+            // attack loop never steps back out. Stop early only, never chase -- a walk to
+            // a spot interrupted by a cast on a monster also lands here, and there the
+            // server stops (see CommandToRestoreAfterSkill).
+            if (IsInRANGE(pTarget, this->Get_AttackRange())) {
+                this->m_PosGOTO = this->m_PosCUR;
+                this->Move_COMPLETED();
+                SetCMD_STOP();
+                return 1;
+            }
         }
     } else if (pTarget) {
         // AI character (monster, NPC, summon) chasing a target — track the
