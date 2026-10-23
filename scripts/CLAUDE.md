@@ -942,6 +942,14 @@ cols 56-67) play only on clip event frames 44/64/74/84; most monster clips have 
 spell that hits nobody shows nothing unless the caster gets clip copies with them (the
 Warden of the Seal's `SEAL_CLIPS` in `import-cerberus.py`).
 
+- **A part added to a map object must be a child of its root part.** The client applies a
+  placement's rotation and scale to the model's root part only (`CObjFIXED` on
+  `m_nRootPART`), and `CMODEL::Load` takes the **last** parentless part as that root: a second
+  parentless part steals the rotation and every other part stands unrotated. The map editor
+  transforms every part, so its renders look right (Shadow Canyon's bridge stitches,
+  2026-10-24: `import-valley002.py` `child_props`). Also from that map: the client's ground ray
+  falls through plank joints a few cm wide, and its slope rule applies whenever the foot is
+  within 15 cm of the terrain (`AVATAR_FOOT_RADIUS`), even on an object floor.
 - `quest-editor con-toll` gained `--open-when N --closed T`: an opening-hours gate on
   the NPC's event value 0, read on the client with
   `QF_getNpcQuestZeroVal(QF_getEventOwner(E))` because COND_011 always passes there.

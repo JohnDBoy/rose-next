@@ -90,6 +90,20 @@ RUNS ON RECORD (data/ is gitignored, so this list is the only committed history)
   at ~10.7 ms each on every zone entry (40 in one test session). The lair's 441
   object lightmaps are 32-128 px, never reach the 2 ms log threshold, and were
   left unmipped like Oro's.
+- 2026-10-23, Shadow Canyon (`import-valley002.py`): **97 files**, `--subdir` per
+  folder the import filled -- `MAPOBJ/STONE/Valley002` (31), `MAPOBJ/DDS` (6),
+  `MAPOBJ/{Sky,WATER/pokpo,HOUSE/FZCY}` (1 each), `TERRAIN/TILES/JUNON/JG` (20 new
+  tiles) and `MAPS/JUNON/VALLEY002` (36 ground lightmaps + the minimap). Each of
+  those folders held only the import's unmipped files. Left as tsuki shipped it:
+  `EFFECT/PARTICLES/TEXTURE/RAINBOW.DDS`, whose folder holds four older unmipped
+  files no import of this session brought. A full `--dry-run` that day listed 164
+  files: the other 56 are castle gear, `BOSS_weilian`, `MOB_ICANES_WARDEN` and
+  effect meshes from earlier imports, not looked at.
+  Same day, after the in-game test: `--subdir 3DDATA/MAPS/JUNON/VALLEY002
+  --lightmaps`, **55 object lightmaps** (32-256 px, 3 levels; `--selftest` clean).
+  They were 85 of the session's 126 slow creates, 578 of 696 ms, re-paid each
+  time terrain streaming brought a chunk back -- unlike Cerberus's, which never
+  reached the threshold.
 
 Uses thirdparty/directxtex-2020.9.30/texconv.exe, which was already vendored in
 this repo and used by nothing at all.

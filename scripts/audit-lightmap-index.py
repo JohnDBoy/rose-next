@@ -107,6 +107,15 @@ def baked_mesh(tga):
     return bits[0].lower()
 
 
+def same_mesh(baked, stem):
+    """Whether a tga's mesh name is the record's mesh. The Chinese custom maps in
+    tsuki (Valley002, ID09, ...) were baked by a tool that kept only the last two
+    `_`/`-` pieces of the mesh name (`VLY002_veg_tree002_A` -> `tree002_A`,
+    `id09_ect_death's-head_004` -> `head_004`), which read as 337 false mismatches
+    over two maps before this test."""
+    return stem is not None and (baked == stem or stem.endswith(("_" + baked, "-" + baked)))
+
+
 def mesh_stem(meshes, part):
     i = part["mesh"]
     if not 0 <= i < len(meshes):
@@ -235,7 +244,7 @@ def audit_chunk(zdir, stem, zscs, add):
                     add("VISUAL", "%s: ordinal %d (object %d) part %d is drawn on part %d (GetPartIndex)"
                         % (where, o.obj_index, oid, pt.part_index, k))
                 bm = baked_mesh(pt.tga_name)
-                if bm and 0 <= k < len(parts) and bm != mesh_stem(meshes, parts[k]):
+                if bm and 0 <= k < len(parts) and not same_mesh(bm, mesh_stem(meshes, parts[k])):
                     add("VISUAL", "%s: ordinal %d part %d was baked for %s, the record is now %s (object "
                         "deleted after the bake?)" % (where, o.obj_index, pt.part_index, bm,
                                                       mesh_stem(meshes, parts[k])))
