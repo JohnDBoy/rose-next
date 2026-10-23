@@ -57,7 +57,7 @@ CPartyBUFF::CreatePARTY(classUSER* pOwner) {
 }
 void
 CPartyBUFF::DeletePARTY(CParty* pCParty) {
-    // µøΩ√ø° DeletePARTY»£√‚âÈ ∏¯«œµµ∑œ :: 2004. 10. 05 :: 5-3 º∑ ¥ŸøÓ ø¯¿Œ... 0x8d050
+    // ÎèôÏãúÏóê DeletePARTYÌò∏Ï∂úÎêÆ Î™ªÌïòÎèÑÎ°ù :: 2004. 10. 05 :: 5-3 ÏÑ≠ Îã§Ïö¥ ÏõêÏù∏... 0x8d050
     this->m_csPartyBUFF.Lock();
 
     if (this->m_pINDEX[pCParty->m_wPartyWSID]) {
@@ -103,14 +103,14 @@ CParty::OnConnect(classUSER* pUSER) {
             }
 
             if (this->m_pPartyUSERs[nI]->m_dwDBID == pUSER->m_dwDBID) {
-                // ¡¢º” ≤˜±‰»ƒ æ∆¡˜ ∆ƒ∆ºø° ≥≤æ∆ ¿÷¥Ÿ.
+                // Ï†ëÏÜç ÎÅäÍ∏¥ÌõÑ ÏïÑÏßÅ ÌååÌã∞Ïóê ÎÇ®ÏïÑ ÏûàÎã§.
                 pUSER->m_pPartyBUFF = this;
                 pUSER->m_nPartyPOS = nI;
 
                 this->m_pPartyUSERs[nI]->m_pUSER = pUSER;
                 this->m_pPartyUSERs[nI]->m_dwDisconnectTIME = 0;
 
-                // ¬¸ºÆ¿⁄ø°∞‘ ±‚¡∏ ªÁøÎ¿⁄ ¡§∫∏ ¿¸º€.
+                // Ï∞∏ÏÑùÏûêÏóêÍ≤å Í∏∞Ï°¥ ÏÇ¨Ïö©Ïûê Ï†ïÎ≥¥ Ï†ÑÏÜ°.
                 pUSER->Send_gsv_PARTY_REPLY(0, PARTY_REPLY_REJOIN);
                 this->Send_PartyUserLIST(pUSER, pUSER->m_dwDBID);
                 break;
@@ -126,8 +126,8 @@ CParty::OnConnect(classUSER* pUSER) {
 //-------------------------------------------------------------------------------------------------
 void
 CParty::OnDisconnect(classUSER* pUSER) {
-    // !!!! SQL æ≤∑°µÂø°º≠ this->Lock ∞…∑¡ µÈæÓø»
-    // ∏µŒ µΩ∫≥≠ ªÛ≈¬∏È ∆ƒ∆º ª«∞∑.
+    // !!!! SQL Ïì∞ÎûòÎìúÏóêÏÑú this->Lock Í±∏Î†§ Îì§Ïñ¥Ïò¥
+    // Î™®Îëê ÎîîÏä§ÎÇú ÏÉÅÌÉúÎ©¥ ÌååÌã∞ ÎΩÄÍ∞¨.
     tagPartyUSER* pPU;
 #ifdef __USE_ARRAY_PARTY_USER
     pPU = this->m_pPartyUSERs[pUSER->m_nPartyPOS];
@@ -137,9 +137,9 @@ CParty::OnDisconnect(classUSER* pUSER) {
     pPU->m_pUSER = NULL;
     pPU->m_dwDisconnectTIME = classTIME::GetCurrentAbsSecond();
 
-    // ∆ƒ¬Ø¿Ã∏È ¿Ã»ƒ ªÁøÎ¿⁄ø°∞‘ ∆ƒ¬Ø π∞∏≤.
+    // ÌååÏß±Ïù¥Î©¥ Ïù¥ÌõÑ ÏÇ¨Ïö©ÏûêÏóêÍ≤å ÌååÏß± Î¨ºÎ¶º.
 #ifdef __USE_ARRAY_PARTY_USER
-    if (0 == pUSER->m_nPartyPOS) { // ∆ƒ∆º ø¿≥ ∞° ¬©∑»≥◊...
+    if (0 == pUSER->m_nPartyPOS) { // ÌååÌã∞ Ïò§ÎÑàÍ∞Ä Ïß§Î†∏ÎÑ§...
         for (short nI = 1; nI < this->m_nMemberCNT; nI++) {
             if (NULL == this->m_pPartyUSERs[nI]) {
                 continue;
@@ -151,12 +151,12 @@ CParty::OnDisconnect(classUSER* pUSER) {
                 return;
             }
         }
-        // ∆ƒ¬Ø¿Ã æ∆¥œ∂Û¥¬∞« ∆ƒ¬Ø¿Ã ªÏæ∆¿÷¥Ÿ¥¬∂Ê(∆ƒ¬Ø¿Ã ¬©∏Æ∏È ªÏ¿∫≥—«—≈◊ ∆ƒ¬Ø¿ª ≥—±‚±‚∂´ø°..)
+        // ÌååÏß±Ïù¥ ÏïÑÎãàÎùºÎäîÍ±¥ ÌååÏß±Ïù¥ ÏÇ¥ÏïÑÏûàÎã§ÎäîÎúª(ÌååÏß±Ïù¥ Ïß§Î¶¨Î©¥ ÏÇ¥ÏùÄÎÑòÌïúÌÖå ÌååÏß±ÏùÑ ÎÑòÍ∏∞Í∏∞ÎïúÏóê..)
         g_pPartyBUFF->DeletePARTY(this);
         return;
     }
 
-    // ∆ƒ∆ºø¯¿Ã ¬©∑»¥Ÿ.
+    // ÌååÌã∞ÏõêÏù¥ Ïß§Î†∏Îã§.
     this->Send_gsv_PARTY_REPLY2Members(PARTY_REPLY_DISCONNECT, pPU->m_dwDBID);
     return;
 #else
@@ -215,7 +215,7 @@ CParty::SendWhisperToPartyMembers(char* szMessage) {
 
     pCPacket->m_HEADER.m_wType = GSV_WHISPER;
     pCPacket->m_HEADER.m_nSize = sizeof(gsv_WHISPER);
-    pCPacket->AppendString("∆ƒ∆ºø…º«");
+    pCPacket->AppendString("ÌååÌã∞ÏòµÏÖò");
     pCPacket->AppendString(szMessage);
 
     this->SendToPartyMembers(pCPacket);
@@ -384,10 +384,10 @@ CParty::AddEXP(CObjMOB* pMobCHAR, __int64 iTotalEXP, int iPartyExpA, int iPartyE
 #else
         x
 #endif
-        if (iNearUSER > 1) { // ∆ƒ∆º∑Œ º÷∑Œ∏µ«œ¥¬∞« æ»µ≈~~
+        if (iNearUSER > 1) { // ÌååÌã∞Î°ú ÏÜîÎ°úÎßÅÌïòÎäîÍ±¥ ÏïàÎèº~~
             __int64 iEXP;
             if (this->m_btPartyRULE & BIT_PARTY_RULE_EXP_PER_PLAYER) {
-                // ∞≥¿Œ ∑π∫ßø° µ˚∂Û ∫–πË...
+                // Í∞úÏù∏ Î†àÎ≤®Ïóê Îî∞Îùº Î∂ÑÎ∞∞...
                 for (iD = 0; iD < iNearUSER; iD++) {
                     iEXP = (iTotalEXP * (m_btPartyLEV + 101))
                         * (pNearUSER[iD]->Get_LEVEL() + 35 - m_iAverageLEV) / (iNearUSER * 4 + 1)
@@ -399,7 +399,7 @@ CParty::AddEXP(CObjMOB* pMobCHAR, __int64 iTotalEXP, int iPartyExpA, int iPartyE
                         bFindOwner = true;
                 }
             } else {
-                // ∆ƒ∆ºø¯ø°∞‘ ±’µÓ ∫–πË...
+                // ÌååÌã∞ÏõêÏóêÍ≤å Í∑†Îì± Î∂ÑÎ∞∞...
                 iEXP = (iTotalEXP * (this->m_btPartyLEV + 101)) / (iNearUSER * 4 + 1) / 20;
                 if (iEXP > 0) {
                     for (iD = 0; iD < iNearUSER; iD++) {
@@ -413,23 +413,23 @@ CParty::AddEXP(CObjMOB* pMobCHAR, __int64 iTotalEXP, int iPartyExpA, int iPartyE
     }
     this->Unlock();
 
-    // ∆ƒ∆º¿Â¿Ã ∞∞¿∫ ∑Œƒ√ ¡∏ø° ¿÷≥ƒ?
+    // ÌååÌã∞Ïû•Ïù¥ Í∞ôÏùÄ Î°úÏª¨ Ï°¥Ïóê ÏûàÎÉê?
     if (iNearUSER > 1 && bFindOwner && m_btPartyLEV < MAX_PARTY_LEVEL) {
         int iCalEXP, iNewEXP;
         DWORD dwCurTIME = pMobCHAR->GetZONE()->GetCurrentTIME();
         BYTE btLevelUP = 0;
 
-        // ¿œ¡§ ∞£∞› ∞®º“µ«¥¬ ∞Ê«Ëƒ°.
+        // ÏùºÏ†ï Í∞ÑÍ≤© Í∞êÏÜåÎêòÎäî Í≤ΩÌóòÏπò.
         iCalEXP = (m_btPartyLEV / 2 + m_nMemberCNT) * (dwCurTIME - this->m_dwLastKillTIME)
             / PARTY_EXP_UPDATE_TIME;
         this->m_dwLastKillTIME = dwCurTIME;
 
         iNewEXP = (iCalEXP > m_iPartyEXP) ? 0 : m_iPartyEXP - iCalEXP;
 
-        // æÚ¥¬ ∞Ê«Ëƒ°
+        // ÏñªÎäî Í≤ΩÌóòÏπò
         int iDiffLEV = pMobCHAR->Get_LEVEL() - m_iAverageLEV;
         if (iDiffLEV >= 0) {
-            // æÚ¥¬ ∆ƒ∆º ∞Ê«Ëƒ° = (∏˜∑π∫ß-∆ƒ∆º∆Ú±’ ∑π∫ß + A) * (∏˜∑π∫ß-∆ƒ∆º∆Ú±’ ∑π∫ß + A + 1) * B/10
+            // ÏñªÎäî ÌååÌã∞ Í≤ΩÌóòÏπò = (Î™πÎ†àÎ≤®-ÌååÌã∞ÌèâÍ∑† Î†àÎ≤® + A) * (Î™πÎ†àÎ≤®-ÌååÌã∞ÌèâÍ∑† Î†àÎ≤® + A + 1) * B/10
             // + 2 iCalEXP = ( iDiffLEV + 2 ) * ( iDiffLEV + 1 ) + 2;
             iCalEXP = (iDiffLEV + iPartyExpA) * (iDiffLEV + iPartyExpA + 1) * iPartyExpB / 10 + 2;
 
@@ -438,7 +438,7 @@ CParty::AddEXP(CObjMOB* pMobCHAR, __int64 iTotalEXP, int iPartyExpA, int iPartyE
             if (iNewEXP >= iCalEXP) {
                 iNewEXP -= iCalEXP;
                 m_btPartyLEV++;
-                // ∏µÁ ∆ƒ∆ºø¯ HP/MP ≤À~~
+                // Î™®Îì† ÌååÌã∞Ïõê HP/MP ÍΩâ~~
                 this->LevelUP();
                 btLevelUP = 1;
             }
@@ -533,7 +533,7 @@ CParty::Change_PartyOWNER(classUSER* pNewOWNER, BYTE btReply) {
 //
 //	if ( this->m_nMaxUserLEV - this->m_nMinUserLEV >= 10 ) {
 //		if ( 0 == ( this->m_btPartyRULE & BIT_PARTY_RULE_EXP_PER_PLAYER ) ) {
-//			// ∞≥¿Œ ∑π∫ßø° µ˚∂Û ∫–πË∑Œ ∫Ø∞Ê...
+//			// Í∞úÏù∏ Î†àÎ≤®Ïóê Îî∞Îùº Î∂ÑÎ∞∞Î°ú Î≥ÄÍ≤Ω...
 //			this->Set_PartyRULE( this->m_btPartyRULE );
 //		}
 //	}
@@ -548,7 +548,7 @@ CParty::Send_PartyUserLIST(classUSER* pUSER, DWORD dwUserTAG) {
     if (!pCPacket)
         return false;
 
-    // pUSERø°∞‘ ±‚¡∏ ¿Ø¿˙µÈ ¡§∫∏ ¿¸º€...
+    // pUSERÏóêÍ≤å Í∏∞Ï°¥ Ïú†Ï†ÄÎì§ Ï†ïÎ≥¥ Ï†ÑÏÜ°...
     pCPacket->m_HEADER.m_wType = GSV_PARTY_MEMBER;
     pCPacket->m_HEADER.m_nSize = sizeof(gsv_PARTY_MEMBER);
     pCPacket->m_gsv_PARTY_MEMBER.m_btPartyRULE = this->m_btPartyRULE;
@@ -568,7 +568,7 @@ CParty::Send_PartyUserLIST(classUSER* pUSER, DWORD dwUserTAG) {
             }
 
             if (dwUserTAG != m_pPartyUSERs[nI]->m_dwDBID) {
-                // ∫Ò¡§ªÛ ¡æ∑·»ƒ ¡¢º”Ω√ ¿⁄Ω≈ø°∞‘ ¿⁄Ω≈¿« ¡§∫∏ ¿¸º€«œ¡ˆ æ µµ∑œ...
+                // ÎπÑÏ†ïÏÉÅ Ï¢ÖÎ£åÌõÑ Ï†ëÏÜçÏãú ÏûêÏã†ÏóêÍ≤å ÏûêÏã†Ïùò Ï†ïÎ≥¥ Ï†ÑÏÜ°ÌïòÏßÄ ÏïäÎèÑÎ°ù...
                 if (m_pPartyUSERs[nI]->m_pUSER) {
                     sMember.m_dwUserTAG = m_pPartyUSERs[nI]->m_pUSER->m_dwDBID;
                     sMember.m_wObjectIDX = m_pPartyUSERs[nI]->m_pUSER->Get_INDEX();
@@ -604,17 +604,17 @@ CParty::Send_PartyUserLIST(classUSER* pUSER, DWORD dwUserTAG) {
 
 BYTE
 CParty::Add_PartyUSER(classUSER* pUSER) {
-    // 05.05.25 ¥Î∏∏ ø¿∫£¿Ã»ƒ¥¬ ∆ƒ∆ºø¯¿∫ π´¡∂∞« 5∏Ì !!!
+    // 05.05.25 ÎåÄÎßå Ïò§Î≤†Ïù¥ÌõÑÎäî ÌååÌã∞ÏõêÏùÄ Î¨¥Ï°∞Í±¥ 5Î™Ö !!!
     short nMaxUser = this->m_btPartyLEV / 5 + 4;
 
-    // ±‚¡∏ ¿Ø¿˙ø°∞‘ ªı∑ŒøÓ ¿Ø¿˙ µÈø‘¥Ÿ∞Ì ¿¸º€...
+    // Í∏∞Ï°¥ Ïú†Ï†ÄÏóêÍ≤å ÏÉàÎ°úÏö¥ Ïú†Ï†Ä Îì§ÏôîÎã§Í≥† Ï†ÑÏÜ°...
     classPACKET* pCPacket = Packet_AllocNLock();
     if (!pCPacket)
         return 0;
 
     this->Lock();
     {
-        // ¡§ø¯ √ ∞˙ ?
+        // Ï†ïÏõê Ï¥àÍ≥º ?
         if (this->m_nMemberCNT >= nMaxUser || this->m_nMemberCNT >= MAX_PARTY_MEMBERS) {
             this->Unlock();
             return PARTY_REPLY_FULL_MEMBERS;
@@ -727,10 +727,10 @@ CParty::Sub_PartyUSER(short nPartyPOS) {
     this->Unlock();
 
     if (m_nMemberCNT <= 1) {
-        // 1∏Ì ≥≤æ“¿∏∏È ∆ƒ∆º ª«∞µ¥Ÿ.
+        // 1Î™Ö ÎÇ®ÏïòÏúºÎ©¥ ÌååÌã∞ ÎΩÄÍ∞†Îã§.
         g_pPartyBUFF->DeletePARTY(this);
     } else {
-        // ≥≤¿∫ ¿Ø¿˙ø°∞‘ ¿Ø¿˙ ≈ª≈ ≈Î∫∏...
+        // ÎÇ®ÏùÄ Ïú†Ï†ÄÏóêÍ≤å Ïú†Ï†Ä ÌÉàÌá¥ ÌÜµÎ≥¥...
         classPACKET* pCPacket;
         pCPacket = Packet_AllocNLock();
         if (!pCPacket)
@@ -764,7 +764,7 @@ CParty::Share_MONEY(int iMoney) {
                 continue;
             }
             if (this->m_pPartyUSERs[nI]
-                    ->m_pUSER) { // 0x0008bce5 ø¿∑˘... NULL == this->m_pPartyUSERs[ nI ] ???
+                    ->m_pUSER) { // 0x0008bce5 Ïò§Î•ò... NULL == this->m_pPartyUSERs[ nI ] ???
                 this->m_pPartyUSERs[nI]->m_pUSER->Add_MoneyNSend(iAdd, GSV_SET_MONEY_ONLY);
             }
         }
@@ -803,11 +803,11 @@ CParty::Give_Item2ORDER(classUSER* pTryOBJ, CObjITEM* pItemOBJ) {
         BYTE btOrder = m_btItemORDERs[InvPage];
         for (short nI = 0; nI < m_nMemberCNT; nI++) {
             btOrder = (1 + btOrder) % m_nMemberCNT;
-            // ∞∞¿∫ ¡∏¿Ã∏È º¯º≠¿⁄ø°∞‘...
+            // Í∞ôÏùÄ Ï°¥Ïù¥Î©¥ ÏàúÏÑúÏûêÏóêÍ≤å...
             if (m_pPartyUSERs[btOrder] && m_pPartyUSERs[btOrder]->m_pUSER
                 && m_pPartyUSERs[btOrder]->m_pUSER->GetZONE() == pTryOBJ->GetZONE()) {
 
-                // ∆ƒ∆ºø¯µÈ«—≈◊ æ∆¿Ã≈€ Ω¿µÊ ∏ﬁºº¡ˆ...
+                // ÌååÌã∞ÏõêÎì§ÌïúÌÖå ÏïÑÏù¥ÌÖú ÏäµÎìù Î©îÏÑ∏ÏßÄ...
                 this->Send_gsv_PARTY_ITEM(m_pPartyUSERs[btOrder]->m_pUSER, pItemOBJ);
                 m_pPartyUSERs[btOrder]->m_pUSER->Pick_ITEM(pItemOBJ);
 
@@ -819,7 +819,7 @@ CParty::Give_Item2ORDER(classUSER* pTryOBJ, CObjITEM* pItemOBJ) {
     }
     this->Unlock();
 
-    // ∏÷∏Æ ¿÷∞≈≥™ ¡¢º” ≤˜±‰ ≥—¿Ã∏È ¡›¿∫≥— ∏‘±‚...
+    // Î©ÄÎ¶¨ ÏûàÍ±∞ÎÇò Ï†ëÏÜç ÎÅäÍ∏¥ ÎÑòÏù¥Î©¥ Ï§çÏùÄÎÑò Î®πÍ∏∞...
     return pTryOBJ->Pick_ITEM(pItemOBJ);
 }
 
@@ -901,7 +901,7 @@ CParty::Set_PartyRULE(BYTE btRULE) {
 
     if (nMaxUserLEV - nMinUserLEV >= 10) {
         if (0 == (btRULE & BIT_PARTY_RULE_EXP_PER_PLAYER)) {
-            // ∞≥¿Œ ∑π∫ßø° µ˚∂Û ∞≠¡¶∑Œ º≥¡§...
+            // Í∞úÏù∏ Î†àÎ≤®Ïóê Îî∞Îùº Í∞ïÏ†úÎ°ú ÏÑ§Ï†ï...
             btRULE |= BIT_PARTY_RULE_EXP_PER_PLAYER;
         }
     }

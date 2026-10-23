@@ -40,7 +40,7 @@ classTHREAD::SetPriority(int iPriority) {
     tpHigher	    The thread's priority is one point above normal.
     tpHighest	    The thread's priority is two points above normal.
     tpTimeCritical	The thread gets highest priority.
-    Warning:		Boosting the thread priority of a CPU intensive operation may “starve?other
+    Warning:		Boosting the thread priority of a CPU intensive operation may ë±’tarve?other
     threads in the application. Only apply priority boosts to threads that spend most of their time
     waiting for external events.
     */
@@ -99,7 +99,7 @@ unsigned __stdcall ThreadFunc(void* lpParameter) {
     pCThread->m_bFinished = true;
     return 0;
 
-    //	DWORD dwResult;		// ¾Æ·¡ ÇÔ¼öµéÀ» »ç¿ëÇØ¼­ »ðÁúÀ» -_-;
+    //	DWORD dwResult;		// ì•„ëž˜ í•¨ìˆ˜ë“¤ì„ ì‚¬ìš©í•´ì„œ ì‚½ì§ˆì„ -_-;
     //	::GetExitCodeThread( pCThread->m_hThread, &dwResult );
     //	::ExitThread ( dwResult );
     //	return dwResult;

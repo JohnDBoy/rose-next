@@ -82,12 +82,12 @@ CChatROOM::ReqKick(classUSER* pUSER, t_HASHKEY HashUSER) {
     m_ListCS.Lock();
 
     if (pUSER->m_pNodeChatROOM == m_ListUSER.GetHeadNode()) {
-        // πÊ¿Â¿Œ∞° ?
+        // Î∞©Ïû•Ïù∏Í∞Ä ?
         CDLList<classUSER*>::tagNODE* pNode;
         pNode = pUSER->m_pNodeChatROOM->GetNext();
         while (pNode) {
             if (pNode->m_VALUE->m_HashCHAR == HashUSER) {
-                // ≥ª ¶i∞Â¥Ÿ...
+                // ÎÇ¥ Ï´íÍ≤ºÎã§...
                 pNode->m_VALUE->Send_wsv_CHATROOM(CHAT_REPLY_KICKED,
                     pNode->m_VALUE->m_iSocketIDX,
                     NULL);
@@ -186,10 +186,10 @@ CChatRoomLIST::Recv_cli_CHATROOM_MSG(classUSER* pUSER, t_PACKET* pPacket) {
                 pPacket->m_cli_CHATROOM_MSG.m_szMSG);
         }
 
-        // æÛ∑°..πÊ¿Ã æ¯¥Á
+        // ÏñºÎûò..Î∞©Ïù¥ ÏóÜÎãπ
         pUSER->m_iChatRoomID = 0;
     }
-    // πÊ¿Ã æ¯æÓ ???
+    // Î∞©Ïù¥ ÏóÜÏñ¥ ???
 
     return true;
 }
@@ -237,10 +237,10 @@ CChatRoomLIST::Recv_cli_CHATROOM(classUSER* pUSER, t_PACKET* pPacket) {
             if (pRoom) {
                 if (pRoom->GetRoomUSERS() < pRoom->m_btMaxUSER) {
                     if (pRoom->m_szPASSWD.BuffLength()) {
-                        // ∫Òπ¯¿÷¥Ÿ.
+                        // ÎπÑÎ≤àÏûàÎã§.
                         char* szPasswd = Packet_GetStringPtr(pPacket, nOffset);
                         if (!szPasswd || strcmp(pRoom->m_szPASSWD.Get(), szPasswd)) {
-                            // ∏∏∂•
+                            // ÎßåÎïÖ
                             pUSER->Send_wsv_CHATROOM(CHAT_REPLY_INVALIED_PASS, 0, NULL);
                             goto _RET_JOIN;
                         }
@@ -249,11 +249,11 @@ CChatRoomLIST::Recv_cli_CHATROOM(classUSER* pUSER, t_PACKET* pPacket) {
                     pRoom->ReqJoin(pUSER);
                     pUSER->m_iChatRoomID = pPacket->m_cli_CHAT_ROOM_JOIN.m_wRoomID;
                 } else {
-                    // ∏∏∂•
+                    // ÎßåÎïÖ
                     pUSER->Send_wsv_CHATROOM(CHAT_REPLY_FULL_USERS, 0, NULL);
                 }
             } else {
-                // πÊæ¯¥Ÿ
+                // Î∞©ÏóÜÎã§
                 pUSER->Send_wsv_CHATROOM(CHAT_REPLY_ROOM_NOT_FOUND, 0, NULL);
             }
         _RET_JOIN:
@@ -293,7 +293,7 @@ CChatRoomLIST::Recv_cli_CHATROOM(classUSER* pUSER, t_PACKET* pPacket) {
                     && pPacket->m_cli_CHAT_ROOM_LIST.m_btRoomTYPE != pRoom->m_btRoomTYPE)
                     continue;
 
-                // πÊ¡§∫∏ ...
+                // Î∞©Ï†ïÎ≥¥ ...
                 sRoom.m_btRoomTYPE = pRoom->m_btRoomTYPE;
                 sRoom.m_cUserCNT = (char)pRoom->GetRoomUSERS();
                 pCPacket->AppendData(&sRoom, sizeof(tag_CHAT_ROOM));
@@ -326,7 +326,7 @@ CChatRoomLIST::LeftUSER(classUSER* pUSER) {
 
         if (pRoom) {
             if (pRoom->ReqLeft(pUSER) <= 0) {
-                // πÊ ª«∞∂∞˜...
+                // Î∞© ÎΩÄÍ∞§Í≥≥...
                 this->m_pINDEX[pUSER->m_iChatRoomID] = NULL;
                 this->m_iUsedSlot--;
             }

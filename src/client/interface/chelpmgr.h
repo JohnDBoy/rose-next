@@ -9,10 +9,10 @@ typedef MAP_HELP::iterator ITER_MAP_HELP;
 typedef MAP_HELP::reverse_iterator RITER_MAP_HELP;
 
 /**
- * ÀÏÁ¤½Ã°£¸¶´Ù È­¸é »ó´Ü¿¡ Help(Tip)À» º¸¿©ÁÖ±â¸¦ °ü¸®ÇÏ´Â Class
- *		- g_TblHELP¿¡¼­ AVATARÀÇ ·¹º§¿¡ ¸Â´Â HelpµéÀÇ Index¸¦ ¸¸µé¾î¼­ °¡Áö°í ÀÖ´Â´Ù.
+ * ì¼ì •ì‹œê°„ë§ˆë‹¤ í™”ë©´ ìƒë‹¨ì— Help(Tip)ì„ ë³´ì—¬ì£¼ê¸°ë¥¼ ê´€ë¦¬í•˜ëŠ” Class
+ *		- g_TblHELPì—ì„œ AVATARì˜ ë ˆë²¨ì— ë§žëŠ” Helpë“¤ì˜ Indexë¥¼ ë§Œë“¤ì–´ì„œ ê°€ì§€ê³  ìžˆëŠ”ë‹¤.
  *
- * @Author		ÃÖÁ¾Áø
+ * @Author		ìµœì¢…ì§„
  *
  * @Date			2005/9/5
  */
@@ -22,9 +22,9 @@ public:
     virtual ~CHelpMgr(void);
     void SetNextHelpMsg();
 
-    /// 1ÇÁ·¹ÀÓ¸¶´Ù ½Ã°£À» Ã¼Å©ÇÏ¿© ´ÙÀ½ TipÀ» º¸¿©ÁÙ ½Ã°£ÀÌ ‰ç´ÂÁö¸¦ °è»êÇÑ´Ù.
+    /// 1í”„ë ˆìž„ë§ˆë‹¤ ì‹œê°„ì„ ì²´í¬í•˜ì—¬ ë‹¤ìŒ Tipì„ ë³´ì—¬ì¤„ ì‹œê°„ì´ ë¬ëŠ”ì§€ë¥¼ ê³„ì‚°í•œë‹¤.
     void UpdateFrame();
-    ///ÃÖÃÊ ½ÇÇà½Ã¿Í ¾Æ¹ÙÅ¸°¡ ·¹º§¾÷½Ã¸¶´Ù È£ÃâÇÏ¿© g_pAVATARÀÇ ·¹º§·Î g_TblHELP¿¡¼­ MapÀ» °»½ÅÇÑ´Ù.
+    ///ìµœì´ˆ ì‹¤í–‰ì‹œì™€ ì•„ë°”íƒ€ê°€ ë ˆë²¨ì—…ì‹œë§ˆë‹¤ í˜¸ì¶œí•˜ì—¬ g_pAVATARì˜ ë ˆë²¨ë¡œ g_TblHELPì—ì„œ Mapì„ ê°±ì‹ í•œë‹¤.
     void Update();
 
     void SetShowTip(bool b) { m_bShowTip = b; }
@@ -35,12 +35,12 @@ protected:
     int GetNextIndex(int iPrevIndex);
 
 protected:
-    int m_iPrevShowHelpID; /// ÀÌÀü Help(Tip)ÀÇ g_TblHELPÀÇ Index
+    int m_iPrevShowHelpID; /// ì´ì „ Help(Tip)ì˜ g_TblHELPì˜ Index
     bool m_bShowTip;
-    DWORD m_dwSetMsgTime; /// ÀÌ¹ø Help(Tip)À» º¸¿©ÁÖ±â ½ÃÀÛÇÑ ½Ã°£
-    DWORD m_dwSetMsgTimeSpace; /// ´ÙÀ½ Help(Tip)À» º¸¿©ÁÖ±â±îÁöÀÇ ½Ã°£
+    DWORD m_dwSetMsgTime; /// ì´ë²ˆ Help(Tip)ì„ ë³´ì—¬ì£¼ê¸° ì‹œìž‘í•œ ì‹œê°„
+    DWORD m_dwSetMsgTimeSpace; /// ë‹¤ìŒ Help(Tip)ì„ ë³´ì—¬ì£¼ê¸°ê¹Œì§€ì˜ ì‹œê°„
 
-    MAP_HELP m_HelpData; ///ÇöÀç ¾Æ¹ÙÅ¸ ·¹º§¿¡ ¸Â´Â Help(Tip) MsgµéÀÇ Index
+    MAP_HELP m_HelpData; ///í˜„ìž¬ ì•„ë°”íƒ€ ë ˆë²¨ì— ë§žëŠ” Help(Tip) Msgë“¤ì˜ Index
 };
 
 extern CHelpMgr g_HelpMgr;

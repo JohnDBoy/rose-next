@@ -58,7 +58,7 @@
 #define STR_CLAN_MEMBER_CONTRIB CStringManager::GetSingleton().GetString(51)
 #define STR_CHANGE_TRADEITEM_IN_MYREADY       \
     CStringManager::GetSingleton().GetString( \
-        52) /// 1:1 °Å·¡Áß ³»°¡ È®ÀÎ ¹öÆ°À» ´©¸¥ »óÅÂ¿¡¼­ »ó´ë¹æÀÇ ¹°Ç°ÀÌ º¯°æµÇ¾ú´Ù.
+        52) /// 1:1 ê±°ë˜ì¤‘ ë‚´ê°€ í™•ì¸ ë²„íŠ¼ì„ ëˆ„ë¥¸ ìƒíƒœì—ì„œ ìƒëŒ€ë°©ì˜ ë¬¼í’ˆì´ ë³€ê²½ë˜ì—ˆë‹¤.
 #define STR_CLAN_MEMBER_COUNT CStringManager::GetSingleton().GetString(53)
 #define STR_CLAN_CANT_PROMOTE CStringManager::GetSingleton().GetString(54)
 #define STR_CLAN_ORGANIZED CStringManager::GetSingleton().GetString(55)
@@ -87,7 +87,7 @@
 #define STR_CLAN_INPUT_SLOGAN CStringManager::GetSingleton().GetString(78)
 
 #define STR_SKILLPOWER_EFFECT_0 \
-    CStringManager::GetSingleton().GetString(80) ///°è»ê½Ä¿¡ µû¸¥ ½ºÅ³ÆÄ¿ö¿¡ ¿µÇâÀ» ¹ÌÄ¡´Â °Í
+    CStringManager::GetSingleton().GetString(80) ///ê³„ì‚°ì‹ì— ë”°ë¥¸ ìŠ¤í‚¬íŒŒì›Œì— ì˜í–¥ì„ ë¯¸ì¹˜ëŠ” ê²ƒ
 #define STR_SKILLPOWER_EFFECT_1 CStringManager::GetSingleton().GetString(81)
 #define STR_SKILLPOWER_EFFECT_2 CStringManager::GetSingleton().GetString(82)
 #define STR_SKILLPOWER_EFFECT_3 CStringManager::GetSingleton().GetString(83)
@@ -103,50 +103,50 @@
 #define STR_CLAN_CREATE_CONDITION CStringManager::GetSingleton().GetString(98)
 
 ////////////////////////////////////////////////////////////////////////////////////
-///  Àü¿ª ½ºÆ®¸µ º¯¼öµé
+///  ì „ì—­ ìŠ¤íŠ¸ë§ ë³€ìˆ˜ë“¤
 ////////////////////////////////////////////////////////////////////////////////////
 #define STR_ITEM_TYPE CStringManager::GetSingleton().GetString(106)
-#define STR_WEIGHT CStringManager::GetSingleton().GetString(107) //¹«°Ô
-#define STR_ADD_ABILITY CStringManager::GetSingleton().GetString(108) //Ãß°¡´É·Â
-#define STR_EQUIP_CONDITION CStringManager::GetSingleton().GetString(109) //ÀåÂøÁ¶°Ç
-#define STR_ATTACK_RANGE CStringManager::GetSingleton().GetString(110) //°ø°İ°Å¸®
-#define STR_ATTACH CStringManager::GetSingleton().GetString(111) //ºÎÂø
-#define STR_DEAL_AT_STORE CStringManager::GetSingleton().GetString(112) //»óÁ¡°Å·¡..
-#define STR_BUY_CATALOG CStringManager::GetSingleton().GetString(113) //±¸ÀÔ¸ñ·Ï
-#define STR_SELL_CATALOG CStringManager::GetSingleton().GetString(114) //ÆÇ¸Å¸ñ·Ï
-#define STR_TRADE_PVP CStringManager::GetSingleton().GetString(115) // 1:1°Å·¡
-#define STR_STATUS_DLG CStringManager::GetSingleton().GetString(116) //»óÅÂÃ¢
-#define STR_INVENTORY_DLG CStringManager::GetSingleton().GetString(117) //ÀÎº¥Åä¸®Ã¢
-#define STR_EQUIP_DLG CStringManager::GetSingleton().GetString(118) //ÀåºñÃ¢
-#define STR_SKILL_DLG CStringManager::GetSingleton().GetString(119) //±â¼úÃ¢
-#define STR_QUEST_DLG CStringManager::GetSingleton().GetString(120) //Äù½ºÆ®Ã¢
-#define STR_MOVE_QUICKSLOT_DLG CStringManager::GetSingleton().GetString(121) //Äü¹Ù·Î º¸³»±â
-#define STR_MOVE_INVENTORY_DLG CStringManager::GetSingleton().GetString(122) //ÀÎº¥Åä¸®Ã¢À¸·Î º¸³»±â
-#define STR_MOVE_EQUIP_DLG CStringManager::GetSingleton().GetString(123) //ÀåºñÃ¢À¸·Î º¸³»±â
-#define STR_STORE CStringManager::GetSingleton().GetString(124) //»óÁ¡
-#define STR_QUALITY CStringManager::GetSingleton().GetString(125) //Ç°Áú
-#define STR_HPRECOVERY CStringManager::GetSingleton().GetString(126) // HPÈ¸º¹
-#define STR_NOT_ENOUGH_MANA CStringManager::GetSingleton().GetString(127) // ¸¶³ª°¡ ºÎÁ·ÇÕ´Ï´Ù.
+#define STR_WEIGHT CStringManager::GetSingleton().GetString(107) //ë¬´ê²Œ
+#define STR_ADD_ABILITY CStringManager::GetSingleton().GetString(108) //ì¶”ê°€ëŠ¥ë ¥
+#define STR_EQUIP_CONDITION CStringManager::GetSingleton().GetString(109) //ì¥ì°©ì¡°ê±´
+#define STR_ATTACK_RANGE CStringManager::GetSingleton().GetString(110) //ê³µê²©ê±°ë¦¬
+#define STR_ATTACH CStringManager::GetSingleton().GetString(111) //ë¶€ì°©
+#define STR_DEAL_AT_STORE CStringManager::GetSingleton().GetString(112) //ìƒì ê±°ë˜..
+#define STR_BUY_CATALOG CStringManager::GetSingleton().GetString(113) //êµ¬ì…ëª©ë¡
+#define STR_SELL_CATALOG CStringManager::GetSingleton().GetString(114) //íŒë§¤ëª©ë¡
+#define STR_TRADE_PVP CStringManager::GetSingleton().GetString(115) // 1:1ê±°ë˜
+#define STR_STATUS_DLG CStringManager::GetSingleton().GetString(116) //ìƒíƒœì°½
+#define STR_INVENTORY_DLG CStringManager::GetSingleton().GetString(117) //ì¸ë²¤í† ë¦¬ì°½
+#define STR_EQUIP_DLG CStringManager::GetSingleton().GetString(118) //ì¥ë¹„ì°½
+#define STR_SKILL_DLG CStringManager::GetSingleton().GetString(119) //ê¸°ìˆ ì°½
+#define STR_QUEST_DLG CStringManager::GetSingleton().GetString(120) //í€˜ìŠ¤íŠ¸ì°½
+#define STR_MOVE_QUICKSLOT_DLG CStringManager::GetSingleton().GetString(121) //í€µë°”ë¡œ ë³´ë‚´ê¸°
+#define STR_MOVE_INVENTORY_DLG CStringManager::GetSingleton().GetString(122) //ì¸ë²¤í† ë¦¬ì°½ìœ¼ë¡œ ë³´ë‚´ê¸°
+#define STR_MOVE_EQUIP_DLG CStringManager::GetSingleton().GetString(123) //ì¥ë¹„ì°½ìœ¼ë¡œ ë³´ë‚´ê¸°
+#define STR_STORE CStringManager::GetSingleton().GetString(124) //ìƒì 
+#define STR_QUALITY CStringManager::GetSingleton().GetString(125) //í’ˆì§ˆ
+#define STR_HPRECOVERY CStringManager::GetSingleton().GetString(126) // HPíšŒë³µ
+#define STR_NOT_ENOUGH_MANA CStringManager::GetSingleton().GetString(127) // ë§ˆë‚˜ê°€ ë¶€ì¡±í•©ë‹ˆë‹¤.
 #define STR_INVALID_TARGET \
-    CStringManager::GetSingleton().GetString(128) // Å¸°ÙÀÌ À¯È¿ÇÏÁö ¾Ê½À´Ï´Ù.
+    CStringManager::GetSingleton().GetString(128) // íƒ€ê²Ÿì´ ìœ íš¨í•˜ì§€ ì•ŠìŠµë‹ˆë‹¤.
 #define STR_WEAPON_MISMATCH \
-    CStringManager::GetSingleton().GetString(129) // ÇÊ¿äÇÑ ¹«±â°¡ Àåºñ µÇ¾î ÀÖÁö ¾Ê½À´Ï´Ù.
-#define STR_GET_EXP CStringManager::GetSingleton().GetString(130) // °æÇèÄ¡ %dÀ» ¾ò¾ú½À´Ï´Ù.
+    CStringManager::GetSingleton().GetString(129) // í•„ìš”í•œ ë¬´ê¸°ê°€ ì¥ë¹„ ë˜ì–´ ìˆì§€ ì•ŠìŠµë‹ˆë‹¤.
+#define STR_GET_EXP CStringManager::GetSingleton().GetString(130) // ê²½í—˜ì¹˜ %dì„ ì–»ì—ˆìŠµë‹ˆë‹¤.
 #define STR_NOTIFY_01 \
-    CStringManager::GetSingleton().GetString(131) // ´õÀÌ»ó ¾ÆÀÌÅÛÀ» °®À»¼ö ¾ø½À´Ï´Ù.
+    CStringManager::GetSingleton().GetString(131) // ë”ì´ìƒ ì•„ì´í…œì„ ê°–ì„ìˆ˜ ì—†ìŠµë‹ˆë‹¤.
 #define STR_NOTIFY_02 \
-    CStringManager::GetSingleton().GetString(132) // ¼ÒÀ¯±ÇÀÌ ¾ø½À´Ï´Ù. Àá½ÃÈÄ È¹µæÇÏ¼¼¿ä.
-#define STR_NOTIFY_03 CStringManager::GetSingleton().GetString(133) // <<°øÁö »çÇ×>>
-#define STR_NOTIFY_04 CStringManager::GetSingleton().GetString(134) // ÇöÀç »ç¿ë ´ë±âÁßÀÔ´Ï´Ù.
-#define STR_NOTIFY_05 CStringManager::GetSingleton().GetString(135) // À¯È¿ÇÏÁö ¾ÊÀº Å¸°ÙÀÔ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(132) // ì†Œìœ ê¶Œì´ ì—†ìŠµë‹ˆë‹¤. ì ì‹œí›„ íšë“í•˜ì„¸ìš”.
+#define STR_NOTIFY_03 CStringManager::GetSingleton().GetString(133) // <<ê³µì§€ ì‚¬í•­>>
+#define STR_NOTIFY_04 CStringManager::GetSingleton().GetString(134) // í˜„ì¬ ì‚¬ìš© ëŒ€ê¸°ì¤‘ì…ë‹ˆë‹¤.
+#define STR_NOTIFY_05 CStringManager::GetSingleton().GetString(135) // ìœ íš¨í•˜ì§€ ì•Šì€ íƒ€ê²Ÿì…ë‹ˆë‹¤.
 #define STR_NOTIFY_06 \
-    CStringManager::GetSingleton().GetString(136) // Á¶°ÇÀÌ ¸ÂÁö ¾Ê¾Æ »ç¿ëÇÒ¼ö ¾ø½À´Ï´Ù.
-#define ID_STR_DROP_MONEY CStringManager::GetSingleton().GetString(137) // µ·Àº ¹ö¸®½Ã°Ú½À´Ï±î?
-#define ID_STR_DROP_ITEM CStringManager::GetSingleton().GetString(138) // ¾ÆÀÌÅÛÀ» ¹ö¸®½Ã°Ú½À´Ï±î?
-#define STR_USE_REQUIRE CStringManager::GetSingleton().GetString(169) // »ç¿ëÁ¶°Ç
-#define STR_EQUIP_REQUIRE_JOB CStringManager::GetSingleton().GetString(170) // ÀåÂøÁ÷¾÷
-#define STR_MOVE_SPEED CStringManager::GetSingleton().GetString(171) // ÀÌµ¿¼Óµµ
-#define STR_CARRY_WEIGHT CStringManager::GetSingleton().GetString(172) // ÈŞ´ë¹«°Ô
+    CStringManager::GetSingleton().GetString(136) // ì¡°ê±´ì´ ë§ì§€ ì•Šì•„ ì‚¬ìš©í• ìˆ˜ ì—†ìŠµë‹ˆë‹¤.
+#define ID_STR_DROP_MONEY CStringManager::GetSingleton().GetString(137) // ëˆì€ ë²„ë¦¬ì‹œê² ìŠµë‹ˆê¹Œ?
+#define ID_STR_DROP_ITEM CStringManager::GetSingleton().GetString(138) // ì•„ì´í…œì„ ë²„ë¦¬ì‹œê² ìŠµë‹ˆê¹Œ?
+#define STR_USE_REQUIRE CStringManager::GetSingleton().GetString(169) // ì‚¬ìš©ì¡°ê±´
+#define STR_EQUIP_REQUIRE_JOB CStringManager::GetSingleton().GetString(170) // ì¥ì°©ì§ì—…
+#define STR_MOVE_SPEED CStringManager::GetSingleton().GetString(171) // ì´ë™ì†ë„
+#define STR_CARRY_WEIGHT CStringManager::GetSingleton().GetString(172) // íœ´ëŒ€ë¬´ê²Œ
 
 #define FORMAT_STR_CANCEL_BLOCK_CHAT CStringManager::GetSingleton().GetString(173)
 #define STR_CANCEL_BLOCK_CHAT CStringManager::GetSingleton().GetString(174)
@@ -166,7 +166,7 @@
 #define FORMAT_STR_FAIL_WHISPER CStringManager::GetSingleton().GetString(188)
 #define FORMAT_STR_WHISPER CStringManager::GetSingleton().GetString(189)
 ///*-------------------------------------------------------------------------------*/
-/// ·Î±×ÀÎ °ü·Ã
+/// ë¡œê·¸ì¸ ê´€ë ¨
 #define STR_WAIT_LOGIN CStringManager::GetSingleton().GetString(190)
 #define STR_COMMON_ERROR CStringManager::GetSingleton().GetString(191)
 #define STR_NOT_FOUND_ACCOUNT CStringManager::GetSingleton().GetString(192)
@@ -179,67 +179,67 @@
 #define STR_NOT_ENOUGH_EQUIP_SPACE CStringManager::GetSingleton().GetString(199)
 #define STR_EQUIPED_TWO_HAND_WEAPON CStringManager::GetSingleton().GetString(200)
 
-///¾ÆÀÌÅÛ »ç¿ë Á¦ÇÑ¿¡ °üÇÑ ½ºÆ®¸µ
-#define STR_DONT_SELL_ITEM CStringManager::GetSingleton().GetString(201) /// ÆÈ¼ö ¾ø´Â ¾ÆÀÌÅÛÀÔ´Ï´Ù.
+///ì•„ì´í…œ ì‚¬ìš© ì œí•œì— ê´€í•œ ìŠ¤íŠ¸ë§
+#define STR_DONT_SELL_ITEM CStringManager::GetSingleton().GetString(201) /// íŒ”ìˆ˜ ì—†ëŠ” ì•„ì´í…œì…ë‹ˆë‹¤.
 #define STR_DONT_DROP_ITEM \
-    CStringManager::GetSingleton().GetString(202) /// ¹ö¸±¼ö ¾ø´Â ¾ÆÀÌÅÛÀÔ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(202) /// ë²„ë¦´ìˆ˜ ì—†ëŠ” ì•„ì´í…œì…ë‹ˆë‹¤.
 #define STR_DONT_EXCHANGE_ITEM \
-    CStringManager::GetSingleton().GetString(203) /// ±³È¯ÇÒ¼ö ¾ø´Â ¾ÆÀÌÅÛÀÔ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(203) /// êµí™˜í• ìˆ˜ ì—†ëŠ” ì•„ì´í…œì…ë‹ˆë‹¤.
 
-/// ½ºÅ³ ½Àµæ¿¡ °ü·ÃÇÑ ½ºÆ®¸µ
-#define STR_LEARN_SKILL_FAILED CStringManager::GetSingleton().GetString(204) /// ½ºÅ³ ¹è¿ì±â ½ÇÆĞ.
+/// ìŠ¤í‚¬ ìŠµë“ì— ê´€ë ¨í•œ ìŠ¤íŠ¸ë§
+#define STR_LEARN_SKILL_FAILED CStringManager::GetSingleton().GetString(204) /// ìŠ¤í‚¬ ë°°ìš°ê¸° ì‹¤íŒ¨.
 #define STR_LEARN_SKILL_JOB_FAILED \
-    CStringManager::GetSingleton().GetString(205) /// Á÷¾÷ÀÌ ¸ÂÁö ¾Ê½À´Ï´Ù.
+    CStringManager::GetSingleton().GetString(205) /// ì§ì—…ì´ ë§ì§€ ì•ŠìŠµë‹ˆë‹¤.
 #define STR_LEARN_SKILL_NEED_PRESKILL_FAILED \
-    CStringManager::GetSingleton().GetString(206) /// ÇÊ¿ä ½ºÅ³ÀÌ ¾ø½À´Ï´Ù.
+    CStringManager::GetSingleton().GetString(206) /// í•„ìš” ìŠ¤í‚¬ì´ ì—†ìŠµë‹ˆë‹¤.
 #define STR_LEARN_SKILL_NEED_ABILITY_FAILED \
-    CStringManager::GetSingleton().GetString(207) /// ´É·ÂÄ¡°¡ ºÎÁ·ÇÕ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(207) /// ëŠ¥ë ¥ì¹˜ê°€ ë¶€ì¡±í•©ë‹ˆë‹¤.
 #define STR_LEARN_SKILL_SLOT_FULL_FAILED \
-    CStringManager::GetSingleton().GetString(208) /// ´õÀÌ»ó ½ºÅ³À» ¹è¿ï¼ö ¾ø½À´Ï´Ù.
+    CStringManager::GetSingleton().GetString(208) /// ë”ì´ìƒ ìŠ¤í‚¬ì„ ë°°ìš¸ìˆ˜ ì—†ìŠµë‹ˆë‹¤.
 #define STR_LEARN_SKILL_INVALID_SKILL_FAILED \
-    CStringManager::GetSingleton().GetString(209) /// Àß¸øµÈ ½ºÅ³¹øÈ£ ÀÔ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(209) /// ì˜ëª»ëœ ìŠ¤í‚¬ë²ˆí˜¸ ì…ë‹ˆë‹¤.
 
-/// ¸í·É, ½ºÅ³ »ç¿ë½Ã
+/// ëª…ë ¹, ìŠ¤í‚¬ ì‚¬ìš©ì‹œ
 #define STR_ACTION_COMMAND_STOP_STATE_FAILED \
-    CStringManager::GetSingleton().GetString(210) /// Á¤Áö»óÅÂ ¿¡¼­¸¸ »ç¿ë°¡´ÉÇÕ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(210) /// ì •ì§€ìƒíƒœ ì—ì„œë§Œ ì‚¬ìš©ê°€ëŠ¥í•©ë‹ˆë‹¤.
 
-///ÆÄÆ¼ °ü·Ã
+///íŒŒí‹° ê´€ë ¨
 #define FORMAT_STR_PARTY_MAKE_REQ \
-    CStringManager::GetSingleton().GetString(211) ///%s´ÔÀÌ ÆÄÆ¼ °á¼ºÀ» ¿äÃ»Çß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(211) ///%së‹˜ì´ íŒŒí‹° ê²°ì„±ì„ ìš”ì²­í–ˆìŠµë‹ˆë‹¤
 #define FORMAT_STR_PARTY_INVITE \
-    CStringManager::GetSingleton().GetString(212) ///%s´ÔÀÌ ÆÄÆ¼¿¡ ÃÊ´ëÇÏ¿´½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(212) ///%së‹˜ì´ íŒŒí‹°ì— ì´ˆëŒ€í•˜ì˜€ìŠµë‹ˆë‹¤
 #define FORMAT_STR_PARTY_CHANGE_LEADER \
-    CStringManager::GetSingleton().GetString(213) ///%s´ÔÀÌ ÆÄÆ¼ÀÇ ¸®´õ°¡ µÇ¾ú½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(213) ///%së‹˜ì´ íŒŒí‹°ì˜ ë¦¬ë”ê°€ ë˜ì—ˆìŠµë‹ˆë‹¤
 #define STR_PARTY_ENTRUSTED_LEADER \
-    CStringManager::GetSingleton().GetString(214) ///ÆÄÆ¼ÀÇ ¸®´õ·Î À§ÀÓ ¹Ş¾Ò½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(214) ///íŒŒí‹°ì˜ ë¦¬ë”ë¡œ ìœ„ì„ ë°›ì•˜ìŠµë‹ˆë‹¤
 #define STR_PARTY_BANNED \
-    CStringManager::GetSingleton().GetString(215) ///ÆÄÆ¼¿¡¼­ °­Á¦ ÅğÀå ´çÇß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(215) ///íŒŒí‹°ì—ì„œ ê°•ì œ í‡´ì¥ ë‹¹í–ˆìŠµë‹ˆë‹¤
 #define FORMAT_STR_PARTY_BANNED \
-    CStringManager::GetSingleton().GetString(216) ///%s´ÔÀÌ ÆÄÆ¼¿¡¼­ °­Á¦ ÅğÀå ´çÇß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(216) ///%së‹˜ì´ íŒŒí‹°ì—ì„œ ê°•ì œ í‡´ì¥ ë‹¹í–ˆìŠµë‹ˆë‹¤
 #define STR_PARTY_NOTFOUND_DEST \
-    CStringManager::GetSingleton().GetString(217) ///´ë»óÀ» Ã£À»¼ö ¾ø½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(217) ///ëŒ€ìƒì„ ì°¾ì„ìˆ˜ ì—†ìŠµë‹ˆë‹¤
 #define FORMAT_STR_PARTY_BUSY \
-    CStringManager::GetSingleton().GetString(218) ///%s´ÔÀº Áö±İ ¿äÃ»À» ¹ŞÀ» ¼ö ¾ø´Â »óÅÂÀÔ´Ï´Ù
-#define STR_PARTY_MADE CStringManager::GetSingleton().GetString(219) ///»õ·Î¿î ÆÄÆ¼°¡ °á¼ºµÇ¾ú½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(218) ///%së‹˜ì€ ì§€ê¸ˆ ìš”ì²­ì„ ë°›ì„ ìˆ˜ ì—†ëŠ” ìƒíƒœì…ë‹ˆë‹¤
+#define STR_PARTY_MADE CStringManager::GetSingleton().GetString(219) ///ìƒˆë¡œìš´ íŒŒí‹°ê°€ ê²°ì„±ë˜ì—ˆìŠµë‹ˆë‹¤
 #define FORMAT_STR_PARTY_REJECT_INVITE \
-    CStringManager::GetSingleton().GetString(220) ///%s´ÔÀÌ ÆÄÆ¼ ¿äÃ»À» °ÅºÎÇß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(220) ///%së‹˜ì´ íŒŒí‹° ìš”ì²­ì„ ê±°ë¶€í–ˆìŠµë‹ˆë‹¤
 #define FORMAT_STR_PARTY_LEAVE \
-    CStringManager::GetSingleton().GetString(221) ///%s´ÔÀÌ ÆÄÆ¼¿¡¼­ Å»ÅğÇß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(221) ///%së‹˜ì´ íŒŒí‹°ì—ì„œ íƒˆí‡´í–ˆìŠµë‹ˆë‹¤
 #define FORMAT_STR_PARTY_JOIN \
-    CStringManager::GetSingleton().GetString(222) ///%s´ÔÀÌ ÆÄÆ¼¿¡ Ãß°¡µÇ¾ú½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(222) ///%së‹˜ì´ íŒŒí‹°ì— ì¶”ê°€ë˜ì—ˆìŠµë‹ˆë‹¤
 
 #define FORMAT_STR_PARTY_QUERY_ENTRUST \
-    CStringManager::GetSingleton().GetString(223) ///%s´ÔÀ» ÆÄÆ¼¸®´õ·Î À§ÀÓÇÏ½Ã°Ú½À´Ï±î?
+    CStringManager::GetSingleton().GetString(223) ///%së‹˜ì„ íŒŒí‹°ë¦¬ë”ë¡œ ìœ„ì„í•˜ì‹œê² ìŠµë‹ˆê¹Œ?
 #define STR_PARTY_QUERY_LEAVE \
-    CStringManager::GetSingleton().GetString(224) ///ÆÄÆ¼¿¡¼­ Å»ÅğÇÏ°Ú½À´Ï±î?
+    CStringManager::GetSingleton().GetString(224) ///íŒŒí‹°ì—ì„œ íƒˆí‡´í•˜ê² ìŠµë‹ˆê¹Œ?
 #define FORMAT_STR_PARTY_QUERY_BAN \
-    CStringManager::GetSingleton().GetString(225) ///%s´ÔÀ» °­Á¦·Î ÅğÀå ½ÃÅ°°Ú½À´Ï±î?
-#define FORMAT_STR_PARTY_LEVEL CStringManager::GetSingleton().GetString(226) ///ÆÄÆ¼·¹º§ %d
+    CStringManager::GetSingleton().GetString(225) ///%së‹˜ì„ ê°•ì œë¡œ í‡´ì¥ ì‹œí‚¤ê² ìŠµë‹ˆê¹Œ?
+#define FORMAT_STR_PARTY_LEVEL CStringManager::GetSingleton().GetString(226) ///íŒŒí‹°ë ˆë²¨ %d
 
 #define STR_SKILL_APPLY_FAILED \
-    CStringManager::GetSingleton().GetString(227) ///½ºÅ³ Àû¿ë¿¡ ½ÇÆĞ Çß½À´Ï´Ù.
+    CStringManager::GetSingleton().GetString(227) ///ìŠ¤í‚¬ ì ìš©ì— ì‹¤íŒ¨ í–ˆìŠµë‹ˆë‹¤.
 #define STR_UNKNOWN_STATE_FLAG \
-    CStringManager::GetSingleton().GetString(228) ///¾Ë¼ö ¾ø´Â »óÅÂ ÇÃ·¡±×.
+    CStringManager::GetSingleton().GetString(228) ///ì•Œìˆ˜ ì—†ëŠ” ìƒíƒœ í”Œë˜ê·¸.
 
 #define STR_SEND CStringManager::GetSingleton().GetString(230)
 #define STR_DELETE CStringManager::GetSingleton().GetString(231)
@@ -250,21 +250,21 @@
 #define STR_LOGIN_PASSWORD_TOO_LONG CStringManager::GetSingleton().GetString(235)
 
 #define STR_CANT_CASTING_STATE \
-    CStringManager::GetSingleton().GetString(245) ///½ºÅ³À» »ç¿ëÇÒ¼ö ¾ø´Â »óÅÂÀÔ´Ï´Ù..
+    CStringManager::GetSingleton().GetString(245) ///ìŠ¤í‚¬ì„ ì‚¬ìš©í• ìˆ˜ ì—†ëŠ” ìƒíƒœì…ë‹ˆë‹¤..
 #define STR_NOT_ENOUGH_PROPERTY \
-    CStringManager::GetSingleton().GetString(246) ///ÇÊ¿äÇÑ ¿¡³ÊÁö°¡ ºÎÁ·ÇÕ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(246) ///í•„ìš”í•œ ì—ë„ˆì§€ê°€ ë¶€ì¡±í•©ë‹ˆë‹¤.
 #define STR_MISMATCH_CASTING_NEED_EQUIP \
-    CStringManager::GetSingleton().GetString(247) ///ÇÊ¿ä Àåºñ°¡ ºÎÁ·ÇÕ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(247) ///í•„ìš” ì¥ë¹„ê°€ ë¶€ì¡±í•©ë‹ˆë‹¤.
 
 #define STR_DOING_SKILL_ACTION \
-    CStringManager::GetSingleton().GetString(248) ///ÇÊ¿ä Àåºñ°¡ ºÎÁ·ÇÕ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(248) ///í•„ìš” ì¥ë¹„ê°€ ë¶€ì¡±í•©ë‹ˆë‹¤.
 #define STR_NOTIFY_CANT_DUPLICATE \
-    CStringManager::GetSingleton().GetString(249) ///Áßº¹  ¬¿ë ºÒ°¡ ½ºÅ³
+    CStringManager::GetSingleton().GetString(249) ///ì¤‘ë³µ ì ¹ìš© ë¶ˆê°€ ìŠ¤í‚¬
 
 #define STR_CANT_OPEN_UNIONSTORE CStringManager::GetSingleton().GetString(250) ///
-#define STR_UNIONPOINT CStringManager::GetSingleton().GetString(251) ///Á¶ÇÕÆ÷ÀÎÆ®
-#define STR_WANT_UNIONPOINT CStringManager::GetSingleton().GetString(252) ///Á¶ÇÕÆ÷ÀÎÆ®°¡ ºÎÁ·ÇÏ´Ù.
-#define STR_ALLIED CStringManager::GetSingleton().GetString(253) ///Á¶ÇÕÆ÷ÀÎÆ®°¡ ºÎÁ·ÇÏ´Ù.
+#define STR_UNIONPOINT CStringManager::GetSingleton().GetString(251) ///ì¡°í•©í¬ì¸íŠ¸
+#define STR_WANT_UNIONPOINT CStringManager::GetSingleton().GetString(252) ///ì¡°í•©í¬ì¸íŠ¸ê°€ ë¶€ì¡±í•˜ë‹¤.
+#define STR_ALLIED CStringManager::GetSingleton().GetString(253) ///ì¡°í•©í¬ì¸íŠ¸ê°€ ë¶€ì¡±í•˜ë‹¤.
 
 #define STR_CANT_EXITGAME CStringManager::GetSingleton().GetString(260)
 #define STR_WAITTIME_EXITGAME CStringManager::GetSingleton().GetString(261)
@@ -282,84 +282,84 @@
 #define STR_NPC_TRADE_PRICE CStringManager::GetSingleton().GetString(275)
 
 #define STR_TARGET CStringManager::GetSingleton().GetString(307)
-#define STR_SUMMON_MOB CStringManager::GetSingleton().GetString(308) ///¼ÒÈ¯¸÷
-#define STR_SHOOT_RANGE CStringManager::GetSingleton().GetString(309) ///»çÁ¤°Å¸®
-#define STR_APPLY_RANGE CStringManager::GetSingleton().GetString(310) ///Àû¿ë¹üÀ§
-#define STR_RADIUS CStringManager::GetSingleton().GetString(311) ///¹İ°æ
-#define STR_EFFECT CStringManager::GetSingleton().GetString(312) ///È¿°ú
-#define STR_LEVEL CStringManager::GetSingleton().GetString(313) ///·¹º§
-#define STR_CONTINUE_TIME CStringManager::GetSingleton().GetString(314) ///Áö¼Ó½Ã°£
-#define STR_SECOND CStringManager::GetSingleton().GetString(315) ///ÃÊ
-#define STR_NEXT_LEVEL CStringManager::GetSingleton().GetString(316) ///´ÙÀ½·¹º§
-#define STR_SKILL_POWER CStringManager::GetSingleton().GetString(317) ///½ºÅ³ÆÄ¿ö
-#define STR_SUCCESS_RATE CStringManager::GetSingleton().GetString(318) ///¼º°ø·ü
-#define STR_CONSUME_ABILITY CStringManager::GetSingleton().GetString(319) ///¼Ò¸ğ´É·Â
-#define STR_REQUIRE_EQUIP CStringManager::GetSingleton().GetString(320) ///ÇÊ¿äÀåºñ
-#define STR_REQUIRE_JOB CStringManager::GetSingleton().GetString(321) ///»ç¿ëÁ÷¾÷
-#define STR_REQUIRE_SKILL CStringManager::GetSingleton().GetString(322) ///ÇÊ¼ö½ºÅ³
-#define STR_REQUIRE_ABILITY CStringManager::GetSingleton().GetString(323) ///Á¶°Ç´É·Â
+#define STR_SUMMON_MOB CStringManager::GetSingleton().GetString(308) ///ì†Œí™˜ëª¹
+#define STR_SHOOT_RANGE CStringManager::GetSingleton().GetString(309) ///ì‚¬ì •ê±°ë¦¬
+#define STR_APPLY_RANGE CStringManager::GetSingleton().GetString(310) ///ì ìš©ë²”ìœ„
+#define STR_RADIUS CStringManager::GetSingleton().GetString(311) ///ë°˜ê²½
+#define STR_EFFECT CStringManager::GetSingleton().GetString(312) ///íš¨ê³¼
+#define STR_LEVEL CStringManager::GetSingleton().GetString(313) ///ë ˆë²¨
+#define STR_CONTINUE_TIME CStringManager::GetSingleton().GetString(314) ///ì§€ì†ì‹œê°„
+#define STR_SECOND CStringManager::GetSingleton().GetString(315) ///ì´ˆ
+#define STR_NEXT_LEVEL CStringManager::GetSingleton().GetString(316) ///ë‹¤ìŒë ˆë²¨
+#define STR_SKILL_POWER CStringManager::GetSingleton().GetString(317) ///ìŠ¤í‚¬íŒŒì›Œ
+#define STR_SUCCESS_RATE CStringManager::GetSingleton().GetString(318) ///ì„±ê³µë¥ 
+#define STR_CONSUME_ABILITY CStringManager::GetSingleton().GetString(319) ///ì†Œëª¨ëŠ¥ë ¥
+#define STR_REQUIRE_EQUIP CStringManager::GetSingleton().GetString(320) ///í•„ìš”ì¥ë¹„
+#define STR_REQUIRE_JOB CStringManager::GetSingleton().GetString(321) ///ì‚¬ìš©ì§ì—…
+#define STR_REQUIRE_SKILL CStringManager::GetSingleton().GetString(322) ///í•„ìˆ˜ìŠ¤í‚¬
+#define STR_REQUIRE_ABILITY CStringManager::GetSingleton().GetString(323) ///ì¡°ê±´ëŠ¥ë ¥
 
-#define STR_START_MAKE_ITEM CStringManager::GetSingleton().GetString(324) ///¾ÆÀÌÅÛ Á¦Á¶ ½ÃÀÛ
-#define STR_NOT_ENOUGH_MATERIAL CStringManager::GetSingleton().GetString(325) ///Àç·á°¡ ºÎÁ·ÇÕ´Ï´Ù
-#define STR_NOT_EXIST_MATERIAL CStringManager::GetSingleton().GetString(326) ///Àç·á°¡ ¾ø½À´Ï´Ù.
+#define STR_START_MAKE_ITEM CStringManager::GetSingleton().GetString(324) ///ì•„ì´í…œ ì œì¡° ì‹œì‘
+#define STR_NOT_ENOUGH_MATERIAL CStringManager::GetSingleton().GetString(325) ///ì¬ë£Œê°€ ë¶€ì¡±í•©ë‹ˆë‹¤
+#define STR_NOT_EXIST_MATERIAL CStringManager::GetSingleton().GetString(326) ///ì¬ë£Œê°€ ì—†ìŠµë‹ˆë‹¤.
 #define STR_SUCCESS_MAKE_ITEM \
-    CStringManager::GetSingleton().GetString(327) ///¾ÆÀÌÅÛ Á¦Á¶¿¡ ¼º°øÇß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(327) ///ì•„ì´í…œ ì œì¡°ì— ì„±ê³µí–ˆìŠµë‹ˆë‹¤
 #define STR_FAIL_MAKE_ITEM \
-    CStringManager::GetSingleton().GetString(328) ///¾ÆÀÌÅÛ Á¦Á¶¿¡ ½ÇÆĞÇß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(328) ///ì•„ì´í…œ ì œì¡°ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤
 #define STR_NOT_ENOUGH_MAKE_SKILL_LEVEL \
-    CStringManager::GetSingleton().GetString(329) ///Á¦Á¶ ½ºÅ³ ·¹º§ÀÌ ºÎÁ·ÇÕ´Ï´Ù
+    CStringManager::GetSingleton().GetString(329) ///ì œì¡° ìŠ¤í‚¬ ë ˆë²¨ì´ ë¶€ì¡±í•©ë‹ˆë‹¤
 
-///<- 2004 / 3 / 4 : Ãß°¡ nAvy
+///<- 2004 / 3 / 4 : ì¶”ê°€ nAvy
 #define STR_BANK_NOT_ENOUGH_MONEY \
-    CStringManager::GetSingleton().GetString(330) ///º¸°ü·á°¡ ºÎÁ·ÇØ¼­ ´õ ÀÌ»ó º¸°üÇÒ ¼ö ¾ø½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(330) ///ë³´ê´€ë£Œê°€ ë¶€ì¡±í•´ì„œ ë” ì´ìƒ ë³´ê´€í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤
 #define STR_BANK_CANT_STORE_ITEM \
-    CStringManager::GetSingleton().GetString(331) ///º¸°üÇÒ ¼ö ¾ø´Â ¾ÆÀÌÅÛÀÔ´Ï´Ù
+    CStringManager::GetSingleton().GetString(331) ///ë³´ê´€í•  ìˆ˜ ì—†ëŠ” ì•„ì´í…œì…ë‹ˆë‹¤
 #define STR_BANK_NOT_ENOUGH_SPACE \
-    CStringManager::GetSingleton().GetString(332) ///º¸°üÇÒ ¿©À¯ °ø°£ÀÌ ¾ø½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(332) ///ë³´ê´€í•  ì—¬ìœ  ê³µê°„ì´ ì—†ìŠµë‹ˆë‹¤
 
-#define STR_BANK_STORAGE_FEE CStringManager::GetSingleton().GetString(333) ///º¸°ü·á
-#define STR_BANK_CANT_STORE CStringManager::GetSingleton().GetString(334) ///º¸°üºÒ°¡
-#define STR_CANT_SELL CStringManager::GetSingleton().GetString(335) ///ÆÇ¸ÅºÒ°¡
-#define STR_PRICE CStringManager::GetSingleton().GetString(336) ///°¡°İ
-#define STR_SELL_PRICE CStringManager::GetSingleton().GetString(337) ///ÆÇ¸Å°¡°İ
-#define STR_REQUIRE_POINT CStringManager::GetSingleton().GetString(338) ///ÇÊ¿äÆ÷ÀÎÆ®
+#define STR_BANK_STORAGE_FEE CStringManager::GetSingleton().GetString(333) ///ë³´ê´€ë£Œ
+#define STR_BANK_CANT_STORE CStringManager::GetSingleton().GetString(334) ///ë³´ê´€ë¶ˆê°€
+#define STR_CANT_SELL CStringManager::GetSingleton().GetString(335) ///íŒë§¤ë¶ˆê°€
+#define STR_PRICE CStringManager::GetSingleton().GetString(336) ///ê°€ê²©
+#define STR_SELL_PRICE CStringManager::GetSingleton().GetString(337) ///íŒë§¤ê°€ê²©
+#define STR_REQUIRE_POINT CStringManager::GetSingleton().GetString(338) ///í•„ìš”í¬ì¸íŠ¸
 #define STR_USING_MAKESKILL \
-    CStringManager::GetSingleton().GetString(339) ///Á¦Á¶½ºÅ³À» »ç¿ëÁßÀÔ´Ï´Ù.
-#define STR_CHANGE_PRICES CStringManager::GetSingleton().GetString(340) ///¹°°¡°¡ º¯µ¿µÇ¾ú½À´Ï´Ù.
+    CStringManager::GetSingleton().GetString(339) ///ì œì¡°ìŠ¤í‚¬ì„ ì‚¬ìš©ì¤‘ì…ë‹ˆë‹¤.
+#define STR_CHANGE_PRICES CStringManager::GetSingleton().GetString(340) ///ë¬¼ê°€ê°€ ë³€ë™ë˜ì—ˆìŠµë‹ˆë‹¤.
 #define STR_QUERY_STOP_TRADE \
-    CStringManager::GetSingleton().GetString(341) ///°Å·¡¸¦ Áß´ÜÇÏ½Ã°Ú½À´Ï±î?
-#define STR_WHISPER CStringManager::GetSingleton().GetString(342) ///±Ó¼Ó¸»
+    CStringManager::GetSingleton().GetString(341) ///ê±°ë˜ë¥¼ ì¤‘ë‹¨í•˜ì‹œê² ìŠµë‹ˆê¹Œ?
+#define STR_WHISPER CStringManager::GetSingleton().GetString(342) ///ê·“ì†ë§
 #define STR_CANT_JOIN_PARTY_REASON_LEVEL \
-    CStringManager::GetSingleton().GetString(343) ///´ÔÀº ·¹º§ÀÌ ¸ÂÁö ¾Ê¾Æ ÆÄÆ¼¿¡ µé¾î¿Ã ¼ö ¾ø½À´Ï´Ù
-#define STR_BANK CStringManager::GetSingleton().GetString(344) ///Ã¢°í
-#define STR_NOT_ENOUGH_MONEY CStringManager::GetSingleton().GetString(345) ///µ·ÀÌ ºÎÁ·ÇÕ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(343) ///ë‹˜ì€ ë ˆë²¨ì´ ë§ì§€ ì•Šì•„ íŒŒí‹°ì— ë“¤ì–´ì˜¬ ìˆ˜ ì—†ìŠµë‹ˆë‹¤
+#define STR_BANK CStringManager::GetSingleton().GetString(344) ///ì°½ê³ 
+#define STR_NOT_ENOUGH_MONEY CStringManager::GetSingleton().GetString(345) ///ëˆì´ ë¶€ì¡±í•©ë‹ˆë‹¤.
 #define STR_ITEM_IN_TRADE_LIST \
-    CStringManager::GetSingleton().GetString(346) ///ÆÇ¸Å¸ñ·Ï¿¡ ¿Ã·ÁÁø ¾ÆÀÌÅÛÀÔ´Ï´Ù
+    CStringManager::GetSingleton().GetString(346) ///íŒë§¤ëª©ë¡ì— ì˜¬ë ¤ì§„ ì•„ì´í…œì…ë‹ˆë‹¤
 #define STR_CANT_USEITEM_REASON_SYNCOPE \
-    CStringManager::GetSingleton().GetString(347) ///±âÀıÇÑ »óÅÂ¿¡¼­´Â »ç¿ëÇÒ¼ö ¾ø½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(347) ///ê¸°ì ˆí•œ ìƒíƒœì—ì„œëŠ” ì‚¬ìš©í• ìˆ˜ ì—†ìŠµë‹ˆë‹¤
 #define STR_INVALID_CHARACTER_NAME \
-    CStringManager::GetSingleton().GetString(348) ///ÀÌ¸§¿¡ Çã¿ëµÇÁö ¾Ê´Â ±ÛÀÚ°¡ ÀÖ½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(348) ///ì´ë¦„ì— í—ˆìš©ë˜ì§€ ì•ŠëŠ” ê¸€ìê°€ ìˆìŠµë‹ˆë‹¤
 #define STR_FAIL_MAKE_NEW_CHARACTER \
-    CStringManager::GetSingleton().GetString(349) ///Ä³¸¯ÅÍ »ı¼º ½ÇÆĞ
+    CStringManager::GetSingleton().GetString(349) ///ìºë¦­í„° ìƒì„± ì‹¤íŒ¨
 #define STR_REQUEST_SELECT_CHARACTER \
-    CStringManager::GetSingleton().GetString(350) ///Ä³¸¯ÅÍ¸¦ ¼±ÅÃÇØ ÁÖ¼¼¿ä
+    CStringManager::GetSingleton().GetString(350) ///ìºë¦­í„°ë¥¼ ì„ íƒí•´ ì£¼ì„¸ìš”
 #define STR_QUERY_DELETE_CHARACTER \
-    CStringManager::GetSingleton().GetString(351) ///Ä³¸¯ÅÍ¸¦ Áö¿ì½Ã°Ú½À´Ï±î?
+    CStringManager::GetSingleton().GetString(351) ///ìºë¦­í„°ë¥¼ ì§€ìš°ì‹œê² ìŠµë‹ˆê¹Œ?
 #define STR_RECEIVE_CHARACTER_LIST \
-    CStringManager::GetSingleton().GetString(352) ///¾Æ¹ÙÅ¸ ¸®½ºÆ®¸¦ ¹Ş½À´Ï´Ù
-#define STR_SHOUT CStringManager::GetSingleton().GetString(353) ///¿ÜÄ§
+    CStringManager::GetSingleton().GetString(352) ///ì•„ë°”íƒ€ ë¦¬ìŠ¤íŠ¸ë¥¼ ë°›ìŠµë‹ˆë‹¤
+#define STR_SHOUT CStringManager::GetSingleton().GetString(353) ///ì™¸ì¹¨
 #define STR_FAIL_SKILL_LEVELUP \
-    CStringManager::GetSingleton().GetString(354) ///½ºÅ³ ·¹º§¾÷ÀÌ ½ÇÆĞÇß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(354) ///ìŠ¤í‚¬ ë ˆë²¨ì—…ì´ ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤
 #define STR_NOT_ENOUGH_SKILLPOINT \
-    CStringManager::GetSingleton().GetString(355) ///½ºÅ³Æ÷ÀÎÆ®°¡ ¸ğÀÚ¶ø´Ï´Ù
+    CStringManager::GetSingleton().GetString(355) ///ìŠ¤í‚¬í¬ì¸íŠ¸ê°€ ëª¨ìëë‹ˆë‹¤
 
-#define TT_PARTY_ENTRUST CStringManager::GetSingleton().GetString(357) ///ÆÄÆ¼Àå À§ÀÓ
-#define TT_PARTY_LEAVE CStringManager::GetSingleton().GetString(358) ///ÆÄÆ¼ Å»Åğ
-#define TT_PARTY_BAN CStringManager::GetSingleton().GetString(359) ///°­Åğ
+#define TT_PARTY_ENTRUST CStringManager::GetSingleton().GetString(357) ///íŒŒí‹°ì¥ ìœ„ì„
+#define TT_PARTY_LEAVE CStringManager::GetSingleton().GetString(358) ///íŒŒí‹° íƒˆí‡´
+#define TT_PARTY_BAN CStringManager::GetSingleton().GetString(359) ///ê°•í‡´
 
 #define TT_AVATAR_MENU_BTN_EXCHANGE \
-    CStringManager::GetSingleton().GetString(360) ///"±³È¯ ½ÅÃ»" ¹öÆ°
-#define TT_AVATAR_MENU_BTN_PARTY CStringManager::GetSingleton().GetString(361) ///"ÆÄÆ¼ ½ÅÃ»" ¹öÆ°
+    CStringManager::GetSingleton().GetString(360) ///"êµí™˜ ì‹ ì²­" ë²„íŠ¼
+#define TT_AVATAR_MENU_BTN_PARTY CStringManager::GetSingleton().GetString(361) ///"íŒŒí‹° ì‹ ì²­" ë²„íŠ¼
 ///->
 
 #define TT_MINIMAP_BTN_ZOOM_MAX CStringManager::GetSingleton().GetString(139)
@@ -394,254 +394,254 @@
 #define TT_SLOT_EARING CStringManager::GetSingleton().GetString(168)
 
 #define STR_SKILL_TARGET_FILTER_NOTIFY_01 \
-    CStringManager::GetSingleton().GetString(363) /// °°Àº ±×·ì¿øÀÌ ¾Æ´Õ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(363) /// ê°™ì€ ê·¸ë£¹ì›ì´ ì•„ë‹™ë‹ˆë‹¤.
 #define STR_SKILL_TARGET_FILTER_NOTIFY_02 \
-    CStringManager::GetSingleton().GetString(364) /// °°Àº ±æµå¿øÀÌ ¾Æ´Õ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(364) /// ê°™ì€ ê¸¸ë“œì›ì´ ì•„ë‹™ë‹ˆë‹¤.
 #define STR_SKILL_TARGET_FILTER_NOTIFY_03 \
-    CStringManager::GetSingleton().GetString(365) /// ¿ìÈ£ÀûÀÎ ÇÃ·¹ÀÌ¾î°¡ ¾Æ´Õ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(365) /// ìš°í˜¸ì ì¸ í”Œë ˆì´ì–´ê°€ ì•„ë‹™ë‹ˆë‹¤.
 #define STR_SKILL_TARGET_FILTER_NOTIFY_04 \
-    CStringManager::GetSingleton().GetString(366) /// ¸ó½ºÅÍ°¡ ¾Æ´Õ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(366) /// ëª¬ìŠ¤í„°ê°€ ì•„ë‹™ë‹ˆë‹¤.
 #define STR_SKILL_TARGET_FILTER_NOTIFY_05 \
-    CStringManager::GetSingleton().GetString(367) /// Àû´ë°ü°èÀÇ ÇÃ·¹ÀÌ¾î°¡ ¾Æ´Õ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(367) /// ì ëŒ€ê´€ê³„ì˜ í”Œë ˆì´ì–´ê°€ ì•„ë‹™ë‹ˆë‹¤.
 #define STR_SKILL_TARGET_FILTER_NOTIFY_06 \
-    CStringManager::GetSingleton().GetString(368) /// ÇÃ·¹ÀÌ¾î°¡  ¾Æ´Õ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(368) /// í”Œë ˆì´ì–´ê°€  ì•„ë‹™ë‹ˆë‹¤.
 #define STR_SKILL_TARGET_FILTER_NOTIFY_07 \
-    CStringManager::GetSingleton().GetString(369) /// Àû¿ëÇÒ¼ö ÀÖ´Â ´ë»óÀÌ ¾Æ´Õ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(369) /// ì ìš©í• ìˆ˜ ìˆëŠ” ëŒ€ìƒì´ ì•„ë‹™ë‹ˆë‹¤.
 
 #define STR_NOT_ENOUGH_CONDITION \
-    CStringManager::GetSingleton().GetString(370) /// Á¶°ÇÀÌ ¸ÂÁö ¾Ê¾Æ »ç¿ëÇÒ¼ö ¾ø½À´Ï´Ù.
+    CStringManager::GetSingleton().GetString(370) /// ì¡°ê±´ì´ ë§ì§€ ì•Šì•„ ì‚¬ìš©í• ìˆ˜ ì—†ìŠµë‹ˆë‹¤.
 #define STR_SO_FAR_DISTANCE \
-    CStringManager::GetSingleton().GetString(371) /// ³Ê¹« ¸Ö¸® ¶³¾îÁ® ÀÖ½À´Ï´Ù.
+    CStringManager::GetSingleton().GetString(371) /// ë„ˆë¬´ ë©€ë¦¬ ë–¨ì–´ì ¸ ìˆìŠµë‹ˆë‹¤.
 #define STR_CANT_SKILL_IN_AGIT \
-    CStringManager::GetSingleton().GetString(372) /// ¾ÆÁöÆ®¿¡¼± »ç¿ëÇÒ¼ö ¾ø½À´Ï´Ù.
+    CStringManager::GetSingleton().GetString(372) /// ì•„ì§€íŠ¸ì—ì„  ì‚¬ìš©í• ìˆ˜ ì—†ìŠµë‹ˆë‹¤.
 
 /*
-371~380 ¾ÆÀÌÅÛ Å¸ÀÔ Ãß°¡ ¹× ¿¹¾à
+371~380 ì•„ì´í…œ íƒ€ì… ì¶”ê°€ ë° ì˜ˆì•½
 */
 
 ///
 /// PAT
 ///
 #define STR_ERROR_NOT_ASSEMBLED \
-    CStringManager::GetSingleton().GetString(381) /// Á¶ÇÕÀÌ µÇ¾îÀÖÁö ¾Ê½À´Ï´Ù.
+    CStringManager::GetSingleton().GetString(381) /// ì¡°í•©ì´ ë˜ì–´ìˆì§€ ì•ŠìŠµë‹ˆë‹¤.
 #define STR_PAT_ERROR_NOT_EQUIP_BODY \
-    CStringManager::GetSingleton().GetString(382) /// ¹ÙµğºÎÇ°À» ¸ÕÀú ÀåÂøÇÏ¼¼¿ä
+    CStringManager::GetSingleton().GetString(382) /// ë°”ë””ë¶€í’ˆì„ ë¨¼ì € ì¥ì°©í•˜ì„¸ìš”
 #define STR_PAT_ERROR_NOT_EQUAL_CLASS \
-    CStringManager::GetSingleton().GetString(383) /// ¹Ùµğ¿Í ºÎÇ°Á¾·ù°¡ Æ²¸³´Ï´Ù
+    CStringManager::GetSingleton().GetString(383) /// ë°”ë””ì™€ ë¶€í’ˆì¢…ë¥˜ê°€ í‹€ë¦½ë‹ˆë‹¤
 #define STR_PAT_ERROR_NOT_VERSION \
-    CStringManager::GetSingleton().GetString(384) /// ºÎÇ°ÀÇ ¹öÀü¼öÄ¡°¡ ¹Ùµğº¸´Ù ³ô½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(384) /// ë¶€í’ˆì˜ ë²„ì „ìˆ˜ì¹˜ê°€ ë°”ë””ë³´ë‹¤ ë†’ìŠµë‹ˆë‹¤
 #define STR_CLAN_LEVELUP CStringManager::GetSingleton().GetString(385)
 
 ///#define STR_CANT_CASTING_STATE_CART					CStringManager::GetSingleton().GetString( 456 )
-////// Å¾½ÂÁß¿¡´Â ½ÃÀüÇÒ¼ö ¾ø½À´Ï´Ù.
+////// íƒ‘ìŠ¹ì¤‘ì—ëŠ” ì‹œì „í• ìˆ˜ ì—†ìŠµë‹ˆë‹¤.
 
-/// 386 ~ 407 : ´É·Â¼Ó¼ºÀÌ¸§
+/// 386 ~ 407 : ëŠ¥ë ¥ì†ì„±ì´ë¦„
 
-/// Ãß°¡ °æ°í ¸Ş¼¼Áöµé
+/// ì¶”ê°€ ê²½ê³  ë©”ì„¸ì§€ë“¤
 #define STR_CANT_SUMMON_NPC CStringManager::GetSingleton().GetString(411)
 #define STR_CANT_DOUBLE_USE CStringManager::GetSingleton().GetString(412)
 
-/// Àç¹Ö °ü·Ã
+/// ì¬ë° ê´€ë ¨
 #define STR_GEMMING_SUCCESS CStringManager::GetSingleton().GetString(413)
 #define STR_GEMMING_NEED_SOCKET CStringManager::GetSingleton().GetString(414)
 
-#define F_STR_SUMMON_TERMINATED CStringManager::GetSingleton().GetString(415) //¼ÒÈ¯¼ö %s¼Ò¸ê
-#define F_STR_GETTING_MONEY CStringManager::GetSingleton().GetString(416) //µ· %¿øÀ» È¹µæÇÏ¿´½À´Ï´Ù
-#define F_STR_GETTING_ITEMS CStringManager::GetSingleton().GetString(417) //%s %d°³ È¹µæÇÏ¿´½À´Ï´Ù
-#define F_STR_GETTING_ITEM CStringManager::GetSingleton().GetString(418) //%s È¹µæÇÏ¿´½À´Ï´Ù
+#define F_STR_SUMMON_TERMINATED CStringManager::GetSingleton().GetString(415) //ì†Œí™˜ìˆ˜ %sì†Œë©¸
+#define F_STR_GETTING_MONEY CStringManager::GetSingleton().GetString(416) //ëˆ %ì›ì„ íšë“í•˜ì˜€ìŠµë‹ˆë‹¤
+#define F_STR_GETTING_ITEMS CStringManager::GetSingleton().GetString(417) //%s %dê°œ íšë“í•˜ì˜€ìŠµë‹ˆë‹¤
+#define F_STR_GETTING_ITEM CStringManager::GetSingleton().GetString(418) //%s íšë“í•˜ì˜€ìŠµë‹ˆë‹¤
 #define F_STR_QUEST_GETTING_MONEY \
-    CStringManager::GetSingleton().GetString(419) //µ· %d¿øÀ» ¾ò¾ú½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(419) //ëˆ %dì›ì„ ì–»ì—ˆìŠµë‹ˆë‹¤
 #define F_STR_QUEST_GETTING_ITEMS \
-    CStringManager::GetSingleton().GetString(420) //%s %d°³¸¦ ¾ò¾ú½À´Ï´Ù
-#define F_STR_QUEST_GETTING_ITEM CStringManager::GetSingleton().GetString(421) //%sÀ» ¾ò¾ú½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(420) //%s %dê°œë¥¼ ì–»ì—ˆìŠµë‹ˆë‹¤
+#define F_STR_QUEST_GETTING_ITEM CStringManager::GetSingleton().GetString(421) //%sì„ ì–»ì—ˆìŠµë‹ˆë‹¤
 #define F_STR_QUEST_SUBTRACT_MONEY \
-    CStringManager::GetSingleton().GetString(422) //µ· %d¿øÀ» °¡Á®°¬½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(422) //ëˆ %dì›ì„ ê°€ì ¸ê°”ìŠµë‹ˆë‹¤
 #define F_STR_QUEST_SUBTRACT_ITEMS \
-    CStringManager::GetSingleton().GetString(423) //%s %d°³¸¦ °¡Á®°¬½À´Ï´Ù
-#define F_STR_QUEST_SUBTRACT_ITEM CStringManager::GetSingleton().GetString(424) //%s¸¦ °¡Á®°¬½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(423) //%s %dê°œë¥¼ ê°€ì ¸ê°”ìŠµë‹ˆë‹¤
+#define F_STR_QUEST_SUBTRACT_ITEM CStringManager::GetSingleton().GetString(424) //%së¥¼ ê°€ì ¸ê°”ìŠµë‹ˆë‹¤
 #define F_STR_SET_ABILITY \
-    CStringManager::GetSingleton().GetString(425) //%s ´É·ÂÄ¡°¡ %dÀ¸·Î º¯°æµÇ¾ú½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(425) //%s ëŠ¥ë ¥ì¹˜ê°€ %dìœ¼ë¡œ ë³€ê²½ë˜ì—ˆìŠµë‹ˆë‹¤
 #define F_STR_INCREASE_ABILITY \
-    CStringManager::GetSingleton().GetString(426) //%s ´É·ÂÄ¡°¡ %d »ó½ÂÇß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(426) //%s ëŠ¥ë ¥ì¹˜ê°€ %d ìƒìŠ¹í–ˆìŠµë‹ˆë‹¤
 #define STR_CANT_USE_DRIVESKILL \
-    CStringManager::GetSingleton().GetString(427) //µå¶óÀÌºê Ä«Æ® ½ºÅ³À» »ç¿ë ÇÒ ¼ö ¾ø½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(427) //ë“œë¼ì´ë¸Œ ì¹´íŠ¸ ìŠ¤í‚¬ì„ ì‚¬ìš© í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤
 #define STR_PARTY_IS_FULL \
-    CStringManager::GetSingleton().GetString(428) //´õ ÀÌ»ó ÀÎ¿øÀ» Ãß°¡ÇÒ ¼ö ¾ø½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(428) //ë” ì´ìƒ ì¸ì›ì„ ì¶”ê°€í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤
 #define STR_CANT_INVITE_TO_PARTY \
-    CStringManager::GetSingleton().GetString(429) //ÆÄÆ¼ÃÊ´ë´Â ÆÄÆ¼¸®´õ¸¸ÀÌ °¡´ÉÇÕ´Ï´Ù
-#define STR_REQUIRE_IDENTIFY CStringManager::GetSingleton().GetString(430) //[¾ÆÀÌÅÛ°¨Á¤ ÇÊ¿ä)
+    CStringManager::GetSingleton().GetString(429) //íŒŒí‹°ì´ˆëŒ€ëŠ” íŒŒí‹°ë¦¬ë”ë§Œì´ ê°€ëŠ¥í•©ë‹ˆë‹¤
+#define STR_REQUIRE_IDENTIFY CStringManager::GetSingleton().GetString(430) //[ì•„ì´í…œê°ì • í•„ìš”)
 
-#define STR_UNIT_PRICE CStringManager::GetSingleton().GetString(431) //´Ü°¡
-#define STR_REPAIR_PRICE CStringManager::GetSingleton().GetString(432) //¼ö¸®ºñ
-#define STR_LIFE CStringManager::GetSingleton().GetString(433) //¼ö¸í
-#define STR_DURABILITY CStringManager::GetSingleton().GetString(434) //³»±¸µµ
-#define STR_NORMAL CStringManager::GetSingleton().GetString(435) //º¸Åë
-#define STR_FASTER CStringManager::GetSingleton().GetString(436) //ºü¸§
-#define STR_SLOWER CStringManager::GetSingleton().GetString(437) //´À¸²
+#define STR_UNIT_PRICE CStringManager::GetSingleton().GetString(431) //ë‹¨ê°€
+#define STR_REPAIR_PRICE CStringManager::GetSingleton().GetString(432) //ìˆ˜ë¦¬ë¹„
+#define STR_LIFE CStringManager::GetSingleton().GetString(433) //ìˆ˜ëª…
+#define STR_DURABILITY CStringManager::GetSingleton().GetString(434) //ë‚´êµ¬ë„
+#define STR_NORMAL CStringManager::GetSingleton().GetString(435) //ë³´í†µ
+#define STR_FASTER CStringManager::GetSingleton().GetString(436) //ë¹ ë¦„
+#define STR_SLOWER CStringManager::GetSingleton().GetString(437) //ëŠë¦¼
 #define STR_CANT_EQUIP_USING_DRIVESKILL \
-    CStringManager::GetSingleton().GetString(438) // PAT»ç¿ë½Ã¿¡´Â ¾ÆÀÌÅÛÀ» ÀåÂøÇÒ¼ö ¾ø½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(438) // PATì‚¬ìš©ì‹œì—ëŠ” ì•„ì´í…œì„ ì¥ì°©í• ìˆ˜ ì—†ìŠµë‹ˆë‹¤
 #define STR_CANT_UNEQUIP_USING_DRIVESKILL \
-    CStringManager::GetSingleton().GetString(439) // PAT»ç¿ë½Ã¿¡´Â ¾ÆÀÌÅÛÀ» Å»ÂøÇÒ¼ö ¾ø½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(439) // PATì‚¬ìš©ì‹œì—ëŠ” ì•„ì´í…œì„ íƒˆì°©í• ìˆ˜ ì—†ìŠµë‹ˆë‹¤
 #define STR_CANT_UNEQUIP_BULLET_USING_DRIVESKILL \
-    CStringManager::GetSingleton().GetString(440) // PAT»ç¿ë½Ã¿¡´Â ¼Ò¸ğÅºÀ» Å»ÂøÇÒ¼ö ¾ø½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(440) // PATì‚¬ìš©ì‹œì—ëŠ” ì†Œëª¨íƒ„ì„ íƒˆì°©í• ìˆ˜ ì—†ìŠµë‹ˆë‹¤
 #define STR_CANT_SUMMON_IN_PVPZONE \
-    CStringManager::GetSingleton().GetString(441) // PVP Á¸¿¡¼­´Â ¼ÒÈ¯¸÷À» ¼ÒÈ¯ÇÒ¼ö ¾ø½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(441) // PVP ì¡´ì—ì„œëŠ” ì†Œí™˜ëª¹ì„ ì†Œí™˜í• ìˆ˜ ì—†ìŠµë‹ˆë‹¤
 #define STR_CANT_USESKILL_USING_DRIVESKILL \
-    CStringManager::GetSingleton().GetString(442) //Å¾½ÂÁß¿¡´Â ½ÃÀüÇÒ¼ö ¾ø½À´Ï´Ù
-#define STR_REMAIN_REMOVE_WAITTIME CStringManager::GetSingleton().GetString(443) //³²Àº »èÁ¦´ë±â½Ã°£
-#define STR_DAY CStringManager::GetSingleton().GetString(444) //ÀÏ
+    CStringManager::GetSingleton().GetString(442) //íƒ‘ìŠ¹ì¤‘ì—ëŠ” ì‹œì „í• ìˆ˜ ì—†ìŠµë‹ˆë‹¤
+#define STR_REMAIN_REMOVE_WAITTIME CStringManager::GetSingleton().GetString(443) //ë‚¨ì€ ì‚­ì œëŒ€ê¸°ì‹œê°„
+#define STR_DAY CStringManager::GetSingleton().GetString(444) //ì¼
 #define STR_CANT_OPEN_PRIVATESTORE \
-    CStringManager::GetSingleton().GetString(445) //°³ÀÎ»óÁ¡À» °³¼³ ÇÒ ¼ö ¾ø½À´Ï´Ù
-#define STR_PRIVATESTORE CStringManager::GetSingleton().GetString(446) //°³ÀÎ»óÁ¡
-#define STR_NONAME CStringManager::GetSingleton().GetString(447) //ÀÌ¸§¾øÀ½
+    CStringManager::GetSingleton().GetString(445) //ê°œì¸ìƒì ì„ ê°œì„¤ í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤
+#define STR_PRIVATESTORE CStringManager::GetSingleton().GetString(446) //ê°œì¸ìƒì 
+#define STR_NONAME CStringManager::GetSingleton().GetString(447) //ì´ë¦„ì—†ìŒ
 #define STR_ITEM_CANT_SEPARATED \
-    CStringManager::GetSingleton().GetString(448) //ºĞ¸®/ºĞÇØ ÇÒ ¼ö ¾ø´Â ¾ÆÀÌÅÛÀÔ´Ï´Ù
+    CStringManager::GetSingleton().GetString(448) //ë¶„ë¦¬/ë¶„í•´ í•  ìˆ˜ ì—†ëŠ” ì•„ì´í…œì…ë‹ˆë‹¤
 #define STR_ITEM_CANT_UPGRADED \
-    CStringManager::GetSingleton().GetString(449) //Á¦·Ã ÇÒ ¼ö ¾ø´Â ¾ÆÀÌÅÛÀÔ´Ï´Ù
+    CStringManager::GetSingleton().GetString(449) //ì œë ¨ í•  ìˆ˜ ì—†ëŠ” ì•„ì´í…œì…ë‹ˆë‹¤
 
-/// 450 ~ 480 : Á÷¾÷ ÀÌ¸§
+/// 450 ~ 480 : ì§ì—… ì´ë¦„
 
-#define F_STR_QUERY_DROP_ITEM CStringManager::GetSingleton().GetString(481) //%s¸¦ ¹ö¸®½Ã°Ú½À´Ï±î?
-#define TT_SELFTARGETING CStringManager::GetSingleton().GetString(482) //Å¬¸¯½Ã º»ÀÎ Å¸°ÙÆÃ
+#define F_STR_QUERY_DROP_ITEM CStringManager::GetSingleton().GetString(481) //%së¥¼ ë²„ë¦¬ì‹œê² ìŠµë‹ˆê¹Œ?
+#define TT_SELFTARGETING CStringManager::GetSingleton().GetString(482) //í´ë¦­ì‹œ ë³¸ì¸ íƒ€ê²ŸíŒ…
 #define STR_DUPLICATED_FRIENDNAME \
-    CStringManager::GetSingleton().GetString(483) //Ä£±¸¸ñ·Ï¿¡ ÀÌ¹Ì ÀÖ´Â ÀÌ¸§ÀÔ´Ï´Ù
-#define F_STR_BANK_TITLE CStringManager::GetSingleton().GetString(484) //%s'ÀÇ Ã¢°í
+    CStringManager::GetSingleton().GetString(483) //ì¹œêµ¬ëª©ë¡ì— ì´ë¯¸ ìˆëŠ” ì´ë¦„ì…ë‹ˆë‹¤
+#define F_STR_BANK_TITLE CStringManager::GetSingleton().GetString(484) //%s'ì˜ ì°½ê³ 
 #define F_STR_QUERY_DELETE_FRIEND \
-    CStringManager::GetSingleton().GetString(485) //%s¸¦ Ä£±¸¸ñ·Ï¿¡¼­ »èÁ¦ÇÏ½Ã°Ú½À´Ï±î?
+    CStringManager::GetSingleton().GetString(485) //%së¥¼ ì¹œêµ¬ëª©ë¡ì—ì„œ ì‚­ì œí•˜ì‹œê² ìŠµë‹ˆê¹Œ?
 #define F_STR_RESTRICT_SHOUT \
-    CStringManager::GetSingleton().GetString(486) //¿ÜÄ¡±â´Â %dÃÊ¿¡ ÇÑ¹ø¸¸ »ç¿ëÇÒ¼ö ÀÖ½À´Ï´Ù
-#define STR_HELP CStringManager::GetSingleton().GetString(487) //µµ¿ò¸»
+    CStringManager::GetSingleton().GetString(486) //ì™¸ì¹˜ê¸°ëŠ” %dì´ˆì— í•œë²ˆë§Œ ì‚¬ìš©í• ìˆ˜ ìˆìŠµë‹ˆë‹¤
+#define STR_HELP CStringManager::GetSingleton().GetString(487) //ë„ì›€ë§
 #define STR_CHANGED_PARTY_CONFIG \
-    CStringManager::GetSingleton().GetString(488) //ÆÄÆ¼ ¼³Á¤ÀÌ º¯°æµÇ¾ú½À´Ï´Ù
-#define STR_ITEM_PICKUP_RIGHT CStringManager::GetSingleton().GetString(489) //¾ÆÀÌÅÛ¿ì¼±±Ç
-#define STR_PARTY_ITEM_PICKUP_SEQENCE CStringManager::GetSingleton().GetString(490) //¼ø¼­´ë·Î È¹µæ
+    CStringManager::GetSingleton().GetString(488) //íŒŒí‹° ì„¤ì •ì´ ë³€ê²½ë˜ì—ˆìŠµë‹ˆë‹¤
+#define STR_ITEM_PICKUP_RIGHT CStringManager::GetSingleton().GetString(489) //ì•„ì´í…œìš°ì„ ê¶Œ
+#define STR_PARTY_ITEM_PICKUP_SEQENCE CStringManager::GetSingleton().GetString(490) //ìˆœì„œëŒ€ë¡œ íšë“
 #define STR_PARTY_ITEM_PICKUP_RIGHT_ALL \
-    CStringManager::GetSingleton().GetString(491) //ÆÄÆ¼¿ø Àü¿ø ºÎ¿©
-#define STR_PARTY_EXP_LEVELRATE CStringManager::GetSingleton().GetString(492) //·¹º§ºñ·Ê ºĞ¹è
-#define STR_PARTY_EXP_EQUALITY CStringManager::GetSingleton().GetString(493) //±ÕµîÇÏ°Ô ºĞ¹è
-#define STR_MYSTATE_IN_HUNT CStringManager::GetSingleton().GetString(494) //»ç³ÉÁß
-#define STR_MYSTATE_IN_TRADE CStringManager::GetSingleton().GetString(495) //Àå»çÁß
-#define STR_MYSTATE_IN_QUEST CStringManager::GetSingleton().GetString(496) //Äù½ºÆ®Áß
-#define STR_MYSTATE_IN_EAT CStringManager::GetSingleton().GetString(497) //½Ä»çÁß
-#define STR_MYSTATE_IN_BREAK CStringManager::GetSingleton().GetString(498) //ÈŞ½ÄÁß
+    CStringManager::GetSingleton().GetString(491) //íŒŒí‹°ì› ì „ì› ë¶€ì—¬
+#define STR_PARTY_EXP_LEVELRATE CStringManager::GetSingleton().GetString(492) //ë ˆë²¨ë¹„ë¡€ ë¶„ë°°
+#define STR_PARTY_EXP_EQUALITY CStringManager::GetSingleton().GetString(493) //ê· ë“±í•˜ê²Œ ë¶„ë°°
+#define STR_MYSTATE_IN_HUNT CStringManager::GetSingleton().GetString(494) //ì‚¬ëƒ¥ì¤‘
+#define STR_MYSTATE_IN_TRADE CStringManager::GetSingleton().GetString(495) //ì¥ì‚¬ì¤‘
+#define STR_MYSTATE_IN_QUEST CStringManager::GetSingleton().GetString(496) //í€˜ìŠ¤íŠ¸ì¤‘
+#define STR_MYSTATE_IN_EAT CStringManager::GetSingleton().GetString(497) //ì‹ì‚¬ì¤‘
+#define STR_MYSTATE_IN_BREAK CStringManager::GetSingleton().GetString(498) //íœ´ì‹ì¤‘
 #define STR_NOT_FOUND_FRIEND \
-    CStringManager::GetSingleton().GetString(499) //»ó´ë¹æÀ» Ä£±¸¸ñ·Ï¿¡¼­ Ã£À»¼ö ¾ø½À´Ï´Ù
-#define STR_DEFAULT_PRIVATESTORE_TITLE CStringManager::GetSingleton().GetString(500) //%s' °³ÀÎ»óÁ¡
+    CStringManager::GetSingleton().GetString(499) //ìƒëŒ€ë°©ì„ ì¹œêµ¬ëª©ë¡ì—ì„œ ì°¾ì„ìˆ˜ ì—†ìŠµë‹ˆë‹¤
+#define STR_DEFAULT_PRIVATESTORE_TITLE CStringManager::GetSingleton().GetString(500) //%s' ê°œì¸ìƒì 
 
 #define F_STR_QUERY_ABANDON_QUEST \
-    CStringManager::GetSingleton().GetString(501) //%s Äù½ºÆ®¸¦ Æ÷±âÇÏ°Ú½À´Ï±î?
+    CStringManager::GetSingleton().GetString(501) //%s í€˜ìŠ¤íŠ¸ë¥¼ í¬ê¸°í•˜ê² ìŠµë‹ˆê¹Œ?
 #define STR_SEPARATE_EMPTY_TARGETITEM \
-    CStringManager::GetSingleton().GetString(502) //ºĞ¸®/ºĞÇØÇÒ ¾ÆÀÌÅÛÀÌ ¾ø½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(502) //ë¶„ë¦¬/ë¶„í•´í•  ì•„ì´í…œì´ ì—†ìŠµë‹ˆë‹¤
 #define STR_NOTENOUGH_EMPTY_INVENTORYSLOT \
-    CStringManager::GetSingleton().GetString(503) //ÀÎº¥Åä¸®¿¡ ¿©À¯°ø°£ÀÌ ¾ø½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(503) //ì¸ë²¤í† ë¦¬ì— ì—¬ìœ ê³µê°„ì´ ì—†ìŠµë‹ˆë‹¤
 #define F_STR_FRIEND_DELETED \
-    CStringManager::GetSingleton().GetString(504) //%sÀÌ ³ª¸¦ Ä£±¸ ¸ñ·Ï¿¡¼­ Á¦¿Ü½ÃÄ×½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(504) //%sì´ ë‚˜ë¥¼ ì¹œêµ¬ ëª©ë¡ì—ì„œ ì œì™¸ì‹œì¼°ìŠµë‹ˆë‹¤
 #define F_STR_MESSANGER_BLOCKED \
-    CStringManager::GetSingleton().GetString(505) //%sÀÌ ´ëÈ­¸¦ Â÷´ÜÇÏ¿´½À´Ï´Ù
-#define STR_REQUIRE_SKILLPOINT CStringManager::GetSingleton().GetString(506) //ÇÊ¿ä ½ºÅ³Æ÷ÀÎÆ®
+    CStringManager::GetSingleton().GetString(505) //%sì´ ëŒ€í™”ë¥¼ ì°¨ë‹¨í•˜ì˜€ìŠµë‹ˆë‹¤
+#define STR_REQUIRE_SKILLPOINT CStringManager::GetSingleton().GetString(506) //í•„ìš” ìŠ¤í‚¬í¬ì¸íŠ¸
 #define STR_CANT_LEVELUP \
-    CStringManager::GetSingleton().GetString(507) //´õÀÌ»ó ·¹º§¾÷ÀÌ µÇÁö ¾Ê½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(507) //ë”ì´ìƒ ë ˆë²¨ì—…ì´ ë˜ì§€ ì•ŠìŠµë‹ˆë‹¤
 #define STR_CANT_REPAIR_DURABILITY_IS_ZERO \
-    CStringManager::GetSingleton().GetString(508) //³»±¸µµ°¡ ¾ø¾î¼­ ¼ö¸®°¡ ºÒ°¡´ÉÇÕ´Ï´Ù
+    CStringManager::GetSingleton().GetString(508) //ë‚´êµ¬ë„ê°€ ì—†ì–´ì„œ ìˆ˜ë¦¬ê°€ ë¶ˆê°€ëŠ¥í•©ë‹ˆë‹¤
 //#define STR_INVALID_CHARACTER_NAME					CStringManager::GetSingleton().GetString(
 //509
-//)//ÀÌ¸§¿¡ Çã¿ëµÇÁö ¾Ê´Â ±ÛÀÚ°¡ ÀÖ½À´Ï´Ù
+//)//ì´ë¦„ì— í—ˆìš©ë˜ì§€ ì•ŠëŠ” ê¸€ìê°€ ìˆìŠµë‹ˆë‹¤
 #define STR_LOGIN_REPLY_TOO_MANY_USER         \
     CStringManager::GetSingleton().GetString( \
-        510) //ÃÖ´ë Á¢¼ÓÀÎ¿øÀÌ ³Ñ¾ú½À´Ï´Ù. Àá½ÃÈÄ¿¡ ´Ù½Ã ÀÌ¿ëÇØÁÖ½Ã±â ¹Ù¶ø´Ï´Ù
+        510) //ìµœëŒ€ ì ‘ì†ì¸ì›ì´ ë„˜ì—ˆìŠµë‹ˆë‹¤. ì ì‹œí›„ì— ë‹¤ì‹œ ì´ìš©í•´ì£¼ì‹œê¸° ë°”ëë‹ˆë‹¤
 #define STR_LOGIN_REPLY_NO_RIGHT_TO_CONNECT   \
     CStringManager::GetSingleton().GetString( \
-        511) //·ÎÁî¿Â¶óÀÎÀº 9¿ù¿¡ ¿ÀÇÂ º£Å¸ Å×½ºÆ®¸¦ ½ÃÀÛÇÒ ¿¹Á¤À¸·Î ÇöÀç´Â Á¢¼ÓÇÏ½Ç¼ö ¾ø½À´Ï´Ù
+        511) //ë¡œì¦ˆì˜¨ë¼ì¸ì€ 9ì›”ì— ì˜¤í”ˆ ë² íƒ€ í…ŒìŠ¤íŠ¸ë¥¼ ì‹œì‘í•  ì˜ˆì •ìœ¼ë¡œ í˜„ì¬ëŠ” ì ‘ì†í•˜ì‹¤ìˆ˜ ì—†ìŠµë‹ˆë‹¤
 #define STR_QUERY_REVIVE_CHARACTER \
-    CStringManager::GetSingleton().GetString(512) //Ä³¸¯ÅÍ¸¦ ºÎÈ°½ÃÅ°°Ú½À´Ï±î?
+    CStringManager::GetSingleton().GetString(512) //ìºë¦­í„°ë¥¼ ë¶€í™œì‹œí‚¤ê² ìŠµë‹ˆê¹Œ?
 #define STR_CANT_CREATE_MORE_CHARACTER \
-    CStringManager::GetSingleton().GetString(513) //Ä³¸¯ÅÍ¸¦ ´õ ÀÌ»ó »ı¼º ÇÒ ¼ö ¾ø½À´Ï´Ù
-#define STR_ABSORPTION CStringManager::GetSingleton().GetString(514) //Èí¼ö
-#define STR_CHANGE_ABILITY CStringManager::GetSingleton().GetString(515) //º¯°æ´É·ÂÄ¡
-#define STR_STATE CStringManager::GetSingleton().GetString(516) //»óÅÂ
+    CStringManager::GetSingleton().GetString(513) //ìºë¦­í„°ë¥¼ ë” ì´ìƒ ìƒì„± í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤
+#define STR_ABSORPTION CStringManager::GetSingleton().GetString(514) //í¡ìˆ˜
+#define STR_CHANGE_ABILITY CStringManager::GetSingleton().GetString(515) //ë³€ê²½ëŠ¥ë ¥ì¹˜
+#define STR_STATE CStringManager::GetSingleton().GetString(516) //ìƒíƒœ
 #define F_STR2_CHAT_BLOCKED_BY_GM \
-    CStringManager::GetSingleton().GetString(517) // GM[%s)ÀÌ %dºĞ°£ Ã¤ÆÃ±İÁö ½ÃÄ×½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(517) // GM[%s)ì´ %dë¶„ê°„ ì±„íŒ…ê¸ˆì§€ ì‹œì¼°ìŠµë‹ˆë‹¤
 #define STR_OTHER_WHISPER_REJECT_STATE \
-    CStringManager::GetSingleton().GetString(518) //»ó´ë¹æÀº ÇöÀç ±Ó¼Ó¸» °ÅºÎ»óÅÂÀÔ´Ï´Ù
-#define STR_WEIGHT_RATE CStringManager::GetSingleton().GetString(519) //¹«°ÔºñÀ²
-#define STR_NO_PENALTY CStringManager::GetSingleton().GetString(520) //Á¦ÇÑ¾øÀ½
+    CStringManager::GetSingleton().GetString(518) //ìƒëŒ€ë°©ì€ í˜„ì¬ ê·“ì†ë§ ê±°ë¶€ìƒíƒœì…ë‹ˆë‹¤
+#define STR_WEIGHT_RATE CStringManager::GetSingleton().GetString(519) //ë¬´ê²Œë¹„ìœ¨
+#define STR_NO_PENALTY CStringManager::GetSingleton().GetString(520) //ì œí•œì—†ìŒ
 
-#define STR_CANT_ATTACK CStringManager::GetSingleton().GetString(521) //°ø°İ ºÒ°¡
-#define STR_CANT_RUN CStringManager::GetSingleton().GetString(522) //¶Ù±â ±İÁö
-#define F_STR_SUCCESS_HUNT CStringManager::GetSingleton().GetString(523) //%s »ç³É¿¡ ¼º°øÇß½À´Ï´Ù
-#define F_STR_WIN_PVP CStringManager::GetSingleton().GetString(524) //%s¿ÍÀÇ °áÅõ¿¡¼­ ÀÌ°å½À´Ï´Ù
-#define STR_SHIELD_COUNTERATTACK CStringManager::GetSingleton().GetString(525) //¹æÆĞ ¹İ°İ
-#define STR_DROP_ITEM CStringManager::GetSingleton().GetString(526) //¾ÆÀÌÅÛ µå·Ó
-#define STR_DROP_MONEY CStringManager::GetSingleton().GetString(527) //µ· µå·Ó
-#define F_STR_SKILL_LEARNED CStringManager::GetSingleton().GetString(528) //½ºÅ³ %sÀ» ¹è¿ü½À´Ï´Ù
-#define STR_STORE_IS_CLOSED CStringManager::GetSingleton().GetString(529) //»óÁ¡ÀÌ ´İÇû½À´Ï´Ù
-#define STR_TRADE_IS_CANCEL CStringManager::GetSingleton().GetString(530) //°Å·¡°¡ Ãë¼ÒµÇ¾ú½À´Ï´Ù
-#define STR_ITEM_IS_SOLD CStringManager::GetSingleton().GetString(531) //ÀÌ¹Ì ÆÈ¸° ¾ÆÀÌÅÛÀÔ´Ï´Ù
+#define STR_CANT_ATTACK CStringManager::GetSingleton().GetString(521) //ê³µê²© ë¶ˆê°€
+#define STR_CANT_RUN CStringManager::GetSingleton().GetString(522) //ë›°ê¸° ê¸ˆì§€
+#define F_STR_SUCCESS_HUNT CStringManager::GetSingleton().GetString(523) //%s ì‚¬ëƒ¥ì— ì„±ê³µí–ˆìŠµë‹ˆë‹¤
+#define F_STR_WIN_PVP CStringManager::GetSingleton().GetString(524) //%sì™€ì˜ ê²°íˆ¬ì—ì„œ ì´ê²¼ìŠµë‹ˆë‹¤
+#define STR_SHIELD_COUNTERATTACK CStringManager::GetSingleton().GetString(525) //ë°©íŒ¨ ë°˜ê²©
+#define STR_DROP_ITEM CStringManager::GetSingleton().GetString(526) //ì•„ì´í…œ ë“œë¡­
+#define STR_DROP_MONEY CStringManager::GetSingleton().GetString(527) //ëˆ ë“œë¡­
+#define F_STR_SKILL_LEARNED CStringManager::GetSingleton().GetString(528) //ìŠ¤í‚¬ %sì„ ë°°ì› ìŠµë‹ˆë‹¤
+#define STR_STORE_IS_CLOSED CStringManager::GetSingleton().GetString(529) //ìƒì ì´ ë‹«í˜”ìŠµë‹ˆë‹¤
+#define STR_TRADE_IS_CANCEL CStringManager::GetSingleton().GetString(530) //ê±°ë˜ê°€ ì·¨ì†Œë˜ì—ˆìŠµë‹ˆë‹¤
+#define STR_ITEM_IS_SOLD CStringManager::GetSingleton().GetString(531) //ì´ë¯¸ íŒ”ë¦° ì•„ì´í…œì…ë‹ˆë‹¤
 #define STR_ITEM_IS_BUY_ALL \
-    CStringManager::GetSingleton().GetString(532) //´õÀÌ»ó »çÁö ¾Ê´Â ¾ÆÀÌÅÛÀÔ´Ï´Ù
+    CStringManager::GetSingleton().GetString(532) //ë”ì´ìƒ ì‚¬ì§€ ì•ŠëŠ” ì•„ì´í…œì…ë‹ˆë‹¤
 
 #define STR_BANK_REPLY_NEED_PASSWORD \
-    CStringManager::GetSingleton().GetString(533) //Ã¢°í ºñ¹Ğ¹øÈ£¸¦ ÀÔ·ÂÇÏ¼¼¿ä
+    CStringManager::GetSingleton().GetString(533) //ì°½ê³  ë¹„ë°€ë²ˆí˜¸ë¥¼ ì…ë ¥í•˜ì„¸ìš”
 #define STR_BANK_REPLY_CHANGED_PASSWORD \
-    CStringManager::GetSingleton().GetString(534) //Ã¢°í ºñ¹Ğ¹øÈ£°¡ º¯°æµÇ¾ú½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(534) //ì°½ê³  ë¹„ë°€ë²ˆí˜¸ê°€ ë³€ê²½ë˜ì—ˆìŠµë‹ˆë‹¤
 #define STR_BANK_REPLY_INVALID_PASSWORD \
-    CStringManager::GetSingleton().GetString(535) //Ã¢°í ºñ¹Ğ¹øÈ£°¡ Æ²·È½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(535) //ì°½ê³  ë¹„ë°€ë²ˆí˜¸ê°€ í‹€ë ¸ìŠµë‹ˆë‹¤
 #define STR_BANK_REPLY_CLEARED_PASSWORD \
-    CStringManager::GetSingleton().GetString(536) //Ã¢°í ºñ¹Ğ¹øÈ£°¡ »èÁ¦µÇ¾ú½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(536) //ì°½ê³  ë¹„ë°€ë²ˆí˜¸ê°€ ì‚­ì œë˜ì—ˆìŠµë‹ˆë‹¤
 #define STR_BANK_MOVEITEM_FAILED \
-    CStringManager::GetSingleton().GetString(537) //¾ÆÀÌÅÛ ÀÌµ¿ÀÌ ½ÇÆĞÇß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(537) //ì•„ì´í…œ ì´ë™ì´ ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤
 #define STR_CHAT_REPLY_MAKE_FAILED \
-    CStringManager::GetSingleton().GetString(538) //¹æ¸¸µé±â¿¡ ½ÇÆĞÇß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(538) //ë°©ë§Œë“¤ê¸°ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤
 #define STR_CHAT_REPLY_INVALIED_PASS \
-    CStringManager::GetSingleton().GetString(539) //ºñ¹Ğ¹øÈ£°¡ Æ²¸³´Ï´Ù
+    CStringManager::GetSingleton().GetString(539) //ë¹„ë°€ë²ˆí˜¸ê°€ í‹€ë¦½ë‹ˆë‹¤
 #define STR_CHAT_REPLY_ROOM_NOT_FOUND \
-    CStringManager::GetSingleton().GetString(540) //¾ø¾îÁø Ã¤ÆÃ¹æÀÔ´Ï´Ù
+    CStringManager::GetSingleton().GetString(540) //ì—†ì–´ì§„ ì±„íŒ…ë°©ì…ë‹ˆë‹¤
 
 #define STR_CHAT_REPLY_FULL_USERS \
-    CStringManager::GetSingleton().GetString(541) //´õÀÌ»ó Âü¿©ÇÒ¼ö ¾ø½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(541) //ë”ì´ìƒ ì°¸ì—¬í• ìˆ˜ ì—†ìŠµë‹ˆë‹¤
 #define STR_CHAT_REPLY_KICKED \
-    CStringManager::GetSingleton().GetString(542) //Ã¤ÆÃ¹æ¿¡¼­ °­Åğ ´çÇß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(542) //ì±„íŒ…ë°©ì—ì„œ ê°•í‡´ ë‹¹í–ˆìŠµë‹ˆë‹¤
 #define F_STR_QUERY_APPEND_FRIEND_REQ \
-    CStringManager::GetSingleton().GetString(543) //%s°¡ Ä£±¸·Î µî·ÏÇÏ·Á°í ÇÕ´Ï´Ù. ½Â³«ÇÏ½Ã°Ú½À´Ï±î?
+    CStringManager::GetSingleton().GetString(543) //%sê°€ ì¹œêµ¬ë¡œ ë“±ë¡í•˜ë ¤ê³  í•©ë‹ˆë‹¤. ìŠ¹ë‚™í•˜ì‹œê² ìŠµë‹ˆê¹Œ?
 #define F_STR_REJECT_APPEND_FRIEND_REQ \
-    CStringManager::GetSingleton().GetString(544) //%sÀÌ Ä£±¸ Ãß°¡ ¿äÃ»À» °ÅÀıÇß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(544) //%sì´ ì¹œêµ¬ ì¶”ê°€ ìš”ì²­ì„ ê±°ì ˆí–ˆìŠµë‹ˆë‹¤
 #define F_STR_NOT_FOUNDORCONNECT_FRIEND \
-    CStringManager::GetSingleton().GetString(545) //%sÀ» Ã£À»¼ö ¾ø°Å³ª Á¢¼ÓÁßÀÌ ¾Æ´Õ´Ï´Ù
+    CStringManager::GetSingleton().GetString(545) //%sì„ ì°¾ì„ìˆ˜ ì—†ê±°ë‚˜ ì ‘ì†ì¤‘ì´ ì•„ë‹™ë‹ˆë‹¤
 #define STR_OTHERSTATE_IS_REJCTMESSANGER \
-    CStringManager::GetSingleton().GetString(546) //»ó´ë¹æÀº ÇöÀç ¸Ş½ÅÀú °ÅºÎ»óÅÂÀÔ´Ï´Ù
+    CStringManager::GetSingleton().GetString(546) //ìƒëŒ€ë°©ì€ í˜„ì¬ ë©”ì‹ ì € ê±°ë¶€ìƒíƒœì…ë‹ˆë‹¤
 #define STR_MEMO_REPLY_SEND_NOT_EXISTORINVALID \
-    CStringManager::GetSingleton().GetString(547) //´ë»óÀ» Ã£À»¼ö ¾ø½À´Ï´Ù
-#define STR_MEMO_REPLY_SEND_REFUSED CStringManager::GetSingleton().GetString(548) //ÂÊÁö ¼ö½Å °ÅºÎ
+    CStringManager::GetSingleton().GetString(547) //ëŒ€ìƒì„ ì°¾ì„ìˆ˜ ì—†ìŠµë‹ˆë‹¤
+#define STR_MEMO_REPLY_SEND_REFUSED CStringManager::GetSingleton().GetString(548) //ìª½ì§€ ìˆ˜ì‹  ê±°ë¶€
 #define STR_MEMO_REPLY_SEND_FULL_MEMO \
-    CStringManager::GetSingleton().GetString(549) //»ó´ë¹æÀÇ ¼ö½ÅÇÔÀÌ ²ËÂ÷¼­ ´õÀÌ»ó ¹ŞÀ»¼ö ¾ø½À´Ï´Ù
-#define STR_MEMO_REPLY_SEND_INVALID_CONTENT CStringManager::GetSingleton().GetString(550) //³»¿ë¿À·ù
+    CStringManager::GetSingleton().GetString(549) //ìƒëŒ€ë°©ì˜ ìˆ˜ì‹ í•¨ì´ ê½‰ì°¨ì„œ ë”ì´ìƒ ë°›ì„ìˆ˜ ì—†ìŠµë‹ˆë‹¤
+#define STR_MEMO_REPLY_SEND_INVALID_CONTENT CStringManager::GetSingleton().GetString(550) //ë‚´ìš©ì˜¤ë¥˜
 
 #define STR_CRAFT_BREAKUP_SUCCESS_GEM \
-    CStringManager::GetSingleton().GetString(551) //¾ÆÀÌÅÛ ºĞ¸®°¡ ¼º°øÇß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(551) //ì•„ì´í…œ ë¶„ë¦¬ê°€ ì„±ê³µí–ˆìŠµë‹ˆë‹¤
 #define STR_CRAFT_BREAKUP_DEGRADE_GEM         \
     CStringManager::GetSingleton().GetString( \
-        552) //¾ÆÀÌÅÛ ºĞ¸®°¡ ¼º°øÇß½À´Ï´Ù. ºĞ¸® °úÁ¤¿¡¼­ º¸¼®ÀÇ µî±Ş°¨¼Ò°¡ ¹ß»ıÇß½À´Ï´Ù
+        552) //ì•„ì´í…œ ë¶„ë¦¬ê°€ ì„±ê³µí–ˆìŠµë‹ˆë‹¤. ë¶„ë¦¬ ê³¼ì •ì—ì„œ ë³´ì„ì˜ ë“±ê¸‰ê°ì†Œê°€ ë°œìƒí–ˆìŠµë‹ˆë‹¤
 #define STR_CRAFT_BREAKUP_CLEARED_GEM         \
     CStringManager::GetSingleton().GetString( \
-        553) //¾ÆÀÌÅÛ ºĞ¸®°¡ ¼º°øÇß½À´Ï´Ù. ºĞ¸® °úÁ¤¿¡¼­ º¸¼®ÀÌ ¼Õ½ÇµÇ¾ú½À´Ï´Ù
+        553) //ì•„ì´í…œ ë¶„ë¦¬ê°€ ì„±ê³µí–ˆìŠµë‹ˆë‹¤. ë¶„ë¦¬ ê³¼ì •ì—ì„œ ë³´ì„ì´ ì†ì‹¤ë˜ì—ˆìŠµë‹ˆë‹¤
 #define STR_CRAFE_BREAKUP_SUCCESS \
-    CStringManager::GetSingleton().GetString(554) //¾ÆÀÌÅÛ ºĞÇØ°¡ ¼º°øÇß½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(554) //ì•„ì´í…œ ë¶„í•´ê°€ ì„±ê³µí–ˆìŠµë‹ˆë‹¤
 #define STR_CRAFT_UPGRADE_INVALID_MAT \
-    CStringManager::GetSingleton().GetString(555) //Àç·á ¾ÆÀÌÅÛÀÌ Àß¸ø‰ç½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(555) //ì¬ë£Œ ì•„ì´í…œì´ ì˜ëª»ë¬ìŠµë‹ˆë‹¤
 
-#define F_STR_SET_MONEY_INC CStringManager::GetSingleton().GetString(556) //µ·ÀÌ %dÁõ°¡ÇÏ¿´½À´Ï´Ù
-#define F_STR_SET_MONEY_DEC CStringManager::GetSingleton().GetString(557) //µ·ÀÌ %d°¨¼ÒÇÏ¿´½À´Ï´Ù
-#define F_STR_REWARD_MONEY_INC CStringManager::GetSingleton().GetString(558) //µ· %dÀ» ¹Ş¾Ò½À´Ï´Ù
-#define F_STR_REWARD_MONEY_DEC CStringManager::GetSingleton().GetString(559) //µ· %dÀ» °¡Á®°¬½À´Ï´Ù
-#define F_STR_REWARD_ITEMS CStringManager::GetSingleton().GetString(560) //%s %d°³¸¦ º¸»ó ¹Ş¾Ò½À´Ï´Ù
-#define F_STR_REWARD_ITEM CStringManager::GetSingleton().GetString(561) //%sÀ» º¸»ó ¹Ş¾Ò½À´Ï´Ù
+#define F_STR_SET_MONEY_INC CStringManager::GetSingleton().GetString(556) //ëˆì´ %dì¦ê°€í•˜ì˜€ìŠµë‹ˆë‹¤
+#define F_STR_SET_MONEY_DEC CStringManager::GetSingleton().GetString(557) //ëˆì´ %dê°ì†Œí•˜ì˜€ìŠµë‹ˆë‹¤
+#define F_STR_REWARD_MONEY_INC CStringManager::GetSingleton().GetString(558) //ëˆ %dì„ ë°›ì•˜ìŠµë‹ˆë‹¤
+#define F_STR_REWARD_MONEY_DEC CStringManager::GetSingleton().GetString(559) //ëˆ %dì„ ê°€ì ¸ê°”ìŠµë‹ˆë‹¤
+#define F_STR_REWARD_ITEMS CStringManager::GetSingleton().GetString(560) //%s %dê°œë¥¼ ë³´ìƒ ë°›ì•˜ìŠµë‹ˆë‹¤
+#define F_STR_REWARD_ITEM CStringManager::GetSingleton().GetString(561) //%sì„ ë³´ìƒ ë°›ì•˜ìŠµë‹ˆë‹¤
 
-/// 562 ~ 570 : ¾ÆÀÌÅÛ Å¸ÀÔ
+/// 562 ~ 570 : ì•„ì´í…œ íƒ€ì…
 
-#define STR_RIDE_PART_VER CStringManager::GetSingleton().GetString(571) //ºÎÇ°¹øÈ£
-#define STR_RESULT_CREATE_CHAR_DUP_NAME CStringManager::GetSingleton().GetString(572) //ºÎÇ°¹øÈ£
-#define STR_APPRAISAL_COST CStringManager::GetSingleton().GetString(573) //ºÎÇ°¹øÈ£
-#define STR_COST CStringManager::GetSingleton().GetString(574) //ºÎÇ°¹øÈ£
+#define STR_RIDE_PART_VER CStringManager::GetSingleton().GetString(571) //ë¶€í’ˆë²ˆí˜¸
+#define STR_RESULT_CREATE_CHAR_DUP_NAME CStringManager::GetSingleton().GetString(572) //ë¶€í’ˆë²ˆí˜¸
+#define STR_APPRAISAL_COST CStringManager::GetSingleton().GetString(573) //ë¶€í’ˆë²ˆí˜¸
+#define STR_COST CStringManager::GetSingleton().GetString(574) //ë¶€í’ˆë²ˆí˜¸
 
 #define STR_SERVERSTATE_SMOOTH CStringManager::GetSingleton().GetString(575)
 #define STR_SERVERSTATE_NORMAL CStringManager::GetSingleton().GetString(576)
@@ -666,28 +666,28 @@
 #define STR_BILLING_MSG_FREE_USER CStringManager::GetSingleton().GetString(592) //
 #define STR_BILLING_MSG_FEE_TYPE1             \
     CStringManager::GetSingleton().GetString( \
-        593) //  /¿ä±İ: ±ÍÇÏ´Â Á¤¾×¿ä±İÁ¦ »ç¿ëÀÚ ÀÔ´Ï´Ù. (2004³â06¿ù01ÀÏ)
+        593) //  /ìš”ê¸ˆ: ê·€í•˜ëŠ” ì •ì•¡ìš”ê¸ˆì œ ì‚¬ìš©ì ì…ë‹ˆë‹¤. (2004ë…„06ì›”01ì¼)
 #define STR_BILLING_MSG_FEE_TYPE2             \
     CStringManager::GetSingleton().GetString( \
-        594) //         ±ÍÇÏ´Â Á¤·®¿ä±İÁ¦ »ç¿ëÀÚ ÀÔ´Ï´Ù. (18½Ã°£20ºĞ20ÃÊ)
-#define STR_BILLING_MSG_TIME_ALERT CStringManager::GetSingleton().GetString(595) // ³²Àº ½Ã°£ Åëº¸
+        594) //         ê·€í•˜ëŠ” ì •ëŸ‰ìš”ê¸ˆì œ ì‚¬ìš©ì ì…ë‹ˆë‹¤. (18ì‹œê°„20ë¶„20ì´ˆ)
+#define STR_BILLING_MSG_TIME_ALERT CStringManager::GetSingleton().GetString(595) // ë‚¨ì€ ì‹œê°„ í†µë³´
 #define STR_BILLING_MSG_TIME_EXPIRED \
-    CStringManager::GetSingleton().GetString(596) // <Á¾·á> °áÁ¦ ½Ã°£ÀÌ ´ÙµÇ¾î °ÔÀÓÀ» Á¾·áÇÕ´Ï´Ù.
+    CStringManager::GetSingleton().GetString(596) // <ì¢…ë£Œ> ê²°ì œ ì‹œê°„ì´ ë‹¤ë˜ì–´ ê²Œì„ì„ ì¢…ë£Œí•©ë‹ˆë‹¤.
 
 #define STR_BILLING_MSG_KICKOUT_CHEAT_DETECT \
-    CStringManager::GetSingleton().GetString(597) // ½ºÇÙµî Ä¡Æ® ¹ß°ßµÇ¼­ Á¾·á
+    CStringManager::GetSingleton().GetString(597) // ìŠ¤í•µë“± ì¹˜íŠ¸ ë°œê²¬ë˜ì„œ ì¢…ë£Œ
 #define STR_BILLING_MSG_KICKOUT_ALREADY_LOGIN \
-    CStringManager::GetSingleton().GetString(598) // ÀÌ¹Ì Á¢¼ÓµÈ °èÁ¤ÀÌ¶ó Á¢¼Ó Á¾·á
+    CStringManager::GetSingleton().GetString(598) // ì´ë¯¸ ì ‘ì†ëœ ê³„ì •ì´ë¼ ì ‘ì† ì¢…ë£Œ
 #define STR_BILLING_MSG_KICKOUT_TIME_EXPIRED \
-    CStringManager::GetSingleton().GetString(599) // °ú±İ ½Ã°£ ¸¸·á
+    CStringManager::GetSingleton().GetString(599) // ê³¼ê¸ˆ ì‹œê°„ ë§Œë£Œ
 #define STR_BILLING_MSG_KICKOUT_DUP_LOGIN \
-    CStringManager::GetSingleton().GetString(600) // ´Ù¸¥ ³ÑÀÌ Á¢¼ÓÇØ¼­ Á¢¼Ó Á¾·á
+    CStringManager::GetSingleton().GetString(600) // ë‹¤ë¥¸ ë„˜ì´ ì ‘ì†í•´ì„œ ì ‘ì† ì¢…ë£Œ
 #define STR_BILLING_MSG_KICKOUT_NO_RIGHT \
-    CStringManager::GetSingleton().GetString(601) // Á¢¼ÓÇÒ ±ÇÇÑÀÌ ¾ø´Ù...
+    CStringManager::GetSingleton().GetString(601) // ì ‘ì†í•  ê¶Œí•œì´ ì—†ë‹¤...
 #define STR_BILLING_MSG_KICKOUT_OUT_OF_IP \
-    CStringManager::GetSingleton().GetString(602) // pc¹æ¿¡¼­ Á¢¼ÓÇÒ¼ö ÀÖ´Â ip °¹¼ö°¡ ÃÊ°ú
+    CStringManager::GetSingleton().GetString(602) // pcë°©ì—ì„œ ì ‘ì†í• ìˆ˜ ìˆëŠ” ip ê°¯ìˆ˜ê°€ ì´ˆê³¼
 #define STR_BILLING_MSG_KICKOUT_EXIST_ACCOUNT \
-    CStringManager::GetSingleton().GetString(603) // Á¢¼ÓµÇ¾î ÀÖ´Â °èÁ¤À» Â©¶ú´Ù.
+    CStringManager::GetSingleton().GetString(603) // ì ‘ì†ë˜ì–´ ìˆëŠ” ê³„ì •ì„ ì§¤ëë‹¤.
 
 #define STR_CREATE_AVATAR_NAME_IS_REQUIRED \
     CStringManager::GetSingleton().GetString(604)
@@ -697,7 +697,7 @@
     CStringManager::GetSingleton().GetString(606)
 
 #define STR_RESULT_SELECT_SERVER_NEED_CHARGE \
-    CStringManager::GetSingleton().GetString(607) //»ç¿ë½Ã°£ÀÌ ¸¸·áµÇ¾î ´õ ÀÌ»ó Á¢¼ÓÇÏ½Ç¼ö ¾ø½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(607) //ì‚¬ìš©ì‹œê°„ì´ ë§Œë£Œë˜ì–´ ë” ì´ìƒ ì ‘ì†í•˜ì‹¤ìˆ˜ ì—†ìŠµë‹ˆë‹¤
 #define STR_ONLY_PLATINUM_TAB_BANK CStringManager::GetSingleton().GetString(608)
 #define STR_ONLY_PLATINUM_SELECT_CHAR CStringManager::GetSingleton().GetString(609)
 #define STR_SHOW_PARTYMEMBER_HPGUAGE CStringManager::GetSingleton().GetString(610)
@@ -843,15 +843,15 @@
 #define STR_INSUFFICIENCY_IP CStringManager::GetSingleton().GetString(727)
 
 #define STR_GETTING_ITEM_PARTY \
-    CStringManager::GetSingleton().GetString(728) //%s´ÔÀÌ %s ¾ÆÀÌÅÛÀ» È¹µæÇÏ¿´½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(728) //%së‹˜ì´ %s ì•„ì´í…œì„ íšë“í•˜ì˜€ìŠµë‹ˆë‹¤
 #define STR_GETTING_ITEMS_PARTY \
-    CStringManager::GetSingleton().GetString(729) //%s´ÔÀÌ %s %d°³ È¹µæÇÏ¿´½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(729) //%së‹˜ì´ %s %dê°œ íšë“í•˜ì˜€ìŠµë‹ˆë‹¤
 #define STR_GETTING_MONEY_PARTY \
-    CStringManager::GetSingleton().GetString(730) //%s´ÔÀÌ µ· %¿øÀ» È¹µæÇÏ¿´½À´Ï´Ù
+    CStringManager::GetSingleton().GetString(730) //%së‹˜ì´ ëˆ %ì›ì„ íšë“í•˜ì˜€ìŠµë‹ˆë‹¤
 
 #define STR_CANT_REFAIR_PAT_ENGINE            \
     CStringManager::GetSingleton().GetString( \
-        731) //ÆÖ ¿£ÁøÀº ¼ö¸® ÇÒ ¼ö ¾ø½À´Ï´Ù. ¿£Áø ¿¬·á¸¦ ÃæÀüÇØ¾ß ÇÕ´Ï´Ù.
+        731) //íŒ» ì—”ì§„ì€ ìˆ˜ë¦¬ í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤. ì—”ì§„ ì—°ë£Œë¥¼ ì¶©ì „í•´ì•¼ í•©ë‹ˆë‹¤.
 
 ///////////////////////////////////////////////////////////////////////////////////////
 /// sound

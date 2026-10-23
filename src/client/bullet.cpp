@@ -10,21 +10,21 @@
 
 CBulletMANAGER* CBulletMANAGER::m_pInstance = NULL;
 
-static const D3DXVECTOR3 s_xAxis(1, 0, 0); // x-Ãà
+static const D3DXVECTOR3 s_xAxis(1, 0, 0); // x-ì¶•
 
 const float ACCELERATOR_OF_GRAVITY = -(9.8f / 1000.0f);
 
 ///
-/// Á÷¼± ÀÌµ¿ ÃÑ¾Ë
+/// ì§ì„  ì´ë™ ì´ì•Œ
 ///
 
-/// ÇöÀç À§Ä¡¸¦ ±¸ÇÏ°í.. °¢ ¸É¹ö¼¼ÆÃ..
+/// í˜„ì¬ ìœ„ì¹˜ë¥¼ êµ¬í•˜ê³ .. ê° ë§´ë²„ì„¸íŒ…..
 void
 CBulletDIRECTION::Cal_MoveVEC(CObjCHAR* pDest) {
-    // ¹Ù¶óº¼ ¸ğµ¨ÀÇ À§Ä¡ ¾ò±â -> pos
+    // ë°”ë¼ë³¼ ëª¨ë¸ì˜ ìœ„ì¹˜ ì–»ê¸° -> pos
     ::getDummyPosition(pDest->GetZMODEL(), pDest->GetLastDummyIDX(), (float*)&this->m_PosTO);
 
-    /// ½ÇÁ¦ Å¸°ÙÀÇ 50cm À§·Î ¹ß»ç..
+    /// ì‹¤ì œ íƒ€ê²Ÿì˜ 50cm ìœ„ë¡œ ë°œì‚¬..
     m_PosTO.z += 50.0f;
 
     ::rotateByVectorRelative(this->GetZNODE(), s_xAxis, (float*)&this->m_PosTO);
@@ -34,14 +34,14 @@ CBulletDIRECTION::Cal_MoveVEC(CObjCHAR* pDest) {
 
     D3DXVECTOR3 Dir;
     Dir = this->m_PosTO - this->m_PosCUR;
-    // zÃà°Å¸® Á¦¿Ü..
+    // zì¶•ê±°ë¦¬ ì œì™¸..
     float fDistance = (float)sqrt((Dir.x * Dir.x) + (Dir.y * Dir.y));
 
-    /// ÀÌµ¿º¤ÅÍ
+    /// ì´ë™ë²¡í„°
     if (fDistance < 0.0001f) {
         this->m_MoveVEC = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
     } else
-        this->m_MoveVEC = (Dir * m_fSpeed) / (fDistance * 1000); // 1/1000ÃÊ´ç ÀÌµ¿·®.
+        this->m_MoveVEC = (Dir * m_fSpeed) / (fDistance * 1000); // 1/1000ì´ˆë‹¹ ì´ë™ëŸ‰.
 
     m_iDistance = MUL02((int)fDistance);
 }
@@ -68,7 +68,7 @@ CBulletDIRECTION::Init(CObjCHAR* pSour,
     this->m_nDestOBJ = pDest->m_nIndex;
     this->m_nBulletNO = iEffectIDX;
 
-    /// ¹«±â¿¡ ºÙÀÏ²¨³Ä? ¿À¸¥¼Õ¿¡ ºÙÀÏ²¨³Ä?
+    /// ë¬´ê¸°ì— ë¶™ì¼êº¼ëƒ? ì˜¤ë¥¸ì†ì— ë¶™ì¼êº¼ëƒ?
     if (!bLinkToPoint && (pSour->Is_AVATAR()))
         pSour->LinkEffectToPOINT(this, BODY_PART_WEAPON_R, 0);
     else {
@@ -81,7 +81,7 @@ CBulletDIRECTION::Init(CObjCHAR* pSour,
 
     Cal_MoveVEC(pDest);
 
-    // ¹ß»ç È¿°úÀ½.
+    // ë°œì‚¬ íš¨ê³¼ìŒ.
     if (EFFECT_FIRE_SND_IDX(iEffectIDX))
         g_pSoundLIST->IDX_PlaySound(EFFECT_FIRE_SND_IDX(iEffectIDX));
 
@@ -98,7 +98,7 @@ CBulletDIRECTION::Proc() {
         return (pDestOBJ) ? 1 : 0;
     }
 
-    /// Elapse µÈ Å¸ÀÓ¸¸Å­ ÇöÀçÀ§Ä¡¸¦ °»½ÅÇØ¼­, ±× À§Ä¡·Î °­Á¦·Î ¼¼ÆÃ..
+    /// Elapse ëœ íƒ€ì„ë§Œí¼ í˜„ì¬ìœ„ì¹˜ë¥¼ ê°±ì‹ í•´ì„œ, ê·¸ ìœ„ì¹˜ë¡œ ê°•ì œë¡œ ì„¸íŒ…..
     m_PosCUR += (m_MoveVEC * (float)g_pBltMGR->GetPassTime());
 
     this->SetPOSITION(m_PosCUR);
@@ -110,14 +110,14 @@ CBulletDIRECTION::Proc() {
             return 1;
         }
 
-        // 100% Å¸°İ µÇµµ·Ï !!
+        // 100% íƒ€ê²© ë˜ë„ë¡ !!
         this->Cal_MoveVEC(pDestOBJ);
 
         /// LogString( LOG_NORMAL, "m_MoveVEC : x:%f, y:%f, z:%f\n", m_MoveVEC.x, m_MoveVEC.y,
         /// m_MoveVEC.z );
 
         if (this->IsIntersect(pDestOBJ->GetZMODEL())) {
-            // Ãæµ¹ !!! ´õ¹Ì¿¡ ²Å´Â´Ù.
+            // ì¶©ëŒ !!! ë”ë¯¸ì— ê¼½ëŠ”ë‹¤.
             pDestOBJ->Link2LastDummy(this->GetZNODE());
 
             m_dwHitTIME = g_pBltMGR->GetCurTime();
@@ -130,8 +130,8 @@ CBulletDIRECTION::Proc() {
                 true,
                 m_bDummyBullet);
 
-            /// ¸ÂÀ¸¸é ÃÑ¾ËÀ» ¾ø¾Ø´Ù.. ÀÌ°Ô.. ºÎÈ°½Ã ´Ù¿îµÇ´Â°Å¶û °ü°èÀÖ´Ù.. ¿Ö³Ä.. ÀÌ³ğÀÌ ²ÈÇô
-            /// ÀÖ´Âµ¥ ¾Æ¹ÙÅ¸°¡ ¿öÇÁÇÏ¸é ´ë·« ³¶ÆĞ..
+            /// ë§ìœ¼ë©´ ì´ì•Œì„ ì—†ì•¤ë‹¤.. ì´ê²Œ.. ë¶€í™œì‹œ ë‹¤ìš´ë˜ëŠ”ê±°ë‘ ê´€ê³„ìˆë‹¤.. ì™œëƒ.. ì´ë†ˆì´ ê½‚í˜€
+            /// ìˆëŠ”ë° ì•„ë°”íƒ€ê°€ ì›Œí”„í•˜ë©´ ëŒ€ëµ ë‚­íŒ¨..
             return 0;
         }
 
@@ -143,14 +143,14 @@ CBulletDIRECTION::Proc() {
 }
 
 ///
-/// Á÷¼± ÀÌµ¿ Áö¿ª Å¸°Ù
+/// ì§ì„  ì´ë™ ì§€ì—­ íƒ€ê²Ÿ
 ///
-/// ÇöÀç À§Ä¡¸¦ ±¸ÇÏ°í.. °¢ ¸É¹ö¼¼ÆÃ..
+/// í˜„ì¬ ìœ„ì¹˜ë¥¼ êµ¬í•˜ê³ .. ê° ë§´ë²„ì„¸íŒ…..
 void
 CBulletToPosition::Cal_MoveVEC(D3DXVECTOR3 TargetPos) {
     this->m_PosTO = TargetPos;
 
-    /// ½ÇÁ¦ Å¸°ÙÀÇ 50cm À§·Î ¹ß»ç..
+    /// ì‹¤ì œ íƒ€ê²Ÿì˜ 50cm ìœ„ë¡œ ë°œì‚¬..
     m_PosTO.z += 50.0f;
 
     ::rotateByVectorRelative(this->GetZNODE(), s_xAxis, (float*)&this->m_PosTO);
@@ -160,16 +160,16 @@ CBulletToPosition::Cal_MoveVEC(D3DXVECTOR3 TargetPos) {
 
     D3DXVECTOR3 Dir;
     Dir = this->m_PosTO - this->m_PosCUR;
-    // zÃà°Å¸® Á¦¿Ü..
+    // zì¶•ê±°ë¦¬ ì œì™¸..
     float fDistance = (float)sqrt((Dir.x * Dir.x) + (Dir.y * Dir.y));
 
-    /// ÀÌµ¿º¤ÅÍ
+    /// ì´ë™ë²¡í„°
     if (fDistance < 0.0001f) {
         this->m_MoveVEC = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
     } else
-        this->m_MoveVEC = (Dir * m_fSpeed) / (fDistance * 1000); // 1/1000ÃÊ´ç ÀÌµ¿·®.
+        this->m_MoveVEC = (Dir * m_fSpeed) / (fDistance * 1000); // 1/1000ì´ˆë‹¹ ì´ë™ëŸ‰.
 
-    this->m_MoveVEC = (Dir * m_fSpeed) / (fDistance * 1000); // 1/1000ÃÊ´ç ÀÌµ¿·®.
+    this->m_MoveVEC = (Dir * m_fSpeed) / (fDistance * 1000); // 1/1000ì´ˆë‹¹ ì´ë™ëŸ‰.
 
     m_iDistance = MUL02((int)fDistance);
 }
@@ -196,7 +196,7 @@ CBulletToPosition::Init(CObjCHAR* pSour,
     this->m_nDestOBJ = 0;
     this->m_nBulletNO = iEffectIDX;
 
-    /// ¹«±â¿¡ ºÙÀÏ²¨³Ä? ¿À¸¥¼Õ¿¡ ºÙÀÏ²¨³Ä?
+    /// ë¬´ê¸°ì— ë¶™ì¼êº¼ëƒ? ì˜¤ë¥¸ì†ì— ë¶™ì¼êº¼ëƒ?
     if (!bLinkToPoint && (pSour->Is_AVATAR()))
         pSour->LinkEffectToPOINT(this, BODY_PART_WEAPON_R, 0);
     else
@@ -208,7 +208,7 @@ CBulletToPosition::Init(CObjCHAR* pSour,
 
     Cal_MoveVEC(TargetPos);
 
-    // ¹ß»ç È¿°úÀ½.
+    // ë°œì‚¬ íš¨ê³¼ìŒ.
     if (EFFECT_FIRE_SND_IDX(iEffectIDX))
         g_pSoundLIST->IDX_PlaySound(EFFECT_FIRE_SND_IDX(iEffectIDX));
 
@@ -224,17 +224,17 @@ CBulletToPosition::Proc() {
         return 1;
     }
 
-    /// Elapse µÈ Å¸ÀÓ¸¸Å­ ÇöÀçÀ§Ä¡¸¦ °»½ÅÇØ¼­, ±× À§Ä¡·Î °­Á¦·Î ¼¼ÆÃ..
+    /// Elapse ëœ íƒ€ì„ë§Œí¼ í˜„ì¬ìœ„ì¹˜ë¥¼ ê°±ì‹ í•´ì„œ, ê·¸ ìœ„ì¹˜ë¡œ ê°•ì œë¡œ ì„¸íŒ…..
     m_PosCUR += (m_MoveVEC * (float)g_pBltMGR->GetPassTime());
 
     this->SetPOSITION(m_PosCUR);
 
-    /// ÃÑ¾ËÀÇ ÃÊ±âÀ§Ä¡¿Í ÇöÀç À§Ä¡¿ÍÀÇ °Å¸®.
+    /// ì´ì•Œì˜ ì´ˆê¸°ìœ„ì¹˜ì™€ í˜„ì¬ ìœ„ì¹˜ì™€ì˜ ê±°ë¦¬.
     int iDistance1 =
         CD3DUtil::distance((int)m_PosCUR.x, (int)m_PosCUR.y, (int)m_PosFROM.x, (int)m_PosFROM.y);
 
     if (iDistance1 >= m_iDistance) {
-        // Å¸°ÙÀÌ ¾ø¾î Á³°Å³ª, Áö³ªÃÆ´Ù.
+        // íƒ€ê²Ÿì´ ì—†ì–´ ì¡Œê±°ë‚˜, ì§€ë‚˜ì³¤ë‹¤.
         m_dwHitTIME = g_pBltMGR->GetCurTime();
     }
 
@@ -255,17 +255,17 @@ CBulletPARABOLA::~CBulletPARABOLA() {}
 
 //----------------------------------------------------------------------------------------------------
 /// @param
-/// @brief Æ÷¹°¼± ÀÌµ¿ ÃÑ¾Ë
+/// @brief í¬ë¬¼ì„  ì´ë™ ì´ì•Œ
 //----------------------------------------------------------------------------------------------------
 void
 CBulletPARABOLA::Cal_MoveVEC(CObjCHAR* pDest) {
     //----------------------------------------------------------------------------------------------------
-    /// ¹Ù¶óº¼ ¸ğµ¨ÀÇ À§Ä¡ ¾ò±â -> pos
-    /// ÃÑ¾ËÀÇ ½ÃÀÛÀ§Ä¡( m_PosFROM )°ú ÃÑ¾ËÀÇ ¸ñÇ¥À§Ä¡¸¦ ±¸ÇÑ´Ù.
+    /// ë°”ë¼ë³¼ ëª¨ë¸ì˜ ìœ„ì¹˜ ì–»ê¸° -> pos
+    /// ì´ì•Œì˜ ì‹œì‘ìœ„ì¹˜( m_PosFROM )ê³¼ ì´ì•Œì˜ ëª©í‘œìœ„ì¹˜ë¥¼ êµ¬í•œë‹¤.
     //----------------------------------------------------------------------------------------------------
     ::getDummyPosition(pDest->GetZMODEL(), pDest->GetLastDummyIDX(), (float*)&this->m_PosTO);
 
-    /// ½ÇÁ¦ Å¸°ÙÀÇ 50cm À§·Î ¹ß»ç..
+    /// ì‹¤ì œ íƒ€ê²Ÿì˜ 50cm ìœ„ë¡œ ë°œì‚¬..
     m_PosTO.z += 50.0f;
 
     ::rotateByVectorRelative(this->GetZNODE(), s_xAxis, (float*)&this->m_PosTO);
@@ -273,26 +273,26 @@ CBulletPARABOLA::Cal_MoveVEC(CObjCHAR* pDest) {
     this->m_PosFROM = m_PosCUR;
 
     //----------------------------------------------------------------------------------------------------
-    /// ±¸ÇÑ ÃÑ¾ËÀÇ ½ÃÀÛÀ§Ä¡¿Í ¸ñÇ¥À§Ä¡¸¦ ±â¹İÀ¸·Î ÃÑ¾ËÀÇ ¹æÇâ¹× ÃÊ±â ¼Óµµ¸¦ ±¸ÇÑ´Ù.
+    /// êµ¬í•œ ì´ì•Œì˜ ì‹œì‘ìœ„ì¹˜ì™€ ëª©í‘œìœ„ì¹˜ë¥¼ ê¸°ë°˜ìœ¼ë¡œ ì´ì•Œì˜ ë°©í–¥ë° ì´ˆê¸° ì†ë„ë¥¼ êµ¬í•œë‹¤.
     //----------------------------------------------------------------------------------------------------
     m_dwElapsedTime = 0;
     m_DisplacementVec = this->m_PosTO - this->m_PosCUR;
 
-    // zÃà°Å¸® Á¦¿Ü..
+    // zì¶•ê±°ë¦¬ ì œì™¸..
     m_fDistance = (float)sqrt(
         (m_DisplacementVec.x * m_DisplacementVec.x) + (m_DisplacementVec.y * m_DisplacementVec.y));
 
-    /// ÀÌµ¿º¤ÅÍ
+    /// ì´ë™ë²¡í„°
     if (m_fDistance < 0.0001f) {
         this->m_MoveVEC = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
     } else
         this->m_MoveVEC =
-            (m_DisplacementVec * m_fSpeed) / (m_fDistance * 1000.0f); // 1/1000ÃÊ´ç ÀÌµ¿·®.
+            (m_DisplacementVec * m_fSpeed) / (m_fDistance * 1000.0f); // 1/1000ì´ˆë‹¹ ì´ë™ëŸ‰.
 
-    /// µµ´Ş½Ã°£..
+    /// ë„ë‹¬ì‹œê°„..
     m_fArrivedTime = abs(m_fDistance / m_fSpeed); /// t = s / v;
 
-    /// µµ´Ş°Å¸®¿Í ¸ñÇ¥Á¡µµ´Ş±îÁöÀÇ ½Ã°£À» ¾Ë°Ô‰çÀ¸¹Ç·Î z ÃàÀÇ ÃÊ±â ¼Óµµ¸¦ ±¸ÇÒ¼ö ÀÖ´Ù.
+    /// ë„ë‹¬ê±°ë¦¬ì™€ ëª©í‘œì ë„ë‹¬ê¹Œì§€ì˜ ì‹œê°„ì„ ì•Œê²Œë¬ìœ¼ë¯€ë¡œ z ì¶•ì˜ ì´ˆê¸° ì†ë„ë¥¼ êµ¬í• ìˆ˜ ìˆë‹¤.
     m_vZ0 = (-(ACCELERATOR_OF_GRAVITY * 1000.0f) * m_fArrivedTime) / 2.0f;
     m_vZ = m_vZ0;
     this->m_MoveVEC.z = m_vZ0;
@@ -302,7 +302,7 @@ CBulletPARABOLA::Cal_MoveVEC(CObjCHAR* pDest) {
 
 //----------------------------------------------------------------------------------------------------
 /// @param
-/// @brief ÃÊ±â ¼³Á¤Àº ±âº» ÃÑ¾Ë°ú °°À½
+/// @brief ì´ˆê¸° ì„¤ì •ì€ ê¸°ë³¸ ì´ì•Œê³¼ ê°™ìŒ
 //----------------------------------------------------------------------------------------------------
 bool
 CBulletPARABOLA::Init(CObjCHAR* pSour,
@@ -325,7 +325,7 @@ CBulletPARABOLA::Init(CObjCHAR* pSour,
     this->m_nDestOBJ = pDest->m_nIndex;
     this->m_nBulletNO = iEffectIDX;
 
-    /// ¹«±â¿¡ ºÙÀÏ²¨³Ä? ¿À¸¥¼Õ¿¡ ºÙÀÏ²¨³Ä?
+    /// ë¬´ê¸°ì— ë¶™ì¼êº¼ëƒ? ì˜¤ë¥¸ì†ì— ë¶™ì¼êº¼ëƒ?
     if (!bLinkToPoint && (pSour->Is_AVATAR()))
         pSour->LinkEffectToPOINT(this, BODY_PART_WEAPON_R, 0);
     else {
@@ -338,7 +338,7 @@ CBulletPARABOLA::Init(CObjCHAR* pSour,
 
     Cal_MoveVEC(pDest);
 
-    // ¹ß»ç È¿°úÀ½.
+    // ë°œì‚¬ íš¨ê³¼ìŒ.
     if (EFFECT_FIRE_SND_IDX(iEffectIDX))
         g_pSoundLIST->IDX_PlaySound(EFFECT_FIRE_SND_IDX(iEffectIDX));
 
@@ -358,7 +358,7 @@ CBulletPARABOLA::Init(CObjCHAR* pSour,
 
 //----------------------------------------------------------------------------------------------------
 /// @param
-/// @brief ¼³Á¤µÈ Move vec ¿¡ ±â¹İ¿¡¼­ À§Ä¡ ¾÷µ¥ÀÌÆ®
+/// @brief ì„¤ì •ëœ Move vec ì— ê¸°ë°˜ì—ì„œ ìœ„ì¹˜ ì—…ë°ì´íŠ¸
 //----------------------------------------------------------------------------------------------------
 int
 CBulletPARABOLA::Proc() {
@@ -373,13 +373,13 @@ CBulletPARABOLA::Proc() {
     m_dwElapsedTime = dwPassTime;
 
     //----------------------------------------------------------------------------------------------------
-    /// Áß·Â°¡¼Óµµ¸¦ Àû¿ëÇØ¼­ Z Ãà¿¡ ´ëÇÑ ¼Óµµ¸¦ °è»êÇÑ´Ù.
+    /// ì¤‘ë ¥ê°€ì†ë„ë¥¼ ì ìš©í•´ì„œ Z ì¶•ì— ëŒ€í•œ ì†ë„ë¥¼ ê³„ì‚°í•œë‹¤.
     //----------------------------------------------------------------------------------------------------
     float Z1 = (ACCELERATOR_OF_GRAVITY * (float)dwPassTime);
     m_vZ += Z1;
     m_MoveVEC.z = m_vZ;
 
-    /// Elapse µÈ Å¸ÀÓ¸¸Å­ ÇöÀçÀ§Ä¡¸¦ °»½ÅÇØ¼­, ±× À§Ä¡·Î °­Á¦·Î ¼¼ÆÃ..
+    /// Elapse ëœ íƒ€ì„ë§Œí¼ í˜„ì¬ìœ„ì¹˜ë¥¼ ê°±ì‹ í•´ì„œ, ê·¸ ìœ„ì¹˜ë¡œ ê°•ì œë¡œ ì„¸íŒ…..
     m_PosCUR += (m_MoveVEC * (float)dwPassTime);
 
     float fAdjustHeight =
@@ -402,12 +402,12 @@ CBulletPARABOLA::Proc() {
             return 1;
         }
 
-        // 100% Å¸°İ µÇµµ·Ï !!
+        // 100% íƒ€ê²© ë˜ë„ë¡ !!
         /// this->ReCal_MoveVEC( pDestOBJ );
         /// if (  )
-        /// ÀÏ´Ü Ã¹ Å¸°ÙÀ§Ä¡·Î..
+        /// ì¼ë‹¨ ì²« íƒ€ê²Ÿìœ„ì¹˜ë¡œ..
         if (m_MoveVEC.z <= -m_vZ0 || this->IsIntersect(pDestOBJ->GetZMODEL())) {
-            /// Æ÷¹°¼± ¿îµ¿À» ÇÏ´Â ÃÑ¾ËÀ» ¿ø·¡ ¸ñÇ¥Çß´ø Å¸°Ù¿¡¼­ ±×³É ÅÍÁü..
+            /// í¬ë¬¼ì„  ìš´ë™ì„ í•˜ëŠ” ì´ì•Œì„ ì›ë˜ ëª©í‘œí–ˆë˜ íƒ€ê²Ÿì—ì„œ ê·¸ëƒ¥ í„°ì§..
 
             m_dwHitTIME = g_pBltMGR->GetCurTime();
 
@@ -419,8 +419,8 @@ CBulletPARABOLA::Proc() {
                 true,
                 m_bDummyBullet);
 
-            /// ¸ÂÀ¸¸é ÃÑ¾ËÀ» ¾ø¾Ø´Ù.. ÀÌ°Ô.. ºÎÈ°½Ã ´Ù¿îµÇ´Â°Å¶û °ü°èÀÖ´Ù.. ¿Ö³Ä.. ÀÌ³ğÀÌ ²ÈÇô
-            /// ÀÖ´Âµ¥ ¾Æ¹ÙÅ¸°¡ ¿öÇÁÇÏ¸é ´ë·« ³¶ÆĞ..
+            /// ë§ìœ¼ë©´ ì´ì•Œì„ ì—†ì•¤ë‹¤.. ì´ê²Œ.. ë¶€í™œì‹œ ë‹¤ìš´ë˜ëŠ”ê±°ë‘ ê´€ê³„ìˆë‹¤.. ì™œëƒ.. ì´ë†ˆì´ ê½‚í˜€
+            /// ìˆëŠ”ë° ì•„ë°”íƒ€ê°€ ì›Œí”„í•˜ë©´ ëŒ€ëµ ë‚­íŒ¨..
             return 0;
         }
 
@@ -482,7 +482,7 @@ CBulletMANAGER::Add_BULLET(CObjCHAR* pSour,
                     return NULL;
                 }
 
-            } else /// ±×³É Å¸°ÙÀ¸·Î ³¯¸°´Ù.
+            } else /// ê·¸ëƒ¥ íƒ€ê²Ÿìœ¼ë¡œ ë‚ ë¦°ë‹¤.
             {
                 pBullet = new CBulletToPosition();
 
@@ -530,7 +530,7 @@ CBulletMANAGER::ProcBULLET() {
 
     pNode = m_LIST.GetHeadNode();
     while (pNode) {
-        /// ¹º°¡ »ç¶óÁ®¾ßÇÒ Á¶°ÇÀ» Ã¼Å©ÇÑ´Ù. ¸Â°í³­ÈÄ Áö¼ÓµÉ ½Ã°£ÀÌ¶ó´øÁö ( dwHitTime )
+        /// ë­”ê°€ ì‚¬ë¼ì ¸ì•¼í•  ì¡°ê±´ì„ ì²´í¬í•œë‹¤. ë§ê³ ë‚œí›„ ì§€ì†ë  ì‹œê°„ì´ë¼ë˜ì§€ ( dwHitTime )
         if (!pNode->DATA->Proc()) {
             pDelNode = pNode;
             pNode = m_LIST.GetNextNode(pNode);
