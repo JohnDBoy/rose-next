@@ -57,11 +57,13 @@ ShortTime(int iMs) {
     return Printf("%dh", (iSec + 3599) / 3600);
 }
 
-/// The legacy tooltip's wording.
+/// The legacy tooltip's wording. Rounds up like ShortTime, or the two read a
+/// second apart.
 Rml::String
 LongTime(int iMs) {
-    const int iSeconds = (iMs / 1000) % 60;
-    const int iMinutes = (iMs / 1000) / 60;
+    const int iTotal = (iMs + 999) / 1000;
+    const int iSeconds = iTotal % 60;
+    const int iMinutes = iTotal / 60;
     Rml::String str;
     if (iMinutes == 1)
         str = "1 minute and ";
