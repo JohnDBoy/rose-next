@@ -7108,6 +7108,7 @@ CObjMOB::CObjMOB() {
     m_nQuestIDX = 0;
 
     m_iMobAniSkill = MOB_ANI_CASTION01;
+    m_dwNextShoutTime = 0;
 }
 
 //--------------------------------------------------------------------------------
@@ -7370,11 +7371,44 @@ CObjMOB::Get_AttackRange() {
 
 //------------------------------------------------------------------------------------------------
 /// 몬스터 정지시 사운드 출력..
+/// An idle monster's shout (LIST_NPC col 30). Retail rolled 20% at the end of every idle loop
+/// with no spacing, so a pack turned it into a constant drone. Now a monster shouts at most
+/// once every kShoutMonsterGapMs (+ random), all monsters together at most once every
+/// kShoutAnyGapMs (+ random), and only within the sound's own attenuation range: DirectSound
+/// stops attenuating past its max distance, so a monster 200 m away played at the same 20%
+/// volume as one at 50 m.
 //------------------------------------------------------------------------------------------------
+namespace {
+const DWORD kShoutMonsterGapMs = 15000;
+const DWORD kShoutMonsterJitterMs = 15000;
+const DWORD kShoutAnyGapMs = 4000;
+const DWORD kShoutAnyJitterMs = 3000;
+DWORD s_dwNextAnyShoutTime = 0;
+} // namespace
+
 void
 CObjMOB::PlayStopSound() {
+    const DWORD dwNow = g_GameDATA.GetGameTime();
+    // 0 = no shout yet (a plain signed compare against 0 fails once uptime passes 24.8 days)
+    if (m_dwNextShoutTime && (int)(dwNow - m_dwNextShoutTime) < 0)
+        return;
+    if (s_dwNextAnyShoutTime && (int)(dwNow - s_dwNextAnyShoutTime) < 0)
+        return;
+
+    if (g_pAVATAR) {
+        const D3DVECTOR& vAvatar = g_pAVATAR->Get_CurPOS();
+        const float fDX = m_PosCUR.x - vAvatar.x;
+        const float fDY = m_PosCUR.y - vAvatar.y;
+        if (fDX * fDX + fDY * fDY > SOUND_DEFAULT_MAX_DISTANCE * SOUND_DEFAULT_MAX_DISTANCE)
+            return;
+    }
+
     int iIndex = NPC_NORMAL_EFFECT_SOUND(this->Get_CharNO());
-    g_pSoundLIST->IDX_PlaySound3D(iIndex, this->Get_CurPOS());
+    if (!g_pSoundLIST->IDX_PlaySound3D(iIndex, this->Get_CurPOS()))
+        return;
+
+    m_dwNextShoutTime = dwNow + kShoutMonsterGapMs + RANDOM(kShoutMonsterJitterMs);
+    s_dwNextAnyShoutTime = dwNow + kShoutAnyGapMs + RANDOM(kShoutAnyJitterMs);
 }
 
 /*override*/ int

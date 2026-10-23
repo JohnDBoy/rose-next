@@ -1171,6 +1171,7 @@ protected:
 
 private:
     int m_iMobAniSkill;
+    DWORD m_dwNextShoutTime; ///< earliest game time this monster may shout again (PlayStopSound)
 
 public:
     static DWORD m_dwCreateOrder;
