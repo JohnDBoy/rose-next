@@ -31,7 +31,10 @@ ULVERICK = frozenset({531, 532, 533, 534})
 # in, Cerberus awake and asleep, and the Hellhounds it calls.
 CERBERUS = frozenset({2680, 2681, 2682, 2683, 2684})
 
-EXCLUDED = SHIBUYA | ULVERICK | CERBERUS
+# import-necromancer.py: tsuki's Necromancer at level 120, stats from the trend by hand.
+NECROMANCER = frozenset({2414})
+
+EXCLUDED = SHIBUYA | ULVERICK | CERBERUS | NECROMANCER
 
 
 def excluded(row):

@@ -63,6 +63,13 @@ the reasoning in its docstring.
   two clips with those events added (`SEAL_CLIPS` / `zmo_with_events()` in
   `import-cerberus.py`); the server ignores the events, it only counts attack frames.
   Inspect a clip's events with `audit-ai-skill-refs.zmo_events()`.
+- **Every effect a skill attaches to a character must be one-shot.** Casting effects
+  (cols 56-67), the hit effect (74) and the hit-dummy effects (77/80) are attached to the
+  caster or target and removed only when the effect finishes (`CEffect::IsFinish`); a PTL
+  sequence with `loops 0` never does, so it stays on the character for good. The
+  Necromancer's first cut used `scavenger_dark01` (a monster aura) as a hit dummy and left
+  a dark aura under the player's feet. Check every sequence's `loops` with `rosefmt.ptl`
+  before picking an effect (`import-necromancer.py`'s docstring).
 - **The hit effect (col 74) plays on targets that took a result**, so it too is
   invisible when nobody is hit.
 - **Skill effect columns index FILE_EFFECT directly.**
