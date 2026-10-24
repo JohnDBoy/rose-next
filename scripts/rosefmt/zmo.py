@@ -9,7 +9,8 @@ Trailer (``EZMO`` / ``3ZMO``): ``... body ... | u16 n | n x i16 event-per-frame
 | [3ZMO: i32 interpolation interval] | u32 trailer_offset | "EZMO"``.
 ``truncated`` cuts a clip to its first N frames (frame records, events and the
 header count together) -- for an imported clip with a dead tail; ``sliced`` takes any
-frame range, e.g. to split a shot at its firing frame. The events are what makes a clip *do*
+frame range, e.g. to split a shot at its firing frame; ``joined`` plays two clips of
+one skeleton back to back. The events are what makes a clip *do*
 something: a normal attack lands at frame 21 (melee) or fires at 22/23
 (bow/gun); a skill release launches at 24/34 (or 26/25). **A bare-handed
 monster on a 22/23 clip has nothing to fire** and used to deal damage with no
@@ -133,6 +134,37 @@ def sliced(blob, start, end):
     head = bytearray(b[:first])
     struct.pack_into("<I", head, o + 4, frames)
     return bytes(head) + b[first + stride * start:first + stride * end] + tail
+
+
+def joined(first_blob, second_blob):
+    """Two clips of one skeleton played back to back as one clip: frames and events of
+    ``first`` then ``second`` -- e.g. a held charge pose followed by the start of the
+    release, so a skill's whole wind-up is its cast motion at natural speed. Both must
+    have the same fps and channel table; the trailer's extra fields are ``first``'s."""
+    a, b = read_file(first_blob), read_file(second_blob)
+    fa, stride, (fps, na, chans) = frame_layout(a)
+    fb, stride_b, (fps_b, nb, chans_b) = frame_layout(b)
+    if (fps, chans, stride) != (fps_b, chans_b, stride_b):
+        raise ValueError("clips differ in fps or channels -- cannot join")
+    base_a, ev_a = events(a)
+    base_b, ev_b = events(b)
+    if (base_a is None) != (base_b is None):
+        raise ValueError("one clip has an event trailer and the other none")
+    for blob, first, total, base in ((a, fa, na, base_a), (b, fb, nb, base_b)):
+        body_end = first + stride * total
+        if (base - 2 if base is not None else len(blob)) != body_end:
+            raise ValueError("data between the frames and the trailer -- refusing")
+    frames = na + nb
+    body = a[fa:fa + stride * na] + b[fb:fb + stride * nb]
+    tail = b""
+    if base_a is not None:
+        extra = a[base_a + 2 * na:len(a) - 8]
+        tail = (struct.pack("<H", frames) + struct.pack("<%dh" % frames, *(ev_a + ev_b))
+                + extra + struct.pack("<I", fa + len(body)) + a[-4:])
+    _, o = read_cstr(a, 0)
+    head = bytearray(a[:fa])
+    struct.pack_into("<I", head, o + 4, frames)
+    return bytes(head) + body + tail
 
 
 def with_events(blob, changes):

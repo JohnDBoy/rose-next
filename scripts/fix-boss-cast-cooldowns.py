@@ -14,6 +14,11 @@ Not fixed, by design: the Sikuku prison family's one-time self-buff (Prison Slum
 Cannibal buff: the counter is *set* to 1 and the cast needs it < 1 -- once per fight), and
 the Sikuku Infiltrator's 5 Dispel / Slow charges.
 
+Added 2026-10-24: the Fearsome Terrasaurus King (OR_THORNIE.AIP), missed by that audit
+(each cast adds only 1, against var0 <= 5) and found in game -- six casts at the pull, then
+none until it leashed home or killed someone. Its counter gets one cast back per cooldown
+event (DEC 1).
+
 Deliberately NOT changed: Executor Kera, the Ulverick bosses and the Hebarn officers
 (ks_ / uv_ / ed_s_kera files). Their main attack (Kera Stun Blast) already resets in
 combat; what stays capped is a set number of charges -- Dispel Buffs / Area Slow 5 per
@@ -88,6 +93,7 @@ FIXES = {
     "at_rider1.aip": ("Yeti Rider", 0, 4),
     "kfgdg2549.aip": ("Beeberu", 0, 5),
     "CLAN_MOB8.aip": ("Tirwin 397 (Luna Clan Field, Forgotten Temple B1)", 1, 3),
+    "OR_THORNIE.AIP": ("Fearsome Terrasaurus King", 0, 1),
     "ed_treeboss.aip": ("Cursed Ant Vagabond", 0, 1),
     "kak_deadent.aip": ("Dark Tower", 0, 1),
     "kak_ent.aip": ("Element Battler", 0, 1),

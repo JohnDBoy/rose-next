@@ -278,7 +278,10 @@ to the caster's facing: it stands in the world at true size, where a casting eff
 linked to the model and drawn at its scale (8x on Cerberus). The geometry samples `CTERRAIN::GetHeight` per vertex (lifted 20 cm: bilinear
 heights against a triangulated mesh) and goes to the engine's ground overlay
 (`::setGroundOverlay`, see `src/engine/CLAUDE.md`) every frame. Users: the Warden's Seal
-Burst (7023, a circle) and Cerberus's Hellfire Breath (7022, a cone), `import-cerberus.py`.
+Burst (7023, a circle) and Cerberus's Hellfire Breath (7022, a cone), `import-cerberus.py`;
+the Fearsome Terrasaurus King's Charge (3603, a 15 x 7 m strip down its lunge),
+`terrasaurus-charge.py` (2026-10-24, the first retrofit: the wind-up re-cut so the cast
+clip ends at the jump, since the server applies an area hit when the action clip starts).
 **A missing telegraph is a missing cast:** read `remote cast abandoned` in client.log first
 -- a stun-cancelled cast used to leave the remote-cast watchdog's stamp set and drop the
 caster's next cast (fixed in `SetCMD_Skill2OBJ`).

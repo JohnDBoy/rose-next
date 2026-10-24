@@ -90,7 +90,8 @@ def main():
     sd = sub.add_parser("seed", help="write a build into the game DB as a GM character")
     sd.add_argument("build")
     sd.add_argument("--account", required=True)
-    sd.add_argument("--password", required=True)
+    sd.add_argument("--password", help="create the account, or reset its password and access "
+                    "level; omit to add to an existing account and leave it as it is")
     sd.add_argument("--name", required=True, help="character name (3-16 letters/digits)")
     sd.add_argument("--access", type=int, default=2048, help="access_level (2048 = GM)")
     sd.add_argument("--replace", action="store_true", help="delete a character of that name first")

@@ -1,6 +1,8 @@
 """Write a build into the game database as a real character, to check the simulator in game.
 
-One transaction: the account (created, or its password and access level updated), the
+One transaction: the account (created, or its password and access level updated --
+without a password the account must exist and is left as it is: a seed onto a real
+test account, 2026-10-24), the
 character row (stats, level, job, skills, hotbar), and one `item` + `inventory` row per
 equipped item and for the ammo stack. The layout is what `gs_threadsql.cpp` saves and
 loads:
@@ -133,11 +135,10 @@ def build_sql(gd, build, account, password, name, access, replace, extra_items=(
         raise SystemExit("character name: 3-16 letters/digits, starting with a letter")
     if not EMAIL_RE.match(account):
         raise SystemExit("account: 1-30 chars of letters, digits, @ . _ -")
-    if len(password) < 8:   # client: MIN_PASSWORD_LENGTH (interface/externalui/clogin.h)
+    if password is not None and len(password) < 8:   # client: MIN_PASSWORD_LENGTH
         raise SystemExit("password: the client refuses fewer than 8 characters")
     sim = Simulation(gd, build, 1)
     st, p = sim.stats, sim.make_player()
-    pw, salt = password_hash(password)
 
     learned = list(build.skills) + list(build.rotation) + list(build.summons) \
         + [b["skill"] for b in build.buffs if not b["caster_int"]]
@@ -174,11 +175,18 @@ def build_sql(gd, build, account, password, name, access, replace, extra_items=(
     stats = {k: build.stats[k] for k in STAT_KEYS}
 
     lines = ["BEGIN;"]
-    lines.append(
-        f"INSERT INTO account (email, password, salt, access_level) VALUES "
-        f"({_q(account)}, {_q(pw)}, {_q(salt)}, {int(access)}) ON CONFLICT (email) DO UPDATE "
-        f"SET password = EXCLUDED.password, salt = EXCLUDED.salt, "
-        f"access_level = EXCLUDED.access_level;")
+    if password is None:
+        lines.append(
+            f"DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM account WHERE email = {_q(account)}) "
+            f"THEN RAISE EXCEPTION 'no account %; pass --password to create it', "
+            f"{_q(account)}; END IF; END $$;")
+    else:
+        pw, salt = password_hash(password)
+        lines.append(
+            f"INSERT INTO account (email, password, salt, access_level) VALUES "
+            f"({_q(account)}, {_q(pw)}, {_q(salt)}, {int(access)}) ON CONFLICT (email) DO "
+            f"UPDATE SET password = EXCLUDED.password, salt = EXCLUDED.salt, "
+            f"access_level = EXCLUDED.access_level;")
     if replace:
         lines.append(
             f"DELETE FROM item WHERE id IN (SELECT item_id FROM inventory WHERE owner_id IN "
