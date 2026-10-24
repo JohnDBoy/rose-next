@@ -950,6 +950,13 @@ Warden of the Seal's `SEAL_CLIPS` in `import-cerberus.py`).
   2026-10-24: `import-valley002.py` `child_props`). Also from that map: the client's ground ray
   falls through plank joints a few cm wide, and its slope rule applies whenever the foot is
   within 15 cm of the terrain (`AVATAR_FOOT_RADIUS`), even on an object floor.
+- **A map whose floors are objects over flat terrain must be walked, not just seam-checked**
+  (the Mysterious Cavern, 2026-10-24: every HIM at 0 m, floors at 7-31 m). Wherever a floor
+  stops short of its wall you fall to the hidden terrain and stay under the map; per-mesh and
+  cross-mesh hole checks missed all of it. `import-valley002.py`'s `Walker` floods a 50 cm grid
+  from the arrival point with a body-wide ray test (one ray slips through wall-mesh cracks) and
+  found 105 void steps; `void_fill` closes bands that end at a wall with invisible floor and
+  open ones (a cave mouth) with an invisible collision-12 wall. Reuse it for the next such map.
 - `quest-editor con-toll` gained `--open-when N --closed T`: an opening-hours gate on
   the NPC's event value 0, read on the client with
   `QF_getNpcQuestZeroVal(QF_getEventOwner(E))` because COND_011 always passes there.

@@ -104,6 +104,12 @@ RUNS ON RECORD (data/ is gitignored, so this list is the only committed history)
   They were 85 of the session's 126 slow creates, 578 of 696 ms, re-paid each
   time terrain streaming brought a chunk back -- unlike Cerberus's, which never
   reached the threshold.
+- 2026-10-24, the Mysterious Cavern (`import-valley002.py --stage 2`): **37 files**,
+  `--subdir` per folder -- `MAPOBJ/HOUSE/ID02` (11) and `MAPOBJ/HOUSE/ID09` (8), both
+  new that day and holding only the import's files, `TERRAIN/TILES/JUNON/JG` (10
+  new tiles), `MAPOBJ/Sky` (1, `deongen01.dds`) and `MAPS/KARKIA/ID09` (7 ground
+  lightmaps). Its 26 object lightmaps already shipped a chain (`--lightmaps`:
+  nothing to do).
 
 Uses thirdparty/directxtex-2020.9.30/texconv.exe, which was already vendored in
 this repo and used by nothing at all.
