@@ -234,7 +234,11 @@ CEffectDATA::Load(char* szFileName) {
     }
 
     int iStrLen;
-    char* szName = CStr::GetString();
+    // A buffer of our own, not a CStr::GetString() slot: that ring has 20 slots, and
+    // Add_MATERIAL's CStr::Printf per mesh entry wraps onto it after ~20 entries,
+    // formatting the material key over the texture path it is reading (an effect with
+    // 64 mesh entries got material "_00101.000" -- an empty path plus the key suffix).
+    char szName[CSTRING_BUFFER_LEN];
 
     // Effect Name...
     pFileSystem->ReadInt32(&iStrLen);
