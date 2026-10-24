@@ -120,6 +120,13 @@ struct HpHarness {
     // Mirrors HasLiveLethalSkillPayloadPending(): a lethal legacy skill payload
     // received but not yet queued (still waiting for the caster's action frame).
     bool lethal_skill_payload_live = false;
+    // Mirrors IsA(OBJ_MOB): a held drain heal exists for monsters only.
+    bool is_monster = false;
+    // Mirrors m_dwHeldDrainHealSeq / m_dwHeldDrainHealTime and the game clock.
+    uint32_t held_drain_heal_seq = 0;
+    uint32_t held_drain_heal_time_ms = 0;
+    uint32_t now_ms = 0;
+    static constexpr uint32_t kHeldDrainHealMs = 3000;
     CombatPresentationQueue queue;
 
     // Mirrors CObjCHAR::SetAuthoritativeHPFromDamageEvent. Lower-only unless the
@@ -201,6 +208,44 @@ struct HpHarness {
             pending_correction = 0;
             pending_authoritative_death = false;
         }
+    }
+
+    // Mirrors CObjCHAR::ReceiveDrainHealCheckpoint: a monster's own drain heal is
+    // an authoritative sync (ReceiveAuthoritativeHP, no drift staged) that is held
+    // until the drain is presented. Does nothing for anyone but a monster.
+    void receive_drain_heal_checkpoint(int hp) {
+        if (!is_monster) {
+            return;
+        }
+        last_sync_seq = next_hp_authority_seq();
+        authoritative_hp = hp;
+        has_authoritative_hp = true;
+        if (hp > 0 && pending_authoritative_death) {
+            queue.clear();
+            pending_correction = 0;
+            pending_authoritative_death = false;
+        }
+        held_drain_heal_seq = last_sync_seq;
+        held_drain_heal_time_ms = now_ms;
+    }
+
+    // Mirrors CObjCHAR::RevealDrainHeal at the drain's presentation.
+    void reveal_drain_heal() {
+        if (!is_monster) {
+            return;
+        }
+        held_drain_heal_seq = 0;
+        reveal_heal();
+    }
+
+    // Mirrors CObjCHAR::IsBeforeHeldDrainHeal.
+    bool before_held_drain_heal(const DamageEvent& e) const {
+        return held_drain_heal_seq != 0
+            && is_monster
+            && e.arrival_seq != 0
+            && e.arrival_seq < held_drain_heal_seq
+            && last_sync_seq == held_drain_heal_seq
+            && now_ms - held_drain_heal_time_ms < kHeldDrainHealMs;
     }
 
     PresentationResult hit(uint32_t attacker) {
@@ -505,9 +550,13 @@ private:
 
     PresentationResult present_event(DamageEvent& e, bool suppress_for_pending_dead_attacker, HpHarness* pending_dead_attacker) {
         // Mirrors ApplyPresentedCombatDamage: a later authoritative sync that raised
-        // HP above this event's checkpoint marks the checkpoint stale.
+        // HP above this event's checkpoint marks the checkpoint stale -- except for a
+        // hit older than a monster's held drain heal, which presents against its own
+        // checkpoint and leaves the healed shadow alone.
+        const bool before_held_drain = before_held_drain_heal(e);
         const bool stale_healed_checkpoint =
-            has_authoritative_hp
+            !before_held_drain
+            && has_authoritative_hp
             && e.arrival_seq != 0
             && last_sync_seq > e.arrival_seq
             && authoritative_hp > e.hp_after;
@@ -516,7 +565,7 @@ private:
         // synchronously at receive, so its checkpoint has no deferral window.
         const bool fresh_checkpoint = e.presentation_kind == DamagePresentationKind::StatusTick;
 
-        if (!stale_healed_checkpoint) {
+        if (!before_held_drain && !stale_healed_checkpoint) {
             set_authoritative_from_event(e, fresh_checkpoint);
         }
 
@@ -581,8 +630,8 @@ private:
             // ApplyPresentedCombatDamage): any later sync or tick already counts this
             // hit -- heal or not -- so the bar must not dip below it even while
             // another hit is queued.
-            const bool superseded_checkpoint =
-                has_authoritative_hp && e.arrival_seq != 0 && last_sync_seq > e.arrival_seq;
+            const bool superseded_checkpoint = !before_held_drain
+                && has_authoritative_hp && e.arrival_seq != 0 && last_sync_seq > e.arrival_seq;
             if (superseded_checkpoint) {
                 hp_after_delta = std::max(hp_after_delta, std::min(visible_hp, authoritative_hp));
             }
@@ -1021,6 +1070,194 @@ main() {
         expect(h.hit(10) == PresentationResult::PresentedDamage, "the big hit presents");
         expect(h.displayed_damage == 600, "big hit shows its full digit");
         expect(h.visible_hp == 700, "big hit floors at the healed checkpoint instead of its stale 400");
+    }
+
+    // --- A monster's drain heal is held until the drain lands (2026-10-24) ---------
+    // CObjCHAR::ReceiveDrainHealCheckpoint / IsBeforeHeldDrainHeal / RevealDrainHeal.
+    // Numbers from the Necromancer test log (13:00:37): bar 4279, the player's swing
+    // applied for 288 (checkpoint 3991), then the drain healed the monster to 4257.
+
+    {
+        // The core case: the player's earlier hit lands on screen before the drain.
+        // It drops the bar by its full digit to its own checkpoint, the healed shadow
+        // is left alone, and the drain then raises the bar: 4279 -> 3991 -> 4257,
+        // the server's own sequence.
+        HpHarness h;
+        h.is_monster = true;
+        h.visible_hp = 4279;
+        h.authoritative_hp = 4279;
+
+        DamageEvent swing = event(1, 10, 288, 3991);
+        swing.arrival_seq = next_hp_authority_seq();
+        h.queue.push(swing);
+
+        h.receive_drain_heal_checkpoint(4257);
+        expect(h.visible_hp == 4279, "drain heal: the bar does not move at receive");
+        expect(h.authoritative_hp == 4257, "drain heal: the shadow takes the healed HP at receive");
+        expect(h.pending_correction == 0, "drain heal: no correction staged at receive");
+
+        expect(h.hit(10) == PresentationResult::PresentedDamage, "drain heal: the older hit presents");
+        expect(h.displayed_damage == 288, "drain heal: the older hit shows its full digit");
+        expect(h.visible_hp == 3991, "drain heal: the older hit lands on its own checkpoint, not the heal");
+        expect(h.authoritative_hp == 4257, "drain heal: the older hit leaves the healed shadow alone");
+
+        h.reveal_drain_heal();
+        expect(h.visible_hp == 4257, "drain heal: the drain raises the bar to the healed HP");
+        expect(h.held_drain_heal_seq == 0, "drain heal: the reveal releases the hold");
+    }
+
+    {
+        // The avatar and players are never held: the call does nothing at all, so
+        // their presentation is exactly what it was (user rule, 2026-10-24).
+        HpHarness h; // is_monster = false
+        h.visible_hp = 1000;
+        h.authoritative_hp = 1000;
+        const uint32_t sync_before = h.last_sync_seq;
+
+        h.receive_drain_heal_checkpoint(1200);
+        expect(h.authoritative_hp == 1000, "drain heal on a player: shadow untouched");
+        expect(h.last_sync_seq == sync_before, "drain heal on a player: no sync stamp");
+        expect(h.held_drain_heal_seq == 0, "drain heal on a player: nothing held");
+
+        DamageEvent swing = event(1, 10, 100, 900);
+        swing.arrival_seq = next_hp_authority_seq();
+        h.queue.push(swing);
+        expect(!h.before_held_drain_heal(swing), "drain heal on a player: a hit is never before a hold");
+        expect(h.hit(10) == PresentationResult::PresentedDamage, "drain heal on a player: hit presents");
+        expect(h.visible_hp == 900, "drain heal on a player: ordinary checkpoint presentation");
+
+        h.reveal_drain_heal();
+        expect(h.visible_hp == 900, "drain heal on a player: the reveal does nothing");
+    }
+
+    {
+        // Cure's path is unchanged on a monster too: an ordinary heal checkpoint is
+        // not a hold, so the older hit still meets the heal-in-flight guard.
+        HpHarness h;
+        h.is_monster = true;
+        h.visible_hp = 400;
+        h.authoritative_hp = 400;
+
+        DamageEvent swing = event(1, 10, 100, 300);
+        swing.arrival_seq = next_hp_authority_seq();
+        h.queue.push(swing);
+
+        h.receive_heal_checkpoint(1000);
+        expect(h.held_drain_heal_seq == 0, "a plain heal checkpoint holds nothing");
+        expect(h.hit(10) == PresentationResult::PresentedDamage, "older hit presents after a plain heal");
+        expect(h.visible_hp == 1000, "a plain heal keeps the heal-in-flight floor");
+    }
+
+    {
+        // The drain lands before the older hit's frame: nothing to raise yet (the bar
+        // still sits above the heal), the hold is released, and the hit then folds
+        // the old way -- the documented remaining case. The bar still ends on the
+        // server's value.
+        HpHarness h;
+        h.is_monster = true;
+        h.visible_hp = 4279;
+        h.authoritative_hp = 4279;
+
+        DamageEvent swing = event(1, 10, 288, 3991);
+        swing.arrival_seq = next_hp_authority_seq();
+        h.queue.push(swing);
+
+        h.receive_drain_heal_checkpoint(4257);
+        h.reveal_drain_heal();
+        expect(h.visible_hp == 4279, "drain first: the reveal never lowers the bar");
+        expect(h.held_drain_heal_seq == 0, "drain first: the hold is released");
+
+        expect(h.hit(10) == PresentationResult::PresentedDamage, "drain first: the older hit presents");
+        expect(h.displayed_damage == 288, "drain first: the older hit keeps its digit");
+        expect(h.visible_hp == 4257, "drain first: the older hit folds to the healed HP");
+    }
+
+    {
+        // A hit the server applied after the heal (newer than the hold) presents
+        // before the drain: ordinary rules, it lands on its own checkpoint below the
+        // heal, and the drain's reveal must not overshoot back up to the heal.
+        HpHarness h;
+        h.is_monster = true;
+        h.visible_hp = 4279;
+        h.authoritative_hp = 4279;
+
+        h.receive_drain_heal_checkpoint(4545); // drain at 4279 + 266
+        DamageEvent swing = event(1, 10, 288, 4257);
+        swing.arrival_seq = next_hp_authority_seq();
+        h.queue.push(swing);
+        expect(!h.before_held_drain_heal(swing), "a hit newer than the hold is not before it");
+
+        expect(h.hit(10) == PresentationResult::PresentedDamage, "newer hit presents");
+        expect(h.visible_hp == 4257, "newer hit lands on its own checkpoint");
+        expect(h.authoritative_hp == 4257, "newer hit lowers the shadow as usual");
+
+        h.reveal_drain_heal();
+        expect(h.visible_hp == 4257, "the reveal must not overshoot above the newer hit");
+    }
+
+    {
+        // Two older hits queued (a fast weapon): each drops the bar by its digit,
+        // the last lands on its own checkpoint, then the drain raises the bar.
+        HpHarness h;
+        h.is_monster = true;
+        h.visible_hp = 3000;
+        h.authoritative_hp = 3000;
+
+        DamageEvent first = event(1, 10, 200, 2800);
+        first.arrival_seq = next_hp_authority_seq();
+        h.queue.push(first);
+        DamageEvent second = event(2, 10, 200, 2600);
+        second.arrival_seq = next_hp_authority_seq();
+        h.queue.push(second);
+
+        h.receive_drain_heal_checkpoint(2866); // 2600 + 266
+
+        expect(h.hit(10) == PresentationResult::PresentedDamage, "first older hit presents");
+        expect(h.visible_hp == 2800, "first older hit drops the bar by its digit");
+        expect(h.hit(10) == PresentationResult::PresentedDamage, "second older hit presents");
+        expect(h.visible_hp == 2600, "second older hit lands on its own checkpoint");
+        expect(h.authoritative_hp == 2866, "two older hits leave the healed shadow alone");
+
+        h.reveal_drain_heal();
+        expect(h.visible_hp == 2866, "the drain raises the bar after both hits");
+    }
+
+    {
+        // The hold lapses after kHeldDrainHealMs (a drain whose presentation never
+        // came): the older hit then meets the ordinary heal-in-flight guard.
+        HpHarness h;
+        h.is_monster = true;
+        h.visible_hp = 4279;
+        h.authoritative_hp = 4279;
+
+        DamageEvent swing = event(1, 10, 288, 3991);
+        swing.arrival_seq = next_hp_authority_seq();
+        h.queue.push(swing);
+
+        h.receive_drain_heal_checkpoint(4257);
+        h.now_ms += HpHarness::kHeldDrainHealMs;
+        expect(!h.before_held_drain_heal(swing), "a lapsed hold no longer applies");
+        expect(h.hit(10) == PresentationResult::PresentedDamage, "lapsed hold: the hit presents");
+        expect(h.visible_hp == 4257, "lapsed hold: the hit floors at the healed HP, as before");
+    }
+
+    {
+        // A later authoritative sync supersedes the hold: the presenter's ordinary
+        // rules apply again (the newer sync already counts the older hit).
+        HpHarness h;
+        h.is_monster = true;
+        h.visible_hp = 4279;
+        h.authoritative_hp = 4279;
+
+        DamageEvent swing = event(1, 10, 288, 3991);
+        swing.arrival_seq = next_hp_authority_seq();
+        h.queue.push(swing);
+
+        h.receive_drain_heal_checkpoint(4257);
+        h.reconcile(4250);
+        expect(!h.before_held_drain_heal(swing), "a later sync supersedes the hold");
+        expect(h.hit(10) == PresentationResult::PresentedDamage, "superseded hold: the hit presents");
+        expect(h.visible_hp == 4250, "superseded hold: the hit floors at the newer sync");
     }
 
     {
