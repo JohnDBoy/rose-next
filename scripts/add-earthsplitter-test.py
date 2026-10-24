@@ -38,7 +38,7 @@ What this script does with them (rosefmt only):
 
 * **The clip is split before the hop** (`rosefmt.zmo.sliced`): the cast (col 52) is
   frames 0-23 -- raise and gather -- and the action (col 68) the hop, the slam, the
-  impact and the rise: 34 at 3, 74 (the ring) at 4 as the blade meets the ground, 24
+  impact and the rise: 34 at 3, 74 (the fissure) at 4 as the blade meets the ground, 24
   (the area event) at 5 on the impact. The cast's events are cleared. The hold is the
   cast loop (col 54, count 0): it plays while the client waits for the server's
   go-ahead. **v1 split on the impact itself**, since an area skill's damage lands when
@@ -46,14 +46,27 @@ What this script does with them (rosefmt only):
   blade then sat in the ground through that wait, and the rocks came a beat late. The
   digits now start ~170 ms before the impact -- they used to land after the rocks.
 * **Two effects.** `EARTHSPLIT_ROCKS.eft` is the toolkit's cluster, renamed, as the hit
-  effect (col 74) under every monster hit. `EARTHSPLIT_RING.eft` (casting slot 2, col
-  62, on event 74) is that cluster repeated: one where the blade lands, six at 3 m,
-  nine at 4.8 m, each ring later than the last. Copies are turned 0 or 180 degrees
-  only: the toolkit's preview turns an entry by +yaw about up, and our engine's
+  effect (col 74) under every monster hit. `EARTHSPLIT_FISSURE.eft` (casting slot 2,
+  col 62, on event 74) is that cluster repeated down the cone: a row every 1.5 m from
+  where the blade lands to 7.5 m, 1 -> 4 clusters as the cone widens, each row 100 ms
+  after the last (15 m/s), so the crack runs away from the blade. It plays in the
+  caster's frame (front = -Y), and the caster faces the aim. Copies are turned 0 or 180
+  degrees only: the toolkit's preview turns an entry by +yaw about up, and our engine's
   YawPitchRoll swizzle may run the other way, which a half-turn does not care about.
-* **The row**: type 17 (around the caster) like Impact Wave (511), whose sounds it
-  keeps; radius 5 m, power 600, 10 s, 60 MP, two-handed sword only (col 30 = 221).
-  Icon: Impact Wave's.
+* **The row**: **a cone in front, aimed** (v2, the user's idea, 2026-10-24): type 7 with
+  the cone scope `100000000 + 800 * 10000 + 60` (io_skill.h SKILL_SCOPE_CONE, built
+  for Cerberus's breath), so pressing it shows the 8 m / 60 degree cone from the player
+  toward the mouse (`CSkillAim`, as Exceed Break's strip) and a click casts it; every
+  monster in it is hit. Aim range (col 6) = the cone's length; only the direction
+  matters. Damage lands when the action starts, so far targets' digits come before
+  the crack reaches them. v1 was type 17, a 5 m circle around the caster, with a ring
+  of 16 clusters. Otherwise Impact Wave's (511) row and burst sound: power 600, 10 s,
+  60 MP, two-handed sword only (col 30 = 221). Icon: Impact Wave's.
+* **The hit sound** (col 76) is `point_heavy01.wav` (1551, Gun Smash's): in game the
+  monsters struck gave no feedback. Impact Wave's `Skill_magic01` (139) is a soft magic
+  sparkle, and a hit sound plays in 3D at the monster, 4-8 m away in this cone.
+  `point_heavy01` is the loudest of the heavy hits we ship (peak RMS 22656 vs 12960)
+  and peaks within 20 ms; `Axe_D03` (67) peaks 300 ms late.
 
 What it changes
 ---------------
@@ -62,7 +75,7 @@ What it changes
     TYPE_MOTION.STB          3 rows appended, every weapon column
     FILE_EFFECT.STB          2 blank rows filled (the first two after 3001)
     MOTION/AVATAR            EARTHSPLIT_CAST/_HOLD/_ACTION_M1.ZMO
-    EFFECT                   EARTHSPLIT_ROCKS.eft, EARTHSPLIT_RING.eft,
+    EFFECT                   EARTHSPLIT_ROCKS.eft, EARTHSPLIT_FISSURE.eft,
                              EFFECTMESH/EARTHSPLIT_<rock>.ZMS/.ZMO (8 files)
 
 `--restore` truncates the appended rows (only while they are still last), blanks the
@@ -90,8 +103,11 @@ SRC = os.path.join(OUT, "src")
 MANIFEST = os.path.join(OUT, "manifest.json")
 
 NAME = "Earthsplitter"
-DESC = ("Coil back, leap and bury the blade in the ground: the earth splits in rings "
-        "around you and rocks erupt under every enemy within 5 m. (Test skill.)")
+DESC = ("Coil back, leap and bury the blade in the ground: the earth splits open in front "
+        "of you and rocks erupt under every enemy in the cone. (Test skill.)")
+CONE_CM, CONE_DEG = 800, 60
+SCOPE = 100000000 + CONE_CM * 10000 + CONE_DEG   # io_skill.h SKILL_SCOPE_CONE
+HIT_SOUND = 1551                  # point_heavy01.wav (Gun Smash's), see the docstring
 IMPACT = 29                       # the buried-blade frame of EARTHSPLIT_M1
 SPLIT = 24                        # the first action frame: the hop
 # in action frames: the cue, the rings as the blade meets the ground (frame 28 -- a
@@ -103,21 +119,33 @@ CLIPS = [("EARTHSPLIT_CAST_M1.ZMO", "earthsplit cast"),
          ("EARTHSPLIT_HOLD_M1.ZMO", "earthsplit hold"),
          ("EARTHSPLIT_ACTION_M1.ZMO", "earthsplit action")]
 ROCKS_EFT = "3DDATA\\EFFECT\\EARTHSPLIT_ROCKS.eft"
-RING_EFT = "3DDATA\\EFFECT\\EARTHSPLIT_RING.eft"
+FISSURE_EFT = "3DDATA\\EFFECT\\EARTHSPLIT_FISSURE.eft"
 MESH_DIR = "3DDATA\\EFFECT\\EFFECTMESH\\"
 ROCK_NAMES = ("SHARDS", "FANG", "NEEDLE", "NEEDLE_SMALL")
 
-# where the cluster repeats in the ring: (x, y) cm in the caster's frame (front = -Y),
-# turn (0 / 180 only, see the docstring), delay ms
-BLADE = (0.0, -150.0)
+# the fissure: a row of clusters every ROW_CM from the blade (1.5 m) to the cone's end,
+# spread ROW_SPACING_CM apart across the cone (kept HALF_SPREAD inside its 30-degree
+# half-angle), each row ROW_MS after the last
+ROW_CM, ROW_SPACING_CM, HALF_SPREAD, ROW_MS = 150.0, 170.0, 24.0, 100
+ONE_OFFSET = (0.0, 7.0, -7.0)     # a row of one: alternate sides so the rows do not line up
 
 
-def ring_layout():
-    out = [(BLADE, 0.0, 0)]
-    for radius, count, start, delay in ((300.0, 6, 30.0, 70), (480.0, 9, 0.0, 140)):
-        for k in range(count):
-            a = math.radians(start + 360.0 * k / count)
-            out.append(((radius * math.sin(a), -radius * math.cos(a)), 180.0 * (k % 2), delay))
+def fissure_layout():
+    """[((x, y) cm in the caster's frame, front = -Y), turn (0 / 180 only, see the
+    docstring), delay ms] for every cluster."""
+    out = []
+    rows = int(CONE_CM // ROW_CM)
+    for i in range(rows):
+        r = ROW_CM * (i + 1)
+        arc = r * math.radians(2 * HALF_SPREAD)
+        n = max(1, round(arc / ROW_SPACING_CM))
+        if n == 1:
+            angles = [ONE_OFFSET[i % len(ONE_OFFSET)]]
+        else:
+            angles = [-HALF_SPREAD + 2 * HALF_SPREAD * k / (n - 1) for k in range(n)]
+        for k, deg in enumerate(angles):
+            a = math.radians(deg)
+            out.append(((r * math.sin(a), -r * math.cos(a)), 180.0 * ((i + k) % 2), ROW_MS * i))
     return out
 
 
@@ -172,9 +200,9 @@ def cluster():
     return c
 
 
-def ring(c):
+def fissure(c):
     parts, meshes = [], []
-    for (cx, cy), turn, delay in ring_layout():
+    for (cx, cy), turn, delay in fissure_layout():
         a = math.radians(turn)
         ca, sa = math.cos(a), math.sin(a)
 
@@ -189,14 +217,14 @@ def ring(c):
             return e
         parts += [place(p) for p in c["particles"]]
         meshes += [place(m) for m in c["meshes"]]
-    return dict(c, name="EARTHSPLIT_RING", particles=parts, meshes=meshes)
+    return dict(c, name="EARTHSPLIT_FISSURE", particles=parts, meshes=meshes)
 
 
 def generated():
     files = {AVATAR + name: blob for (name, _), blob in zip(CLIPS, clips())}
     c = cluster()
     files[ROCKS_EFT] = eft.build(c)
-    files[RING_EFT] = eft.build(ring(c))
+    files[FISSURE_EFT] = eft.build(fissure(c))
     for rock in ROCK_NAMES:
         for ext in ("ZMS", "ZMO"):
             files[f"{MESH_DIR}EARTHSPLIT_{rock}.{ext}"] = open(
@@ -214,9 +242,9 @@ def skill_row(base, tm, fe):
     blank = (3, 11, 12, 13, 14, 31, 32, 33, 34, 35, 39, 40, 45, 46, 55, 56, 57, 58, 59, 60, 61)
     for col in blank:
         row[col] = b""
-    over = {0: NAME, 1: base, 2: 1, 8: 500, 9: 600, 17: 60, 20: 50, 30: 221,
+    over = {0: NAME, 1: base, 2: 1, 5: 7, 6: CONE_CM, 8: SCOPE, 9: 600, 17: 60, 20: 50, 30: 221,
             52: tm[0], 53: 100, 54: tm[1], 62: fe[1], 63: 999, 68: tm[2], 69: 100,
-            74: fe[0], 75: 999, 86: f"LSkill{base}"}
+            74: fe[0], 75: 999, 76: HIT_SOUND, 86: f"LSkill{base}"}
     for col, v in over.items():
         row[col] = str(v).encode("latin-1")
     return row
@@ -244,7 +272,7 @@ def install(dry):
     print(f"{NAME}: LIST_SKILL {p['skill']}, FILE_MOTION {p['fm']}, TYPE_MOTION {p['tm']}, FILE_EFFECT {p['fe']}")
     print("  row:", {c: v.decode("latin-1") for c, v in enumerate(row) if v})
     c = cluster()
-    print(f"  ring: {len(ring_layout())} clusters, {len(ring(c)['meshes'])} rock meshes; "
+    print(f"  fissure: {len(fissure_layout())} clusters, {len(fissure(c)['meshes'])} rock meshes; "
           f"{len(files)} files")
     if dry:
         print("dry run -- nothing written")
@@ -262,7 +290,7 @@ def install(dry):
     tm.grow_to(tm.rows + 3, {r: lbl for r, (_, lbl) in zip(p["tm"], CLIPS)})
     for r, f in zip(p["tm"], p["fm"]):
         tm.d[r] = [str(f).encode() for _ in range(tm.cols)]
-    for r, rel, name in ((p["fe"][0], ROCKS_EFT, b"EARTHSPLIT_ROCKS"), (p["fe"][1], RING_EFT, b"EARTHSPLIT_RING")):
+    for r, rel, name in ((p["fe"][0], ROCKS_EFT, b"EARTHSPLIT_ROCKS"), (p["fe"][1], FISSURE_EFT, b"EARTHSPLIT_FISSURE")):
         fe.d[r][0], fe.d[r][1] = name, rel.encode("latin-1")
     sk.grow_to(sk.rows + 1)
     sk.d[p["skill"]] = row

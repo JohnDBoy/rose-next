@@ -3467,6 +3467,13 @@ CRecvPACKET::Recv_gsv_DAMAGE_OF_SKILL() {
 
         pEffectedChar->ConvertDamageOfSkillToDamage(damageOfSkill);
         pEffectedChar->PresentImmediateCombatDamage(pChar);
+        // The hit effect and sound the action-frame path (ProcOneEffectedSkill) shows.
+        // This branch is not only for strays: the local avatar's ground-aimed area skill
+        // (Earthsplitter, type 7 cone, 2026-10-24) had its every payload land here --
+        // "skill damage queued" logged at receive, the caster no longer holding the skill
+        // in m_nActiveSkillIDX / m_nToDoSkillIDX -- and showed only the digit: no hit
+        // effect, no hit sound.
+        pEffectedChar->ShowSkillHitFeedback(iSkillIDX);
     }
 }
 

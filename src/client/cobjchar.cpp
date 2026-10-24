@@ -3268,41 +3268,52 @@ CObjCHAR::ProcOneEffectedSkill(stEFFECT_OF_SKILL* pEffectOfSkill) {
         /// Damage of skill 에 실려오는 스킬적용결과 반영..
         ProcEffectOfSkillInDamageOfSkill(iSkillIDX, iObjIDX, pChar, pEffectOfSkill);
 
-        /// 스킬 타격 이펙트
-        // 타격 효과.
-        if (pChar->IsVisible()) {
-            int iEffectIDX = SKILL_HIT_EFFECT(iSkillIDX);
-            if (iEffectIDX) {
-                CEffect* pHitEFT = g_pEffectLIST->Add_EffectWithIDX(iEffectIDX, true);
-                if (pHitEFT) {
-                    if (SKILL_HIT_EFFECT_LINKED_POINT(iSkillIDX) == INVALID_DUMMY_POINT_NUM) {
-                        pHitEFT->LinkNODE(pChar->GetZMODEL());
-                    } else {
-                        pChar->LinkDummy(pHitEFT->GetZNODE(),
-                            SKILL_HIT_EFFECT_LINKED_POINT(iSkillIDX));
-                    }
-
-                    pHitEFT->SetParentCHAR(pChar);
-                    pChar->AddExternalEffect(pHitEFT);
-
-                    pHitEFT->UnlinkVisibleWorld();
-                    pHitEFT->InsertToScene();
-                }
-
-                if (SKILL_HIT_SOUND(iSkillIDX)) {
-                    if (pChar->IsUSER()) { // 자기 아바타인 경우에는 안3D 모드로 출력.
-                        g_pSoundLIST->IDX_PlaySound(SKILL_HIT_SOUND(iSkillIDX));
-                    } else {
-                        g_pSoundLIST->IDX_PlaySound3D(SKILL_HIT_SOUND(iSkillIDX),
-                            pChar->Get_CurPOS());
-                    }
-                }
-            }
-        }
+        pChar->ShowSkillHitFeedback(iSkillIDX);
 
     } else /// 지속성이거나.. 상태를 바꾸는 스킬..
     {
         ApplyEffectOfSkill(iSkillIDX, iObjIDX, pChar, pEffectOfSkill);
+    }
+}
+
+//--------------------------------------------------------------------------------
+/// A skill's hit on this character: its hit effect (SKILL_HIT_EFFECT) and hit sound
+/// (SKILL_HIT_SOUND, only with an effect, as it always was). Shown after the damage
+/// is presented, by ProcOneEffectedSkill at the caster's action frame and by
+/// Recv_gsv_DAMAGE_OF_SKILL for a payload that arrives after it.
+//--------------------------------------------------------------------------------
+void
+CObjCHAR::ShowSkillHitFeedback(int iSkillIDX) {
+    if (!this->IsVisible()) {
+        return;
+    }
+
+    int iEffectIDX = SKILL_HIT_EFFECT(iSkillIDX);
+    if (!iEffectIDX) {
+        return;
+    }
+
+    CEffect* pHitEFT = g_pEffectLIST->Add_EffectWithIDX(iEffectIDX, true);
+    if (pHitEFT) {
+        if (SKILL_HIT_EFFECT_LINKED_POINT(iSkillIDX) == INVALID_DUMMY_POINT_NUM) {
+            pHitEFT->LinkNODE(this->GetZMODEL());
+        } else {
+            this->LinkDummy(pHitEFT->GetZNODE(), SKILL_HIT_EFFECT_LINKED_POINT(iSkillIDX));
+        }
+
+        pHitEFT->SetParentCHAR(this);
+        this->AddExternalEffect(pHitEFT);
+
+        pHitEFT->UnlinkVisibleWorld();
+        pHitEFT->InsertToScene();
+    }
+
+    if (SKILL_HIT_SOUND(iSkillIDX)) {
+        if (this->IsUSER()) { // 자기 아바타인 경우에는 안3D 모드로 출력.
+            g_pSoundLIST->IDX_PlaySound(SKILL_HIT_SOUND(iSkillIDX));
+        } else {
+            g_pSoundLIST->IDX_PlaySound3D(SKILL_HIT_SOUND(iSkillIDX), this->Get_CurPOS());
+        }
     }
 }
 

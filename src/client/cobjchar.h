@@ -596,6 +596,8 @@ public:
         int iProjectileSkillIDX = 0,
         int iProjectileTargetObjIDX = 0);
     void ProcOneEffectedSkill(stEFFECT_OF_SKILL* pEffectOfSkill);
+    /// A skill's hit effect and hit sound on this character (after its damage is shown).
+    void ShowSkillHitFeedback(int iSkillIDX);
 
     /// Can the cast that queued a payload for iSkillIDX still reach its action
     /// frame? False means the payload is stranded and must be swept.
