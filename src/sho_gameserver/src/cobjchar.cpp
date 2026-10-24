@@ -1833,6 +1833,18 @@ CObjCHAR::Skill_START_19(CObjCHAR* pTarget) {
                 btResult,
                 this->Get_INT(),
                 pOutITEM);
+            // Healing must be announced: the damage packet carries the victim's HP
+            // only, and a monster's bar moves on no other packet, so a monster's drain
+            // healed it on the server and never on any client (the Necromancer's Soul
+            // Siphon, 2026-10-24). An effect packet on the caster itself carries its
+            // post-heal HP; the client takes it as a heal checkpoint and shows the raise
+            // when the drain lands. Players keep their own path.
+            if (btResult && !this->IsUSER()) {
+                this->Send_gsv_EFFECT_OF_SKILL(this->Get_INDEX(),
+                    Get_ActiveSKILL(),
+                    btResult,
+                    this->Get_INT());
+            }
         } else {
             pTarget->Send_gsv_DAMAGE_OF_SKILL(this->Get_INDEX(),
                 Get_ActiveSKILL(),

@@ -1073,6 +1073,10 @@ protected:
     int m_AruaAddMoveSpeed; /// 아루아 여신상태 일경우 증가되는 이동속도
     int m_iPendingMountedAttackTarget; /// Pending mounted attack target while command propagation catches up
     DWORD m_dwPendingMountedAttackTime; /// Timestamp of pending mounted attack
+    /// A monster's drain heal, held until the drain is presented (monsters only; see
+    /// ReceiveDrainHealCheckpoint). Arrival stamp of its checkpoint, 0 = none held.
+    uint32_t m_dwHeldDrainHealSeq;
+    DWORD m_dwHeldDrainHealTime; /// Tick it was received; the hold lapses after kHeldDrainHealMs.
 
 public:
     void SetReviseHP(int hp);
@@ -1093,6 +1097,14 @@ public:
     /// lowers. Returns false when no authoritative HP is held (caller falls back
     /// to the legacy local Add_HP).
     bool RevealAuthoritativeHPRaise(const char* reason);
+    /// A monster's own drain heal (type 19, an effect packet on itself). Same shadow
+    /// update as ReceiveHealCheckpoint, but the hits the server applied before the
+    /// heal still present against their own checkpoints -- they land on screen before
+    /// the drain does -- so the bar dips with them and RevealDrainHeal raises it.
+    /// Monsters only: nothing here runs for a player or the avatar.
+    void ReceiveDrainHealCheckpoint(int hp);
+    void RevealDrainHeal();
+    bool IsBeforeHeldDrainHeal(const Rose::Combat::DamageEvent& event);
     /// True for a type 10/11 payload whose succeeded slot is a plain AT_HP change
     /// (no status row): the payloads that carry a meaningful m_iHP_AFTER heal.
     static bool IsDirectHealPayload(int iSkillIDX, int btSuccessBITS);

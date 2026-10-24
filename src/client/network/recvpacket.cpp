@@ -3071,6 +3071,20 @@ CRecvPACKET::Recv_gsv_EFFECT_OF_SKILL() {
         }
     }
 
+    // A monster's drain (type 19) announces its own heal with an effect packet on
+    // itself, sent after the damage payload (Skill_START_19). It is a checkpoint and
+    // nothing more: the raise is shown when the drain's damage payload is presented
+    // (ProcEffectOfSkillInDamageOfSkill), and there is no status to apply.
+    if (m_pRecvPacket->m_gsv_EFFECT_OF_SKILL.m_wObjectIDX == iSkillOwner
+        && SKILL_TYPE(m_pRecvPacket->m_gsv_EFFECT_OF_SKILL.m_nSkillIDX)
+            == SKILL_ACTION_SELF_AND_TARGET) {
+        if (pChar && pChar != (CObjCHAR*)g_pAVATAR
+            && m_pRecvPacket->m_gsv_EFFECT_OF_SKILL.m_iHP_AFTER > 0) {
+            pChar->ReceiveDrainHealCheckpoint(m_pRecvPacket->m_gsv_EFFECT_OF_SKILL.m_iHP_AFTER);
+        }
+        return;
+    }
+
     /// 현재 사용중인 스킬이 발사형이라면.. 바로 적용한다.
     int iDoingSkillIDX = 0;
 

@@ -972,6 +972,8 @@ CObjCHAR::CObjCHAR(): m_EndurancePack(this), m_ChangeActionMode(this), m_ObjVibr
     m_ReviseMP = 0;
     m_iAuthoritativeHP = 0;
     m_bHasAuthoritativeHP = false;
+    m_dwHeldDrainHealSeq = 0;
+    m_dwHeldDrainHealTime = 0;
     m_dwLastAuthoritativeDamageSeq = 0;
     m_dwLastAuthoritativeSyncSeq = 0;
     m_dwLastPresentedDamageEventId = 0;
@@ -3027,6 +3029,10 @@ CObjCHAR::ProcEffectOfSkillInDamageOfSkill(int iSkillIDX,
                         }
                     }
                 }
+            } else {
+                // Another caster (a monster) announced its post-drain HP in an effect
+                // packet on itself (Recv_gsv_EFFECT_OF_SKILL); the drain lands here.
+                this->RevealDrainHeal();
             }
         } break;
 
@@ -3746,8 +3752,15 @@ CObjCHAR::ApplyPresentedCombatDamage(CObjCHAR* pAtkOBJ, Rose::Combat::DamageEven
     // honor the fresher authoritative HP instead. Only fires when the fresher value
     // is higher than the checkpoint, so normal "no sync yet" hits are untouched and
     // later-and-lower syncs keep flowing through the existing checkpoint fold.
+    // A monster's held drain heal (ReceiveDrainHealCheckpoint): a hit the server
+    // applied before the heal presents against its own checkpoint -- no guard, no
+    // floor, the shadow left at the healed value -- and RevealDrainHeal raises the
+    // bar when the drain lands. Always false for players and the avatar, so the two
+    // tests below are unchanged for them.
+    const bool bBeforeHeldDrainHeal = IsBeforeHeldDrainHeal(event);
     const bool bStaleHealedCheckpoint =
-        m_bHasAuthoritativeHP
+        !bBeforeHeldDrainHeal
+        && m_bHasAuthoritativeHP
         && event.arrival_seq != 0
         && m_dwLastAuthoritativeSyncSeq > event.arrival_seq
         && m_iAuthoritativeHP > event.hp_after;
@@ -3758,7 +3771,8 @@ CObjCHAR::ApplyPresentedCombatDamage(CObjCHAR* pAtkOBJ, Rose::Combat::DamageEven
     // to the lower truth, and the hit then took its digit off again (Rot Tracker,
     // 2026-09-29: 459 - 541 = -82 while the server had the player alive).
     const bool bSupersededCheckpoint =
-        m_bHasAuthoritativeHP
+        !bBeforeHeldDrainHeal
+        && m_bHasAuthoritativeHP
         && event.arrival_seq != 0
         && m_dwLastAuthoritativeSyncSeq > event.arrival_seq;
 
@@ -3772,7 +3786,16 @@ CObjCHAR::ApplyPresentedCombatDamage(CObjCHAR* pAtkOBJ, Rose::Combat::DamageEven
     const bool bFreshCheckpoint =
         event.presentation_kind == Rose::Combat::DamagePresentationKind::StatusTick;
 
-    if (!bStaleHealedCheckpoint) {
+    if (bBeforeHeldDrainHeal) {
+        LogString(LOG_DEBUG_,
+            "CombatTrace hit before held drain heal: target %d event %u arrival %u hp_after %d held hp %d visible hp %d\n",
+            this->Get_INDEX(),
+            event.event_id,
+            event.arrival_seq,
+            event.hp_after,
+            m_iAuthoritativeHP,
+            this->Get_HP());
+    } else if (!bStaleHealedCheckpoint) {
         SetAuthoritativeHPFromDamageEvent(event, bFreshCheckpoint);
     } else {
         LogString(LOG_DEBUG_,
@@ -7035,6 +7058,60 @@ CObjCHAR::RevealAuthoritativeHPRaise(const char* reason) {
         m_iAuthoritativeHP,
         static_cast<int>(m_CombatDamageQueue.size()));
     return true;
+}
+
+namespace {
+// A held drain heal is revealed by its drain within ~1.5 s (cast release to hit
+// frame); past this the hold lapses and the presenter's usual rules apply again.
+constexpr DWORD kHeldDrainHealMs = 3000;
+} // namespace
+
+void
+CObjCHAR::ReceiveDrainHealCheckpoint(int hp) {
+    // A monster's drain (Necromancer's Soul Siphon, 2026-10-24): the server sends the
+    // caster's post-heal HP right after the damage payload. Taken like a Cure
+    // checkpoint, the hits the player landed just before it -- still queued on this
+    // monster, presented before the drain's action frame -- met the heal-in-flight
+    // guard and were floored at the healed HP: the heal vanished into a hit that
+    // barely moved the bar, and the reveal found nothing to raise. Held instead,
+    // those hits present against their own checkpoints (IsBeforeHeldDrainHeal) and
+    // RevealDrainHeal raises the bar when the drain lands. Monsters only.
+    if (!this->IsA(OBJ_MOB)) {
+        return;
+    }
+    const int visibleBefore = Get_HP();
+    ReceiveAuthoritativeHP(hp);
+    m_dwHeldDrainHealSeq = m_dwLastAuthoritativeSyncSeq;
+    m_dwHeldDrainHealTime = g_GameDATA.GetGameTime();
+
+    LogString(LOG_DEBUG_,
+        "CombatTrace drain heal checkpoint held: target %d hp_after %d visible hp %d seq %u queue %d\n",
+        this->Get_INDEX(),
+        hp,
+        visibleBefore,
+        m_dwHeldDrainHealSeq,
+        static_cast<int>(m_CombatDamageQueue.size()));
+}
+
+bool
+CObjCHAR::IsBeforeHeldDrainHeal(const Rose::Combat::DamageEvent& event) {
+    // Only while the hold is the latest authoritative word: a later sync or status
+    // tick supersedes it, and then the ordinary rules are right again.
+    return m_dwHeldDrainHealSeq != 0
+        && this->IsA(OBJ_MOB)
+        && event.arrival_seq != 0
+        && event.arrival_seq < m_dwHeldDrainHealSeq
+        && m_dwLastAuthoritativeSyncSeq == m_dwHeldDrainHealSeq
+        && g_GameDATA.GetGameTime() - m_dwHeldDrainHealTime < kHeldDrainHealMs;
+}
+
+void
+CObjCHAR::RevealDrainHeal() {
+    if (!this->IsA(OBJ_MOB)) {
+        return;
+    }
+    m_dwHeldDrainHealSeq = 0;
+    RevealAuthoritativeHPRaise("drain action frame");
 }
 
 bool
