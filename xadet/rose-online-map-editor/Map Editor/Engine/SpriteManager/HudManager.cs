@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -50,8 +50,25 @@ namespace Map_Editor.Engine.SpriteManager
 
         public static void Draw()
         {
+            Draw(true);
+        }
+
+        /// <summary>
+        /// Fullscreen: the short-lived line only (a camera speed change), never
+        /// the tool's mode line.
+        /// </summary>
+        public static void DrawNotice()
+        {
+            Draw(false);
+        }
+
+        private static void Draw(bool withStatus)
+        {
             if (spriteBatch == null)
                 return;
+
+            if (!withStatus)
+                statusText = null;
 
             bool notice = noticeText != null && DateTime.Now < noticeUntil;
             if (string.IsNullOrEmpty(statusText) && !notice)

@@ -14,6 +14,17 @@ namespace Map_Editor.Engine.Types
         /// </summary>
         public const float CAMERA_SPEED = 0.833335f;
 
+        /// <summary>
+        /// Smooth mode: seconds for the movement to cover about two thirds of
+        /// the way to the keys' speed (or back to rest).
+        /// </summary>
+        private const float SMOOTH_MOVE_SECONDS = 0.6f;
+
+        /// <summary>
+        /// Smooth mode: the same for turning towards where the mouse points.
+        /// </summary>
+        private const float SMOOTH_TURN_SECONDS = 0.25f;
+
         #region Member Declarations
 
         /// <summary>
@@ -33,6 +44,13 @@ namespace Map_Editor.Engine.Types
         /// </summary>
         /// <value>The mouse rotation Z.</value>
         private float mouseRotationZ { get;  set; }
+
+        /// <summary>
+        /// Where the mouse has turned the camera to; the camera follows at
+        /// once, or eases there in smooth mode.
+        /// </summary>
+        private float targetRotationX { get; set; }
+        private float targetRotationZ { get; set; }
 
         /// <summary>
         /// Gets or sets the last mouse location.
@@ -64,6 +82,17 @@ namespace Map_Editor.Engine.Types
         /// </summary>
         public bool Scripted { get; private set; }
 
+        /// <summary>
+        /// Scales the W/A/S/D speed: 1 is the editor's original 50 m/s.
+        /// </summary>
+        public float SpeedScale { get; set; }
+
+        /// <summary>
+        /// Eases movement and turning in and out instead of starting and
+        /// stopping dead (fullscreen showcase).
+        /// </summary>
+        public bool Smooth { get; set; }
+
         #endregion
 
         /// <summary>
@@ -76,6 +105,10 @@ namespace Map_Editor.Engine.Types
 
             mouseRotationX = 1.54f;
             mouseRotationZ = -3.150001f;
+            targetRotationX = mouseRotationX;
+            targetRotationZ = mouseRotationZ;
+
+            SpeedScale = 1.0f;
 
             Position = new Vector3(5650.0f, 5250.0f, 10.0f);
 
@@ -89,8 +122,29 @@ namespace Map_Editor.Engine.Types
         /// <param name="z">Z angle.</param>
         private void Rotate(float x, float z)
         {
-            mouseRotationX += x;
-            mouseRotationZ += z;
+            targetRotationX += x;
+            targetRotationZ += z;
+        }
+
+        /// <summary>
+        /// Brings the camera's rotation to the mouse's: at once, or part of the
+        /// way in smooth mode.
+        /// </summary>
+        private void FollowRotation(float seconds)
+        {
+            float t = Smooth ? Ease(seconds, SMOOTH_TURN_SECONDS) : 1.0f;
+
+            mouseRotationX += (targetRotationX - mouseRotationX) * t;
+            mouseRotationZ += (targetRotationZ - mouseRotationZ) * t;
+        }
+
+        /// <summary>
+        /// The share of the remaining distance to cover this frame for an
+        /// exponential ease with the given time constant (frame-rate independent).
+        /// </summary>
+        private static float Ease(float seconds, float timeConstant)
+        {
+            return 1.0f - (float)System.Math.Exp(-seconds / timeConstant);
         }
 
         /// <summary>
@@ -111,6 +165,8 @@ namespace Map_Editor.Engine.Types
             if (Scripted)
                 return;
 
+            float seconds = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
             MouseState mouseState = Mouse.GetState();
 
             Vector2 mouseMoved = new Vector2(lastMouseLocation.X - mouseState.X, lastMouseLocation.Y - mouseState.Y);
@@ -118,7 +174,12 @@ namespace Map_Editor.Engine.Types
 
             if (!mouseState.Intersects(App.Engine.GraphicsDevice.Viewport))
             {
-                Translate(velocityPosition *= CAMERA_SPEED);
+                FollowRotation(seconds);
+
+                if (Smooth)
+                    Translate(velocityPosition = Vector3.Lerp(velocityPosition, Vector3.Zero, Ease(seconds, SMOOTH_MOVE_SECONDS)));
+                else
+                    Translate(velocityPosition *= CAMERA_SPEED);
 
                 View = Matrix.Invert(Matrix.CreateRotationX(mouseRotationX) * Matrix.CreateRotationZ(mouseRotationZ) * Matrix.CreateTranslation(Position));
 
@@ -131,55 +192,67 @@ namespace Map_Editor.Engine.Types
             if (mouseState.RightButton == ButtonState.Pressed)
                 Rotate((mouseMoved.Y * CAMERA_SPEED) / 200.0f, (mouseMoved.X * CAMERA_SPEED) / 200.0f);
 
+            FollowRotation(seconds);
+
             KeyboardState keyboardState = Keyboard.GetState();
 
             // Ctrl+S saves, Ctrl+A/W/D are shortcuts too: a held Control must not
             // also walk the camera.
             bool control = keyboardState.IsKeyDown(Keys.LeftControl) || keyboardState.IsKeyDown(Keys.RightControl);
 
+            float step = CAMERA_SPEED * SpeedScale;
+
             if (!control && keyboardState.IsKeyDown(Keys.W))
             {
-                movement += new Vector3(0, 0, -CAMERA_SPEED);
+                movement += new Vector3(0, 0, -step);
 
                 if (keyboardState.IsKeyDown(Keys.LeftShift))
-                    movement += new Vector3(0, 0, -CAMERA_SPEED);
+                    movement += new Vector3(0, 0, -step);
             }
 
             if (!control && keyboardState.IsKeyDown(Keys.S))
             {
-                movement += new Vector3(0, 0, CAMERA_SPEED);
+                movement += new Vector3(0, 0, step);
 
                 if (keyboardState.IsKeyDown(Keys.LeftShift))
-                    movement += new Vector3(0, 0, CAMERA_SPEED);
+                    movement += new Vector3(0, 0, step);
             }
 
             if (!control && keyboardState.IsKeyDown(Keys.A))
             {
-                movement += new Vector3(-CAMERA_SPEED, 0, 0);
+                movement += new Vector3(-step, 0, 0);
 
                 if (keyboardState.IsKeyDown(Keys.LeftShift))
-                    movement += new Vector3(-CAMERA_SPEED, 0, 0);
+                    movement += new Vector3(-step, 0, 0);
             }
 
             if (!control && keyboardState.IsKeyDown(Keys.D))
             {
-                movement += new Vector3(CAMERA_SPEED, 0, 0);
+                movement += new Vector3(step, 0, 0);
 
                 if (keyboardState.IsKeyDown(Keys.LeftShift))
-                    movement += new Vector3(CAMERA_SPEED, 0, 0);
+                    movement += new Vector3(step, 0, 0);
             }
 
-            if (!control && (keyboardState.IsKeyDown(Keys.W) || keyboardState.IsKeyDown(Keys.A) || keyboardState.IsKeyDown(Keys.S) || keyboardState.IsKeyDown(Keys.D)))
+            if (Smooth)
             {
-                redeclare = true;
-
-                velocityPosition = movement;
+                // ease towards the keys' speed, and back to rest when they are let go
+                Translate(velocityPosition = Vector3.Lerp(velocityPosition, movement, Ease(seconds, SMOOTH_MOVE_SECONDS)));
             }
+            else
+            {
+                if (!control && (keyboardState.IsKeyDown(Keys.W) || keyboardState.IsKeyDown(Keys.A) || keyboardState.IsKeyDown(Keys.S) || keyboardState.IsKeyDown(Keys.D)))
+                {
+                    redeclare = true;
 
-            if (!redeclare)
-                Translate(velocityPosition *= (CAMERA_SPEED / 1.0f));
+                    velocityPosition = movement;
+                }
 
-            Translate(movement);
+                if (!redeclare)
+                    Translate(velocityPosition *= (CAMERA_SPEED / 1.0f));
+
+                Translate(movement);
+            }
 
             View = Matrix.Invert(Matrix.CreateRotationX(mouseRotationX) * Matrix.CreateRotationZ(mouseRotationZ) * Matrix.CreateTranslation(Position));
         }

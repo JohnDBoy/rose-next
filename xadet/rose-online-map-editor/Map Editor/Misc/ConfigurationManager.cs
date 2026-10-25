@@ -175,6 +175,16 @@ namespace Map_Editor.Misc
             if (!configurationValues["Debug"].ContainsKey("FrameStats"))
                 configurationValues["Debug"].Add("FrameStats", false);
 
+            // Perspective camera W/A/S/D speed in percent of the original 50 m/s,
+            // one for editing and one for fullscreen (F11).
+            if (!configurationValues.ContainsKey("Camera"))
+                configurationValues.Add("Camera", new Dictionary<string, object>());
+
+            if (!configurationValues["Camera"].ContainsKey("Speed"))
+                configurationValues["Camera"].Add("Speed", 100);
+            if (!configurationValues["Camera"].ContainsKey("FullscreenSpeed"))
+                configurationValues["Camera"].Add("FullscreenSpeed", 25);
+
             // Object placement (decoration / construction tools).
             if (!configurationValues.ContainsKey("Placement"))
                 configurationValues.Add("Placement", new Dictionary<string, object>());

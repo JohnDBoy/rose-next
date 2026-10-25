@@ -274,6 +274,22 @@ config file never saves the hidden state. Code: `Main.ToggleFullScreen`
 (`Main.xaml.cs`) and the early return in `Engine/Main.cs` `Draw`; the
 backbuffer already follows the render panel's size every frame.
 
+**Camera speed (2026-10-25).** W/A/S/D speed is a percentage of the original
+50 m/s (`Perspective.SpeedScale`), with one setting for editing and one for
+fullscreen (`[Camera] Speed` = 100, `FullscreenSpeed` = 25): View > Camera speed /
+Fullscreen camera speed, or Page Up / Page Down (numpad + / -) over the map,
+which steps the mode in use and shows it for two seconds -- in fullscreen too,
+the only HUD line drawn there (`HudManager.DrawNotice`). Fullscreen also sets
+`Perspective.Smooth`: movement and mouse-look ease in and out (exponential,
+0.6 s / 0.25 s time constants) instead of starting and stopping dead.
+
+**Quality.** The world shaders (Height, Object, Animation, NPC) sample with 16x
+anisotropic filtering, always. The device asks for the most real MSAA samples
+the adapter reports (`Graphics_PreparingDeviceSettings`; 8x on the RTX 5060) --
+`PreferMultiSampling` alone had settled on `NonMaskable` quality 0, the lowest
+level. The log's `Antialiasing:` line says what was picked. `--shots` and
+minimap captures render into their own non-multisampled targets, unchanged.
+
 ## Architecture
 
 Entry flow:

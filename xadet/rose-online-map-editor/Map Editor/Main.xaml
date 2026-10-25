@@ -136,6 +136,8 @@
             </MenuItem>
             <MenuItem Header="View">
                 <MenuItem Header="Fullscreen" Name="FullScreenMenu" Click="FullScreen_Click" InputGestureText="F11" />
+                <MenuItem Header="Camera speed" Name="CameraSpeedMenu" ToolTip="W/A/S/D speed while editing (Shift doubles it). Page Up / Page Down change it over the map." />
+                <MenuItem Header="Fullscreen camera speed" Name="FullScreenCameraSpeedMenu" ToolTip="W/A/S/D speed in fullscreen, where the camera also eases in and out. Page Up / Page Down change it in fullscreen." />
                 <MenuItem Header="Frame statistics" Name="FrameStatsMenu" IsCheckable="True" Click="FrameStats_Click" ToolTip="Write a frame-time breakdown to the Output panel every two seconds" />
             </MenuItem>
             <MenuItem Header="Tools">

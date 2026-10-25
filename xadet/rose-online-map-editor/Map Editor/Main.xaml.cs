@@ -129,6 +129,9 @@ namespace Map_Editor
             {
             }
 
+            BuildCameraSpeedMenu(CameraSpeedMenu, "Speed");
+            BuildCameraSpeedMenu(FullScreenCameraSpeedMenu, "FullscreenSpeed");
+
             App.Engine = new Engine.Main();
             App.Engine.Run();
         }
@@ -1318,6 +1321,10 @@ namespace Map_Editor
 
             if (e.Key == Key.F11 || (e.Key == Key.Escape && FullScreen))
                 ToggleFullScreen();
+            else if (!typing && (e.Key == Key.PageUp || e.Key == Key.Add))
+                StepCameraSpeed(1);
+            else if (!typing && (e.Key == Key.PageDown || e.Key == Key.Subtract))
+                StepCameraSpeed(-1);
             else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.O && Open.IsEnabled)
                 Open_Click(null, null);
             else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.S && Save.IsEnabled)
@@ -1345,6 +1352,10 @@ namespace Map_Editor
         {
             if (e.KeyCode == System.Windows.Forms.Keys.F11 || (e.KeyCode == System.Windows.Forms.Keys.Escape && FullScreen))
                 ToggleFullScreen();
+            else if (e.KeyCode == System.Windows.Forms.Keys.PageUp || e.KeyCode == System.Windows.Forms.Keys.Add)
+                StepCameraSpeed(1);
+            else if (e.KeyCode == System.Windows.Forms.Keys.PageDown || e.KeyCode == System.Windows.Forms.Keys.Subtract)
+                StepCameraSpeed(-1);
             else if (e.Control && e.KeyCode == System.Windows.Forms.Keys.O && Open.IsEnabled)
                 Open_Click(null, null);
             else if (e.Control && e.KeyCode == System.Windows.Forms.Keys.S && Save.IsEnabled)
@@ -1421,11 +1432,14 @@ namespace Map_Editor
                 WindowState = WindowState.Maximized;
 
                 FullScreen = true;
+                ApplyCameraSpeed();
                 Output.WriteLine(Output.MessageType.Event, "Fullscreen: press F11 or Escape to leave");
+                Engine.SpriteManager.HudManager.Notice(string.Format("Camera {0} - Page Up / Page Down to change", CameraSpeedText(ConfigurationManager.GetValue<int>("Camera", "FullscreenSpeed"))), 3.0f);
             }
             else
             {
                 FullScreen = false;
+                ApplyCameraSpeed();
 
                 foreach (KeyValuePair<string, bool> layer in savedLayers)
                     ConfigurationManager.SetValue("Draw", layer.Key, layer.Value);
@@ -1470,6 +1484,88 @@ namespace Map_Editor
         {
             ToggleFullScreen();
         }
+
+        #region Camera speed
+
+        /// <summary>
+        /// The W/A/S/D speeds offered, in percent of the original 50 m/s.
+        /// </summary>
+        private static readonly int[] CameraSpeeds = { 5, 10, 25, 50, 100, 200 };
+
+        private static string CameraSpeedText(int percent)
+        {
+            return string.Format("{0}% ({1:0.#} m/s)", percent, Engine.Types.Perspective.CAMERA_SPEED * 60.0f * percent / 100.0f);
+        }
+
+        /// <summary>
+        /// Fills View > Camera speed or Fullscreen camera speed with one
+        /// checkable entry per speed, bound to [Camera] <paramref name="setting"/>.
+        /// </summary>
+        private void BuildCameraSpeedMenu(MenuItem menu, string setting)
+        {
+            foreach (int percent in CameraSpeeds)
+            {
+                MenuItem item = new MenuItem() { Header = CameraSpeedText(percent), IsCheckable = true, Tag = percent };
+                item.Click += delegate
+                {
+                    SetCameraSpeed(setting, (int)item.Tag);
+                };
+                menu.Items.Add(item);
+            }
+
+            UpdateCameraSpeedMenus();
+        }
+
+        private void UpdateCameraSpeedMenus()
+        {
+            foreach (KeyValuePair<MenuItem, string> menu in new Dictionary<MenuItem, string>() { { CameraSpeedMenu, "Speed" }, { FullScreenCameraSpeedMenu, "FullscreenSpeed" } })
+            {
+                int current = ConfigurationManager.GetValue<int>("Camera", menu.Value);
+                foreach (MenuItem item in menu.Key.Items)
+                    item.IsChecked = (int)item.Tag == current;
+            }
+        }
+
+        private void SetCameraSpeed(string setting, int percent)
+        {
+            ConfigurationManager.SetValue("Camera", setting, percent);
+            ConfigurationManager.SaveConfig();
+
+            UpdateCameraSpeedMenus();
+            ApplyCameraSpeed();
+        }
+
+        /// <summary>
+        /// Page Up / Page Down (or numpad + / -): the next speed up or down for
+        /// the mode in use, shown for a moment in the 3D view.
+        /// </summary>
+        private void StepCameraSpeed(int direction)
+        {
+            string setting = FullScreen ? "FullscreenSpeed" : "Speed";
+            int current = Array.IndexOf(CameraSpeeds, ConfigurationManager.GetValue<int>("Camera", setting));
+            if (current < 0)
+                current = Array.IndexOf(CameraSpeeds, 100);
+
+            int next = Math.Max(0, Math.Min(CameraSpeeds.Length - 1, current + direction));
+            SetCameraSpeed(setting, CameraSpeeds[next]);
+
+            Engine.SpriteManager.HudManager.Notice((FullScreen ? "Fullscreen camera " : "Camera ") + CameraSpeedText(CameraSpeeds[next]), 2.0f);
+        }
+
+        /// <summary>
+        /// Gives the perspective camera the speed of the mode in use; fullscreen
+        /// also eases movement and turning in and out.
+        /// </summary>
+        private void ApplyCameraSpeed()
+        {
+            if (Engine.CameraManager.PerspectiveCamera == null)
+                return;
+
+            Engine.CameraManager.PerspectiveCamera.SpeedScale = ConfigurationManager.GetValue<int>("Camera", FullScreen ? "FullscreenSpeed" : "Speed") / 100.0f;
+            Engine.CameraManager.PerspectiveCamera.Smooth = FullScreen;
+        }
+
+        #endregion
 
         #endregion
 

@@ -112,6 +112,7 @@ namespace Map_Editor.Engine
         public static void Initialize()
         {
             PerspectiveCamera = new Perspective();
+            PerspectiveCamera.SpeedScale = Map_Editor.Misc.ConfigurationManager.GetValue<int>("Camera", "Speed") / 100.0f;
             OrthographicCamera = new Orthographic();
 
             SetCameraType(CameraType.Perspective);

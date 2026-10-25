@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Forms;
 using Map_Editor.Engine.SpriteManager;
 using Map_Editor.Forms.Controls.NPC;
+using Map_Editor.Misc;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -107,8 +108,33 @@ namespace Map_Editor.Engine
         /// <param name="e">The <see cref="Microsoft.Xna.Framework.PreparingDeviceSettingsEventArgs"/> instance containing the event data.</param>
         private void Graphics_PreparingDeviceSettings(object sender, PreparingDeviceSettingsEventArgs e)
         {
-            e.GraphicsDeviceInformation.PresentationParameters.DeviceWindowHandle = App.Form.RenderPanel.Handle;
+            PresentationParameters pp = e.GraphicsDeviceInformation.PresentationParameters;
+            pp.DeviceWindowHandle = App.Form.RenderPanel.Handle;
+
+            // The most real samples the card does (8 on an RTX), rather than
+            // whatever PreferMultiSampling settles on: the view doubles as a
+            // showcase (F11).
+            MultiSampleType preferred = pp.MultiSampleType;
+            int preferredQuality = pp.MultiSampleQuality;
+            foreach (MultiSampleType type in new MultiSampleType[] { MultiSampleType.SixteenSamples, MultiSampleType.EightSamples, MultiSampleType.FourSamples, MultiSampleType.TwoSamples })
+            {
+                int qualityLevels;
+                if (e.GraphicsDeviceInformation.Adapter.CheckDeviceMultiSampleType(e.GraphicsDeviceInformation.DeviceType, pp.BackBufferFormat, false, type, out qualityLevels))
+                {
+                    pp.MultiSampleType = type;
+                    pp.MultiSampleQuality = 0;
+                    break;
+                }
+            }
+
+            if (pp.MultiSampleType != loggedMultiSample)
+            {
+                loggedMultiSample = pp.MultiSampleType;
+                Output.WriteLine(Output.MessageType.Normal, string.Format("Antialiasing: {0} (PreferMultiSampling picked {1}, quality {2})", pp.MultiSampleType, preferred, preferredQuality));
+            }
         }
+
+        private MultiSampleType loggedMultiSample = (MultiSampleType)(-1);
 
         /// <summary>
         /// Called after the Game and GraphicsDevice are created, but before LoadContent.  Reference page contains code sample.
@@ -238,9 +264,13 @@ namespace Map_Editor.Engine
                 return;
             }
 
-            // fullscreen is for screenshots: the world only, as above
+            // fullscreen is for screenshots: the world only, as above, bar the
+            // few seconds' notice after a camera speed change
             if (App.Form.FullScreen)
+            {
+                HudManager.DrawNotice();
                 return;
+            }
 
             Map_Editor.Engine.Tools.Movement movement = ToolManager.Tool as Map_Editor.Engine.Tools.Movement;
             if (movement != null) movement.Draw();

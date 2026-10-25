@@ -23,7 +23,8 @@ namespace Map_Editor.Engine.Shaders
         sampler T_Sampler = sampler_state
         {
             Texture = <Texture>;
-            MinFilter = Linear;
+            MinFilter = Anisotropic;
+            MaxAnisotropy = 16;
             MagFilter = Linear;
             MipFilter = Linear;
             AddressU = mirror;
@@ -34,7 +35,8 @@ namespace Map_Editor.Engine.Shaders
         sampler L_Sampler = sampler_state
         {
             Texture = <Lightmap>;
-            MinFilter = Linear;
+            MinFilter = Anisotropic;
+            MaxAnisotropy = 16;
             MagFilter = Linear;
             MipFilter = Linear;
             AddressU = mirror;
