@@ -113,16 +113,8 @@ FIXES = {
     1434: ("Arachne", 393, 422),
     1435: ("Psyche", 349, 378),
     1436: ("Hepri", 394, 404),
-    1437: ("Jotunn", 431, 442),
-    1438: ("Naglfar", 461, 472),
-    1439: ("Goliath", 469, 480),
-    1440: ("Titan", 482, 493),
-    1441: ("Gigantes", 524, 535),
-    1442: ("Mistcalf", 425, 457),
-    1443: ("Bergelmir", 377, 409),
-    1444: ("Nephilim", 401, 433),
-    1445: ("Hecatoncheir", 495, 590),
-    1446: ("Kumbhakarna", 426, 437),
+    # 1437-1446 (the lv235 Jotunn line) were erased on 2026-10-25 by
+    # replace-235-weapons.py; their rows are blank, so they left this table.
     1447: ("Grenade Bowgun", 378, 387),
     1448: ("Cyclone Bowgun", 354, 363),
     1450: ("Dreamvine Stave", 381, 410),

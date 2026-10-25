@@ -47,8 +47,8 @@ a fifth (shields would be 1 in 37, not 1 in 30).
                                                    money never eats the roll)
 
 Table 906 is the exception and carries **three** redirects rather than two: it
-is the cap-level farm and has twice the weapon pool (10 lv235 weapons against 5
-elsewhere), so weapons run 1 in 16 there. Deliberate -- the hardest monsters in
+is the cap-level farm and has twice the weapon pool (10 of the 13 lv235 weapons
+against 5 elsewhere), so weapons run 1 in 16 there. Deliberate -- the hardest monsters in
 the zone should pay best.
 
 --- what fills them
@@ -195,7 +195,11 @@ OFF_BOSS = OFF_240[:2]                                    # boss common slots: N
 
 # Jrose weapons by tier (type 8) -- all above id 999, so all wide-encoded
 WPN_220 = [1426, 1427, 1428, 1429, 1430, 1431, 1432, 1433, 1434, 1435, 1436]
-WPN_235 = [1437, 1438, 1439, 1440, 1441, 1442, 1443, 1444, 1445, 1446]
+# lv235 since 2026-10-25: 668's dinosaur set at the retail ids, one per type in type
+# order (replace-235-weapons.py; the Jrose Jotunn line 1437-1446 is erased). Thirteen
+# do not split into the old 5 + 5, so each table takes a five-wide window (wrapping);
+# 906 still carries two, and every weapon drops from at least one Karkia table.
+WPN_235 = [908, 915, 926, 939, 932, 947, 959, 966, 974, 982, 990, 999, 950]
 WPN_240 = [1383, 1386, 1389, 1392, 1395, 1398, 1401, 1404, 1407, 1410, 1413,
            1416, 1419]
 
@@ -286,16 +290,16 @@ TABLES = {
     # The OG set (lv230) rides the three lv228-240 field tables: 4 + 9 + 9 window
     # slots cover all 16 pieces (906 has only group 4 left, 4 wide).
     906: ("Alpha roster (10 mobs, lv228-240)",
-          field(MAT_SPIRE, USE_FIELD, OFF_SPIRE, WPN_235[:5], extra=WPN_235[5:],
+          field(MAT_SPIRE, USE_FIELD, OFF_SPIRE, *windows(WPN_235, 0, [5, 5]),
                 armour=windows(ARM_OG, 0, [4]))),
     # --- the flashback zones, stage 7b --------------------------------------
     909: ("Memories wildlife (lv230-232)",
-          field(MAT_MEMORIES, USE_FIELD, OFF_MEMORIES, WPN_235[:5],
+          field(MAT_MEMORIES, USE_FIELD, OFF_MEMORIES, windows(WPN_235, 10, [5])[0],
                 armour=windows(ARM_OG, 4, [5, 4]))),
     910: ("ELITE Basilissa Melitta (lv238)",
-          elite(WPN_235[5:], OFF_QUEEN, MAT_GARDEN)),
+          elite(windows(WPN_235, 2, [5])[0], OFF_QUEEN, MAT_GARDEN)),
     911: ("Garden wildlife (lv235-240)",
-          field(MAT_GARDEN, USE_FIELD, OFF_GARDEN, WPN_235[5:],
+          field(MAT_GARDEN, USE_FIELD, OFF_GARDEN, windows(WPN_235, 7, [5])[0],
                 armour=windows(ARM_OG, 13, [5, 4]))),
     # The Norse set (lv240) is boss-only: two windows per boss (10 of 16 pieces),
     # started 3 apart so the five bosses together cover the set several times.

@@ -124,7 +124,7 @@ drops**, chosen so Karkia never duplicates Oro (whose merchant Huzam sells 210 a
 | lv215 "Mirere" (13, all weapon types) | 1381, 1384, 1387, 1390, 1393, 1396, 1399, 1402, 1405, 1408, 1411, 1414, 1417 | **shop** (Gelt) |
 | the Rose set (13, all weapon types; lv225, **lv100 since 2026-10-20**) | 1382, 1385, 1388, 1391, 1394, 1397, 1400, 1403, 1406, 1409, 1412, 1415, 1418 | **shop** (Gelt; since 2026-10-20 Luna: Pavrick, Sergei, Pabel -- `weapon-ladder-pass.py`) |
 | lv220 (11) | 1426–1436 | **reserved for drops** |
-| lv235 (10) | 1437–1446 | **reserved for drops** |
+| lv235 (13, **668's dinosaur set since 2026-10-25**; the Jotunn line 1437–1446 was erased, `replace-235-weapons.py`) | 908, 915, 926, 932, 939, 947, 950, 959, 966, 974, 982, 990, 999 | **reserved for drops** |
 | lv240 (13, the mythical names) | 1383, 1386, 1389, 1392, 1395, 1398, 1401, 1404, 1407, 1410, 1413, 1416, 1419 | **reserved for drops** |
 
 Left out of both: the partial lv210 set (1420–1425; 1424 Photon Cannon is the lv230 Arcidian line's
@@ -219,7 +219,8 @@ Three things worth keeping:
   not a table edit.
 - **906 carries three redirects, not two**, so weapons run 1 in 15 there against
   1 in 33 in the Cemetery. Deliberate: it is the only cap-level farm and has twice
-  the weapon pool (10 lv235 against 5 lv220).
+  the weapon pool (10 of the 13 lv235 against 5 lv220; the other Karkia tables take
+  five-wide windows of the 13, so each one drops somewhere).
 
 **Both Drakes were bosses sharing a trash table** — 2729 pointed at 900 and 2699
 at 906, so they dropped exactly what the mobs around them did. They now have rows

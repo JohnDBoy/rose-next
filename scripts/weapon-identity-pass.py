@@ -92,6 +92,10 @@ SKIP.update({r: "weapon ladder" for r in list(range(1355, 1380)) + [1424]
              + list(range(1382, 1419, 3))})
 # Imported after this pass by import-tsuki-weapons.py, on the post-pass scale.
 SKIP.update({r: "tsuki weapon" for r in (124, 125, 126, 424, 425)})
+# 668's dinosaur set, imported over the erased Jotunn line by replace-235-weapons.py
+# (2026-10-25) with that line's post-pass values.
+SKIP.update({r: "668 dinosaur" for r in (908, 915, 926, 932, 939, 947, 950, 959, 966,
+                                         974, 982, 990, 999)})
 
 
 def R(level):
