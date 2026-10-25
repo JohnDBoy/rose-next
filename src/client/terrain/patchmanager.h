@@ -1,6 +1,11 @@
 #pragma once
 
+#include "terrain/mapwindow.h"
+
 #define PATCH_COUNT_PER_MAP_AXIS 16
+
+/// Patches per axis across the largest map-cell window (5 cells x 16 = 80).
+#define PATCH_COUNT_PER_WINDOW_AXIS (MAP_WINDOW_SPAN_MAX * PATCH_COUNT_PER_MAP_AXIS)
 
 class CQuadPatchManager;
 class CMAP_PATCH;
@@ -9,15 +14,15 @@ class CMAP;
 
 class CPatchManager {
 private:
-    CMAP_PATCH* m_ppPATCH[3 * PATCH_COUNT_PER_MAP_AXIS][3 * PATCH_COUNT_PER_MAP_AXIS]; // 맵 3장분
+    CMAP_PATCH* m_ppPATCH[PATCH_COUNT_PER_WINDOW_AXIS][PATCH_COUNT_PER_WINDOW_AXIS];
 
-    CMAP_PATCH* m_ppSubPATCH[PATCH_COUNT_PER_MAP_AXIS * PATCH_COUNT_PER_MAP_AXIS * 9 * 2]; //
+    CMAP_PATCH* m_ppSubPATCH[PATCH_COUNT_PER_MAP_AXIS * PATCH_COUNT_PER_MAP_AXIS * MAP_WINDOW_CELLS_MAX * 2];
     short m_nSubPATCH;
 
     CMAP_PATCH* m_CameraPATCH[PATCH_COUNT_PER_MAP_AXIS * PATCH_COUNT_PER_MAP_AXIS * 10];
     short m_nCameraPatch;
 
-    CMAP_PATCH* m_PickPATCH[PATCH_COUNT_PER_MAP_AXIS * PATCH_COUNT_PER_MAP_AXIS * 9 * 2];
+    CMAP_PATCH* m_PickPATCH[PATCH_COUNT_PER_MAP_AXIS * PATCH_COUNT_PER_MAP_AXIS * MAP_WINDOW_CELLS_MAX * 2];
     short m_nPickPATCH;
 
     WORD m_wViewFRAME;
@@ -31,8 +36,8 @@ public:
     ~CPatchManager(void);
     void Reset();
 
-    CQuadPatchManager* m_ppQuadPatchManager[3][3];
-    bool m_isUse[3][3];
+    CQuadPatchManager* m_ppQuadPatchManager[MAP_WINDOW_SPAN_MAX][MAP_WINDOW_SPAN_MAX];
+    bool m_isUse[MAP_WINDOW_SPAN_MAX][MAP_WINDOW_SPAN_MAX];
     int m_nDrawingPatch;
     bool lod_onoff;
 
@@ -49,6 +54,9 @@ public:
     void Insert_VisiblePatch(CMAP_PATCH* pPATCH);
     void Clear_VisiblePatch(void);
     void Delete_UnvisiblePatch(void);
+    /// Takes a map cell's patches out of the resident set; call before the cell
+    /// is freed. See the definition.
+    void ForgetPatchesOf(CMAP_PATCH* pFirst, int iCount);
 
     float Pick_POSITION(D3DXVECTOR3& PosPICK);
     void ClearAllQuadPatchManager();

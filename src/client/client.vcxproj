@@ -788,6 +788,7 @@
     <ClInclude Include="IO_Morpher.h" />
     <ClInclude Include="IO_Skeleton.h" />
     <ClInclude Include="IO_Terrain.h" />
+    <ClInclude Include="Terrain\MapWindow.h" />
     <ClInclude Include="Terrain\PatchManager.h" />
     <ClInclude Include="Terrain\TerrainDef.h" />
     <ClInclude Include="CApplication.h" />

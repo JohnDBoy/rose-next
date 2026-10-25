@@ -162,6 +162,21 @@ CClientStorage::Load() {
     m_VideoOption.terrain_inserts_per_frame =
         GetPrivateProfileInt("VIDEO", "TERRAIN_INSERTS_PER_FRAME", 24, g_szIniFileName);
 
+    /// Map cells kept loaded around the avatar, as a radius: 1 = the original 3x3
+    /// (terrain ends 160-320 m away), 2 = 5x5 (320-480 m). Clamped at zone load.
+    m_VideoOption.terrain_radius =
+        GetPrivateProfileInt("VIDEO", "TERRAIN_RADIUS", 2, g_szIniFileName);
+
+    /// Per-frame time cap on evicting terrain patches that left the view; a camera
+    /// swing used to evict a whole batch in one frame (17-51 ms with 5x5 + Far).
+    m_VideoOption.terrain_evict_budget_us =
+        GetPrivateProfileInt("VIDEO", "TERRAIN_EVICT_BUDGET_US", 2000, g_szIniFileName);
+
+    /// One draw per map cell's texture group instead of one per 10 m patch: ~5,600
+    /// terrain draws a frame on the 5x5 Far view before. 0 = the per-patch path.
+    m_VideoOption.terrain_batch =
+        GetPrivateProfileInt("VIDEO", "TERRAIN_BATCH", 1, g_szIniFileName);
+
     /// Streaming spike diagnostic, OFF by default: it writes a client.log line
     /// for every frame spending >= this many ms force-loading resources, which is
     /// what you want while investigating a hitch and not what you want during
@@ -347,6 +362,15 @@ CClientStorage::Save() {
 
     itoa(m_VideoOption.terrain_inserts_per_frame, szTemp, 10);
     WritePrivateProfileString("VIDEO", "TERRAIN_INSERTS_PER_FRAME", szTemp, g_szIniFileName);
+
+    itoa(m_VideoOption.terrain_radius, szTemp, 10);
+    WritePrivateProfileString("VIDEO", "TERRAIN_RADIUS", szTemp, g_szIniFileName);
+
+    itoa(m_VideoOption.terrain_evict_budget_us, szTemp, 10);
+    WritePrivateProfileString("VIDEO", "TERRAIN_EVICT_BUDGET_US", szTemp, g_szIniFileName);
+
+    itoa(m_VideoOption.terrain_batch, szTemp, 10);
+    WritePrivateProfileString("VIDEO", "TERRAIN_BATCH", szTemp, g_szIniFileName);
 
     itoa(m_VideoOption.stream_spike_log_ms, szTemp, 10);
     WritePrivateProfileString("VIDEO", "STREAM_SPIKE_LOG_MS", szTemp, g_szIniFileName);

@@ -143,6 +143,11 @@ public:
     static unsigned int s_nInsertThisFrame;
     static unsigned int s_nRemoveThisFrame;
 
+    /// What Register() gives loadTerrainBlockEx, for CMAP::BuildTerrainBatch.
+    short GetTileNO() const { return m_nTileNO; }
+    short GetDnTileTEX() const { return m_nDnTileTEX; }
+    short GetUpTileTEX() const { return m_nUpTileTEX; }
+
 private:
     static float m_fHEIGHT[MAX_VERTEX_COUNT_PER_PATCH_AXIS * MAX_VERTEX_COUNT_PER_PATCH_AXIS];
 
@@ -266,7 +271,7 @@ public:
     float GetHEIGHT(float fWorldX, float fWorldY);
     float GetSlope(float fWorldX, float fWorldY);
     void GetNormal(float fWorldX, float fWorldY, D3DXVECTOR3& vNormal);
-    void MappingToZONE(short nXFrom3x3, short nYFrom3x3);
+    void MappingToZONE(short nXInWindow, short nYInWindow);
 
     CMAP_PATCH* GetPATCH(int iX, int iY) { return &m_PATCH[iY][iX]; }
     CQuadPatchManager* GetQaudManager() { return &m_QuadManager; }
@@ -297,6 +302,12 @@ private:
 private:
     static int* m_pObjectIndex[LUMP_MAP_MAX];
     HNODE m_hLightMAP;
+
+    /// The cell's terrain as one engine batch (loadTerrainBatch), when
+    /// [VIDEO] TERRAIN_BATCH is on: the patches' blocks are then CPU-only (picking,
+    /// collision) and this draws them, a few draws for 256 patches.
+    HNODE m_hTerrainBATCH;
+    void BuildTerrainBatch();
     short m_nUseMODE;
     short m_nXPatchCnt;
     short m_nYPatchCnt;
@@ -409,7 +420,10 @@ struct Brush {
     CPatchManager: Manages inserting/removing patches to/from the scene
     CQuadPatchManger: Manages view culling??
 */
-#define MAX_MAP_BUFFER (3 * 3 + 6)
+/// CMAP slots: the largest window plus the ring around it, where cells left behind
+/// by a border crossing wait out their deferred unload (DrainPendingUnloads).
+/// The original 3 * 3 + 6 had no room for a 5x5 window.
+#define MAX_MAP_BUFFER ((MAP_WINDOW_SPAN_MAX + 2) * (MAP_WINDOW_SPAN_MAX + 2))
 
 class CTERRAIN {
 public:
@@ -494,7 +508,7 @@ private:
     short m_nLastMappingX;
     short m_nLastMappingY;
 
-    /// m_PatchManager.m_ppPATCH[48x48] is populated once by ReOrginazationPatch
+    /// m_PatchManager.m_ppPATCH (the window's patch index) is populated once by ReOrginazationPatch
     /// at zone init and does NOT track subsequent map-slot rotations. Any code
     /// that reads it directly (e.g. the proximity keep-alive pass) would hit
     /// stale pointers into freed CMAPs. This flag is set true whenever m_pMAPS

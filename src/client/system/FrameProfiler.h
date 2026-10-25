@@ -242,7 +242,7 @@ enum TerrainStep {
     /// intermittent path instrumented.
     TERRAIN_MAPLOAD,   // AddOneMap: one queued map cell read from disk
     TERRAIN_ADDMAP,    // DeferSubMAP + AddMAP on a map-slot rotation
-    TERRAIN_REORG,     // ReOrginazationPatch: 9 maps x 16x16 SetPATCH calls
+    TERRAIN_REORG,     // ReOrginazationPatch: window maps x 16x16 SetPATCH calls
     TERRAIN_STEP_COUNT
 };
 void NoteTerrainStep(TerrainStep step, double ms);

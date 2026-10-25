@@ -74,6 +74,13 @@ Init_DEVICE(void) {
             g_ClientStorage.GetFrameSpikeLogMs());
     }
 
+    // Batched terrain: one engine node per map cell instead of a draw per 10 m patch
+    // (CMAP::BuildTerrainBatch). Session-wide and before any zone loads -- the
+    // engine recycles patch meshes, so drawn and batched ones must not mix.
+    ::setTerrainBatching(g_ClientStorage.GetTerrainBatch() ? 1 : 0);
+    LOG_INFO("Terrain batching: {} ([VIDEO] TERRAIN_BATCH)",
+        ::getTerrainBatching() ? "on" : "off");
+
     // Framerate cap. Applied after doScript for the same reason as the load
     // budget above: INIT.LUA line 39 calls setFramerateRange(15, 1000), so
     // anything set before it is overwritten. 0 leaves that alone.

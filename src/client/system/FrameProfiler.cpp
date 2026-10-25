@@ -138,6 +138,62 @@ int s_tex_count = 0;
 /// true size rather than looking like a single event.
 const DWORD kSpikeLogWindowMs = 250;
 
+/// Frame dips: a run of slow frames, reported as one line (2026-10-25).
+///
+/// The spike line answers "what was the worst frame"; it cannot show a run of
+/// frames that are each only a little late, which is what a map-cell crossing does
+/// with the 5x5 window (~1 s at ~45 fps). The limiter folds those into `others=N`,
+/// so the log read as a few 22 ms frames while the player saw the frame rate drop.
+/// A dip starts on a frame >= the spike threshold and ends after kDipGapMs with
+/// none; it is logged only with at least kDipMinSlowFrames slow frames (a lone one
+/// is already a spike line). Fast frames inside the run count towards its length
+/// and frame total; the trailing gap that closes it does not.
+const DWORD kDipGapMs = 300;
+const int kDipMinSlowFrames = 4;
+
+struct DipAccum {
+    int frames;
+    int slow;
+    double sum_ms;
+    double max_ms;
+    double slot[SLOT_COUNT];
+    double terrain_step[TERRAIN_STEP_COUNT];
+    double flush_ms;
+    int flush_terrain;
+    double oter_ms;
+    double bter_ms;
+    double oter_n;
+    double bter_n;
+    int mapload_frames;
+    int crossing_frames;
+
+    void Clear() { memset(this, 0, sizeof(*this)); }
+    void Add(const DipAccum& o) {
+        frames += o.frames;
+        slow += o.slow;
+        sum_ms += o.sum_ms;
+        if (o.max_ms > max_ms)
+            max_ms = o.max_ms;
+        for (int i = 0; i < SLOT_COUNT; ++i)
+            slot[i] += o.slot[i];
+        for (int i = 0; i < TERRAIN_STEP_COUNT; ++i)
+            terrain_step[i] += o.terrain_step[i];
+        flush_ms += o.flush_ms;
+        flush_terrain += o.flush_terrain;
+        oter_ms += o.oter_ms;
+        bter_ms += o.bter_ms;
+        oter_n += o.oter_n;
+        bter_n += o.bter_n;
+        mapload_frames += o.mapload_frames;
+        crossing_frames += o.crossing_frames;
+    }
+};
+DipAccum s_dip;  // the run so far, up to its last slow frame
+DipAccum s_dip_tail; // fast frames since then: folded in only if another slow one comes
+bool s_dip_active = false;
+DWORD s_dip_start = 0;
+DWORD s_dip_last_slow = 0;
+
 LONGLONG s_frame_start = 0;
 double s_frame_accum = 0.0;
 double s_frame_worst = 0.0;
@@ -354,6 +410,95 @@ void EmitSpike(const SpikeSnapshot& s, int others) {
         s.rpass_nodes[14],
         s.rpass_ms[12],
         others);
+}
+
+/// One line per frame dip (see kDipGapMs). Phases and terrain work are averaged over
+/// the run's frames, so they read like a frame of the dip; `crossings` counts frames
+/// that rotated the map-cell window and `map loads` frames that read a cell.
+void EmitDip(DWORD duration_ms) {
+    const DipAccum& d = s_dip;
+    const double inv = d.frames > 0 ? 1.0 / (double)d.frames : 0.0;
+    LOG_INFO("Frame dip: {:.2f} s, {} of {} frames >= {} ms (avg {:.1f}, max {:.1f}) | "
+             "avg netin={:.1f} logic={:.1f} scnupd={:.1f} shadow={:.1f} render={:.1f} "
+             "ui={:.1f} present={:.1f} | "
+             "avg terr[ins={:.1f} del={:.1f} mapload={:.1f}] flush={:.1f}ms/{:.0f} terrain | "
+             "avg draws oter={:.1f}ms/{:.0f} bter={:.1f}ms/{:.0f} | "
+             "map loads {} crossings {}",
+        duration_ms / 1000.0,
+        d.slow,
+        d.frames,
+        s_spike_log_ms,
+        d.sum_ms * inv,
+        d.max_ms,
+        d.slot[SLOT_NETINPUT] * inv,
+        d.slot[SLOT_LOGIC] * inv,
+        d.slot[SLOT_SCENE_UPDATE] * inv,
+        d.slot[SLOT_SHADOW] * inv,
+        d.slot[SLOT_RENDER] * inv,
+        d.slot[SLOT_UI] * inv,
+        d.slot[SLOT_PRESENT] * inv,
+        d.terrain_step[TERRAIN_INSERT] * inv,
+        d.terrain_step[TERRAIN_DELETE] * inv,
+        d.terrain_step[TERRAIN_MAPLOAD] * inv,
+        d.flush_ms * inv,
+        d.flush_terrain * inv,
+        d.oter_ms * inv,
+        d.oter_n * inv,
+        d.bter_ms * inv,
+        d.bter_n * inv,
+        d.mapload_frames,
+        d.crossing_frames);
+}
+
+/// Feeds one finished frame to the dip tracker. Called from EndFrame while the
+/// spike log is on, after the frame's buckets are final.
+void NoteDipFrame(double frame_ms, DWORD now) {
+    const bool slow = frame_ms >= (double)s_spike_log_ms;
+    if (!s_dip_active) {
+        if (!slow)
+            return;
+        s_dip.Clear();
+        s_dip_tail.Clear();
+        s_dip_active = true;
+        s_dip_start = now;
+    }
+
+    DipAccum f;
+    f.Clear();
+    f.frames = 1;
+    f.slow = slow ? 1 : 0;
+    f.sum_ms = frame_ms;
+    f.max_ms = frame_ms;
+    for (int i = 0; i < SLOT_COUNT; ++i)
+        f.slot[i] = s_slot_frame[i];
+    for (int i = 0; i < TERRAIN_STEP_COUNT; ++i)
+        f.terrain_step[i] = s_terrain_step[i];
+    if (s_flush_sampled) {
+        f.flush_ms = s_flush_ms;
+        f.flush_terrain = s_flush_kind[0];
+    }
+    // zz_render_pass_slot 1/2: opaque (near) and alpha-faded (far) terrain.
+    f.oter_ms = ::getRenderPassUsec(1) / 1000.0;
+    f.oter_n = ::getRenderPassNodes(1);
+    f.bter_ms = ::getRenderPassUsec(2) / 1000.0;
+    f.bter_n = ::getRenderPassNodes(2);
+    f.mapload_frames = s_terrain_step[TERRAIN_MAPLOAD] > 0.0 ? 1 : 0;
+    f.crossing_frames = s_terrain_step[TERRAIN_ADDMAP] > 0.0 ? 1 : 0;
+
+    if (slow) {
+        s_dip.Add(s_dip_tail);
+        s_dip.Add(f);
+        s_dip_tail.Clear();
+        s_dip_last_slow = now;
+        return;
+    }
+
+    s_dip_tail.Add(f);
+    if ((DWORD)(now - s_dip_last_slow) >= kDipGapMs) {
+        if (s_dip.slow >= kDipMinSlowFrames)
+            EmitDip(s_dip_last_slow - s_dip_start);
+        s_dip_active = false;
+    }
 }
 
 /// Hold this frame if it is the worst of the current window, opening a new window
@@ -634,6 +779,7 @@ void EndFrame() {
             EmitSpike(s_worst, s_window_spikes - 1);
             s_worst_valid = false;
         }
+        NoteDipFrame(frame_ms, now);
     }
 
     if (s_frames < kWindowFrames)

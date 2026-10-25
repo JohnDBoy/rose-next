@@ -707,56 +707,14 @@ private:
 
 } // namespace
 
-#define MOVE_UPDATE_ALL 0x00
-#define MOVE_UPDATE_LEFT 0x01
-#define MOVE_UPDATE_RIGHT 0x02
-#define MOVE_UPDATE_UP 0x04
-#define MOVE_UPDATE_DOWN 0x08
-#define MOVE_UPDATE_LU (MOVE_UPDATE_LEFT | MOVE_UPDATE_UP) // 0x05
-#define MOVE_UPDATE_RU (MOVE_UPDATE_RIGHT | MOVE_UPDATE_UP) // 0x06
-#define MOVE_UPDATE_LD (MOVE_UPDATE_LEFT | MOVE_UPDATE_DOWN) // 0x09
-#define MOVE_UPDATE_RD (MOVE_UPDATE_RIGHT | MOVE_UPDATE_DOWN) // 0x0a		10
-
-static tPOINT16 s_SecAdjPos[9] = {
-    {-1, -1},
-    {0, -1},
-    {1, -1}, // 0 ~ 2
-    {-1, 0},
-    {0, 0},
-    {1, 0}, // 3 ~ 5
-    {-1, 1},
-    {0, 1},
-    {1, 1} // 6 ~ 8
-};
-
-static char s_AddSecIdx[11][10] = {
-    {0, 1, 2, 3, 4, 5, 6, 7, 8, -1}, // 0x00		all
-    //	{	4, -1, 7, 8,-1, 5, 6, 7, 8,-1 },	// 0x00		all
-    {0, 3, 6, -1, 0, 0, 0, 0, 0, 0}, // 0x01		left
-    {2, 5, 8, -1, 0, 0, 0, 0, 0, 0}, // 0x02		right
-    {-1, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // 0x03
-    {0, 1, 2, -1, 0, 0, 0, 0, 0, 0}, // 0x04		up
-    {0, 3, 6, 1, 2, -1, 0, 0, 0, 0}, // 0x05		left & up
-    {2, 5, 8, 0, 1, -1, 0, 0, 0, 0}, // 0x06		right & up
-    {-1, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // 0x07
-    {6, 7, 8, -1, 0, 0, 0, 0, 0, 0}, // 0x08		down
-    {0, 3, 6, 7, 8, -1, 0, 0, 0, 0}, // 0x09		left & down
-    {2, 5, 8, 6, 7, -1, 0, 0, 0, 0} // 0x0a		right & down
-};
-
-static char s_SubSecIdx[11][10] = {
-    {0, 1, 2, 3, 4, 5, 6, 7, 8, -1}, // 0x00		all
-    {2, 5, 8, -1, 0, 0, 0, 0, 0, 0}, // 0x01		right
-    {0, 3, 6, -1, 0, 0, 0, 0, 0, 0}, // 0x02		left
-    {-1, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // 0x03
-    {6, 7, 8, -1, 0, 0, 0, 0, 0, 0}, // 0x04		down
-    {2, 5, 8, 6, 7, -1, 0, 0, 0, 0}, // 0x05		right & down
-    {0, 3, 6, 7, 8, -1, 0, 0, 0, 0}, // 0x06		left & down
-    {-1, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // 0x07
-    {0, 1, 2, -1, 0, 0, 0, 0, 0, 0}, // 0x08		up
-    {2, 5, 8, 0, 1, -1, 0, 0, 0, 0}, // 0x09		right & up
-    {0, 3, 6, 1, 2, -1, 0, 0, 0, 0} // 0x0a		left & up
-};
+/// Neighbour tables for the map-cell window (terrain/mapwindow.h). Built by
+/// CTERRAIN::LoadZONE from [VIDEO] TERRAIN_RADIUS; radius 1 until then, which is
+/// the original hand-written 3x3 tables exactly.
+static MapWindow::Tables s_Window = [] {
+    MapWindow::Tables t;
+    MapWindow::Build(t, 1);
+    return t;
+}();
 
 int CTERRAIN::m_RegistedPatchCnt = 0;
 
@@ -1789,6 +1747,7 @@ CMAP::CMAP() {
 
     m_nUseMODE = MAP_EMPTY;
     m_hLightMAP = NULL;
+    m_hTerrainBATCH = NULL;
     m_ppHeight = NULL;
 
     m_nZoneMapXIDX = 0;
@@ -1957,16 +1916,16 @@ CMAP::AddObject(int iObjectIndex,
 
 //-------------------------------------------------------------------------------------------------
 void
-CMAP::MappingToZONE(short nXFrom3x3, short nYFrom3x3) {
-    short nViewPatchX = nXFrom3x3 * PATCH_COUNT_PER_MAP_AXIS;
-    short nViewPatchY = nYFrom3x3 * PATCH_COUNT_PER_MAP_AXIS;
+CMAP::MappingToZONE(short nXInWindow, short nYInWindow) {
+    short nViewPatchX = nXInWindow * PATCH_COUNT_PER_MAP_AXIS;
+    short nViewPatchY = nYInWindow * PATCH_COUNT_PER_MAP_AXIS;
 
     LogString(LOG_DEBUG_,
         "MappingToZONE::( %d, %d ) << ( %d, %d )",
         nViewPatchX,
         nViewPatchY,
-        nXFrom3x3,
-        nYFrom3x3);
+        nXInWindow,
+        nYInWindow);
 
     int iH, iW;
     if (this->IsUsing()) {
@@ -2753,7 +2712,88 @@ CMAP::Load(char* szFileName, short nZoneMapXIDX, short nZoneMapYIDX) {
 
     CTERRAIN::s_MapIoStats.m_fQuadMs = phase_timer.ElapsedMs();
     FrameProfiler::NoteCellStep(FrameProfiler::CELL_QUAD, CTERRAIN::s_MapIoStats.m_fQuadMs);
+
+    BuildTerrainBatch();
     return this;
+}
+
+/// One engine batch for the cell's 256 patches, given exactly what each patch's
+/// CMAP_PATCH::Register / RegisterToNZIN hands loadTerrainBlockEx: origin, the 5x5
+/// heights in the same order, UV types and the two tile materials. Inserted into the
+/// scene for the cell's whole lifetime -- it is one node, so there is nothing to
+/// stream per patch; the engine frustum-culls it as a whole and drops it past the
+/// fade end.
+void
+CMAP::BuildTerrainBatch() {
+    if (m_hTerrainBATCH || !::getTerrainBatching() || g_GameDATA.m_bJustObjectLoadMode)
+        return;
+
+    const int kVerts = GRID_COUNT_PER_PATCH_AXIS + 1;
+    const int kHeights = kVerts * kVerts;
+    const int iPatches = m_nXPatchCnt * m_nYPatchCnt;
+    if (iPatches <= 0)
+        return;
+
+    std::vector<float> origins(iPatches * 2);
+    std::vector<float> heights(iPatches * kHeights);
+    std::vector<int> uvtypes(iPatches * 2);
+    std::vector<HNODE> mats(iPatches * 2);
+
+    float fMinZ = 1.0e9f, fMaxZ = -1.0e9f;
+    int iP = 0;
+    for (short nPY = 0; nPY < m_nYPatchCnt; nPY++) {
+        for (short nPX = 0; nPX < m_nXPatchCnt; nPX++, iP++) {
+            CMAP_PATCH& patch = m_PATCH[nPY][nPX];
+            const short nWorldX = nPX + PATCH_COUNT_PER_MAP_AXIS * m_nZoneMapXIDX;
+            const short nWorldY = nPY + PATCH_COUNT_PER_MAP_AXIS * m_nZoneMapYIDX;
+
+            origins[iP * 2] = nWorldX * fPATCH_SIZE;
+            origins[iP * 2 + 1] = (1 + nWorldY) * fPATCH_SIZE;
+
+            float* pH = &heights[iP * kHeights];
+            for (short nY = 0; nY <= GRID_COUNT_PER_PATCH_AXIS; nY++)
+                for (short nX = 0; nX <= GRID_COUNT_PER_PATCH_AXIS; nX++) {
+                    const float h = GetVertexHEIGHT(nPX * GRID_COUNT_PER_PATCH_AXIS + nX,
+                        nPY * GRID_COUNT_PER_PATCH_AXIS + nY);
+                    pH[(GRID_COUNT_PER_PATCH_AXIS - nY) * kVerts + nX] = h;
+                    if (h < fMinZ)
+                        fMinZ = h;
+                    if (h > fMaxZ)
+                        fMaxZ = h;
+                }
+
+            uvtypes[iP * 2] = 1;
+            uvtypes[iP * 2 + 1] = TILETBL_PUTTYPE(patch.GetTileNO());
+            mats[iP * 2] = g_pTerrain->GetMATERIAL(patch.GetDnTileTEX());
+            mats[iP * 2 + 1] = g_pTerrain->GetMATERIAL(patch.GetUpTileTEX());
+        }
+    }
+
+    float fMinMax[2][3] = {
+        {m_nZoneMapXIDX * (float)iMAP_SIZE, m_nZoneMapYIDX * (float)iMAP_SIZE, fMinZ},
+        {(m_nZoneMapXIDX + 1) * (float)iMAP_SIZE, (m_nZoneMapYIDX + 1) * (float)iMAP_SIZE, fMaxZ}};
+
+    m_hTerrainBATCH = ::loadTerrainBatch(CStr::Printf("@tB%dx%d", m_nZoneMapXIDX, m_nZoneMapYIDX),
+        iPatches,
+        origins.data(),
+        heights.data(),
+        uvtypes.data(),
+        mats.data(),
+        fMinMax,
+        GRID_COUNT_PER_PATCH_AXIS,
+        iMAP_SIZE,
+        nPATCH_SIZE,
+        m_hLightMAP,
+        g_GameDATA.m_hShader_terrain,
+        g_GameDATA.m_hLight);
+
+    if (m_hTerrainBATCH) {
+        ::insertToScene(m_hTerrainBATCH);
+    } else {
+        LOG_WARN("Terrain batch for cell {}_{} failed; its patches will not be drawn",
+            m_nZoneMapXIDX,
+            m_nZoneMapYIDX);
+    }
 }
 
 void
@@ -2771,6 +2811,13 @@ CMAP::ClearFromNZIN(void) {
         return; // 추가된 코드 by zho
 
     LogString(LOG_DEBUG_, "<<<<<<< Clear MAP :: %d, %d \n", m_nZoneMapXIDX, m_nZoneMapYIDX);
+
+    /// Before the lightmap: the batch's materials hold its texture.
+    if (m_hTerrainBATCH) {
+        ::removeFromScene(m_hTerrainBATCH);
+        ::unloadTerrainBatch(m_hTerrainBATCH);
+        m_hTerrainBATCH = NULL;
+    }
 
 #ifdef __VIRTUAL_SERVER
     classDLLNODE<CRegenPOINT*>* pPointNODE;
@@ -3191,6 +3238,16 @@ CTERRAIN::LoadZONE(short nZoneNO, bool bPlayBGM) {
     }
     this->FreeZONE();
 
+    /// The window is fixed for the zone's lifetime: FreeZONE has just emptied every
+    /// queue that holds a table index, so the tables can only change here.
+    const short nWantRadius = (short)g_ClientStorage.GetTerrainRadius();
+    MapWindow::Build(s_Window, nWantRadius);
+    LOG_INFO("Terrain view window: {}x{} map cells (TERRAIN_RADIUS={}{})",
+        2 * s_Window.m_nRadius + 1,
+        2 * s_Window.m_nRadius + 1,
+        s_Window.m_nRadius,
+        s_Window.m_nRadius != nWantRadius ? ", clamped" : "");
+
     if (bPlayBGM) {
         if (CMusicMgr::GetSingleton().bIsReady()) {
             /// CBGMManager::GetSingleton().EndTransition();
@@ -3488,8 +3545,12 @@ static const DWORD kMapUnloadGraceMs = 3000;
 
 /// Chebyshev-distance ring outside which a pending-unload map is considered
 /// too far to revive (in zone-map units). Beyond this, we drop it early
-/// regardless of the grace window.
-static const int kMapUnloadHysteresisRadius = 2;
+/// regardless of the grace window. One ring past the window: a cell a crossing
+/// just left behind sits exactly there, so it keeps its grace.
+static int
+MapUnloadHysteresisRadius() {
+    return s_Window.m_nRadius + 1;
+}
 
 /// Minimum real time between queued map-loads drained on the main thread.
 /// 150 ms spreads a bursty backlog into an invisible drip.
@@ -3502,9 +3563,9 @@ void
 CTERRAIN::DeferSubMAP(WORD wUpdateFLAG) {
     DWORD dwNow = GetTickCount();
 
-    for (short nI = 0; s_SubSecIdx[wUpdateFLAG][nI] >= 0; nI++) {
-        short nZoneMapXIDX = m_nCenterMapXIDX + s_SecAdjPos[s_SubSecIdx[wUpdateFLAG][nI]].m_nX;
-        short nZoneMapYIDX = m_nCenterMapYIDX + s_SecAdjPos[s_SubSecIdx[wUpdateFLAG][nI]].m_nY;
+    for (short nI = 0; s_Window.m_Sub[wUpdateFLAG][nI] >= 0; nI++) {
+        short nZoneMapXIDX = m_nCenterMapXIDX + s_Window.m_Adj[s_Window.m_Sub[wUpdateFLAG][nI]].m_nX;
+        short nZoneMapYIDX = m_nCenterMapYIDX + s_Window.m_Adj[s_Window.m_Sub[wUpdateFLAG][nI]].m_nY;
 
         if (nZoneMapXIDX < 0 || nZoneMapXIDX >= MAP_COUNT_PER_ZONE_AXIS || nZoneMapYIDX < 0
             || nZoneMapYIDX >= MAP_COUNT_PER_ZONE_AXIS) {
@@ -3539,8 +3600,8 @@ CTERRAIN::DeferSubMAP(WORD wUpdateFLAG) {
         for (std::list<tagLOAD_ONE_MAP_DATA*>::iterator it = m_LoadOneMapData.begin();
              it != m_LoadOneMapData.end();) {
             tagLOAD_ONE_MAP_DATA* pOne = *it;
-            short ex = pOne->m_nCenterX + s_SecAdjPos[pOne->m_nUpdateIndex].m_nX;
-            short ey = pOne->m_nCenterY + s_SecAdjPos[pOne->m_nUpdateIndex].m_nY;
+            short ex = pOne->m_nCenterX + s_Window.m_Adj[pOne->m_nUpdateIndex].m_nX;
+            short ey = pOne->m_nCenterY + s_Window.m_Adj[pOne->m_nUpdateIndex].m_nY;
             if (ex == nZoneMapXIDX && ey == nZoneMapYIDX) {
                 delete pOne;
                 it = m_LoadOneMapData.erase(it);
@@ -3593,7 +3654,7 @@ CTERRAIN::DrainPendingUnloads(DWORD dwNow) {
             dy = -dy;
 
         bool bShouldUnload = false;
-        if (dx > kMapUnloadHysteresisRadius || dy > kMapUnloadHysteresisRadius) {
+        if (dx > MapUnloadHysteresisRadius() || dy > MapUnloadHysteresisRadius()) {
             bShouldUnload = true;
         } else if ((DWORD)(dwNow - it->m_dwQueuedTick) >= kMapUnloadGraceMs) {
             bShouldUnload = true;
@@ -3627,6 +3688,8 @@ CTERRAIN::DoActualUnload(short nZoneMapX, short nZoneMapY) {
         nZoneMapX,
         nZoneMapY);
 
+    m_PatchManager.ForgetPatchesOf(
+        pMAP->GetPATCH(0, 0), PATCH_COUNT_PER_MAP_AXIS * PATCH_COUNT_PER_MAP_AXIS);
     pMAP->Free();
     m_DirtyMapList.push_back(pMAP);
     m_pMAPS[nZoneMapY][nZoneMapX] = NULL;
@@ -4006,8 +4069,14 @@ CTERRAIN::GetEmptyMAP() {
     /// 비어있는 맵이 없을경우 DirtyMapList를 뒤진다.
     /// 제일 먼저 추가된 노드를 꺼내온다. (
 
-    if (m_DirtyMapList.empty())
+    if (m_DirtyMapList.empty()) {
+        /// Release builds compile the callers' assert out, so this would otherwise
+        /// be a silent hole in the terrain.
+        LOG_WARN("Terrain map slot pool exhausted ({} slots, {} pending unload)",
+            MAX_MAP_BUFFER,
+            (unsigned int)m_PendingUnloadList.size());
         return NULL;
+    }
 
     CMAP* pMap = m_DirtyMapList.front();
     m_DirtyMapList.pop_front();
@@ -4104,9 +4173,9 @@ CTERRAIN::SubMAP(WORD wUpdateFLAG) {
     short nI, nZoneMapXIDX, nZoneMapYIDX;
     CMAP* pMAP;
 
-    for (nI = 0; s_SubSecIdx[wUpdateFLAG][nI] >= 0; nI++) {
-        nZoneMapXIDX = m_nCenterMapXIDX + s_SecAdjPos[s_SubSecIdx[wUpdateFLAG][nI]].m_nX;
-        nZoneMapYIDX = m_nCenterMapYIDX + s_SecAdjPos[s_SubSecIdx[wUpdateFLAG][nI]].m_nY;
+    for (nI = 0; s_Window.m_Sub[wUpdateFLAG][nI] >= 0; nI++) {
+        nZoneMapXIDX = m_nCenterMapXIDX + s_Window.m_Adj[s_Window.m_Sub[wUpdateFLAG][nI]].m_nX;
+        nZoneMapYIDX = m_nCenterMapYIDX + s_Window.m_Adj[s_Window.m_Sub[wUpdateFLAG][nI]].m_nY;
 
         if (nZoneMapXIDX >= 0 && nZoneMapXIDX < MAP_COUNT_PER_ZONE_AXIS && nZoneMapYIDX >= 0
             && nZoneMapYIDX < MAP_COUNT_PER_ZONE_AXIS) {
@@ -4115,10 +4184,12 @@ CTERRAIN::SubMAP(WORD wUpdateFLAG) {
             if (pMAP) {
                 LogString(LOG_DEBUG_,
                     "		FreeMAP: (%d, %d) --> ( %d, %d )\n",
-                    s_SecAdjPos[s_SubSecIdx[wUpdateFLAG][nI]].m_nX,
-                    s_SecAdjPos[s_SubSecIdx[wUpdateFLAG][nI]].m_nY,
+                    s_Window.m_Adj[s_Window.m_Sub[wUpdateFLAG][nI]].m_nX,
+                    s_Window.m_Adj[s_Window.m_Sub[wUpdateFLAG][nI]].m_nY,
                     nZoneMapXIDX,
                     nZoneMapYIDX);
+                m_PatchManager.ForgetPatchesOf(
+                    pMAP->GetPATCH(0, 0), PATCH_COUNT_PER_MAP_AXIS * PATCH_COUNT_PER_MAP_AXIS);
                 pMAP->Free();
 
                 m_DirtyMapList.push_back(pMAP);
@@ -4135,9 +4206,9 @@ CTERRAIN::SubMAP(WORD wUpdateFLAG) {
                         pOneMapData = *begin;
 
                         short nZoneXIDX =
-                            pOneMapData->m_nCenterX + s_SecAdjPos[pOneMapData->m_nUpdateIndex].m_nX;
+                            pOneMapData->m_nCenterX + s_Window.m_Adj[pOneMapData->m_nUpdateIndex].m_nX;
                         short nZoneYIDY =
-                            pOneMapData->m_nCenterY + s_SecAdjPos[pOneMapData->m_nUpdateIndex].m_nY;
+                            pOneMapData->m_nCenterY + s_Window.m_Adj[pOneMapData->m_nUpdateIndex].m_nY;
 
                         /// 지워야 되는데 점진적 로딩 리스트에 있다면 뺀다..
                         if (nZoneXIDX == nZoneMapXIDX && nZoneYIDY == nZoneMapYIDX) {
@@ -4163,8 +4234,8 @@ CTERRAIN::SubMAP(WORD wUpdateFLAG) {
 ///
 tagLOAD_ONE_MAP_DATA*
 CTERRAIN::GetLodingMapFromList(short nCenterMapXIDX, short nCenterMapYIDX, WORD wUpdateIndex) {
-    short nZoneMapXIDX = nCenterMapXIDX + s_SecAdjPos[wUpdateIndex].m_nX;
-    short nZoneMapYIDX = nCenterMapYIDX + s_SecAdjPos[wUpdateIndex].m_nY;
+    short nZoneMapXIDX = nCenterMapXIDX + s_Window.m_Adj[wUpdateIndex].m_nX;
+    short nZoneMapYIDX = nCenterMapYIDX + s_Window.m_Adj[wUpdateIndex].m_nY;
 
     std::list<tagLOAD_ONE_MAP_DATA*>::iterator begin = m_LoadOneMapData.begin();
 
@@ -4173,8 +4244,8 @@ CTERRAIN::GetLodingMapFromList(short nCenterMapXIDX, short nCenterMapYIDX, WORD 
     for (; begin != m_LoadOneMapData.end(); ++begin) {
         pOneMapData = *begin;
 
-        short nZoneX = pOneMapData->m_nCenterX + s_SecAdjPos[pOneMapData->m_nUpdateIndex].m_nX;
-        short nZoneY = pOneMapData->m_nCenterY + s_SecAdjPos[pOneMapData->m_nUpdateIndex].m_nY;
+        short nZoneX = pOneMapData->m_nCenterX + s_Window.m_Adj[pOneMapData->m_nUpdateIndex].m_nX;
+        short nZoneY = pOneMapData->m_nCenterY + s_Window.m_Adj[pOneMapData->m_nUpdateIndex].m_nY;
 
         /// 이미 리스트에 있다면..
         if (nZoneX == nZoneMapXIDX && nZoneY == nZoneMapYIDX)
@@ -4193,16 +4264,16 @@ CTERRAIN::AddOneMap(short nCenterMapXIDX, short nCenterMapYIDX, WORD wUpdateInde
     CMAP* pMAP;
     char* szMapFile;
 
-    nZoneMapXIDX = nCenterMapXIDX + s_SecAdjPos[wUpdateIndex].m_nX;
-    nZoneMapYIDX = nCenterMapYIDX + s_SecAdjPos[wUpdateIndex].m_nY;
+    nZoneMapXIDX = nCenterMapXIDX + s_Window.m_Adj[wUpdateIndex].m_nX;
+    nZoneMapYIDX = nCenterMapYIDX + s_Window.m_Adj[wUpdateIndex].m_nY;
 
     if (nZoneMapXIDX >= 0 && nZoneMapXIDX < MAP_COUNT_PER_ZONE_AXIS && nZoneMapYIDX >= 0
         && nZoneMapYIDX < MAP_COUNT_PER_ZONE_AXIS) {
 
         LogString(LOG_DEBUG_,
             "Add One MAP: (%d, %d) --> ( %d, %d ) \n",
-            s_SecAdjPos[wUpdateIndex].m_nX,
-            s_SecAdjPos[wUpdateIndex].m_nY,
+            s_Window.m_Adj[wUpdateIndex].m_nX,
+            s_Window.m_Adj[wUpdateIndex].m_nY,
             nZoneMapXIDX,
             nZoneMapYIDX);
 
@@ -4246,14 +4317,14 @@ CTERRAIN::AddMAP(short nCenterMapXIDX,
 
     if (!bImmediateLoad) {
         tagLOAD_ONE_MAP_DATA* pOneMapData = NULL;
-        for (nI = 0; s_AddSecIdx[wUpdateFLAG][nI] >= 0; nI++) {
+        for (nI = 0; s_Window.m_Add[wUpdateFLAG][nI] >= 0; nI++) {
             /// Curve-back fast path: if this cell is pending unload, the
             /// terrain is still fully loaded. Cancel the pending unload and
             /// skip the disk-load enqueue entirely.
             short nCancelX =
-                nCenterMapXIDX + s_SecAdjPos[s_AddSecIdx[wUpdateFLAG][nI]].m_nX;
+                nCenterMapXIDX + s_Window.m_Adj[s_Window.m_Add[wUpdateFLAG][nI]].m_nX;
             short nCancelY =
-                nCenterMapYIDX + s_SecAdjPos[s_AddSecIdx[wUpdateFLAG][nI]].m_nY;
+                nCenterMapYIDX + s_Window.m_Adj[s_Window.m_Add[wUpdateFLAG][nI]].m_nY;
             if (nCancelX >= 0 && nCancelX < MAP_COUNT_PER_ZONE_AXIS && nCancelY >= 0
                 && nCancelY < MAP_COUNT_PER_ZONE_AXIS
                 && m_pMAPS[nCancelY][nCancelX]
@@ -4263,31 +4334,31 @@ CTERRAIN::AddMAP(short nCenterMapXIDX,
 
             /// 이미 그 맵을 로딩해야할 리스트에 넣었다면 그 데이터를 갱신하고 리턴..
             tagLOAD_ONE_MAP_DATA* pOneMapData =
-                GetLodingMapFromList(nCenterMapXIDX, nCenterMapYIDX, s_AddSecIdx[wUpdateFLAG][nI]);
+                GetLodingMapFromList(nCenterMapXIDX, nCenterMapYIDX, s_Window.m_Add[wUpdateFLAG][nI]);
             if (pOneMapData) {
                 pOneMapData->m_nCenterX = nCenterMapXIDX;
                 pOneMapData->m_nCenterY = nCenterMapYIDX;
-                pOneMapData->m_nUpdateIndex = s_AddSecIdx[wUpdateFLAG][nI];
+                pOneMapData->m_nUpdateIndex = s_Window.m_Add[wUpdateFLAG][nI];
                 pOneMapData->m_bImmediateLoad = bImmediateLoad;
 
             } else {
                 pOneMapData = new tagLOAD_ONE_MAP_DATA;
                 pOneMapData->m_nCenterX = nCenterMapXIDX;
                 pOneMapData->m_nCenterY = nCenterMapYIDX;
-                pOneMapData->m_nUpdateIndex = s_AddSecIdx[wUpdateFLAG][nI];
+                pOneMapData->m_nUpdateIndex = s_Window.m_Add[wUpdateFLAG][nI];
                 pOneMapData->m_bImmediateLoad = bImmediateLoad;
 
                 short nZoneX =
-                    pOneMapData->m_nCenterX + s_SecAdjPos[pOneMapData->m_nUpdateIndex].m_nX;
+                    pOneMapData->m_nCenterX + s_Window.m_Adj[pOneMapData->m_nUpdateIndex].m_nX;
                 short nZoneY =
-                    pOneMapData->m_nCenterY + s_SecAdjPos[pOneMapData->m_nUpdateIndex].m_nY;
+                    pOneMapData->m_nCenterY + s_Window.m_Adj[pOneMapData->m_nUpdateIndex].m_nY;
 
                 LogString(LOG_DEBUG_,
                     "LoadOneMapData: [ %d, %d ] (%d, %d) --> ( %d, %d ) \n",
                     nCenterMapXIDX,
                     nCenterMapYIDX,
-                    s_SecAdjPos[pOneMapData->m_nUpdateIndex].m_nX,
-                    s_SecAdjPos[pOneMapData->m_nUpdateIndex].m_nY,
+                    s_Window.m_Adj[pOneMapData->m_nUpdateIndex].m_nX,
+                    s_Window.m_Adj[pOneMapData->m_nUpdateIndex].m_nY,
                     nZoneX,
                     nZoneY);
 
@@ -4306,17 +4377,17 @@ CTERRAIN::AddMAP(short nCenterMapXIDX,
     /// 다이렉트 로딩
     {
 
-        for (nI = 0; s_AddSecIdx[wUpdateFLAG][nI] >= 0; nI++) {
-            nZoneMapXIDX = nCenterMapXIDX + s_SecAdjPos[s_AddSecIdx[wUpdateFLAG][nI]].m_nX;
-            nZoneMapYIDX = nCenterMapYIDX + s_SecAdjPos[s_AddSecIdx[wUpdateFLAG][nI]].m_nY;
+        for (nI = 0; s_Window.m_Add[wUpdateFLAG][nI] >= 0; nI++) {
+            nZoneMapXIDX = nCenterMapXIDX + s_Window.m_Adj[s_Window.m_Add[wUpdateFLAG][nI]].m_nX;
+            nZoneMapYIDX = nCenterMapYIDX + s_Window.m_Adj[s_Window.m_Add[wUpdateFLAG][nI]].m_nY;
 
             if (nZoneMapXIDX >= 0 && nZoneMapXIDX < MAP_COUNT_PER_ZONE_AXIS && nZoneMapYIDX >= 0
                 && nZoneMapYIDX < MAP_COUNT_PER_ZONE_AXIS) {
 
                 LogString(LOG_DEBUG_,
                     "AddMAP: (%d, %d) --> ( %d, %d ) \n",
-                    s_SecAdjPos[s_AddSecIdx[wUpdateFLAG][nI]].m_nX,
-                    s_SecAdjPos[s_AddSecIdx[wUpdateFLAG][nI]].m_nY,
+                    s_Window.m_Adj[s_Window.m_Add[wUpdateFLAG][nI]].m_nX,
+                    s_Window.m_Adj[s_Window.m_Add[wUpdateFLAG][nI]].m_nY,
                     nZoneMapXIDX,
                     nZoneMapYIDX);
 
@@ -4469,9 +4540,13 @@ CTERRAIN::SetCenterPosition(float fWorldX, float fWorldY) {
         wUpdateFLAG |= MOVE_UPDATE_DOWN;
     }
 
+    /// The avatar's patch inside the window's patch index (m_ppPATCH): the centre
+    /// cell starts radius cells in.
     short nMappingX, nMappingY;
-    nMappingX = PATCH_COUNT_PER_MAP_AXIS + nZonePatchX - (nZoneMapX * PATCH_COUNT_PER_MAP_AXIS);
-    nMappingY = PATCH_COUNT_PER_MAP_AXIS + nZonePatchY - (nZoneMapY * PATCH_COUNT_PER_MAP_AXIS);
+    nMappingX = s_Window.m_nRadius * PATCH_COUNT_PER_MAP_AXIS + nZonePatchX
+        - (nZoneMapX * PATCH_COUNT_PER_MAP_AXIS);
+    nMappingY = s_Window.m_nRadius * PATCH_COUNT_PER_MAP_AXIS + nZonePatchY
+        - (nZoneMapY * PATCH_COUNT_PER_MAP_AXIS);
 
     if (wUpdateFLAG) {
         LogString(LOG_DEBUG_, "\n=====================================================\n");
@@ -4514,7 +4589,7 @@ CTERRAIN::SetCenterPosition(float fWorldX, float fWorldY) {
         UpdatePatchManager(nZoneMapX, nZoneMapY);
         InsertCameraPatch(fWorldX, fWorldY);
 
-        /// m_ppPATCH[48x48] holds patch pointers that become stale the
+        /// m_ppPATCH (the window's patch index) holds patch pointers that become stale the
         /// moment a map slot rotates. Refresh before the proximity pass
         /// dereferences it. See m_bPatchIndexDirty comment in io_terrain.h.
         if (m_bPatchIndexDirty) {
@@ -4543,20 +4618,21 @@ CTERRAIN::ReOrginazationPatch(short nZoneMapX, short nZoneMapY) {
     short nX, nZ;
     short nZoneMapXIDX = 0, nZoneMapYIDX = 0;
     CMAP* pMap = NULL;
+    const short nRadius = s_Window.m_nRadius;
 
-    for (nZ = -1; nZ <= 1; nZ++) {
+    for (nZ = -nRadius; nZ <= nRadius; nZ++) {
         nZoneMapYIDX = nZ + nZoneMapY;
-        for (nX = -1; nX <= 1; nX++) {
+        for (nX = -nRadius; nX <= nRadius; nX++) {
             nZoneMapXIDX = nX + nZoneMapX;
 
             pMap = this->GetMapPTR(nZoneMapXIDX, nZoneMapYIDX);
             this->Lock();
 
             if (pMap) {
-                pMap->MappingToZONE(1 + nX, 1 + nZ);
+                pMap->MappingToZONE(nRadius + nX, nRadius + nZ);
             } else {
-                short nViewPatchX = (1 + nX) * PATCH_COUNT_PER_MAP_AXIS;
-                short nViewPatchY = (1 + nZ) * PATCH_COUNT_PER_MAP_AXIS;
+                short nViewPatchX = (nRadius + nX) * PATCH_COUNT_PER_MAP_AXIS;
+                short nViewPatchY = (nRadius + nZ) * PATCH_COUNT_PER_MAP_AXIS;
 
                 LogString(LOG_DEBUG_,
                     "NULL MappingToZONE::( %d, %d ) \n",
@@ -4598,11 +4674,12 @@ void
 CTERRAIN::UpdatePatchManager(short nCenterMapXIDX, short nCenterMapYIDX) {
 
     short nI, nZoneMapXIDX, nZoneMapYIDX, buffer_X, buffer_Y;
+    const short nRadius = s_Window.m_nRadius;
 
-    for (nI = 0; s_AddSecIdx[MOVE_UPDATE_ALL][nI] >= 0; nI++) {
+    for (nI = 0; s_Window.m_Add[MOVE_UPDATE_ALL][nI] >= 0; nI++) {
 
-        buffer_X = s_SecAdjPos[s_AddSecIdx[MOVE_UPDATE_ALL][nI]].m_nX;
-        buffer_Y = s_SecAdjPos[s_AddSecIdx[MOVE_UPDATE_ALL][nI]].m_nY;
+        buffer_X = s_Window.m_Adj[s_Window.m_Add[MOVE_UPDATE_ALL][nI]].m_nX;
+        buffer_Y = s_Window.m_Adj[s_Window.m_Add[MOVE_UPDATE_ALL][nI]].m_nY;
 
         nZoneMapXIDX = nCenterMapXIDX + buffer_X;
         nZoneMapYIDX = nCenterMapYIDX + buffer_Y;
@@ -4620,18 +4697,18 @@ CTERRAIN::UpdatePatchManager(short nCenterMapXIDX, short nCenterMapYIDX) {
             /// now resets the flags as well; this keeps the two in step.
             if (m_pMAPS[nZoneMapYIDX][nZoneMapXIDX] != NULL
                 && m_pMAPS[nZoneMapYIDX][nZoneMapXIDX]->IsUsing()) {
-                m_PatchManager.m_ppQuadPatchManager[buffer_Y + 1][buffer_X + 1] =
+                m_PatchManager.m_ppQuadPatchManager[buffer_Y + nRadius][buffer_X + nRadius] =
                     (m_pMAPS[nZoneMapYIDX][nZoneMapXIDX]->GetQaudManager());
-                m_PatchManager.m_isUse[buffer_Y + 1][buffer_X + 1] = TRUE;
+                m_PatchManager.m_isUse[buffer_Y + nRadius][buffer_X + nRadius] = TRUE;
             } else {
-                m_PatchManager.m_ppQuadPatchManager[buffer_Y + 1][buffer_X + 1] = NULL;
-                m_PatchManager.m_isUse[buffer_Y + 1][buffer_X + 1] = FALSE;
+                m_PatchManager.m_ppQuadPatchManager[buffer_Y + nRadius][buffer_X + nRadius] = NULL;
+                m_PatchManager.m_isUse[buffer_Y + nRadius][buffer_X + nRadius] = FALSE;
             }
 
         } else {
 
-            m_PatchManager.m_ppQuadPatchManager[buffer_Y + 1][buffer_X + 1] = NULL;
-            m_PatchManager.m_isUse[buffer_Y + 1][buffer_X + 1] = FALSE;
+            m_PatchManager.m_ppQuadPatchManager[buffer_Y + nRadius][buffer_X + nRadius] = NULL;
+            m_PatchManager.m_isUse[buffer_Y + nRadius][buffer_X + nRadius] = FALSE;
         }
     }
 }

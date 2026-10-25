@@ -41,6 +41,15 @@ struct t_OptionVideo {
     // Per-frame cap on first-time *far* terrain-patch inserts. Lower = smaller
     // display hitches but slower horizon fill-in. 0 = uncapped (legacy).
     UINT terrain_inserts_per_frame;
+    // Map-cell window kept loaded around the avatar: 1 = 3x3 (the original), 2 = 5x5.
+    // Read at zone load; see terrain/mapwindow.h.
+    UINT terrain_radius;
+    // Wall-clock budget per frame for evicting terrain patches that left the view.
+    // 0 = uncapped (legacy). See CPatchManager::Delete_UnvisiblePatch.
+    UINT terrain_evict_budget_us;
+    // Draw each map cell's terrain as one batch (zz_terrain_batch) instead of a draw
+    // per 10 m patch. 0 = the per-patch path. Read once at startup.
+    UINT terrain_batch;
     // Threshold in ms for the "Flush spike:" streaming diagnostic in client.log.
     // 0 = off (default). Diagnostic only -- it writes a line per qualifying
     // frame, so it is not something to leave on during normal play.
@@ -186,6 +195,9 @@ public:
     bool GetBoneFxBudget() { return m_VideoOption.bone_fx_budget; }
     UINT GetLoadBudgetUs() { return m_VideoOption.load_budget_us; }
     UINT GetTerrainInsertsPerFrame() { return m_VideoOption.terrain_inserts_per_frame; }
+    UINT GetTerrainRadius() { return m_VideoOption.terrain_radius; }
+    UINT GetTerrainEvictBudgetUs() { return m_VideoOption.terrain_evict_budget_us; }
+    UINT GetTerrainBatch() { return m_VideoOption.terrain_batch; }
     UINT GetStreamSpikeLogMs() { return m_VideoOption.stream_spike_log_ms; }
     UINT GetFrameSpikeLogMs() { return m_VideoOption.frame_spike_log_ms; }
     UINT GetMaxFps() { return m_VideoOption.max_fps; }

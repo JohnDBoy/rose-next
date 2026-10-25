@@ -108,8 +108,8 @@ CPatchManager::Update_VisiblePatch(short nMappingX, short nMappingY) {
         nX = nMappingX + g_pCRange->m_pPOINTS[nIndex].x;
         nY = nMappingY + g_pCRange->m_pPOINTS[nIndex].y;
 
-        if (nX < 0 || nX >= PATCH_COUNT_PER_MAP_AXIS * 3 || nY < 0
-            || nY >= PATCH_COUNT_PER_MAP_AXIS * 3)
+        if (nX < 0 || nX >= PATCH_COUNT_PER_WINDOW_AXIS || nY < 0
+            || nY >= PATCH_COUNT_PER_WINDOW_AXIS)
             continue;
 
         CMAP_PATCH* pPATCH = m_ppPATCH[nY][nX];
@@ -145,8 +145,8 @@ CPatchManager::GetColdProximityCount(short nMappingX, short nMappingY) const {
         short nX = nMappingX + g_pCRange->m_pPOINTS[nIndex].x;
         short nY = nMappingY + g_pCRange->m_pPOINTS[nIndex].y;
 
-        if (nX < 0 || nX >= PATCH_COUNT_PER_MAP_AXIS * 3 || nY < 0
-            || nY >= PATCH_COUNT_PER_MAP_AXIS * 3)
+        if (nX < 0 || nX >= PATCH_COUNT_PER_WINDOW_AXIS || nY < 0
+            || nY >= PATCH_COUNT_PER_WINDOW_AXIS)
             continue;
 
         CMAP_PATCH* pPATCH = m_ppPATCH[nY][nX];
@@ -194,17 +194,67 @@ CPatchManager::Clear_VisiblePatch(void) {
 /// proximity ring (kProximityRingRadius = 12) only covers ~452 patches.
 static const uint16_t kPatchEvictGraceFrames = 30;
 
+/// Evictions are budgeted per frame, like inserts (2026-10-25). A camera swing
+/// takes a whole batch of patches out of view on the same frame, so 30 frames
+/// later they all pass the grace together, and each RemoveFromScene unregisters
+/// the terrain block and every object, effect and sound on the patch. With the
+/// 5x5 window and the Far view that measured 17-51 ms in a single frame
+/// (terr[del=] on the spike log, Xita and Shadow Canyon).
+/// A patch kept past its grace costs nothing: the renderer culls it like any
+/// resident patch, and if it comes back into view it is simply restamped. At
+/// least one patch goes per frame, so a backlog always drains.
+/// [VIDEO] TERRAIN_EVICT_BUDGET_US (default 2000, 0 = uncapped/legacy).
 void
 CPatchManager::Delete_UnvisiblePatch(void) {
     uint16_t view_frame = this->m_wViewFRAME;
 
-    auto remove =
-        std::remove_if(this->patches.begin(), this->patches.end(), [view_frame](CMAP_PATCH* patch) {
+    LARGE_INTEGER qpf, t0, t1;
+    ::QueryPerformanceFrequency(&qpf);
+    ::QueryPerformanceCounter(&t0);
+    const LONGLONG budget_ticks =
+        (LONGLONG)g_ClientStorage.GetTerrainEvictBudgetUs() * qpf.QuadPart / 1000000;
+    bool budget_spent = false;
+
+    auto remove = std::remove_if(this->patches.begin(),
+        this->patches.end(),
+        [&](CMAP_PATCH* patch) {
             if (!patch) {
                 return true;
             }
             uint16_t age = (uint16_t)(view_frame - patch->m_wLastViewFRAME);
-            if (age < kPatchEvictGraceFrames) {
+            if (age < kPatchEvictGraceFrames || budget_spent) {
+                return false;
+            }
+            patch->m_PreDrawingType = -1;
+            patch->RemoveFromScene();
+            patch->m_wLastViewFRAME = 0;
+
+            if (budget_ticks > 0) {
+                ::QueryPerformanceCounter(&t1);
+                budget_spent = (t1.QuadPart - t0.QuadPart) >= budget_ticks;
+            }
+            return true;
+        });
+
+    this->patches.erase(remove, this->patches.end());
+    this->m_nDrawingPatch = this->patches.size();
+}
+
+/// A map cell is about to be freed: CMAP::Free zeroes its m_PATCH and the slot is
+/// later reused for another cell. Take its patches out of the resident set first.
+/// Eviction is budgeted, so a patch can outlive its grace by a few frames and still
+/// be listed when its cell goes; a pointer left behind would later be "evicted" as
+/// a zeroed patch, or as a live patch of whatever cell reuses the slot.
+void
+CPatchManager::ForgetPatchesOf(CMAP_PATCH* pFirst, int iCount) {
+    const uintptr_t uBegin = (uintptr_t)pFirst;
+    const uintptr_t uEnd = (uintptr_t)(pFirst + iCount);
+
+    auto remove = std::remove_if(this->patches.begin(),
+        this->patches.end(),
+        [uBegin, uEnd](CMAP_PATCH* patch) {
+            const uintptr_t uPatch = (uintptr_t)patch;
+            if (uPatch < uBegin || uPatch >= uEnd) {
                 return false;
             }
             patch->m_PreDrawingType = -1;
@@ -239,8 +289,8 @@ CPatchManager::ClearAllQuadPatchManager() {
     m_nSubPATCH = 0;
     m_nCameraPatch = 0;
 
-    for (i = 0; i < 3; i += 1) {
-        for (j = 0; j < 3; j += 1) {
+    for (i = 0; i < MAP_WINDOW_SPAN_MAX; i += 1) {
+        for (j = 0; j < MAP_WINDOW_SPAN_MAX; j += 1) {
 
             m_ppQuadPatchManager[i][j] = NULL;
             /// The flag must die with the pointer: CalculateViewFrustumCulling()
@@ -287,9 +337,9 @@ CPatchManager::CalculateViewFrustumCulling() {
         CAMERA_MAX_RANGE(option.iCamera + ZONE_CAMERA_TYPE(g_pTerrain->GetZoneNO())) * 100.0f;
     buffer_viewFrustumEq[1][3] += (-buffer_length - camera_length);
 
-    for (i = 0; i < 3; i += 1) {
+    for (i = 0; i < MAP_WINDOW_SPAN_MAX; i += 1) {
 
-        for (j = 0; j < 3; j += 1) {
+        for (j = 0; j < MAP_WINDOW_SPAN_MAX; j += 1) {
 
             if (m_isUse[i][j]) {
                 m_ppQuadPatchManager[i][j]->GetViewFrustumEq(buffer_viewFrustumEq);
@@ -541,8 +591,8 @@ CPatchManager::TestDrawAABB() {
     CMAP_PATCH* patch;
     float buffer_min[3], buffer_max[3];
 
-    for (i = 0; i < 3; i += 1) {
-        for (j = 0; j < 3; j += 1) {
+    for (i = 0; i < MAP_WINDOW_SPAN_MAX; i += 1) {
+        for (j = 0; j < MAP_WINDOW_SPAN_MAX; j += 1) {
 
             if (m_ppQuadPatchManager[i][j] != NULL) {
                 for (k = 0; k < m_ppQuadPatchManager[i][j]->m_nExPATCH; k += 1) {
@@ -621,9 +671,9 @@ CPatchManager::CalculatePickingPATCH() {
 
         m_nPickPATCH = 0;
 
-        for (i = 0; i < 3; i += 1) {
+        for (i = 0; i < MAP_WINDOW_SPAN_MAX; i += 1) {
 
-            for (j = 0; j < 3; j += 1) {
+            for (j = 0; j < MAP_WINDOW_SPAN_MAX; j += 1) {
 
                 if (m_isUse[i][j]) {
                     m_ppQuadPatchManager[i][j]->GetPickingRay(Position, Direction);

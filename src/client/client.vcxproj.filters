@@ -1528,6 +1528,9 @@
     <ClInclude Include="IO_Terrain.h">
       <Filter>Source Files\IO_Data</Filter>
     </ClInclude>
+    <ClInclude Include="Terrain\MapWindow.h">
+      <Filter>Source Files\Terrain</Filter>
+    </ClInclude>
     <ClInclude Include="Terrain\PatchManager.h">
       <Filter>Source Files\Terrain</Filter>
     </ClInclude>
