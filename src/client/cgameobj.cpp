@@ -30,6 +30,12 @@ CGameOBJ::IsIntersect(HNODE hNODE, float& fCurDistance) {
     CGame::GetInstance().GetRayOrig(RayOrig);
     CGame::GetInstance().GetRayDir(RayDir);
 
+    // The hit goes to the shared pick position only when it is the nearest so far:
+    // CObjFIXED::IsIntersectForCamera tests every part of a model in turn, and a
+    // part behind the nearest one used to overwrite the point (click on an upper
+    // floor, marker on the floor under it).
+    D3DXVECTOR3 vHit;
+    float fHitDistance;
     if (::intersectRay(hNODE,
             RayOrig.x,
             RayOrig.y,
@@ -37,12 +43,14 @@ CGameOBJ::IsIntersect(HNODE hNODE, float& fCurDistance) {
             RayDir.x,
             RayDir.y,
             RayDir.z,
-            &m_PickPosition.x,
-            &m_PickPosition.y,
-            &m_PickPosition.z,
-            &m_fPickDistance)) {
-        if (m_fPickDistance < fCurDistance) {
-            fCurDistance = m_fPickDistance;
+            &vHit.x,
+            &vHit.y,
+            &vHit.z,
+            &fHitDistance)) {
+        if (fHitDistance < fCurDistance) {
+            fCurDistance = fHitDistance;
+            m_PickPosition = vHit;
+            m_fPickDistance = fHitDistance;
             return true;
         }
     }
