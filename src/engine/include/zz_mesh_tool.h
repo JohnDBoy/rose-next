@@ -45,11 +45,10 @@ public:
 		ZZ_UV_90CCW  = 6
 	};
 
-protected:
-	// get transformed uv by uv-type
+	// get transformed uv by uv-type (public for zz_mesh_terrain_batch, which builds
+	// the same terrain vertices as load_terrain_mesh)
 	static vec2 get_uv_by_type(int face_width, int ix, int iy, zz_uv_type uv_type);
 
-public:
 
 	enum zz_select_method {
 		ZZ_SM_ANY = 0,

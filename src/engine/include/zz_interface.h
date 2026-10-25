@@ -1471,6 +1471,40 @@ int unloadTerrainBlock ( HNODE hTerrainBlock );
 ZZ_DLL
 void unloadTerrainBlockRough ( HNODE hTerrainBlockRough );
 
+/// Batched terrain (zz_terrain_batch.h). Call once at startup, before any terrain
+/// is loaded: with it on, every loadTerrainBlockEx patch is CPU-only (picking and
+/// collision) and never drawn; each map cell is drawn by its loadTerrainBatch.
+ZZ_DLL
+void setTerrainBatching ( int bOn );
+
+ZZ_DLL
+int getTerrainBatching ( void );
+
+/// One map cell's terrain as a few draws. Per patch, in any order:
+///   pOrigins     2 floats: west x, north y (the loadTerrainBlockEx fOrigX/fOrigY)
+///   pHeights     (iDetailLevel+1)^2 floats, row 0 = north (its pHeightList)
+///   pUVTypes     2 ints: iUVType0, iUVType1
+///   phMaterials  2 HNODEs: hFirstMat, hSecondMat
+/// fMinMax is the cell's bounds; client units throughout.
+ZZ_DLL
+HNODE loadTerrainBatch (
+	ZSTRING pBatchName,
+	int iNumPatches,
+	const float * pOrigins,
+	const float * pHeights,
+	const int * pUVTypes,
+	const HNODE * phMaterials,
+	float fMinMax[2][3],
+	int iDetailLevel,
+	int iMapSize, int iBlockSize,
+	HNODE hLightMat,
+	HNODE hTerrainShader,
+	HNODE hLight
+);
+
+ZZ_DLL
+int unloadTerrainBatch ( HNODE hTerrainBatch );
+
 /// 지형 객체의 인덱스 타입을 지정
 /// @hTerrain	지형 핸들
 /// @iType		인덱스 순서 번호

@@ -268,6 +268,9 @@ public:
 
 	// render
 	void render (zz_mesh * mesh, zz_material * material, zz_light * light);
+	void render_range (zz_mesh * mesh, zz_material * material, zz_light * light,
+		unsigned int start_face, unsigned int num_faces,
+		unsigned int min_vertex, unsigned int num_vertices);
 	bool draw_indexed_trilist (zz_mesh * mesh);
 	bool draw_indexed_tristrip (zz_mesh * mesh);
 	bool set_stream_buffer (zz_mesh * mesh);

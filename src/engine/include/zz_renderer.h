@@ -513,6 +513,12 @@ public:
 
 	// render
 	virtual void render (zz_mesh * mesh, zz_material * material, zz_light * light) = 0;
+	// Draws faces [start_face, start_face + num_faces) of a triangle-list mesh, whose
+	// indices reference vertices [min_vertex, min_vertex + num_vertices). For meshes
+	// shared by several materials (zz_terrain_batch).
+	virtual void render_range (zz_mesh * mesh, zz_material * material, zz_light * light,
+		unsigned int start_face, unsigned int num_faces,
+		unsigned int min_vertex, unsigned int num_vertices) = 0;
 	virtual bool draw_indexed_trilist (zz_mesh * mesh) = 0;
 	virtual bool draw_indexed_tristrip (zz_mesh * mesh) = 0;
 	virtual bool set_stream_buffer (zz_mesh * mesh) = 0;

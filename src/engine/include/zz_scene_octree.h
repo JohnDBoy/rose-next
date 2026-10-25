@@ -150,6 +150,7 @@ protected:
 	std::vector<zz_visible*> oterrain_nodes; // opaque terrain
 	std::vector<zz_visible*> bterrain_nodes; // blend terrain
 	std::vector<zz_visible*> rterrain_nodes; // rough terrain
+	std::vector<zz_visible*> cterrain_nodes; // batched terrain, one per map cell (zz_terrain_batch)
 	std::vector<zz_visible*> ocean_nodes;
 	std::vector<zz_visible*> particle_nodes;
 
@@ -160,6 +161,8 @@ protected:
 	int num_oterrain;
 	int num_bterrain;
 	int num_rterrain;
+	int num_cterrain;
+	int num_cterrain_draws; // texture groups drawn, i.e. draw calls
 	int num_ocean;
 	int num_particles;
 	int num_total;
@@ -179,6 +182,7 @@ protected:
 	void render_oterrain (); // render opaque terrain
 	void render_bterrain (); // render blended terrain
 	void render_rterrain (); // render rough terrain
+	void render_cterrain (); // render batched terrain
 	void render_particle ();
 	void render_fonts ();
 	void render_glow ();

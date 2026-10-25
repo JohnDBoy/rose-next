@@ -291,6 +291,7 @@ $(OutDir)thirdparty\lua5.exe zz_script_lua.lua</Command>
     <ClInclude Include="include\zz_system.h" />
     <ClInclude Include="include\zz_targa.h" />
     <ClInclude Include="include\zz_terrain.h" />
+    <ClInclude Include="include\zz_terrain_batch.h" />
     <ClInclude Include="include\zz_terrain_block.h" />
     <ClInclude Include="include\zz_texture.h" />
     <ClInclude Include="include\zz_thread.h" />
@@ -448,6 +449,7 @@ $(OutDir)thirdparty\lua5.exe zz_script_lua.lua</Command>
     <ClCompile Include="src\zz_system.cpp" />
     <ClCompile Include="src\zz_targa.cpp" />
     <ClCompile Include="src\zz_terrain.cpp" />
+    <ClCompile Include="src\zz_terrain_batch.cpp" />
     <ClCompile Include="src\zz_terrain_block.cpp" />
     <ClCompile Include="src\zz_texture.cpp" />
     <ClCompile Include="src\zz_thread.cpp" />

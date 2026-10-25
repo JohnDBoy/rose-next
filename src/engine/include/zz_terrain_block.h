@@ -99,9 +99,20 @@ class zz_mesh_tool;
 class zz_terrain_block : public zz_visible {
 	zz_mesh_terrain * terrain_mesh;
 
+	/// Drawn by its cell's zz_terrain_batch: the scene never draws or flushes this
+	/// block, and its mesh is CPU-only (picking and collision still use it).
+	bool batched;
+
 public:
 	zz_terrain_block();
 	virtual ~zz_terrain_block();
+
+	/// Session-wide, set once at startup (setTerrainBatching) before any terrain is
+	/// loaded: terrain_meshes recycles meshes, so batched and drawn ones must not mix.
+	static bool s_batching;
+
+	void set_batched (bool true_or_false) { batched = true_or_false; }
+	bool get_batched () const { return batched; }
 
 	static bool first_render; // if this render is the first time.
 	static void begin_state (bool blended);

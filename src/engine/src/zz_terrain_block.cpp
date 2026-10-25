@@ -24,8 +24,11 @@
 ZZ_IMPLEMENT_DYNCREATE(zz_terrain_block, zz_visible)
 ZZ_IMPLEMENT_DYNCREATE(zz_terrain_block_rough, zz_terrain_block)
 
+bool zz_terrain_block::s_batching(false);
+
 zz_terrain_block::zz_terrain_block() :
-	terrain_mesh(0)
+	terrain_mesh(0),
+	batched(false)
 {
 	cast_shadow = false;
 	receive_shadow = true;
@@ -270,6 +273,8 @@ zz_terrain_block_rough::zz_terrain_block_rough ()
 // same as ocean_block
 void zz_terrain_block::before_render ()
 {
+	if (batched) return; // its cell's batch draws it; the mesh has no device objects
+
 	zz_runit& ru = runits[0];
 	zz_mesh * mesh = ru.mesh;
 	zz_material * mat = ru.material;

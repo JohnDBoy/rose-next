@@ -23,6 +23,7 @@
 #include "zz_mesh_tool.h"
 #include "zz_sky.h"
 #include "zz_terrain_block.h"
+#include "zz_terrain_batch.h"
 #include "zz_trail.h"
 #include "zz_ocean_block.h"
 #include "zz_morpher.h"
@@ -274,10 +275,22 @@ void zz_scene_octree::render_bterrain ()
 
 	if (num_bterrain == 0) return;
 
+	// [VIDEO] TERRAIN_ZONLY=0 replaces the z-only pre-pass with a nearest-first sort
+	// (2026-10-25). The colour pass below writes depth itself, so drawn nearest
+	// first it rejects whatever is behind -- the pre-pass result for half the draw
+	// calls. With the 5x5 map window this list is 3,400-3,800 blocks on the Far view
+	// and the pre-pass doubled its 5-8 ms. Left: overlap inside a single 10 m block,
+	// and blocks at nearly equal distance, which the centre-distance sort can misorder.
+	static const bool s_zonly_pass =
+		::GetPrivateProfileIntA("VIDEO", "TERRAIN_ZONLY", 1, "./rose-next.ini") != 0;
+
 	// pre-render z-only terrain
 	// this is for removing alpha-blended order artifacts.
 	// we render z-value only first, and render ordinal color in the next.
-	if (znzin->get_rs()->use_zonly_terrain) { // zonly pass
+	if (znzin->get_rs()->use_zonly_terrain && !s_zonly_pass) {
+		std::sort(bterrain_nodes.begin(), bterrain_nodes.end(), compare_nearer_than);
+	}
+	else if (znzin->get_rs()->use_zonly_terrain) { // zonly pass
 		if (zz_terrain_block::begin_state_zonly())
 		{
 			for (zz_vislist::iterator it = bterrain_nodes.begin(), it_end = bterrain_nodes.end(); it != it_end; ++it)
@@ -296,6 +309,34 @@ void zz_scene_octree::render_bterrain ()
 	for (zz_vislist::iterator it = bterrain_nodes.begin(), it_end = bterrain_nodes.end(); it != it_end; ++it)
 	{
 		(*it)->render();
+	}
+
+	zz_terrain_block::end_state();
+}
+
+// Batched terrain (zz_terrain_batch): one node per map cell, a few draws each. Drawn
+// nearest first in the faded-terrain state, writing depth, so nearer cells hide
+// what is behind them -- the result of bterrain's z-only pre-pass without it. Near
+// terrain inside the fade start gets alpha 1 from the same shader, i.e. opaque.
+void zz_scene_octree::render_cterrain ()
+{
+	PROFILER_RENDER_SUB(Prender_cterrain, "scene_octree: render_cterrain(%d)\n", cterrain_nodes.size());
+
+	num_cterrain = (int)cterrain_nodes.size();
+
+	if (num_cterrain == 0) return;
+
+	znzin->renderer->enable_fog(false);
+
+	std::sort(cterrain_nodes.begin(), cterrain_nodes.end(), compare_nearer_than);
+
+	bool blended = false; // depth writes stay on, as in render_bterrain's colour pass
+	zz_terrain_block::begin_state(blended);
+
+	for (zz_vislist::iterator it = cterrain_nodes.begin(), it_end = cterrain_nodes.end(); it != it_end; ++it)
+	{
+		(*it)->render();
+		num_cterrain_draws += static_cast<zz_terrain_batch*>(*it)->get_num_groups();
 	}
 
 	zz_terrain_block::end_state();
@@ -526,6 +567,10 @@ void zz_scene_octree::render_cull ()
 		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_OTERRAIN, render_oterrain());
 		pass = 1; ZZ_TIMED_PASS(ZZ_RPASS_OTERRAIN, render_oterrain());
 
+		// batched cells, timed in the (otherwise unused) rough-terrain slot
+		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_RTERRAIN, render_cterrain());
+		pass = 1; ZZ_TIMED_PASS(ZZ_RPASS_RTERRAIN, render_cterrain());
+
 		// 2. render terrains
 		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_BTERRAIN, render_bterrain());
 		pass = 1; ZZ_TIMED_PASS(ZZ_RPASS_BTERRAIN, render_bterrain());
@@ -554,6 +599,7 @@ void zz_scene_octree::render_cull ()
 
 		ZZ_TIMED_PASS(ZZ_RPASS_SKY, render_sky2());
 		ZZ_TIMED_PASS(ZZ_RPASS_OTERRAIN, render_oterrain());
+		ZZ_TIMED_PASS(ZZ_RPASS_RTERRAIN, render_cterrain()); // batched cells
 		ZZ_TIMED_PASS(ZZ_RPASS_BTERRAIN, render_bterrain());
 		ZZ_TIMED_PASS(ZZ_RPASS_RTERRAIN, render_rterrain());
 		ZZ_TIMED_PASS(ZZ_RPASS_OVERLAY, draw_ground_overlay()); // telegraphs: on the terrain, under everything else
@@ -569,7 +615,7 @@ void zz_scene_octree::render_cull ()
 		return;
 	zz_render_pass_count(ZZ_RPASS_OTERRAIN, num_oterrain);
 	zz_render_pass_count(ZZ_RPASS_BTERRAIN, num_bterrain);
-	zz_render_pass_count(ZZ_RPASS_RTERRAIN, num_rterrain);
+	zz_render_pass_count(ZZ_RPASS_RTERRAIN, num_rterrain + num_cterrain_draws); // nodes = batched-terrain draw calls
 	zz_render_pass_count(ZZ_RPASS_OPAQUE, num_visible);
 	zz_render_pass_count(ZZ_RPASS_TRANSPARENT, num_delayed);
 	zz_render_pass_count(ZZ_RPASS_GLOW, num_glows);
@@ -726,6 +772,9 @@ int zz_scene_octree::update_receive_shadow (zz_model * target)
 	for (it = bterrain_nodes.begin(); it != bterrain_nodes.end(); ++it) {
 		(*it)->set_receive_shadow_now(false);
 	}
+	for (it = cterrain_nodes.begin(); it != cterrain_nodes.end(); ++it) {
+		(*it)->set_receive_shadow_now(false);
+	}
 	for (it = delayed_nodes.begin(); it != delayed_nodes.end(); ++it) {
 		(*it)->set_receive_shadow_now(false);
 	}
@@ -792,7 +841,7 @@ int zz_scene_octree::update_receive_shadow (zz_model * target)
 		cminmax = vis->get_minmax();
 		assert(cminmax);
 		if (target_top < cminmax[0].z) continue;
-        if (vis->is_a(ZZ_RUNTIME_TYPE(zz_terrain_block)))   //test  지형에만 그림
+        if (vis->is_a(ZZ_RUNTIME_TYPE(zz_terrain_block)) || vis->is_a(ZZ_RUNTIME_TYPE(zz_terrain_batch)))   //test  지형에만 그림
 		vis->set_receive_shadow_now(true);         //test 
 		count++;
 	    //조성현 2005 11 - 18 Test
@@ -836,6 +885,7 @@ void zz_scene_octree::update_init_list (void)
 	oterrain_nodes.clear();
 	bterrain_nodes.clear();
 	rterrain_nodes.clear();
+	cterrain_nodes.clear();
 	ocean_nodes.clear();
 	particle_nodes.clear();
 }
@@ -927,14 +977,32 @@ void zz_scene_octree::update_distance (const vec3& cam_pos)
 				   vis->set_receive_fog_now(vis_camdist_square > alpha_fog_start2);
 		}
 
+		node_type = vis->get_node_type();
+
+		// A patch its cell's batch draws: never drawn or flushed here (its mesh is
+		// CPU-only). It stays in the scene for picking and collision.
+		if (node_type == ZZ_RUNTIME_TYPE(zz_terrain_block)
+			&& static_cast<zz_terrain_block*>(vis)->get_batched()) {
+			continue;
+		}
+
 		if (vis_camdist_square < IMMEDIATE_FLUSH_DISTANCE_SQUARE) {
 			vis->flush_device(true);
 		}
 
-		node_type = vis->get_node_type();
-
 		if (node_type == ZZ_RUNTIME_TYPE(zz_terrain_block_rough)) {
 			rterrain_nodes.push_back(vis);
+			continue;
+		}
+		else if (node_type == ZZ_RUNTIME_TYPE(zz_terrain_batch)) {
+			// A whole cell (160 m): drawn unless all of it lies past the fade end,
+			// the same cut as a patch's "else ignore" below.
+			const zz_bvolume * cbv = vis->get_bvolume();
+			const float radius = (cbv && cbv->get_sphere()) ? cbv->get_sphere()->radius : 0.0f;
+			const float nearest = sqrtf(vis_camdist_square) - radius;
+			if (nearest < alpha_fog_end) {
+				cterrain_nodes.push_back(vis);
+			}
 			continue;
 		}
 		else if (node_type == ZZ_RUNTIME_TYPE(zz_terrain_block)) {
@@ -1209,6 +1277,8 @@ void zz_scene_octree::render ()
 	num_oterrain = 0;
 	num_bterrain = 0;
 	num_rterrain = 0;
+	num_cterrain = 0;
+	num_cterrain_draws = 0;
 	num_ocean = 0;
 	num_total = 0;
 	num_glows = 0;

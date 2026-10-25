@@ -3167,6 +3167,38 @@ void zz_renderer_d3d::render (zz_mesh * mesh, zz_material * material, zz_light *
 
 
 
+void zz_renderer_d3d::render_range (zz_mesh * mesh, zz_material * material, zz_light * light,
+	unsigned int start_face, unsigned int num_faces,
+	unsigned int min_vertex, unsigned int num_vertices)
+{
+	assert(mesh);
+	assert(mesh->get_index_type() == zz_mesh::TYPE_LIST);
+
+	if (material) {
+		if (!set_material(material))
+			return;
+	}
+
+	if (light) set_light(light);
+
+	set_stream_buffer(mesh);
+
+	num_polygons_ += num_faces;
+	++num_meshes_;
+
+	HRESULT result = d3d_device->DrawIndexedPrimitive(
+		D3DPT_TRIANGLELIST,
+		0,              /* base vertex index */
+		min_vertex,     /* min index         */
+		num_vertices,   /* num vertices      */
+		start_face * 3, /* start index       */
+		num_faces);     /* primitive count   */
+
+	if (FAILED(result)) {
+		ZZ_LOG("r_d3d: render_range(%s) failed. %s\n", mesh->get_name(), get_hresult_string(result));
+	}
+}
+
 //--------------------------------------------------------------------------------
 // draw indexed triangle strip
 //--------------------------------------------------------------------------------

@@ -30,6 +30,7 @@
 #include "zz_skeleton.h"
 #include "zz_gamma.h"
 #include "zz_terrain_block.h"
+#include "zz_terrain_batch.h"
 #include "zz_ocean_block.h"
 #include "zz_morpher.h"
 #include "zz_sky.h"
@@ -3817,11 +3818,25 @@ HNODE loadTerrainBlockEx (
 		false /* do_load */);
 
 	tmesh->set_property_ex(
-		ZZ_SCALE_IN, 
+		ZZ_SCALE_IN,
 		fOrigX, fOrigY,
 		iDetailLevel,
 		iUVType0, iUVType1, iDetailLevel+1,
 		pHeightList, HeightMinMax,float(iMapSize), float(iBlockSize));
+
+	// Batched terrain: this patch is drawn by its cell's zz_terrain_batch, so the
+	// mesh keeps only its CPU copy (for picking) and never builds a vertex buffer.
+	// Must precede load(), which binds the device in immediate-load mode. The pool
+	// recycles meshes, hence the check (set_bindable cannot be called twice).
+	// Loaded immediately too: with no device work it is 25 vertices of CPU data,
+	// and queued it would not answer intersectRay (picking) until the lazy line
+	// reached it, since nothing renders it to force the flush.
+	if (zz_terrain_block::s_batching) {
+		if (tmesh->get_bindable()) {
+			tmesh->set_bindable(false);
+		}
+		tmesh->set_load_weight(0);
+	}
 
 	znzin->terrain_meshes->load((zz_node*)tmesh);
 
@@ -3862,7 +3877,8 @@ HNODE loadTerrainBlockEx (
 	zz_light * light = reinterpret_cast<zz_light *>(hLight);
 	
 	zz_assert(tblock && tmesh && mat); // light can be NULL
-	
+
+	tblock->set_batched(zz_terrain_block::s_batching);
 	tblock->add_runit(tmesh, mat, light);
 	// no to call invalidate_transform(). add_runits() does not affects transform
 
@@ -5026,6 +5042,167 @@ int unloadTerrainBlock ( HNODE hTerrainBlock )
 	int ret_mesh = unloadMesh(reinterpret_cast<HNODE>(mesh));
 
 	int ret_mat = unloadMaterial(reinterpret_cast<HNODE>(mat));
+
+	if (ret_vis == 0 || ret_mesh == 0) return 0;
+	return 1;
+}
+
+ZZ_DLL
+void setTerrainBatching (int bOn)
+{
+	CHECK_INTERFACE(setTerrainBatching);
+	zz_terrain_block::s_batching = (bOn != 0);
+	ZZ_LOG("interface: terrain batching %s\n", bOn ? "on" : "off");
+}
+
+ZZ_DLL
+int getTerrainBatching (void)
+{
+	return zz_terrain_block::s_batching ? 1 : 0;
+}
+
+ZZ_DLL
+HNODE loadTerrainBatch (
+	ZSTRING pBatchName,
+	int iNumPatches,
+	const float * pOrigins,
+	const float * pHeights,
+	const int * pUVTypes,
+	const HNODE * phMaterials,
+	float fMinMax[2][3],
+	int iDetailLevel,
+	int iMapSize, int iBlockSize,
+	HNODE hLightMat,
+	HNODE hTerrainShader,
+	HNODE hLight
+)
+{
+	CHECK_INTERFACE(loadTerrainBatch);
+
+	if (iNumPatches <= 0 || iDetailLevel <= 0 || !pOrigins || !pHeights || !pUVTypes
+		|| !phMaterials || !hTerrainShader) {
+		return 0;
+	}
+
+	const int heights_per_patch = (iDetailLevel + 1) * (iDetailLevel + 1);
+	// uint16 vertex and face indices
+	if (iNumPatches * heights_per_patch > 65535 || iNumPatches * iDetailLevel * iDetailLevel * 2 > 65535) {
+		ZZ_LOG("interface: loadTerrainBatch(%s) too many patches (%d)\n", pBatchName, iNumPatches);
+		return 0;
+	}
+
+	// Patches grouped by texture pair, the same pair loadTerrainBlockEx builds its
+	// material from (no second texture when it equals the first).
+	struct patch_key {
+		zz_texture * first;
+		zz_texture * second;
+		int index;
+	};
+	std::vector<patch_key> keys;
+	keys.reserve(iNumPatches);
+	for (int i = 0; i < iNumPatches; ++i) {
+		zz_material_colormap * firstmap = reinterpret_cast<zz_material_colormap*>(phMaterials[2 * i]);
+		zz_material_colormap * secondmap = reinterpret_cast<zz_material_colormap*>(phMaterials[2 * i + 1]);
+		patch_key k;
+		k.first = firstmap ? firstmap->get_texture(0) : NULL;
+		k.second = secondmap ? secondmap->get_texture(0) : NULL;
+		if (k.second == k.first) k.second = NULL;
+		k.index = i;
+		if (!k.first) continue; // loadTerrainMaterial refuses these; the patch path drew nothing either
+		keys.push_back(k);
+	}
+	if (keys.empty()) return 0;
+
+	std::stable_sort(keys.begin(), keys.end(), [](const patch_key& a, const patch_key& b) {
+		if (a.first != b.first) return a.first < b.first;
+		return a.second < b.second;
+	});
+
+	zz_mesh_terrain_batch * mesh = (zz_mesh_terrain_batch*)znzin->meshes->spawn(
+		NULL, ZZ_RUNTIME_TYPE(zz_mesh_terrain_batch), false /* do_load */);
+	if (!mesh) return 0;
+
+	mesh->detail_level = iDetailLevel;
+	mesh->mapsize = float(iMapSize) * ZZ_SCALE_IN;
+	mesh->blocksize = float(iBlockSize) * ZZ_SCALE_IN;
+	mesh->patches.resize(keys.size());
+	for (size_t p = 0; p < keys.size(); ++p) {
+		const int i = keys[p].index;
+		zz_mesh_terrain_batch::patch_desc& pd = mesh->patches[p];
+		pd.orig_x = pOrigins[2 * i] * ZZ_SCALE_IN;
+		pd.orig_y = pOrigins[2 * i + 1] * ZZ_SCALE_IN;
+		pd.uv_type0 = pUVTypes[2 * i];
+		pd.uv_type1 = pUVTypes[2 * i + 1];
+		pd.heights.resize(heights_per_patch);
+		for (int h = 0; h < heights_per_patch; ++h) {
+			pd.heights[h] = pHeights[i * heights_per_patch + h] * ZZ_SCALE_IN;
+		}
+	}
+	mesh->set_min(ZZ_SCALE_IN * vec3(fMinMax[0][0], fMinMax[0][1], fMinMax[0][2]));
+	mesh->set_max(ZZ_SCALE_IN * vec3(fMinMax[1][0], fMinMax[1][1], fMinMax[1][2]));
+
+	// Built now, inside the cell load (one per 150 ms), not on a render frame.
+	mesh->set_load_weight(0);
+	znzin->meshes->load((zz_node*)mesh);
+
+	zz_terrain_batch * batch = (zz_terrain_batch*)znzin->terrain_blocks->spawn(
+		pBatchName, ZZ_RUNTIME_TYPE(zz_terrain_batch));
+	if (!batch) {
+		unloadMesh(reinterpret_cast<HNODE>(mesh));
+		return 0;
+	}
+	batch->set_mesh(mesh);
+
+	zz_material_colormap * lightmap = reinterpret_cast<zz_material_colormap*>(hLightMat);
+	zz_texture * light_tex = lightmap ? lightmap->get_texture(0) : NULL;
+	zz_light * light = reinterpret_cast<zz_light *>(hLight);
+
+	const unsigned int vpp = (unsigned int)mesh->verts_per_patch();
+	const unsigned int fpp = (unsigned int)mesh->faces_per_patch();
+	size_t run_start = 0;
+	for (size_t p = 1; p <= keys.size(); ++p) {
+		if (p < keys.size() && keys[p].first == keys[run_start].first
+			&& keys[p].second == keys[run_start].second) {
+			continue;
+		}
+		HNODE hMat = loadTerrainMaterial(
+			0,
+			hTerrainShader,
+			reinterpret_cast<HNODE>(keys[run_start].first),
+			reinterpret_cast<HNODE>(keys[run_start].second),
+			reinterpret_cast<HNODE>(light_tex));
+		if (hMat) {
+			const unsigned int count = (unsigned int)(p - run_start);
+			batch->add_group(reinterpret_cast<zz_material*>(hMat), light,
+				(unsigned int)run_start * fpp, count * fpp,
+				(unsigned int)run_start * vpp, count * vpp);
+		}
+		run_start = p;
+	}
+
+	return reinterpret_cast<HNODE>(batch);
+}
+
+ZZ_DLL
+int unloadTerrainBatch ( HNODE hTerrainBatch )
+{
+	CHECK_INTERFACE(unloadTerrainBatch);
+
+	zz_terrain_batch * batch = reinterpret_cast<zz_terrain_batch*>(hTerrainBatch);
+	if (!batch || !batch->is_a(ZZ_RUNTIME_TYPE(zz_terrain_batch))) return 0;
+
+	// Collect before the visible goes: the runits hold the only list of materials.
+	zz_mesh * mesh = batch->get_batch_mesh();
+	std::vector<zz_material *> mats;
+	for (unsigned int i = 0; i < batch->get_num_runits(); ++i) {
+		if (batch->get_material(i)) mats.push_back(batch->get_material(i));
+	}
+
+	int ret_vis = unloadVisible(hTerrainBatch);
+	int ret_mesh = mesh ? unloadMesh(reinterpret_cast<HNODE>(mesh)) : 1;
+	for (size_t i = 0; i < mats.size(); ++i) {
+		unloadMaterial(reinterpret_cast<HNODE>(mats[i]));
+	}
 
 	if (ret_vis == 0 || ret_mesh == 0) return 0;
 	return 1;
