@@ -110,6 +110,12 @@ RUNS ON RECORD (data/ is gitignored, so this list is the only committed history)
   new tiles), `MAPOBJ/Sky` (1, `deongen01.dds`) and `MAPS/KARKIA/ID09` (7 ground
   lightmaps). Its 26 object lightmaps already shipped a chain (`--lightmaps`:
   nothing to do).
+- 2026-10-25, the Starlight Lounge (`import-valley002.py --stage 3`): **27 files**,
+  `--subdir` per folder, each holding only that day's unmipped files --
+  `MAPOBJ/DDS` (11), `TERRAIN/TILES/JUNON/JG` (5), `EFFECT/EFFECTMESH/NEWMESH` (4),
+  `MAPOBJ/Sky` (2, `day01`/`night01`: 1024 px uncompressed BGRA, kept so -- a full
+  chain only, no DXT banding), `MAPOBJ/HOUSE/town_bar/ebar` (1), `MAPS/JUNON/BAR`
+  (1 ground lightmap, then `--lightmaps` for its 3 object lightmaps).
 
 Uses thirdparty/directxtex-2020.9.30/texconv.exe, which was already vendored in
 this repo and used by nothing at all.

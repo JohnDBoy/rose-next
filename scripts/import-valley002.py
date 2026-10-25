@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Import tsuki's Valley002 ("LZON151") as zone 151, Shadow Canyon, and its cave,
-tsuki's Karkia ID09, as zone 156, Mysterious Cavern, joined by a gate.
+tsuki's Karkia ID09, as zone 156, Mysterious Cavern, joined by a gate; and the
+series' nightclub ("LZON164") as zone 164, Starlight Lounge.
 
 Both come from the Chinese custom map series tsuki carries (its zone rows
 147-164; the series numbers its maps M001-M028 in its warp points): the canyon
@@ -24,6 +25,9 @@ round-trips byte-identically before anything is touched:
                 the zone row and its name; then **the gate**: WARP rows 194/195,
                 an Eucar teleporter platform with its warp trigger on each side,
                 and the arrival points beside them. Run after stage 1.
+    --stage 3   the Starlight Lounge: its map folder (an empty placement
+                dropped), LIST_DECO_bar.ZSC and art, tiles, morph row 49, sky
+                row 13, the zone row and its name. No way in but `/mm` yet.
 
 The canyon (surveyed 2026-10-23)
 --------------------------------
@@ -191,13 +195,49 @@ hacking (`IS_HACKING`). So every gate piece belongs to stage 2, after its rows;
 the canyon's files carry their gate only once row 194 is in place (gates_on), and
 --verify checks whichever state is installed.
 
+The Starlight Lounge (surveyed 2026-10-25)
+-----------------------------------------
+  * **One chunk, 32_32**, flat sand terrain at 0 m, and on it a round nightclub
+    137 m across -- **one 57-part object** (LIST_DECO_bar 73: floors collision 4,
+    walls 12): dance floor and stage, booths, a bar, a Christmas tree with presents,
+    sunflowers, pumpkin lanterns. Floors stand 0.1-0.3 m over the terrain, so a gap
+    in them drops you a few centimetres, not into the dark as in the cave. Walked
+    from the start (the cave's Walker, terrain counted as floor, step up 1.5 m):
+    13,281 m2, never past the wall at 68 m, no step into the void. No NPC, spawn,
+    warp, sound or effect object; no link in any ZON of the series (start and
+    restore only). tsuki's music `BGM_JB40` is in no dump: Event01_junon (user).
+  * **The stairs up to the dance floor stopped you** (first test, 2026-10-25: "the
+    third step, you have to re-click, sometimes it does not work"). They are
+    concentric half rings, 0.94 / 1.46 / 1.95 m, against the round floor at 2.37,
+    each shorter than the one below, so off their middle a lower ring runs into the
+    floor's edge 0.9-1.4 m up, at the bottom of the client's body sphere -- and the
+    run cycle bobs the pelvis it hangs from, hence "sometimes". stair_fill carries
+    each step along the edge as invisible floor (see there); the ramps to the
+    upper platforms are smooth and need nothing. The same test found the click
+    marker hidden under upper floors: a client bug, not the map (CGameOBJ::IsIntersect
+    kept the last part a ray crossed, not the nearest).
+  * **The second placement names object 74, which has no part** (drop_objects).
+    It is the lump's last record and the .lit (one entry, record 1's 56 parts)
+    never lights it, so dropping it moves nothing.
+  * **Eight .MOV files for chunks the map does not have** (31_32 ... 33_33, all
+    zero = every cell walkable) are left behind: shipped, the server would count
+    the empty ground around the chunk as walkable.
+  * Zone 164, as in tsuki (our table grows 157 -> 165 rows); columns 0-26 tsuki's
+    except the name, the BGM and sky 29 -> our 13 (tsuki's 29 is our 11, the
+    canyon's, with its own `MAPOBJ\\Sky\\day01/night01.dds`, 1024 px uncompressed);
+    cols 27-35 the canyon's. Morph 72 (`ebar_muqiang`, a wooden wall) -> our 49,
+    next to the canyon's. Seven new lamp effects (`neweffect\\CJ_*light*`); the
+    table's other effects are byte-identical to ours. The minimap is halved to
+    192 px and has no label to repaint.
+
 After running: `add-dds-mipmaps.py --dry-run --subdir <dir>` for the folders a
 stage lists, and `--subdir <map folder> --lightmaps` (object lightmaps ship no
 chain: 578 ms of slow creates in the canyon's first test), then
-`audit-lightmap-index.py --zone 151 --zone 156`, `mapgen-roundtrip.py
+`audit-lightmap-index.py --zone 151 --zone 156 --zone 164`, `mapgen-roundtrip.py
 --selftest`, rebake the VFS, restart the servers (they read LIST_ZONE, WARP and
 the maps' event points). GM ways in: `/mm 151 521 503` (canyon start; 10 m units,
-`Cheat_mm`), `/mm 156 515 502` (cave). Backups: build/valley002/.
+`Cheat_mm`), `/mm 156 514 502` (cave), `/mm 164 522 514` (lounge). Backups:
+build/valley002/.
 """
 import argparse
 import collections
@@ -270,6 +310,8 @@ CANYON = dict(
     floor_patches=(),
     void_fill=False,                                 # terrain everywhere: nothing to fall to
     walk_from=None,
+    drop_objects={},
+    stair_fills=(),
 )
 CAVE = dict(
     key="cave", zone=156, src_zone=156, name="Mysterious Cavern", stl_key="LZON156",
@@ -291,8 +333,44 @@ CAVE = dict(
     # from the arrival point
     void_fill=True,
     walk_from=(5146.0, 5024.0),
+    drop_objects={},
+    stair_fills=(),
 )
-MAPS = (CANYON, CAVE)
+BAR = dict(
+    key="bar", zone=164, src_zone=164, name="Starlight Lounge", stl_key="LZON164",
+    maps_rel=r"3DDATA\MAPS\JUNON\BAR", zon="BAR.ZON",
+    # the editor dump, and the .MOV of eight chunks the map does not have: kept, the
+    # server would count their open cells around the bar as walkable ground
+    skip={"bar.zon.txt"} | {f"{c}.mov" for c in ("31_32", "31_33", "32_31", "32_33", "33_31", "33_32", "33_33")},
+    deco=r"3DDATA\MAPOBJ\LIST_DECO_bar.ZSC",
+    music=rb"Sound\BGM\Event01_junon.ogg",           # user, 2026-10-25; tsuki's BGM_JB40 is in no dump
+    zone_type=None, camera=b"",                      # tsuki's: step sound 2, no camera row
+    morph_rows={72: 49},                             # ebar_muqiang, the wooden wall; our 72 is free,
+                                                     # 49 keeps the imported morphs together
+    sky_rows={29: 13},
+    dead_boxes={},
+    lit_fixes={},
+    labels=(),
+    bridges=(),
+    floor_patches=(),
+    void_fill=False,                                 # floors 0.1-0.3 m over the terrain
+    walk_from=(5221.7, 5144.6),
+    # LIST_DECO_bar object 74 has no part at all; its one placement is the lump's last
+    # record and the .lit lights record 1 only, so dropping it moves nothing
+    drop_objects={"32_32.IFO": (74,)},
+    # the half-round stairs up to the dance floor, south of it (stair_fill): the box
+    # (world m) and the levels, the floor's last (m)
+    # The second test (2026-10-25) found two more: the diagonal stairs to the platform
+    # by the Christmas tree (stopped on the second step), and the stairs from the 3.82 m
+    # floor up to the 5.58 m one, whose sides have holes down to 3.82 (you fell in
+    # beside the steps): the floor itself is that one's first level, so the holes fill.
+    stair_fills=(((5199.0, 5143.0, 5216.0, 5156.0), (0.94, 1.46, 1.95, 2.37)),
+                 ((5238.0, 5232.5, 5245.0, 5237.0), (0.66, 1.06, 1.51, 1.99)),
+                 ((5223.5, 5256.25, 5227.0, 5262.5), (3.82, 4.11, 4.51, 4.96, 5.58)),
+                 # third test: the set past the tree, platform to platform
+                 ((5234.5, 5243.5, 5240.5, 5250.0), (1.99, 2.30, 2.70, 3.14, 3.82))),
+)
+MAPS = (CANYON, CAVE, BAR)
 
 # Walkable bridges (LIST_DECO_AG objects, collision 4) whose decks are plank
 # segments with open joints, some ~3 cm wide: the client's ground ray falls
@@ -329,7 +407,7 @@ SEAM_WALL_CLEAR = 40.0              # cm: a probe this close to a wall is out of
                                     # client's body sphere, 30 cm, plus the probe's own 10 cm)
 FLOOR_PATCH_HALF = 200.0            # cm, the raster box around a hole
 FLOOR_PATCH_STEP = 2.0              # cm, its cells
-FLOOR_PATCH_SUFFIX = "ID09_floor_patch_%d.zms"
+FLOOR_PATCH_NAME = "%s_floor_patch_%d.zms"     # the map folder's name, the patch's number
 # The walker (Walker, void_fill): a body on a grid over the floors.
 WALK_STEP = 50.0                    # cm between cells
 WALK_DIRS = ((0, 1), (0, -1), (1, 0), (-1, 0))
@@ -342,6 +420,17 @@ VOID_FILL_REACH = 300.0             # cm past a floor's edge a void band may run
 FLOOR_COLLISION, WALL_COLLISION = 4, 12
 WALL_BELOW, WALL_ABOVE = 100.0, 400.0   # cm under / over the floor an invisible wall runs
 WALL_OVERLAP = 2.0                  # cm each wall quad runs past its cell boundary
+# Stairs (stair_fill): a step whose next-but-one is within STAIR_REACH meets a rise the
+# client's body sphere stops on (40 cm ahead, r 30, at the pelvis + 45 cm: a ~0.9 m
+# rise is in it or under it as the run cycle bobs the pelvis), so the walk halts
+STAIR_REACH = 80.0                  # cm
+STAIR_GRID = 5.0                    # cm cells
+STAIR_TOL = 3.0                     # cm a cell may differ from its step's level
+# ... and the cracks between a stair and what it meets, finer than STAIR_GRID (the
+# 5.58 m stairs' top step and the platform: 3-10 cm, open to the floor 1.1 m down)
+CRACK_GRID = 2.0                    # cm cells
+CRACK_MAX = 12.0                    # cm across at most
+CRACK_DROP = 60.0                   # cm under both sides at least (less is a step down)
 # the root part properties of a placed floor: no transform, root, collision 4
 FLOOR_PART_PROPS = bytes.fromhex("010c000000000000000000000000"
                                  "0210000080bf000000000000000000000000"
@@ -501,8 +590,20 @@ def map_ifo(spec, src, name, gates):
         changed = True
     elif dead:
         raise SystemExit(f"{name}: the dead warp box is missing from the source")
+    drop = spec["drop_objects"].get(name.upper())
+    if drop:
+        objs, deco = m.lump(ifo.OBJECT), oro.Zsc(P(src, spec["deco"]))
+        lit_count = len(lit.parse_lit(open(os.path.join(s_map, name[:-4], "LIGHTMAP", LIT_NAMES[0]),
+                                           "rb").read()).objects)
+        tail = [r.obj_id for r in objs[len(objs) - len(drop):]]
+        if tail != list(drop) or len(objs) - len(drop) < lit_count \
+                or any(deco.objects[oid][1] for oid in drop):
+            raise SystemExit(f"{name}: the records drop_objects names are not the lump's last, "
+                             f"empty and unlit")
+        del objs[len(objs) - len(drop):]
+        changed = True
     adds = dict(patch_records(spec, src).get(name.upper(), {}))
-    if gates:
+    if gates and spec["key"] in GATES:
         for lump, recs in gate_records(spec["key"], src).get(name.upper(), {}).items():
             adds[lump] = adds.get(lump, []) + recs
     for lump, recs in adds.items():
@@ -535,7 +636,7 @@ def map_lit(spec, s_map, chunk, lit_name):
 def map_zon(spec, src, gates):
     """The map's .ZON, with `gates` its arrival points moved (GATES[...]["moves"])."""
     raw = open(P(src, spec["maps_rel"] + "\\" + spec["zon"]), "rb").read()
-    if not gates:
+    if not gates or spec["key"] not in GATES:
         return raw
     z = zon.parse(raw)
     events = z.lump(zon.EVENTS)
@@ -854,12 +955,13 @@ def blockers(spec, src):
     return _CACHE[key]
 
 
-def grid_top(tris, x0, y0, nx, ny):
-    """(ny, nx) highest top of `tris` at the centres of a WALK_STEP grid whose
-    first centre is (x0, y0); NaN where nothing covers. One triangle at a time
-    over its own cells -- tri_cover against a whole cave is minutes."""
+def grid_top(tris, x0, y0, nx, ny, st=None):
+    """(ny, nx) highest top of `tris` at the centres of a grid of `st` cm cells
+    (WALK_STEP) whose first centre is (x0, y0); NaN where nothing covers. One
+    triangle at a time over its own cells -- tri_cover against a whole cave is
+    minutes."""
     H = np.full((ny, nx), -np.inf)
-    st = WALK_STEP
+    st = st or WALK_STEP
     for a, b, c in tris:
         i0 = max(int(math.ceil((min(a[0], b[0], c[0]) - x0) / st)), 0)
         i1 = min(int(math.floor((max(a[0], b[0], c[0]) - x0) / st)), nx - 1)
@@ -1052,6 +1154,150 @@ def void_fill(spec, src):
     return out
 
 
+def stair_levels(spec, src, box, levels, extra=()):
+    """(grid origin, step index per cell or -1, levels cm) of a stair box on a
+    STAIR_GRID grid: the walkable tops (and `extra`), each cell matched to its level."""
+    x0, y0, x1, y1 = box
+    nx, ny = int((x1 - x0) * 100 / STAIR_GRID), int((y1 - y0) * 100 / STAIR_GRID)
+    ox, oy = to_local(x0) + STAIR_GRID / 2, to_local(y0) + STAIR_GRID / 2
+    tops = np.concatenate([walk_tops(spec, src)] + [t for t in extra if len(t)])
+    H = grid_top(tops, ox, oy, nx, ny, STAIR_GRID)
+    L = np.array(levels, float) * 100
+    idx = np.full(H.shape, -1)
+    for k, lv in enumerate(L):
+        idx[np.abs(H - lv) <= STAIR_TOL] = k
+    return (ox, oy), idx, L
+
+
+def stair_reach_max(idx):
+    """Per cell, the highest step index within STAIR_REACH."""
+    r = int(STAIR_REACH / STAIR_GRID)
+    pad = np.pad(idx, r, constant_values=-1)
+    out = np.full(idx.shape, -1)
+    ny, nx = idx.shape
+    for dj in range(-r, r + 1):
+        for di in range(-r, r + 1):
+            if dj * dj + di * di <= r * r:
+                out = np.maximum(out, pad[r + dj:r + dj + ny, r + di:r + di + nx])
+    return out
+
+
+def stair_fill(spec, src, box, levels):
+    """[(pivot (x, y) cm, quads in pivot space, FLOOR_COLLISION)] carrying each step
+    of a staircase along the floor it climbs to.
+
+    tsuki's south stairs are concentric half rings (0.94 / 1.46 / 1.95 m) against
+    a round dance floor (2.37 m): each ring is shorter than the one under it, so
+    off the middle line a lower ring runs into the floor's edge, 0.9-1.4 m up. The
+    client climbs anything its foot ray reaches (135 cm) unless the body sphere
+    meets it first, and a ~0.9 m edge sits at the sphere's bottom: the walk halted
+    on the second step, now and then (2026-10-25 test: "the third step, you have to
+    re-click"). A step cell is raised one level while anything two levels higher
+    lies within STAIR_REACH, until none does; the raised cells (never the ground
+    beside the stairs: a stair's side stays a ledge) are an invisible floor, in
+    row runs, STITCH_SINK under their new level. In the middle of the stairs
+    nothing moves; near the ends you walk up to half a step over the stone."""
+    pieces = []
+    (cox, coy), cracks = stair_cracks(spec, src, box, levels)
+    if cracks:
+        pts = np.array([(cox + i * CRACK_GRID, coy + j * CRACK_GRID) for j, i in cracks])
+        kx, ky = pts.mean(0)
+        hc = CRACK_GRID / 2 + 0.5
+        quads = [((x - kx - hc, y - ky - hc, z - STITCH_SINK), (x - kx + hc, y - ky - hc, z - STITCH_SINK),
+                  (x - kx + hc, y - ky + hc, z - STITCH_SINK), (x - kx - hc, y - ky + hc, z - STITCH_SINK))
+                 for (x, y), z in zip(pts, cracks.values())]
+        pieces.append(((float(kx), float(ky)), np.array(quads), FLOOR_COLLISION))
+    (ox, oy), idx, L = stair_levels(spec, src, box, levels, patch_tris(pieces, FLOOR_COLLISION))
+    stair = (idx >= 0) & (idx < len(L) - 1)
+    new = idx.copy()
+    while True:
+        lift = stair & (new < len(L) - 1) & (stair_reach_max(new) >= new + 2)
+        if not lift.any():
+            break
+        new[lift] += 1
+    raised = stair & (new > idx)
+    if not raised.any():
+        raise SystemExit(f"{spec['key']}: stair_fill {box} changes nothing")
+    js, is_ = np.nonzero(raised)
+    cx = float(ox + is_.mean() * STAIR_GRID)
+    cy = float(oy + js.mean() * STAIR_GRID)
+    h, quads = STAIR_GRID / 2 + 0.3, []
+    for j in sorted(set(js.tolist())):
+        row = np.nonzero(raised[j])[0]
+        start = prev = row[0]
+        for i in list(row[1:]) + [None]:
+            if i is not None and i == prev + 1 and new[j, i] == new[j, prev]:
+                prev = i
+                continue
+            z = L[new[j, start]] - STITCH_SINK
+            xa, xb = ox + start * STAIR_GRID - h - cx, ox + prev * STAIR_GRID + h - cx
+            y = oy + j * STAIR_GRID - cy
+            quads.append(((xa, y - h, z), (xb, y - h, z), (xb, y + h, z), (xa, y + h, z)))
+            if i is not None:
+                start = prev = i
+    out = [((cx, cy), np.array(quads), FLOOR_COLLISION)] + pieces
+    # the raised squares leave hairlines of their own where diagonal steps touch only
+    # at corners: crack-fill the patched surface again until nothing is open
+    for _ in range(4):
+        (cox, coy), cracks = stair_cracks(spec, src, box, levels, patch_tris(out, FLOOR_COLLISION))
+        if not cracks:
+            break
+        out.append(crack_piece(cox, coy, cracks))
+    return out
+
+
+def crack_piece(cox, coy, cracks):
+    """One invisible floor of CRACK_GRID squares over stair_cracks' cells."""
+    pts = np.array([(cox + i * CRACK_GRID, coy + j * CRACK_GRID) for j, i in cracks])
+    kx, ky = pts.mean(0)
+    hc = CRACK_GRID / 2 + 0.5
+    quads = [((x - kx - hc, y - ky - hc, z - STITCH_SINK), (x - kx + hc, y - ky - hc, z - STITCH_SINK),
+              (x - kx + hc, y - ky + hc, z - STITCH_SINK), (x - kx - hc, y - ky + hc, z - STITCH_SINK))
+             for (x, y), z in zip(pts, cracks.values())]
+    return ((float(kx), float(ky)), np.array(quads), FLOOR_COLLISION)
+
+
+def stair_cracks(spec, src, box, levels, extra=()):
+    """{(j, i): height cm} on a CRACK_GRID grid of the box: runs up to CRACK_MAX wide,
+    along x or y, lower by CRACK_DROP than both their ends, which are stair levels;
+    each at its lower end's height. Plus the grid origin."""
+    x0, y0, x1, y1 = box
+    nx, ny = int((x1 - x0) * 100 / CRACK_GRID), int((y1 - y0) * 100 / CRACK_GRID)
+    ox, oy = to_local(x0) + CRACK_GRID / 2, to_local(y0) + CRACK_GRID / 2
+    tops = np.concatenate([walk_tops(spec, src)] + [t for t in extra if len(t)])
+    H = grid_top(tops, ox, oy, nx, ny, CRACK_GRID)
+    L = np.array(levels, float) * 100
+    on = np.zeros(H.shape, bool)
+    for lv in L[1:]:                    # the lowest is the floor a crack opens onto
+        on |= np.abs(H - lv) <= STAIR_TOL
+    k = int(CRACK_MAX / CRACK_GRID)
+    out = {}
+    for grid, onl, flip in ((H, on, False), (H.T, on.T, True)):
+        for j, row in enumerate(grid):
+            ends = np.nonzero(onl[j])[0]
+            for a, b in zip(ends[:-1], ends[1:]):
+                if not 1 < b - a <= k + 1:
+                    continue
+                low = min(row[a], row[b])
+                mid = row[a + 1:b]
+                if np.all(np.isnan(mid) | (mid < low - CRACK_DROP)):
+                    for i in range(a + 1, b):
+                        key = (i, j) if flip else (j, i)
+                        out[key] = min(out.get(key, low), low)
+    return (ox, oy), out
+
+
+def stair_open(spec, src, box, levels, extra=()):
+    """Stair cells that still have a rise of two steps within STAIR_REACH."""
+    _, idx, L = stair_levels(spec, src, box, levels, extra)
+    stair = (idx >= 0) & (idx < len(L) - 1)
+    return int((stair & (stair_reach_max(idx) >= idx + 2)).sum())
+
+
+def has_patches(spec):
+    return bool(spec["floor_patches"] or spec["void_fill"] or spec["stair_fills"])
+
+
 def to_local_xy(m):
     return to_local(m[0]), to_local(m[1])
 
@@ -1072,6 +1318,8 @@ def floor_patches(spec, src):
         out.append(((cx, cy), q - np.array([cx, cy, 0.0]), FLOOR_COLLISION))
     if spec["void_fill"]:
         out += void_fill(spec, src)
+    for box, levels in spec["stair_fills"]:
+        out += stair_fill(spec, src, box, levels)
     _CACHE[key] = out
     return out
 
@@ -1102,7 +1350,7 @@ def patch_tris(patches, collision):
 def patch_records(spec, src):
     """{ifo name: {OBJECT: [records]}} placing the floor patches (deco_zsc's new
     objects, numbered after the table's own)."""
-    if not spec["floor_patches"] and not spec["void_fill"]:
+    if not has_patches(spec):
         return {}
     first = len(oro.Zsc(P(src, spec["deco"])).objects)
     out = {}
@@ -1164,11 +1412,14 @@ def deco_zsc(spec, src):
         z.objects[oid] = (cyl, parts + [(len(z.meshes) + len(new_meshes) - 1, invisible,
                                           child_props(props, deck_i))], dummies, bb)
         info[f"bridge {oid}"] = len(quads)
-    if spec["floor_patches"] or spec["void_fill"]:
-        folder = os.path.dirname(z.meshes[z.objects[2][1][0][0]].decode("latin-1"))
+    if has_patches(spec):
+        # beside the table's own meshes: object 2's folder (the cave's), else the
+        # first object that has a part
+        first = next(o for o in [z.objects[2]] + z.objects if o[1])
+        folder = os.path.dirname(z.meshes[first[1][0][0]].decode("latin-1"))
         patches = floor_patches(spec, src)
         for n, (_, quads, level) in enumerate(patches):
-            rel = folder + "\\" + FLOOR_PATCH_SUFFIX % n
+            rel = folder + "\\" + FLOOR_PATCH_NAME % (os.path.basename(spec["maps_rel"]), n)
             files[rel] = zms.build(quad_mesh(quads))
             new_meshes.append(rel.encode("latin-1"))
             lo, hi = quads.reshape(-1, 3).min(0), quads.reshape(-1, 3).max(0)
@@ -1496,6 +1747,11 @@ def stage1(ours, src, dry):
     install(CANYON, ours, src, dry, gates_on(ours))
 
 
+def stage3(ours, src, dry):
+    print("stage 3 -- the Starlight Lounge (no way in yet but /mm)")
+    install(BAR, ours, src, dry, False)
+
+
 def stage2(ours, src, dry):
     print("stage 2 -- the cave, then the gate between the two")
     if not oro.Stb(P(ours, ZONE_STB_REL)).rows > CANYON["zone"] or \
@@ -1535,10 +1791,10 @@ def verify(ours, src):
     z_ours = oro.Stb(P(ours, ZONE_STB_REL))
     for spec in MAPS:
         zone = spec["zone"]
-        if spec is CAVE and not (z_ours.rows > zone and txt(z_ours.get(zone, 0))):
-            print(f"verify {spec['key']}: stage 2 not installed")
+        if spec is not CANYON and not (z_ours.rows > zone and txt(z_ours.get(zone, 0))):
+            print(f"verify {spec['key']}: not installed")
             continue
-        print(f"verify {spec['key']} (zone {zone})" + (" with the gate" if gates else ""))
+        print(f"verify {spec['key']} (zone {zone})" + (" with the gate" if gates and spec["key"] in GATES else ""))
         s_map, d_map = P(src, spec["maps_rel"]), P(ours, spec["maps_rel"])
         same = os.path.isdir(d_map)
         for sub, name in map_files(spec, s_map) if same else []:
@@ -1564,7 +1820,7 @@ def verify(ours, src):
             m = ifo.parse(open(os.path.join(d_map, name), "rb").read())
             boxes += m.lump(ifo.EVENT_OBJECT) or []
             warps += m.lump(ifo.WARP) or []
-        want_gate = GATES[spec["key"]] if gates else None
+        want_gate = GATES.get(spec["key"]) if gates else None
         check([b.obj_id for b in boxes] == ([PLATFORM] if want_gate else [])
               and [w.warp_id for w in warps] == ([want_gate["warp"]] if want_gate else []),
               "no dead box; " + (f"one platform and warp {want_gate['warp']}" if want_gate else "no gate"))
@@ -1589,6 +1845,14 @@ def verify(ours, src):
         if roots:
             check(all(r == [0] for r in roots.values()),
                   "each stitched bridge has one root part, its deck (CMODEL::Load keeps the last parentless part)")
+        for box, levels in spec["stair_fills"]:
+            before = stair_open(spec, src, box, levels)
+            after = stair_open(spec, src, box, levels, patch_tris(floor_patches(spec, src), FLOOR_COLLISION))
+            check(before and not after, f"stairs at {box}: no rise of two steps within {STAIR_REACH:.0f} cm "
+                                        f"({before} cells before the fill, {after} after)")
+            cb = len(stair_cracks(spec, src, box, levels)[1])
+            ca = len(stair_cracks(spec, src, box, levels, patch_tris(floor_patches(spec, src), FLOOR_COLLISION))[1])
+            check(not ca, f"stairs at {box}: no crack open to the floor below ({cb} cells before, {ca} after)")
         if spec["floor_patches"] or spec["void_fill"]:
             tops = walk_tops(spec, src, FLOOR_MIN_AREA)
             patched = patch_tris(floor_patches(spec, src), FLOOR_COLLISION)
@@ -1670,7 +1934,7 @@ def selftest(ours, src):
 # ---------------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--stage", type=int, choices=(1, 2), action="append")
+    ap.add_argument("--stage", type=int, choices=(1, 2, 3), action="append")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--verify", action="store_true")
     ap.add_argument("--selftest", action="store_true")
@@ -1688,9 +1952,9 @@ def main():
     if args.verify:
         return verify(ours, src)
     if not args.stage:
-        ap.error("give --stage 1, --stage 2, --verify or --selftest")
+        ap.error("give --stage 1, 2 or 3, --verify or --selftest")
     for st in sorted(set(args.stage)):
-        {1: stage1, 2: stage2}[st](ours, src, args.dry_run)
+        {1: stage1, 2: stage2, 3: stage3}[st](ours, src, args.dry_run)
         print()
     if args.dry_run:
         print("dry run: nothing written")
