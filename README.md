@@ -36,6 +36,11 @@ Everything here is **32-bit (x86) Windows**: a C++/Rust build, Visual Studio
   and a loading screen pre-warms the OS file cache for the zone. Every remaining
   hitch has a diagnostic that names its cause (see
   [doc/client-settings.md](doc/client-settings.md)).
+- **Twice the view distance.** The client keeps a 5x5 square of map chunks
+  loaded instead of 3x3, so the ground reaches 320–480 m and large cliffs and
+  walls no longer pop in a few metres away. Terrain is drawn as one batch per
+  chunk: the Far view went from ~5,600 terrain draw calls (7–9 ms a frame) to a
+  few hundred (0.1–0.2 ms).
 - **Map objects are culled from real mesh bounds**, not the (wrong in every ZSC)
   cached boxes, so walls no longer vanish when the camera turns. Coplanar
   duplicate placements that flickered in retail data are nudged apart by a tool.
@@ -313,10 +318,15 @@ does nothing looks exactly like one that works.
 | `[VIDEO] VSYNC` | `1` (default, **recommended** for play). `0` uncaps the framerate; use it only while measuring. |
 | `[VIDEO] MAX_FPS` | Frame cap independent of vsync (`0` = none, 20–1000), for the cases where vsync is off. |
 | `[VIDEO] D3D9EX` / `DEPTH24` / `TRANSPARENCY_AA` | `0` forces plain D3D9 / a 16-bit depth buffer / no transparency supersampling. For A/B tests. |
-| `[VIDEO] TERRAIN_INSERTS_PER_FRAME` | Default `24`. Distant terrain tiles allowed to appear per frame; lower = smaller hitch, slower horizon fill. |
+| `[VIDEO] Camera` | View distance from Options: `0` Near, `1` Normal (default), `2` Far. The terrain fades out at 320 m on Normal, 450 m on Far (with the data from `scripts/set-camera-fog.py`). |
+| `[VIDEO] TERRAIN_RADIUS` | Default `2` = a 5x5 square of 160 m map chunks kept loaded; `1` = the original 3x3. |
+| `[VIDEO] TERRAIN_BATCH` | Default `1` = each chunk's terrain drawn as one batch (a few dozen draws instead of 256). `0` = the original one draw per 10 m tile. Read at startup. |
+| `[VIDEO] TERRAIN_EVICT_BUDGET_US` | Default `2000`. Microseconds per frame for removing tiles that left the view; a camera swing used to remove them all in one frame. `0` = uncapped. |
+| `[VIDEO] TERRAIN_INSERTS_PER_FRAME` | Default `24`. Distant tiles allowed to appear per frame. With `TERRAIN_BATCH=1` the ground is unaffected and this paces the objects on them. |
+| `[VIDEO] TERRAIN_ZONLY` | Default `1`. `0` replaces the depth pre-pass of faded distant tiles with a front-to-back sort. Only matters with `TERRAIN_BATCH=0`. |
 | `[VIDEO] LOAD_BUDGET_US` | Default `2000`. Microseconds per frame for pre-loading resources. |
 | `[VIDEO] CACHE_WARM_MB` | Default `300`. Archive megabytes pulled into the file cache during each loading screen (3.7x faster texture reads measured). |
-| `[VIDEO] FRAME_SPIKE_LOG_MS` / `STREAM_SPIKE_LOG_MS` | `0` (off). Log every frame over N ms total / N ms of resource loading, with the phase breakdown. |
+| `[VIDEO] FRAME_SPIKE_LOG_MS` / `STREAM_SPIKE_LOG_MS` | `0` (off). Log every frame over N ms total / N ms of resource loading, with the phase breakdown. The frame log also writes one `Frame dip:` line for a run of slow frames. |
 | `[LOG] CRASHDUMP` | `normal` / `full` / `off` minidumps on a crash. |
 
 Environment variables override the ini for one-off runs: `ROSE_NO_D3D9EX`,

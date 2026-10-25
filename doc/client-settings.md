@@ -78,6 +78,38 @@ and lands slightly *under* the target, and it can only ever add delay — it can
 rescue a frame that is already late. Confirm it took effect in `client.log`:
 `Framerate cap: 144 fps ([VIDEO] MAX_FPS)`.
 
+## View distance and terrain batching
+
+How far you see depends on two things: how much of the world is loaded, and
+where the terrain fades into the sky.
+
+**`TERRAIN_RADIUS`** (default `2`) is how many 160 m map chunks are kept loaded
+around you, as a radius: `2` is a 5x5 square, so the ground reaches at least
+320 m in every direction; `1` is the original 3x3 (160 m). Objects belong to the
+chunk holding their centre, so a bigger window also stops large cliffs and walls
+from popping in close by.
+
+**The fade** comes from the Options view distance (`[VIDEO] Camera`): Near,
+Normal or Far. With the data from `scripts/set-camera-fog.py`, Normal fades the
+terrain out between 200 and 320 m, which is seamless with the 5x5 window, and
+Far between 260 and 450 m, where you can occasionally see the window's edge in
+the last stretch. Without that data the old fades apply (220 m on Normal), and
+the bigger window shows little difference.
+
+**`TERRAIN_BATCH`** (default `1`) is what makes 5x5 affordable. The original
+client draws every 10 m terrain tile separately: 256 draw calls per chunk, which
+on the Far view was ~5,600 draws and 7–9 ms of every frame, plus 256 small
+buffers to build for each chunk that streamed in. With batching each chunk's
+terrain is one buffer and a few dozen draws (one per texture), measured at a few
+hundred draws and 0.1–0.2 ms in total, and the border-crossing dips are gone.
+The ground looks the same. `0` restores the per-tile path for comparison; the
+value is read once at startup.
+
+**`TERRAIN_EVICT_BUDGET_US`** (default `2000`) caps how long a frame may spend
+removing tiles that left the view. After a camera swing they all used to go in
+one frame (17–51 ms on the Far view). Tiles waiting their turn cost nothing.
+`0` removes the cap.
+
 ## Streaming and hitch tuning
 
 The world is streamed in *chunks* (a 160 m square of terrain, 16×16 tiles). When
@@ -99,7 +131,9 @@ frame that rendered them paid for all of it (12–46 ms).
 
 What actually costs the time is the *textures* a batch of tiles pulls in (~3 ms
 each) rather than the tiles themselves (~0.1 ms each), so this dial has more
-effect than its name suggests.
+effect than its name suggests. With `TERRAIN_BATCH=1` the ground of an arriving
+chunk is drawn by its batch at once, so this cap only paces the objects on the
+distant tiles.
 
 **`LOAD_BUDGET_US`** (default `2000`) is how long per frame the engine may spend
 loading resources *ahead* of needing them. The engine estimates load cost with a
@@ -143,7 +177,7 @@ frame over the threshold writes one line to `client.log`:
 ```
 Frame spike: 47.3 ms (avg 8.1) | netin=0.3 logic=2.1 scnupd=1.2 shadow=31.9
 render=8.4 ui=1.1 present=1.9 oth=0.4 | logic[obj=1.4 terr=0.2 fx=0.3 uiupd=0.1]
-| flush=30.2ms/258n [terrain=255 mesh=0 tex=3 mat=0 other=0] | suppressed=0
+| flush=30.2ms/258n [terrain=255 mesh=0 tex=3 mat=0 other=0] | others=0
 ```
 
 Read it in this order:
@@ -164,8 +198,23 @@ Read it in this order:
 
 `present` is expected to be large with `VSYNC=1` — that is where the frame cap is
 paid — so run with `VSYNC=0` while hunting, otherwise every phase's real cost is
-masked by the wait. `suppressed=N` reports spikes dropped by the 250 ms rate
-limit, so a burst still tells you its true size. `flush=unsampled` means the
+masked by the wait. `others=N` reports spikes folded into the line by the 250 ms
+rate limit, so a burst still tells you its true size.
+
+A run of frames that are each only a little late — what you feel as the frame
+rate dipping for a second — shows up as a handful of spike lines with large
+`others=` counts. The same setting therefore also writes one line per run:
+
+```
+Frame dip: 0.97 s, 26 of 48 frames >= 20 ms (avg 20.5, max 25.9) | avg netin=0.1
+logic=3.2 ... render=8.5 ... | avg terr[ins=0.3 del=0.9 mapload=0.1] flush=1.0ms/10
+terrain | avg draws oter=1.9ms/1905 bter=5.5ms/3620 | map loads 5 crossings 0
+```
+
+The phases are averaged over the run, so they read like one frame of it.
+`map loads` and `crossings` say whether the run followed a chunk boundary. The
+`oter`/`bter` draws are the per-tile terrain; with `TERRAIN_BATCH=1` the batched
+terrain is the `rter` entry of the spike line instead. `flush=unsampled` means the
 frame never reached the sample point (lost focus, or the scene did not begin) —
 it does not mean flushing was free.
 
