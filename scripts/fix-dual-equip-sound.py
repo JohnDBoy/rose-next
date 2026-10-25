@@ -62,12 +62,14 @@ BROKEN, WANT = "742", "577"
 
 # row -> expected name, so the pass refuses to rewrite a shifted table
 ROWS = {
-    1366: "Dual Viper Blades",
     1414: "Mirere Blades",
     1415: "Escada Blades",
     1416: "Giranda",
-    1445: "Hecatoncheir",
 }
+# 1445 Hecatoncheir and 1366 Dual Viper Blades were erased on 2026-10-25
+# (replace-235-weapons.py, replace-210-weapons.py); their rows are blank. Their
+# replacements, Jawbreaker Doon (999) and Resilience Dual Wield (452), cloned the
+# fixed sound from them.
 
 
 def main():

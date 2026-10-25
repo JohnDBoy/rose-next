@@ -108,7 +108,8 @@ CLASSES = ["Soldier", "Muse", "Hawker", "Dealer"]
 # added six more at that level, and no other shop sells them -- imported ids
 # above 999 can never drop, so a shop is the only way they reach a player.
 # Since 2026-10-20 (weapon-ladder-pass.py) the lv210 and plain lv230 lines traded
-# tiers: lv210 = Dual Tornado Rifles + the Viper line (14), lv230 = the Arcidian
+# tiers: lv210 = Dual Tornado Rifles + the Viper line (14; since 2026-10-25 tsuki's
+# 220 set in its place, replace-210-weapons.py), lv230 = the Arcidian
 # line + Photon Cannon (13). Red boss loot (prefix 22, the Jrose dungeon set at 230)
 # is never sold and is left out of the count. The other five Jrose lv210 rows wore
 # the Arcidian line's models and were erased (erase-retired-weapons.py).

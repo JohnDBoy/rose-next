@@ -114,6 +114,19 @@ ROSE_SHOP = {
     525: {232: (0, 6), 233: (1, 6)},                          # [Ferrell Trader] Sergei
     529: {241: (0, 5), 242: (1, 5)},                          # [Magic Goods Seller] Pabel
 }
+# Taken over by replace-210-weapons.py (2026-10-25): the Viper line is erased (tsuki's
+# 220 set is the lv210 tier) and Huzam's lv210 tab restocked there. The plan below is
+# frozen in the manifest, so these keys are dropped from it for --verify, a re-run and
+# --restore alike -- restoring them would write pass values into blank rows.
+SUPERSEDED_ROWS = set(range(1355, 1368))
+SUPERSEDED_SELL = {6}
+
+
+def superseded(key):
+    n, r, _c = key
+    return (n == "LIST_WEAPON" and r in SUPERSEDED_ROWS) or (n == "LIST_SELL" and r in SUPERSEDED_SELL)
+
+
 HUZAM_TABS = {6: [381] + list(range(1355, 1368)),
               7: list(range(1368, 1380)) + [1424]}
 KARKIA_ROSE_TAB = 562
@@ -222,6 +235,8 @@ def main():
             return 0
         for key, old in man["cells"].items():
             n, r, c = key.split(",")
+            if superseded((n, int(r), int(c))):
+                continue
             tables[n].set(int(r), int(c), old.encode("latin-1"))
         for n, t in tables.items():
             open(paths[n], "wb").write(t.to_bytes())
@@ -233,6 +248,10 @@ def main():
         if cell(w, row, 0) != nm:
             sys.exit("ABORT: LIST_WEAPON %d is %r, expected %r" % (row, cell(w, row, 0), nm))
     for wtype, (a210, b230) in SWAP.items():
+        if b230 in SUPERSEDED_ROWS:
+            if num(w, a210, 4) != wtype:
+                sys.exit("ABORT: row %d is not type %d" % (a210, wtype))
+            continue
         if num(w, a210, 4) != wtype or num(w, b230, 4) != wtype:
             sys.exit("ABORT: swap pair %d/%d is not type %d" % (a210, b230, wtype))
         if cell(w, a210, COL_PREFIX) == BOSS_LOOT or cell(w, b230, COL_PREFIX) == BOSS_LOOT:
@@ -254,10 +273,15 @@ def main():
             for c, t in zip(TAB_COLS, tabs):
                 plan[("LIST_NPC", nid, c)] = str(t) if t else ""
 
+    plan = {k: v for k, v in plan.items() if not superseded(k)}
     todo = {k: v for k, v in plan.items() if cell(tables[k[0]], k[1], k[2]) != v}
 
     print("Swap (lv210 <-> lv230), ATK / level after:")
     for wtype, (a210, b230) in SWAP.items():
+        if b230 in SUPERSEDED_ROWS:          # the Viper side, erased
+            print("   %-22s -> lv%s ATK %s" % (cell(w, a210, 0), plan[("LIST_WEAPON", a210, COL_LEVEL)],
+                                               plan[("LIST_WEAPON", a210, COL_ATK)]))
+            continue
         print("   %-22s -> lv%s ATK %s   |   %-22s -> lv%s ATK %s"
               % (cell(w, a210, 0), plan[("LIST_WEAPON", a210, COL_LEVEL)],
                  plan[("LIST_WEAPON", a210, COL_ATK)], cell(w, b230, 0),

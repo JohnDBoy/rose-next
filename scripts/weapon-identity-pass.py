@@ -96,6 +96,10 @@ SKIP.update({r: "tsuki weapon" for r in (124, 125, 126, 424, 425)})
 # (2026-10-25) with that line's post-pass values.
 SKIP.update({r: "668 dinosaur" for r in (908, 915, 926, 932, 939, 947, 950, 959, 966,
                                          974, 982, 990, 999)})
+# tsuki's 220 set, imported over the erased Viper line by replace-210-weapons.py
+# (2026-10-25) with that line's post-pass values.
+SKIP.update({r: "tsuki 220 set" for r in (27, 58, 80, 128, 154, 187, 229, 259, 288, 326,
+                                          358, 426, 452)})
 
 
 def R(level):

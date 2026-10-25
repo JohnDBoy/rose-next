@@ -198,6 +198,16 @@ def restore():
     for p in (FILE_MOTION, TYPE_MOTION):
         if sha(p) != man["sha"][os.path.basename(p)]:
             sys.exit("ABORT: %s changed since this pass wrote it -- restore by hand" % p)
+    # Other weapons wear the stance too since 2026-10-25 (Warmaster Sword, 128:
+    # replace-210-weapons.py). Removing the column would leave them pointing past
+    # TYPE_MOTION.
+    col = find_column(Stb(TYPE_MOTION))
+    w = Stb(WEAPON)
+    others = [r for r in range(w.rows) if r != BLADE and col is not None
+              and w.s(r, COL_MOTION).strip() == str(col)]
+    if others:
+        sys.exit("ABORT: LIST_WEAPON %s also use the stance column %d -- move them back "
+                 "to %d first" % (others, col, BASE_TYPE))
     for p in (FILE_MOTION, TYPE_MOTION):
         shutil.copy2(os.path.join(BACKUP_DIR, os.path.basename(p)), p)
     w = Stb(WEAPON)
