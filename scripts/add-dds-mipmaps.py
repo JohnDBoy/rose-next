@@ -116,6 +116,9 @@ RUNS ON RECORD (data/ is gitignored, so this list is the only committed history)
   `MAPOBJ/Sky` (2, `day01`/`night01`: 1024 px uncompressed BGRA, kept so -- a full
   chain only, no DXT banding), `MAPOBJ/HOUSE/town_bar/ebar` (1), `MAPS/JUNON/BAR`
   (1 ground lightmap, then `--lightmaps` for its 3 object lightmaps).
+- 2026-10-26, the Cursed Vermillion weapons (`import-vermillion-weapons.py`): **5
+  files**, `--subdir 3DDATA/WEAPON/WEAPON/custom/Cursed_Vermillion` -- the axe,
+  hammer, spear, staff and wand textures (the axe logged `src_mips=1`, 3.8 ms).
 
 Uses thirdparty/directxtex-2020.9.30/texconv.exe, which was already vendored in
 this repo and used by nothing at all.

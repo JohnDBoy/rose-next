@@ -27,14 +27,15 @@ Ground models: a source whose drop object names other files than the weapon's --
 for byte the same (668 points at its level-200 copies) -- is repointed at the weapon's
 files and the copies deleted, so no mesh lands in data/ twice.
 """
-import argparse, glob, hashlib, json, os, shutil, subprocess, sys
+import argparse, glob, hashlib, json, math, os, shutil, struct, subprocess, sys
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-from rosefmt import Stb, Stl, Zsc  # noqa: E402
+from rosefmt import Stb, Stl, Zsc, zms  # noqa: E402
+from rosefmt.zsc import TAG_POS, TAG_ROT, decode_props  # noqa: E402
 
 DATA = os.path.join(ROOT, "data")
 STB_REL = r"3DDATA\STB\LIST_WEAPON.STB"
@@ -46,8 +47,10 @@ RES_REL = r"3DDATA\CONTROL\RES"
 TSI_REL = RES_REL + r"\ITEM1.TSI"
 ASSET_ROOTS = [r"3DDATA\WEAPON", RES_REL]
 T_WEAPON, WIDE_BASE = 8, 100000
-COL_ICON, COL_GEM, COL_PREFIX = 9, 43, 44
+COL_ICON, COL_FIELD, COL_GEM, COL_PREFIX = 9, 10, 43, 44
 NPC_RIGHT_HAND = 5                  # a monster's weapon, a LIST_WEAPON row number
+WEAPON_MODEL = "weapon"             # Row.field: the ground model is the weapon's own object
+BAG = 246                           # LIST_FieldITEM's generic drop bag
 
 
 @dataclass
@@ -60,6 +63,8 @@ class Row:
     desc: str
     cells: Dict[int, str]           # tier cells: requirement, bonuses, ATK ...
     icon: Optional[int] = None      # an index already in our atlas; None = copy the source's
+    field: object = None            # one of our ground models (int); WEAPON_MODEL = a copy of
+                                    # the weapon's own object; None = copy the source's
 
 
 @dataclass
@@ -126,6 +131,7 @@ def load_manifest(tier):
     man = json.load(open(tier.manifest))
     man.setdefault("icons", {})
     man.setdefault("sell", {})
+    man.setdefault("fields", {})
     return man
 
 
@@ -142,6 +148,9 @@ def expected(tier, r, src_stb, man):
     icon = r.icon if r.icon is not None else man.get("icons", {}).get(str(r.our))
     if icon is not None:
         want[COL_ICON] = str(icon)
+    field = man.get("fields", {}).get(str(r.our)) if r.field == WEAPON_MODEL else r.field
+    if field is not None:
+        want[COL_FIELD] = str(field)
     return {c: v.encode("latin-1") for c, v in want.items()}
 
 
@@ -160,6 +169,7 @@ def do_import(tier, dry):
             s.encode("ascii")           # our STL is latin-1; keep imports plain ASCII
     if not todo:
         print("all %d imported already" % len(tier.rows))
+        ground_from_weapon(tier, dry)
         return restat(tier, dry)
 
     if not dry and not os.path.exists(tier.manifest):
@@ -176,8 +186,12 @@ def do_import(tier, dry):
         cmd = [sys.executable, os.path.join(HERE, "import-item.py"), "--type", "weapon",
                "--source", tier.source, "--source-row", str(r.src), "--art-only",
                "--template-row", str(r.tmpl), "--target-row", str(r.our),
-               "--name", r.name, "--desc", r.desc, "--copy-field-model"]
+               "--name", r.name, "--desc", r.desc]
         cmd += ["--copy-icon"] if r.icon is None else ["--icon", str(r.icon)]
+        if r.field is None:
+            cmd.append("--copy-field-model")
+        else:                           # WEAPON_MODEL: the bag until ground_from_weapon runs
+            cmd += ["--field-model", str(r.field if r.field != WEAPON_MODEL else BAG)]
         if dry:
             cmd.append("--dry-run")
         if subprocess.run(cmd, cwd=ROOT).returncode:
@@ -200,7 +214,93 @@ def do_import(tier, dry):
             if f.endswith(".bak") and ".import-" in f or f.endswith(".bak-icons"):
                 shutil.move(os.path.join(d, f), os.path.join(tier.backup, f))
     repoint_field(tier)
+    ground_from_weapon(tier, False)
     return restat(tier, False)
+
+
+def flat_props(props, mesh):
+    """A root part's proplist laid flat on the ground: the client draws a field item
+    with its parts' own transforms and nothing else (Add_GndITEM -> CObjFIXED::Create),
+    so the weapon's in-hand rotation would stand it upright (it did: 2026-10-26). The
+    rotation is replaced by a plain 90-degree turn that brings the mesh's thinnest axis
+    up -- about X when it is Y, none when it is Z already -- read from the vertices,
+    because a source's in-hand rotations follow no one convention (Brazil's: identity,
+    zero quaternions, three different poses). A single 90-degree turn lands the same
+    axis up whichever way the engine composes it; the lift (cm) is the larger of the
+    two half-thicknesses, so the weapon never sinks, at worst floats a few cm."""
+    p = zms.parse(mesh).positions_cm()
+    lo, hi = p.min(0), p.max(0)
+    ext = hi - lo
+    if ext[2] <= ext[1] and ext[2] <= ext[0]:
+        rot, lift = (1.0, 0.0, 0.0, 0.0), -lo[2]                    # w, x, y, z
+    elif ext[1] <= ext[0]:
+        h = math.sqrt(0.5)
+        rot, lift = (h, h, 0.0, 0.0), max(-lo[1], hi[1])
+    else:
+        h = math.sqrt(0.5)
+        rot, lift = (h, 0.0, h, 0.0), max(-lo[0], hi[0])
+    out = [struct.pack("<BB3f", TAG_POS, 12, 0.0, 0.0, float(lift)),
+           struct.pack("<BB4f", TAG_ROT, 16, *rot)]
+    o = 0
+    while o < len(props) and props[o]:
+        tag, ln = props[o], props[o + 1]
+        if tag not in (TAG_POS, TAG_ROT):
+            out.append(props[o:o + 2 + ln])
+        o += 2 + ln
+    return b"".join(out) + b"\x00"
+
+
+def ground_from_weapon(tier, dry):
+    """Rows with field=WEAPON_MODEL: a LIST_FieldITEM object copied from the weapon's
+    own (parts, dummies, bounds) with its root parts laid flat (`flat_props`), its
+    index kept in the manifest. A re-run rebuilds the objects it made in place, so a
+    change here reaches them. Mesh and material records already in the table are
+    reused."""
+    rows = [r for r in tier.rows if r.field == WEAPON_MODEL]
+    man = load_manifest(tier) if os.path.exists(tier.manifest) else {"fields": {}}
+    if not rows:
+        return
+    stb, wz, fz = Stb(data(STB_REL)), Zsc(data(ZSC_REL)), Zsc(data(FIELD_REL))
+    meshes = {norm(p): i for i, p in enumerate(fz.meshes)}
+    mats = {norm(p): i for i, (p, _f) in enumerate(fz.materials)}
+    new_m, new_t = [], []
+    changed = []
+
+    def index(path, table, new, item, base):
+        k = norm(path)
+        if k not in table:
+            table[k] = base + len(new)
+            new.append(item)
+        return table[k]
+
+    for r in rows:
+        if stb.get(r.our, 0).decode("latin-1").strip() != r.name:
+            continue                    # not imported yet (dry run)
+        cyl, parts, dummies, bb = wz.objects[r.our]
+        if not parts:
+            sys.exit("row %d has no weapon model to lay on the ground" % r.our)
+        parts = [(index(wz.meshes[m], meshes, new_m, wz.meshes[m], len(fz.meshes)),
+                  index(wz.materials[t][0], mats, new_t, wz.materials[t], len(fz.materials)),
+                  p if decode_props(p)["parent"] >= 0
+                  else flat_props(p, resolve(DATA, wz.meshes[m])))
+                 for m, t, p in parts]
+        obj = (cyl, parts, dummies, bb)
+        fid = man["fields"].get(str(r.our))
+        if fid is None:
+            fid = len(fz.objects)
+            fz.objects.append(obj)
+            man["fields"][str(r.our)] = fid
+        elif fz.objects[fid] != obj:
+            fz.objects[fid] = obj
+        else:
+            continue
+        changed.append(fid)
+        print("row %d %-26s ground model -> its own, laid flat, LIST_FieldITEM object %d"
+              % (r.our, r.name, fid))
+    if dry or not changed:
+        return
+    open(data(FIELD_REL), "wb").write(fz.rebuild_with(new_m, new_t))
+    save(tier, man)
 
 
 def repoint_field(tier):
@@ -208,6 +308,8 @@ def repoint_field(tier):
     ours = {int(stb.get(r.our, 10)) for r in tier.rows}
     mesh_to, mat_to = {}, {}
     for r in tier.rows:
+        if r.field is not None:
+            continue                    # one of our ground models: not this tier's to touch
         fid = int(stb.get(r.our, 10))
         wparts, fparts = wz.objects[r.our][1], fz.objects[fid][1]
         if len(wparts) != len(fparts):
@@ -388,8 +490,8 @@ def verify(tier):
     for b in bad:
         print("  " + b)
     print("VERIFY FAILED: %d problem(s)" % len(bad) if bad else
-          "ALL CHECKS PASSED -- %d weapons at %d, the old line erased."
-          % (len(tier.rows), tier.level))
+          "ALL CHECKS PASSED -- %d weapons at %d%s."
+          % (len(tier.rows), tier.level, ", the old line erased" if tier.old else ""))
     return 1 if bad else 0
 
 

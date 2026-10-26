@@ -120,11 +120,15 @@ ROSE_SHOP = {
 # --restore alike -- restoring them would write pass values into blank rows.
 SUPERSEDED_ROWS = set(range(1355, 1368))
 SUPERSEDED_SELL = {6}
+# The lv230 line's ATK, re-stepped by weapon-tier-steps.py (2026-10-26): restore that
+# pass first.
+SUPERSEDED_ATK = set(range(1368, 1380)) | {1424}
 
 
 def superseded(key):
-    n, r, _c = key
-    return (n == "LIST_WEAPON" and r in SUPERSEDED_ROWS) or (n == "LIST_SELL" and r in SUPERSEDED_SELL)
+    n, r, c = key
+    return ((n == "LIST_WEAPON" and (r in SUPERSEDED_ROWS or (r in SUPERSEDED_ATK and c == COL_ATK)))
+            or (n == "LIST_SELL" and r in SUPERSEDED_SELL))
 
 
 HUZAM_TABS = {6: [381] + list(range(1355, 1368)),
@@ -280,11 +284,11 @@ def main():
     for wtype, (a210, b230) in SWAP.items():
         if b230 in SUPERSEDED_ROWS:          # the Viper side, erased
             print("   %-22s -> lv%s ATK %s" % (cell(w, a210, 0), plan[("LIST_WEAPON", a210, COL_LEVEL)],
-                                               plan[("LIST_WEAPON", a210, COL_ATK)]))
+                                               cell(w, a210, COL_ATK)))
             continue
         print("   %-22s -> lv%s ATK %s   |   %-22s -> lv%s ATK %s"
               % (cell(w, a210, 0), plan[("LIST_WEAPON", a210, COL_LEVEL)],
-                 plan[("LIST_WEAPON", a210, COL_ATK)], cell(w, b230, 0),
+                 plan.get(("LIST_WEAPON", a210, COL_ATK), cell(w, a210, COL_ATK)), cell(w, b230, 0),
                  plan[("LIST_WEAPON", b230, COL_LEVEL)], plan[("LIST_WEAPON", b230, COL_ATK)]))
     print("Rose set -> lv%d:" % ROSE_LEVEL)
     for wtype, row in ROSE.items():

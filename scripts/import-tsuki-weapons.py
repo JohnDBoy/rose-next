@@ -167,6 +167,8 @@ def check(w):
             bad.append("row %d: name %r, want %r" % (row, w.s(row, 0), name))
             continue
         for c, v in tier_cells_frozen(row).items():
+            if row in (126, 425):
+                break          # moved to 220: weapon-tier-steps.py owns their tier columns
             if w.s(row, c).strip() != v:
                 bad.append("%s: col %d %r, want %r" % (name, c, w.s(row, c), v))
         for c in (4, 33, 34, 36, 38, 39, 40, 41, 42):

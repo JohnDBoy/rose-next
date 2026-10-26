@@ -100,6 +100,13 @@ SKIP.update({r: "668 dinosaur" for r in (908, 915, 926, 932, 939, 947, 950, 959,
 # (2026-10-25) with that line's post-pass values.
 SKIP.update({r: "tsuki 220 set" for r in (27, 58, 80, 128, 154, 187, 229, 259, 288, 326,
                                           358, 426, 452)})
+# The 215 Mirere set and the red lv230 set, re-stepped by weapon-tier-steps.py
+# (2026-10-26) on the post-pass scale.
+SKIP.update({r: "tier steps" for r in list(range(1381, 1418, 3)) + list(range(1456, 1469))})
+# Rose Brasil's Cursed Vermillion set, the lv225 tier, imported by
+# import-vermillion-weapons.py (2026-10-26) on the post-pass scale.
+SKIP.update({r: "Cursed Vermillion" for r in (28, 59, 81, 129, 155, 188, 254, 260, 289, 327,
+                                              359, 451, 453)})
 
 
 def R(level):
