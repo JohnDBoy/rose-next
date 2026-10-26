@@ -40,7 +40,7 @@ use roselib::io::RoseFile;
 use crate::assets::{normalize, Assets};
 use crate::data::ItemCategory;
 use crate::dds::{self, DecodedImage};
-use crate::monsters::{Zsc, ZscMaterial};
+use crate::monsters::{Zsc, ZscMaterial, ZscObject};
 use crate::text::{self, Codec};
 
 /// `BONE_IDX_HEAD`, `DUMMY_IDX_BACK`, `DUMMY_IDX_MOUSE`, `DUMMY_IDX_CAP`
@@ -258,16 +258,7 @@ impl AvatarModels {
                         .map_err(|e| format!("{path}: {e:#}"))
                 });
             }
-            let rig = assets
-                .read(sex.skeleton())
-                .and_then(|bytes| {
-                    let mut zmd = ZMD::new();
-                    zmd.read(&mut Cursor::new(bytes))
-                        .map_err(|e| anyhow!("{e}"))?;
-                    Ok(Arc::new(Rig::from_zmd(&zmd)))
-                })
-                .map_err(|e| format!("{}: {e:#}", sex.skeleton()));
-            rigs.insert(sex, rig);
+            rigs.insert(sex, load_rig(assets, sex.skeleton()));
         }
         let mut warnings = Vec::new();
         // The reader keeps the root column, so table column N is cell N + 1.
@@ -391,17 +382,13 @@ impl AvatarModels {
     }
 
     pub fn build(&self, assets: &Assets, outfit: &Outfit) -> Scene {
-        let mut scene = Scene::default();
-        let rig = match &self.rigs[&outfit.sex] {
-            Ok(rig) => Some(rig.clone()),
-            Err(e) => {
-                scene.notes.push(format!(
-                    "Skeleton unavailable, no animation and face, hats and weapons float: {e}"
-                ));
-                None
-            }
-        };
-        let mut textures: HashMap<String, Option<usize>> = HashMap::new();
+        let rig = self.rigs[&outfit.sex].clone();
+        let mut builder = SceneBuilder::new(assets, rig.as_ref().ok().cloned());
+        if let Err(e) = rig {
+            builder.note(format!(
+                "Skeleton unavailable, no animation and face, hats and weapons float: {e}"
+            ));
+        }
         for &(slot, index) in &outfit.parts {
             let label = slot.label();
             let file = slot
@@ -412,103 +399,21 @@ impl AvatarModels {
             let zsc = match self.table(slot, outfit.sex) {
                 Ok(zsc) => zsc,
                 Err(e) => {
-                    scene.notes.push(format!("{label}: {e}"));
+                    builder.note(format!("{label}: {e}"));
                     continue;
                 }
             };
-            let Some(object) = usize::try_from(index).ok().and_then(|i| zsc.objects.get(i)) else {
-                scene.notes.push(format!(
-                    "{label}: model {index} is outside {file} ({} models)",
-                    zsc.objects.len()
-                ));
+            let Some(object) = builder.object(zsc, file, index, label) else {
                 continue;
             };
-            if object.parts.is_empty() && Some(slot) == outfit.focus {
-                scene
-                    .notes
-                    .push(format!("{label}: model {index} of {file} is empty"));
+            let focus = Some(slot) == outfit.focus;
+            if object.parts.is_empty() && focus {
+                builder.note(format!("{label}: model {index} of {file} is empty"));
             }
-            for part in &object.parts {
-                let mesh_path = usize::try_from(part.mesh)
-                    .ok()
-                    .and_then(|i| zsc.meshes.get(i));
-                let Some(mesh_path) = mesh_path else {
-                    scene
-                        .notes
-                        .push(format!("{label}: mesh {} is outside {file}", part.mesh));
-                    continue;
-                };
-                let mesh = match load_mesh(assets, mesh_path) {
-                    Ok(mesh) => mesh,
-                    Err(e) => {
-                        scene.notes.push(format!("{label}: {mesh_path}: {e:#}"));
-                        continue;
-                    }
-                };
-                let (default_bone, default_dummy) = slot.default_link();
-                let bone = if part.bone >= 0 {
-                    part.bone
-                } else {
-                    default_bone
-                };
-                let dummy = if part.dummy >= 0 {
-                    part.dummy
-                } else {
-                    default_dummy
-                };
-                let binding = match &rig {
-                    _ if bone < 0 && dummy < 0 => skin_binding(&mesh, rig.as_deref()),
-                    None => Binding::Fixed,
-                    Some(rig) if bone >= 0 && (bone as usize) < rig.bone_count() => {
-                        Binding::Bone(bone as usize)
-                    }
-                    Some(rig) if bone < 0 && (dummy as usize) < rig.dummies.len() => {
-                        Binding::Dummy(dummy as usize)
-                    }
-                    Some(_) => {
-                        scene.notes.push(format!(
-                            "{label}: the skeleton has no bone {bone} / dummy {dummy}"
-                        ));
-                        Binding::Fixed
-                    }
-                };
-                let material = usize::try_from(part.material).ok();
-                let flags = material
-                    .and_then(|i| zsc.material_flags.get(i))
-                    .copied()
-                    .unwrap_or_default();
-                let texture =
-                    match material.and_then(|i| zsc.materials.get(i)) {
-                        Some(path) => *textures.entry(normalize(path)).or_insert_with(|| {
-                            match assets.read(&normalize(path)).and_then(|b| dds::decode(&b)) {
-                                Ok(image) => {
-                                    scene.textures.push(image);
-                                    Some(scene.textures.len() - 1)
-                                }
-                                Err(e) => {
-                                    scene.notes.push(format!("{label}: {path}: {e:#}"));
-                                    None
-                                }
-                            }
-                        }),
-                        None => {
-                            scene.notes.push(format!(
-                                "{label}: material {} is outside {file}",
-                                part.material
-                            ));
-                            None
-                        }
-                    };
-                if Some(slot) == outfit.focus {
-                    scene.focus_meshes.push(scene.meshes.len());
-                }
-                scene
-                    .meshes
-                    .push(scene_mesh(slot, &mesh, binding, texture, flags));
-            }
+            let weapon = matches!(slot, Slot::WeaponR | Slot::WeaponL);
+            builder.add(zsc, file, object, label, slot.default_link(), weapon, focus);
         }
-        scene.rig = rig;
-        scene
+        builder.finish()
     }
 
     /// The motion `outfit` plays for `action`: `None` for the bind pose.
@@ -598,7 +503,8 @@ enum Binding {
 }
 
 pub struct SceneMesh {
-    slot: Slot,
+    /// Left out of the framing.
+    weapon: bool,
     /// As stored in the file: see [`Binding`].
     source: Vec<Vertex>,
     binding: Binding,
@@ -711,7 +617,7 @@ impl Scene {
             (min[0] <= max[0]).then_some((min, max))
         };
         let body: Vec<usize> = (0..self.meshes.len())
-            .filter(|&m| !matches!(self.meshes[m].slot, Slot::WeaponR | Slot::WeaponL))
+            .filter(|&m| !self.meshes[m].weapon)
             .collect();
         let all: Vec<usize> = (0..self.meshes.len()).collect();
         let (min, max) = bounds(&body)
@@ -723,6 +629,22 @@ impl Scene {
             max,
             focus: [0, 1, 2].map(|a| (lo[a] + hi[a]) * 0.5),
         }
+    }
+
+    /// Metres from the lowest to the highest point of everything but the
+    /// weapons, `seconds` into `animation`, before any table scale.
+    pub fn height(&self, animation: Option<&Animation>, seconds: f32) -> f32 {
+        let posed = self.pose(animation, seconds);
+        let (low, high) = self
+            .meshes
+            .iter()
+            .zip(&posed)
+            .filter(|(mesh, _)| !mesh.weapon)
+            .flat_map(|(_, vertices)| vertices)
+            .fold((f32::MAX, f32::MIN), |(low, high), v| {
+                (low.min(v.position[2]), high.max(v.position[2]))
+            });
+        (high - low).max(0.0)
     }
 
     pub fn triangles(&self) -> usize {
@@ -737,6 +659,167 @@ pub struct Framing {
     pub max: [f32; 3],
     /// Centre of the item being looked at, which the camera closes in on as it zooms.
     pub focus: [f32; 3],
+}
+
+/// Puts ZSC models into a [`Scene`] the way `CCharPART::Load_ZMODEL` links
+/// them: avatar parts and monster parts follow the same rules.
+pub(crate) struct SceneBuilder<'a> {
+    assets: &'a Assets,
+    scene: Scene,
+    /// Each texture is decoded once, by normalised path.
+    textures: HashMap<String, Option<usize>>,
+}
+
+impl<'a> SceneBuilder<'a> {
+    pub(crate) fn new(assets: &'a Assets, rig: Option<Arc<Rig>>) -> Self {
+        Self {
+            assets,
+            scene: Scene {
+                rig,
+                ..Scene::default()
+            },
+            textures: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn note(&mut self, note: String) {
+        self.scene.notes.push(note);
+    }
+
+    /// Model `index` of `zsc` (file name `file`), or a note that it is out of range.
+    pub(crate) fn object<'z>(
+        &mut self,
+        zsc: &'z Zsc,
+        file: &str,
+        index: i32,
+        label: &str,
+    ) -> Option<&'z ZscObject> {
+        let object = usize::try_from(index).ok().and_then(|i| zsc.objects.get(i));
+        if object.is_none() {
+            self.note(format!(
+                "{label}: model {index} is outside {file} ({} models)",
+                zsc.objects.len()
+            ));
+        }
+        object
+    }
+
+    /// Every part of `object`. `default_link` is the (bone, dummy) a part
+    /// links to when it names neither; `weapon` keeps it out of the framing;
+    /// `focus` marks the item being looked at.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn add(
+        &mut self,
+        zsc: &Zsc,
+        file: &str,
+        object: &ZscObject,
+        label: &str,
+        default_link: (i16, i16),
+        weapon: bool,
+        focus: bool,
+    ) {
+        let rig = self.scene.rig.clone();
+        for part in &object.parts {
+            let mesh_path = usize::try_from(part.mesh)
+                .ok()
+                .and_then(|i| zsc.meshes.get(i));
+            let Some(mesh_path) = mesh_path else {
+                self.note(format!("{label}: mesh {} is outside {file}", part.mesh));
+                continue;
+            };
+            let mesh = match load_mesh(self.assets, mesh_path) {
+                Ok(mesh) => mesh,
+                Err(e) => {
+                    self.note(format!("{label}: {mesh_path}: {e:#}"));
+                    continue;
+                }
+            };
+            let (default_bone, default_dummy) = default_link;
+            let bone = if part.bone >= 0 {
+                part.bone
+            } else {
+                default_bone
+            };
+            let dummy = if part.dummy >= 0 {
+                part.dummy
+            } else {
+                default_dummy
+            };
+            let binding = match &rig {
+                _ if bone < 0 && dummy < 0 => skin_binding(&mesh, rig.as_deref()),
+                None => Binding::Fixed,
+                Some(rig) if bone >= 0 && (bone as usize) < rig.bone_count() => {
+                    Binding::Bone(bone as usize)
+                }
+                Some(rig) if bone < 0 && (dummy as usize) < rig.dummies.len() => {
+                    Binding::Dummy(dummy as usize)
+                }
+                Some(_) => {
+                    self.note(format!(
+                        "{label}: the skeleton has no bone {bone} / dummy {dummy}"
+                    ));
+                    Binding::Fixed
+                }
+            };
+            let material = usize::try_from(part.material).ok();
+            let flags = material
+                .and_then(|i| zsc.material_flags.get(i))
+                .copied()
+                .unwrap_or_default();
+            let texture = match material.and_then(|i| zsc.materials.get(i)) {
+                Some(path) => self.texture(path, label),
+                None => {
+                    self.note(format!(
+                        "{label}: material {} is outside {file}",
+                        part.material
+                    ));
+                    None
+                }
+            };
+            if focus {
+                self.scene.focus_meshes.push(self.scene.meshes.len());
+            }
+            self.scene
+                .meshes
+                .push(scene_mesh(weapon, &mesh, binding, texture, flags));
+        }
+    }
+
+    fn texture(&mut self, path: &str, label: &str) -> Option<usize> {
+        let key = normalize(path);
+        if let Some(&index) = self.textures.get(&key) {
+            return index;
+        }
+        let index = match self.assets.read(&key).and_then(|b| dds::decode(&b)) {
+            Ok(image) => {
+                self.scene.textures.push(image);
+                Some(self.scene.textures.len() - 1)
+            }
+            Err(e) => {
+                self.note(format!("{label}: {path}: {e:#}"));
+                None
+            }
+        };
+        self.textures.insert(key, index);
+        index
+    }
+
+    pub(crate) fn finish(self) -> Scene {
+        self.scene
+    }
+}
+
+/// A skeleton file, for every part and motion that hangs off it.
+pub(crate) fn load_rig(assets: &Assets, path: &str) -> Result<Arc<Rig>, String> {
+    assets
+        .read(&normalize(path))
+        .and_then(|bytes| {
+            let mut zmd = ZMD::new();
+            zmd.read(&mut Cursor::new(bytes))
+                .map_err(|e| anyhow!("{e}"))?;
+            Ok(Arc::new(Rig::from_zmd(&zmd)))
+        })
+        .map_err(|e| format!("{path}: {e:#}"))
 }
 
 fn load_mesh(assets: &Assets, path: &str) -> Result<ZMS> {
@@ -797,7 +880,7 @@ fn skin_binding(mesh: &ZMS, rig: Option<&Rig>) -> Binding {
 }
 
 fn scene_mesh(
-    slot: Slot,
+    weapon: bool,
     mesh: &ZMS,
     binding: Binding,
     texture: Option<usize>,
@@ -835,7 +918,7 @@ fn scene_mesh(
         })
         .collect();
     SceneMesh {
-        slot,
+        weapon,
         source,
         binding,
         indices,
@@ -1009,7 +1092,7 @@ pub struct Animation {
 }
 
 impl Animation {
-    fn load(assets: &Assets, path: &str) -> Result<Self> {
+    pub(crate) fn load(assets: &Assets, path: &str) -> Result<Self> {
         let bytes = assets.read(&normalize(path))?;
         let mut zmo = ZMO::new();
         zmo.read(&mut Cursor::new(bytes))

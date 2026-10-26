@@ -63,6 +63,25 @@ works on reference dumps too: open Jrose's loose `3Ddata` folder (its `data.idx`
 is encrypted). Vehicles and item glow effects are not shown. The tester package
 ships no models, so it shows no pane.
 
+### 3D monster preview
+
+Selecting a monster opens the same pane for that `LIST_NPC` row. The motion list
+offers only the slots its `LIST_NPC.CHR` entry has (idle, walk, attack, hit,
+death, run, cast/skill 1 and 2, extra), plus the bind pose; the chosen motion is
+kept as you move to the next monster, so attacks compare side by side. The
+camera re-frames each monster, because they run from a jelly bean to a dragon,
+and the view holds the whole motion still (a jumping attack or a bouncing idle
+makes the model smaller in the pane). Below the view: the table scale (column 4)
+and roughly how tall the monster stands in game (its first idle pose times that
+scale), the hand weapons by item name, and **Not shown** for anything missing.
+
+The model is built as the client builds it (`src/preview_monster.rs`): the CHR
+row's skeleton, its `PART_NPC.ZSC` objects linked like avatar parts (a part's own
+bone or dummy tag, otherwise skinned), columns 5/6 as `LIST_WEAPON.ZSC` /
+`LIST_SUBWPN.ZSC` objects on their own dummies, and a slot listed twice keeps
+the last file. Bone effects (auras, flames) are not drawn, and mesh-animated
+parts (morphers such as flapping wings) stay in their stored shape.
+
 Use **Open data folder** to choose another loose data set, or **Open VFS** to
 select a game's `data.idx`. The tool also accepts an extracted folder's `3DDATA`
 or `STB` subfolder, or a path on the command line. It reads every archive listed in `data.idx`,
@@ -176,6 +195,12 @@ renders an outfit (the last item is the one looked at) to a PNG on the CPU, with
 the same scene, motion and camera as the pane but nearest-pixel texturing, and
 prints the motion file and anything not shown; exit code 1 if anything was not
 shown. Use it to check placement and motions without the window.
+
+`gm-item-browser.exe --preview-monster <folder> <out.png> <id>
+[--motion idle|walk|attack|hit|death|run|cast1|skill1|cast2|skill2|extra|bind]
+[--time seconds] [--yaw degrees] [--zoom z]` does the same for a `LIST_NPC` row
+(idle, or the row's first motion, by default) and also prints its scale, hand
+weapons and motion slots.
 
 ## Validation
 

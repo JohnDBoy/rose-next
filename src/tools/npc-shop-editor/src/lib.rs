@@ -6,5 +6,6 @@ pub mod icons;
 pub mod monsters;
 pub mod preview;
 pub mod preview_gl;
+pub mod preview_monster;
 pub mod text;
 pub mod zones;

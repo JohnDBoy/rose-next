@@ -48,7 +48,7 @@ const TOWN_NPC_TYPE: i32 = 900;
 pub const MAX_SPAWN_COUNT: i32 = 100;
 
 /// Mob motion slots (`MOB_ANI_*`, `common/shared/datatype.h`).
-const MOTION_NAMES: [&str; 11] = [
+pub const MOTION_NAMES: [&str; 11] = [
     "idle", "walk", "attack", "hit", "death", "run", "cast 1", "skill 1", "cast 2", "skill 2",
     "extra",
 ];
@@ -91,6 +91,11 @@ pub struct Monster {
     pub magic_damage: bool,
     pub npc_type: i32,
     pub ai: i32,
+    /// LIST_NPC column 4, percent of the model's size.
+    pub scale: i32,
+    /// LIST_WEAPON.ZSC / LIST_SUBWPN.ZSC objects in the hands, 0 for none.
+    pub right_weapon: i32,
+    pub left_weapon: i32,
     pub issues: Vec<Issue>,
     /// Why `/mon` does nothing for this row, if it doesn't.
     pub spawn_blocker: Option<&'static str>,
@@ -356,6 +361,9 @@ fn collect_row(id: usize, row: &[String], names: &crate::catalog::Names) -> Opti
         magic_damage: number(row, 15) != 0,
         npc_type,
         ai: number(row, 16),
+        scale: number(row, 4),
+        right_weapon: number(row, 5),
+        left_weapon: number(row, 6),
         issues,
         spawn_blocker,
         search_text,

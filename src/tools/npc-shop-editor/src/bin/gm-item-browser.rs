@@ -15,6 +15,7 @@ use npc_shop_editor::preview::{
     MIN_ZOOM,
 };
 use npc_shop_editor::preview_gl::GlScene;
+use npc_shop_editor::preview_monster::{self, motion_label, parse_motion, MonsterModels};
 use npc_shop_editor::monsters::{
     Monster, MonsterCatalog, MonsterFilter, Severity, StatusFilter, MAX_SPAWN_COUNT, PACKAGE_TABLES,
 };
@@ -53,10 +54,22 @@ fn main() -> eframe::Result<()> {
     if args.first().is_some_and(|a| a == "--preview") {
         // Headless: render an outfit's 3D preview to a PNG, the way the pane
         // draws it, and list what could not be shown. Exit 1 on any note.
-        let Some(preview) = PreviewArgs::parse(&args[1..]) else {
+        let Some(preview) = PreviewArgs::parse(&args[1..], false) else {
             eprintln!(
                 "usage: gm-item-browser --preview <data> <out.png> <type:id>[,<type:id>...] \
                  [--female] [--motion idle|battle|walk|run|attack|sitting|bind] \
+                 [--time seconds] [--yaw degrees] [--zoom z]"
+            );
+            std::process::exit(2);
+        };
+        std::process::exit(preview.run(codec));
+    }
+    if args.first().is_some_and(|a| a == "--preview-monster") {
+        // Headless: the same for a LIST_NPC row.
+        let Some(preview) = PreviewArgs::parse(&args[1..], true) else {
+            eprintln!(
+                "usage: gm-item-browser --preview-monster <data> <out.png> <id> \
+                 [--motion idle|walk|attack|hit|death|run|cast1|skill1|cast2|skill2|extra|bind] \
                  [--time seconds] [--yaw degrees] [--zoom z]"
             );
             std::process::exit(2);
@@ -173,54 +186,66 @@ fn check(root: &Path, codec: Codec) -> i32 {
     i32::from(failed)
 }
 
-/// `--preview`: what the 3D pane would show for an outfit, as a PNG.
+/// `--preview` / `--preview-monster`: what the 3D pane would show, as a PNG.
 struct PreviewArgs {
     root: PathBuf,
     out: PathBuf,
-    /// The last one is the item looked at.
-    worn: Vec<(ItemCategory, i32)>,
+    subject: Subject,
     sex: Sex,
-    action: Action,
+    /// Parsed by the subject: an avatar action or a monster motion slot.
+    motion: Option<String>,
     time: f32,
     camera: Camera,
 }
 
+enum Subject {
+    /// The last one is the item looked at.
+    Outfit(Vec<(ItemCategory, i32)>),
+    Monster(i32),
+}
+
 impl PreviewArgs {
-    fn parse(args: &[OsString]) -> Option<Self> {
+    fn parse(args: &[OsString], monster: bool) -> Option<Self> {
         let args: Vec<String> = args.iter().map(|a| a.to_string_lossy().into_owned()).collect();
         let mut positional = Vec::new();
-        let (mut sex, mut action, mut time) = (Sex::Male, Action::Idle, 0.0);
+        let (mut sex, mut motion, mut time) = (Sex::Male, None, 0.0);
         let mut camera = Camera::default();
         let mut values = args.iter();
         while let Some(arg) = values.next() {
             let mut number = || values.next()?.parse::<f32>().ok();
             match arg.as_str() {
                 "--female" => sex = Sex::Female,
-                "--motion" => action = Action::parse(values.next()?)?,
+                "--motion" => motion = Some(values.next()?.clone()),
                 "--time" => time = number()?,
                 "--yaw" => camera.yaw = number()?.to_radians(),
                 "--zoom" => camera.zoom = number()?,
                 _ => positional.push(arg.clone()),
             }
         }
-        let [root, out, items] = positional.as_slice() else {
+        let [root, out, subject] = positional.as_slice() else {
             return None;
         };
-        let worn = items
-            .split(',')
-            .map(|item| {
-                let (category, id) = item.split_once(':')?;
-                let category: u8 = category.parse().ok()?;
-                let category = ItemCategory::ALL.iter().copied().find(|c| *c as u8 == category)?;
-                Some((category, id.parse().ok()?))
-            })
-            .collect::<Option<Vec<_>>>()?;
+        let subject = if monster {
+            Subject::Monster(subject.parse().ok()?)
+        } else {
+            let worn = subject
+                .split(',')
+                .map(|item| {
+                    let (category, id) = item.split_once(':')?;
+                    let category: u8 = category.parse().ok()?;
+                    let category =
+                        ItemCategory::ALL.iter().copied().find(|c| *c as u8 == category)?;
+                    Some((category, id.parse().ok()?))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Subject::Outfit(worn)
+        };
         Some(Self {
             root: root.into(),
             out: out.into(),
-            worn,
+            subject,
             sex,
-            action,
+            motion,
             time,
             camera,
         })
@@ -235,27 +260,20 @@ impl PreviewArgs {
             }
         };
         let started = std::time::Instant::now();
-        let models = AvatarModels::load(&assets, codec);
-        let loaded = started.elapsed();
-        let focus = self.worn.last().map(|&(category, _)| category);
-        let outfit = models.outfit(self.sex, &self.worn, focus);
-        let started = std::time::Instant::now();
-        let scene = models.build(&assets, &outfit);
+        let built = match &self.subject {
+            Subject::Outfit(worn) => self.outfit(&assets, codec, worn),
+            Subject::Monster(id) => self.monster(&assets, codec, *id),
+        };
+        let Some((scene, animation, notes)) = built else {
+            return 2;
+        };
         let built = started.elapsed();
-        let mut notes: Vec<String> = models.warnings.iter().chain(&scene.notes).cloned().collect();
-        let animation = models
-            .motion(&assets, &outfit, self.action)
-            .unwrap_or_else(|e| {
-                notes.push(e);
-                None
-            });
         let started = std::time::Instant::now();
         let posed = scene.pose(animation.as_ref(), self.time);
         let posing = started.elapsed();
         let framing = scene.framing(animation.as_ref());
         println!(
-            "{outfit:?}\n{} meshes, {} triangles, {} textures; tables {loaded:?}, outfit {built:?}, \
-             one pose {posing:?}",
+            "{} meshes, {} triangles, {} textures; tables + model {built:?}, one pose {posing:?}",
             scene.meshes.len(),
             scene.triangles(),
             scene.textures.len(),
@@ -286,6 +304,76 @@ impl PreviewArgs {
             println!("note: {note}");
         }
         i32::from(!notes.is_empty())
+    }
+
+    fn outfit(
+        &self,
+        assets: &Assets,
+        codec: Codec,
+        worn: &[(ItemCategory, i32)],
+    ) -> Option<(Scene, Option<Animation>, Vec<String>)> {
+        let action = match &self.motion {
+            Some(text) => Action::parse(text).or_else(|| {
+                eprintln!("unknown motion {text}");
+                None
+            })?,
+            None => Action::Idle,
+        };
+        let models = AvatarModels::load(assets, codec);
+        let focus = worn.last().map(|&(category, _)| category);
+        let outfit = models.outfit(self.sex, worn, focus);
+        println!("{outfit:?}");
+        let scene = models.build(assets, &outfit);
+        let mut notes: Vec<String> = models.warnings.iter().chain(&scene.notes).cloned().collect();
+        let animation = models.motion(assets, &outfit, action).unwrap_or_else(|e| {
+            notes.push(e);
+            None
+        });
+        Some((scene, animation, notes))
+    }
+
+    fn monster(
+        &self,
+        assets: &Assets,
+        codec: Codec,
+        id: i32,
+    ) -> Option<(Scene, Option<Animation>, Vec<String>)> {
+        let catalog = MonsterCatalog::load_with(assets, codec)
+            .map_err(|e| eprintln!("monster tables: {e:#}"))
+            .ok()?;
+        let Some(monster) = catalog.monsters.iter().find(|m| m.id == id) else {
+            eprintln!("LIST_NPC has no monster {id}");
+            return None;
+        };
+        let models = MonsterModels::load(assets);
+        let slots = models.motion_slots(id);
+        let slot = match self.motion.as_deref() {
+            Some("bind") => None,
+            Some(text) => Some(parse_motion(text).or_else(|| {
+                eprintln!("unknown motion {text}");
+                None
+            })?),
+            None => slots.first().copied(),
+        };
+        println!(
+            "{} (#{id}), scale {} %, weapons {}/{}, motion slots: {}",
+            monster.name,
+            monster.scale,
+            monster.right_weapon,
+            monster.left_weapon,
+            slots
+                .iter()
+                .map(|&s| motion_label(s))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        let scene = models.build(assets, monster);
+        let mut notes = scene.notes.clone();
+        let animation = models.motion(assets, id, slot).unwrap_or_else(|e| {
+            notes.push(e);
+            None
+        });
+        Some((scene, animation, notes))
     }
 }
 
@@ -520,6 +608,7 @@ struct Browser {
     /// The loaded data, kept for the 3D preview's lazy reads.
     assets: Option<Arc<Assets>>,
     preview: PreviewPane,
+    mob_preview: MonsterPreview,
 }
 
 /// The 3D view: the items put on, on a character, in motion.
@@ -581,6 +670,62 @@ impl PreviewPane {
             action: self.action,
             camera: self.camera,
             gl: self.gl.clone(),
+            ..Self::new()
+        };
+    }
+}
+
+/// The 3D view of the selected monster, in motion.
+struct MonsterPreview {
+    /// Read on the first preview after each load.
+    models: Option<MonsterModels>,
+    /// The loaded data has monster models (the tester package does not).
+    available: bool,
+    /// `MOB_ANI_*` slot, `None` for the bind pose. Kept from monster to
+    /// monster when the next one has it, so motions compare side by side.
+    motion: Option<usize>,
+    paused: bool,
+    camera: Camera,
+    /// Seconds into the motion.
+    clock: f32,
+    /// The LIST_NPC row `scene` shows.
+    shown: Option<i32>,
+    scene: Option<Arc<Scene>>,
+    /// The motion slots that row has.
+    slots: Vec<usize>,
+    /// Metres tall in game: the first idle pose, times the table scale.
+    height: f32,
+    /// The motion `animation` and `framing` were made for.
+    animated: Option<Option<usize>>,
+    animation: Option<Animation>,
+    framing: Option<Framing>,
+    motion_note: Option<String>,
+}
+
+impl MonsterPreview {
+    fn new() -> Self {
+        Self {
+            models: None,
+            available: false,
+            motion: Some(0),
+            paused: false,
+            camera: Camera::default(),
+            clock: 0.0,
+            shown: None,
+            scene: None,
+            slots: Vec::new(),
+            height: 0.0,
+            animated: None,
+            animation: None,
+            framing: None,
+            motion_note: None,
+        }
+    }
+
+    /// Forget the tables: row numbers belong to one data folder.
+    fn reset(&mut self) {
+        *self = Self {
+            motion: self.motion,
             ..Self::new()
         };
     }
@@ -663,6 +808,7 @@ impl Browser {
             copied: None,
             assets: None,
             preview: PreviewPane::new(),
+            mob_preview: MonsterPreview::new(),
         };
         if let Some(root) = root {
             app.load(root, &cc.egui_ctx);
@@ -683,6 +829,7 @@ impl Browser {
         self.icons = IconStore::empty(Path::new("."));
         self.assets = None;
         self.preview.reset();
+        self.mob_preview.reset();
         let (tx, rx) = mpsc::channel();
         let ctx = ctx.clone();
         let codec = self.codec;
@@ -724,6 +871,7 @@ impl Browser {
             }
         };
         self.preview.available = preview::has_avatar_models(&loaded.assets);
+        self.mob_preview.available = preview_monster::has_npc_models(&loaded.assets);
         self.assets = Some(loaded.assets.clone());
         match (loaded.items, loaded.monsters) {
             (Err(items), Err(monsters)) => {
@@ -1612,38 +1760,9 @@ impl Browser {
             ui.available_width(),
             (ui.available_height() - reserved).max(220.0),
         );
-        let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
-        let camera = &mut pane.camera;
-        if response.dragged() {
-            let delta = response.drag_delta();
-            camera.yaw -= delta.x * 0.01;
-            camera.pitch = (camera.pitch + delta.y * 0.01).clamp(-1.3, 1.3);
-        }
-        if response.hovered() {
-            let scroll = ui.input(|i| i.smooth_scroll_delta.y);
-            if scroll != 0.0 {
-                camera.zoom = (camera.zoom * (-scroll * 0.002).exp()).clamp(MIN_ZOOM, 3.0);
-            }
-        }
-        if response.double_clicked() {
-            *camera = Camera::default();
-        }
         let framing = pane.framing.unwrap_or_else(|| scene.framing(None));
-        let (view_projection, light) = camera.matrices(&framing, rect.aspect_ratio());
         let posed = scene.pose(pane.animation.as_ref(), pane.clock);
-        let gl = pane.gl.clone();
-        ui.painter().add(egui::PaintCallback {
-            rect,
-            callback: Arc::new(eframe::egui_glow::CallbackFn::new(move |info, painter| {
-                if let Ok(mut gl) = gl.lock() {
-                    gl.paint(painter.gl(), &info, &scene, &posed, &view_projection, light);
-                }
-            })),
-        });
-        let gl_error = pane.gl.lock().ok().and_then(|gl| gl.error.clone());
-        if let Some(error) = gl_error {
-            ui.colored_label(Color32::LIGHT_RED, error);
-        }
+        orbit_view(ui, size, &mut pane.camera, &pane.gl, scene, posed, &framing);
         ui.small("Drag to turn, scroll to zoom in on the selected item, double-click to reset.");
         ui.horizontal(|ui| {
             ui.strong("Wearing");
@@ -1685,6 +1804,143 @@ impl Browser {
         }
     }
 
+    /// The selected monster, drawn by `preview_gl`.
+    fn monster_preview_pane(&mut self, ui: &mut egui::Ui) {
+        let (Some(monster), Some(assets)) = (
+            self.mobs
+                .selected
+                .and_then(|i| self.mobs.catalog.as_ref()?.monsters.get(i)),
+            self.assets.clone(),
+        ) else {
+            return;
+        };
+        let pane = &mut self.mob_preview;
+        ui.heading("3D preview");
+        if pane.shown != Some(monster.id) {
+            let models = pane
+                .models
+                .get_or_insert_with(|| MonsterModels::load(&assets));
+            let scene = models.build(&assets, monster);
+            pane.slots = models.motion_slots(monster.id);
+            let idle = models.motion(&assets, monster.id, Some(0)).ok().flatten();
+            pane.height = scene.height(idle.as_ref(), 0.0) * monster.scale as f32 / 100.0;
+            if pane.motion.is_some_and(|slot| !pane.slots.contains(&slot)) {
+                pane.motion = pane.slots.first().copied();
+            }
+            pane.scene = Some(Arc::new(scene));
+            pane.animated = None;
+            // Monsters run from a jelly bean to a dragon: frame each anew.
+            pane.camera = Camera::default();
+            pane.shown = Some(monster.id);
+        }
+        let label =
+            |motion: Option<usize>| motion.map_or_else(|| "Bind pose".to_string(), motion_label);
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_id_source("monster_motion")
+                .selected_text(label(pane.motion))
+                .show_ui(ui, |ui| {
+                    for &slot in &pane.slots {
+                        ui.selectable_value(&mut pane.motion, Some(slot), label(Some(slot)));
+                    }
+                    ui.selectable_value(&mut pane.motion, None, label(None));
+                })
+                .response
+                .on_hover_text("The motions LIST_NPC.CHR gives this row.");
+            ui.add_enabled(
+                pane.animation.is_some(),
+                egui::Checkbox::new(&mut pane.paused, "Pause"),
+            );
+            ui.separator();
+            if ui.button("Reset view").clicked() {
+                pane.camera = Camera::default();
+            }
+        });
+        let (Some(scene), Some(models)) = (pane.scene.clone(), &pane.models) else {
+            return;
+        };
+        if pane.animated != Some(pane.motion) {
+            (pane.animation, pane.motion_note) =
+                match models.motion(&assets, monster.id, pane.motion) {
+                    Ok(animation) => (animation, None),
+                    Err(e) => (None, Some(e)),
+                };
+            pane.framing = Some(scene.framing(pane.animation.as_ref()));
+            pane.animated = Some(pane.motion);
+            pane.clock = 0.0;
+        }
+        if pane.animation.is_some() && !pane.paused {
+            pane.clock += ui.input(|i| i.stable_dt).min(0.1);
+            ui.ctx().request_repaint();
+        }
+        let notes: Vec<String> = scene
+            .notes
+            .iter()
+            .chain(&pane.motion_note)
+            .cloned()
+            .collect();
+        let weapon_name = |category: ItemCategory, id: i32| {
+            self.catalog
+                .as_ref()
+                .and_then(|c| {
+                    c.items
+                        .iter()
+                        .find(|i| i.item.category == category && i.item.id == id)
+                })
+                .map_or_else(
+                    || format!("model {id}"),
+                    |i| format!("{} ({id})", i.item.name),
+                )
+        };
+        let hands: Vec<(&str, String)> = [
+            ("Right hand", ItemCategory::Weapon, monster.right_weapon),
+            ("Left hand", ItemCategory::SubWpn, monster.left_weapon),
+        ]
+        .into_iter()
+        .filter(|&(_, _, id)| id > 0)
+        .map(|(hand, category, id)| (hand, weapon_name(category, id)))
+        .collect();
+        let reserved =
+            84.0 + 24.0 * hands.len() as f32 + if notes.is_empty() { 0.0 } else { 140.0 };
+        let size = egui::vec2(
+            ui.available_width(),
+            (ui.available_height() - reserved).max(220.0),
+        );
+        let framing = pane.framing.unwrap_or_else(|| scene.framing(None));
+        let posed = scene.pose(pane.animation.as_ref(), pane.clock);
+        orbit_view(
+            ui,
+            size,
+            &mut pane.camera,
+            &self.preview.gl,
+            scene,
+            posed,
+            &framing,
+        );
+        ui.small("Drag to turn, scroll to zoom, double-click to reset.");
+        ui.label(format!(
+            "Scale {} %  |  about {:.1} m tall in game",
+            monster.scale, pane.height
+        ))
+        .on_hover_text("LIST_NPC column 4, and the first idle pose's height times it. The view always fits the model.");
+        for (hand, name) in &hands {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(*hand).weak());
+                ui.label(name);
+            });
+        }
+        if !notes.is_empty() {
+            ui.label(RichText::new(format!("Not shown ({})", notes.len())).color(AMBER));
+            egui::ScrollArea::vertical()
+                .id_source("monster_preview_notes")
+                .max_height(110.0)
+                .show(ui, |ui| {
+                    for note in &notes {
+                        ui.small(note);
+                    }
+                });
+        }
+    }
+
     fn monsters_page(&mut self, ctx: &egui::Context) {
         let old_filter = self.mobs.filter.clone();
         let old_sort = (self.mobs.sort, self.mobs.descending);
@@ -1695,6 +1951,13 @@ impl Browser {
             });
         if old_filter != self.mobs.filter {
             self.mobs.refresh();
+        }
+        // Before the details panel, so the preview gets the full height.
+        if self.mob_preview.available && self.mobs.selected.is_some() {
+            egui::SidePanel::right("monster_preview")
+                .default_width(340.0)
+                .width_range(260.0..=720.0)
+                .show(ctx, |ui| self.monster_preview_pane(ui));
         }
         egui::TopBottomPanel::bottom("monster_details")
             .min_height(130.0)
@@ -1708,6 +1971,48 @@ impl Browser {
             self.mobs.refresh();
             ctx.request_repaint();
         }
+    }
+}
+
+/// Draw `scene` posed as `posed` into a `size` pane both previews share:
+/// drag turns, scroll zooms, double-click resets the camera.
+fn orbit_view(
+    ui: &mut egui::Ui,
+    size: egui::Vec2,
+    camera: &mut Camera,
+    gl: &Arc<Mutex<GlState>>,
+    scene: Arc<Scene>,
+    posed: Posed,
+    framing: &Framing,
+) {
+    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
+    if response.dragged() {
+        let delta = response.drag_delta();
+        camera.yaw -= delta.x * 0.01;
+        camera.pitch = (camera.pitch + delta.y * 0.01).clamp(-1.3, 1.3);
+    }
+    if response.hovered() {
+        let scroll = ui.input(|i| i.smooth_scroll_delta.y);
+        if scroll != 0.0 {
+            camera.zoom = (camera.zoom * (-scroll * 0.002).exp()).clamp(MIN_ZOOM, 3.0);
+        }
+    }
+    if response.double_clicked() {
+        *camera = Camera::default();
+    }
+    let (view_projection, light) = camera.matrices(framing, rect.aspect_ratio());
+    let painter_gl = gl.clone();
+    ui.painter().add(egui::PaintCallback {
+        rect,
+        callback: Arc::new(eframe::egui_glow::CallbackFn::new(move |info, painter| {
+            if let Ok(mut gl) = painter_gl.lock() {
+                gl.paint(painter.gl(), &info, &scene, &posed, &view_projection, light);
+            }
+        })),
+    });
+    let gl_error = gl.lock().ok().and_then(|gl| gl.error.clone());
+    if let Some(error) = gl_error {
+        ui.colored_label(Color32::LIGHT_RED, error);
     }
 }
 
