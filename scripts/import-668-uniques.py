@@ -27,6 +27,10 @@ against our regular weapons after the identity pass:
     with its two bonuses, stays level with the 210 gear.
   * Requirement = the stat a regular level-180 weapon of the type asks
     (interpolated); still no level requirement -- that is what makes a unique.
+    Sand Hand and Eclipse came out at STR 310 / 304, past the base-stat cap of
+    300: only STR gear reached them, by ~level 220, where they trail the regular
+    weapons. Both are STR 295 since 2026-10-26 (the unique audit, see
+    restat-old-uniques.py).
   * Quality = the higher of the level-200 and level-210 rows; durability the
     level-210 row's; price 1.25x the level-200 row's.
   * Bonuses: slot 1 keeps the type's own identity where it has one (bow AVOID
@@ -83,10 +87,10 @@ COL_QUALITY, COL_DURABILITY, COL_PREFIX = 8, 29, 44
 # our row, 668 row, template, icon, name, requirement, ATK, quality, durability, price, bonuses
 ROWS = [
     (904, 904, 903, 944,  "Death Render",      "10:293", 432, 109, 72,  889500, ("18:35", "21:65")),
-    (911, 911, 910, 981,  "Sand Hand",         "10:310", 492,  99, 72,  893125, ("18:35", "19:65")),
+    (911, 911, 910, 981,  "Sand Hand",         "10:295", 492,  99, 72,  893125, ("18:35", "19:65")),
     (918, 918, 917, 1025, "Cross Bones",       "10:238", 352, 110, 90,  874815, ("26:50", "24:29")),
     (922, 922, 921, 1071, "Reaper",            "10:297", 388,  99, 72,  833375, ("18:35", "20:40")),
-    (929, 929, 928, 1148, "Eclipse",           "10:304", 450,  89, 72, 1197190, ("18:35", "19:65")),
+    (929, 929, 928, 1148, "Eclipse",           "10:295", 450,  89, 72, 1197190, ("18:35", "19:65")),
     (935, 935, 934, 1111, "Razor Spear",       "10:282", 367, 109, 72, 1190690, ("24:25", "22:35")),
     (936, 936, 934, 1112, "Crescent Moon",     "10:282", 367, 109, 72, 1190690, ("26:50", "18:35")),
     (943, 943, 942, 1203, "Bow of Talons",     "11:278", 407, 109, 72,  799375, ("22:72", "26:50")),

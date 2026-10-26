@@ -107,6 +107,11 @@ SKIP.update({r: "tier steps" for r in list(range(1381, 1418, 3)) + list(range(14
 # import-vermillion-weapons.py (2026-10-26) on the post-pass scale.
 SKIP.update({r: "Cursed Vermillion" for r in (28, 59, 81, 129, 155, 188, 254, 260, 289, 327,
                                               359, 451, 453)})
+# The older uniques, re-statted on the post-pass ladder by restat-old-uniques.py (2026-10-26).
+SKIP.update({r: "older unique" for r in (901, 902, 903, 909, 910, 916, 917, 920, 921, 927,
+                                         928, 933, 934, 940, 941, 942, 952, 953, 954, 960,
+                                         961, 967, 968, 969, 975, 976, 977, 978, 983, 984,
+                                         985, 991, 992, 993)})
 
 
 def R(level):
