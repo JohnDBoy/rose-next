@@ -1,0 +1,85 @@
+{
+  "name": "Gun Artisan 175",
+  "job": 422,
+  "level": 175,
+  "female": false,
+  "union": 0,
+  "stats": {
+    "STR": 15,
+    "DEX": 274,
+    "INT": 15,
+    "CON": 182,
+    "CHARM": 10,
+    "SENSE": 193
+  },
+  "equip": {
+    "cap": {
+      "id": 131,
+      "grade": 2
+    },
+    "body": {
+      "id": 131,
+      "grade": 2
+    },
+    "back": {
+      "id": 893,
+      "grade": 2
+    },
+    "arms": {
+      "id": 131,
+      "grade": 2
+    },
+    "foot": {
+      "id": 131,
+      "grade": 2
+    },
+    "weapon": {
+      "id": 251,
+      "grade": 4
+    }
+  },
+  "ammo": 325,
+  "skills": [
+    2040,
+    2090,
+    2130,
+    2140,
+    2160,
+    2210,
+    2220,
+    2240,
+    2250,
+    2268,
+    2280,
+    2290,
+    7011,
+    7066
+  ],
+  "rotation": [
+    7066,
+    2290,
+    2220,
+    2268,
+    2210,
+    2280,
+    7011,
+    2240
+  ],
+  "skill_spacing": 1,
+  "summons": [],
+  "buffs": [
+    {
+      "skill": 2250,
+      "caster_int": 0,
+      "caster_level": 0
+    }
+  ],
+  "potions": {
+    "enabled": true,
+    "hp": 115,
+    "hp_below": 70,
+    "mp": 130,
+    "mp_below": 50
+  },
+  "notes": "In-game check after erase-dual-guns.py (2026-10-26): the ordinary guns that shared meshes with the dual guns -- Ballista Rifle 251 equipped, Shock Impact 248 / White Night 249 / Ancient Gun 250 in the bag."
+}

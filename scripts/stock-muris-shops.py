@@ -113,8 +113,9 @@ CLASSES = ["Soldier", "Muse", "Hawker", "Dealer"]
 # line + Photon Cannon (13). Red boss loot (prefix 22, the Jrose dungeon set at 230)
 # is never sold and is left out of the count. The other five Jrose lv210 rows wore
 # the Arcidian line's models and were erased (erase-retired-weapons.py).
+# Dual Tornado Rifles left with the other dual guns on 2026-10-26 (erase-dual-guns.py): 13.
 WEAPON_TABS = [
-    ("Weapons lv210", "LIST_WEAPON", 8, 210, 14),
+    ("Weapons lv210", "LIST_WEAPON", 8, 210, 13),
     ("Weapons lv230", "LIST_WEAPON", 8, 230, 13),
 ]
 BOSS_LOOT_PREFIX = b"22"

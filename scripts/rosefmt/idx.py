@@ -14,7 +14,17 @@ offset and the client read noise (the symptom was ``SCRIPTS\\INIT.LUA`` failing
 to parse). An archive still cannot exceed 4 GB; the packer rolls over to
 ``rose_2.vfs`` at 4.2 GB and every ``rose*.vfs`` must ship with the index.
 Read-only: ``pipeline.exe`` writes the index.
+
+**A head's table offset can be stale.** The tables sit back to back, but EVO's
+``data.idx`` (their launcher's TSVFS writes it) points ROOT.VFS's head into the
+middle of MAP.VFS's table; the client never notices because the real table
+follows BASIC.VFS's. A table offset that lands inside an already-read table is
+taken as "right after the previous one".
+
+``read_files`` pulls named files out of the archives next to an index: classic
+TriggerVFS archives store them raw at the indexed offset.
 """
+import os
 import struct
 
 from .binio import read_file
@@ -69,7 +79,10 @@ def parse(path_or_blob):
     for _ in range(nfs):
         heads.append((r.str16(), r.i32()))
     out = []
+    prev_end = None
     for name, table_off in heads:
+        if prev_end is not None and table_off < prev_end:
+            table_off = prev_end   # stale head offset: see the module docstring
         r.o = table_off
         count = r.i32()
         r.i32()  # deleted count
@@ -85,7 +98,27 @@ def parse(path_or_blob):
             r.i32()          # checksum
             files.append((fn, off, size))
         out.append((name, files))
+        prev_end = r.o
     return out
 
 
 parse_idx = parse
+
+
+def read_files(idx_path, names):
+    """{name: bytes} for ``names`` (VFS paths, any case and slash) found in the
+    archives beside ``idx_path``; names not in the index are left out."""
+    def key(n):
+        return n.replace("/", "\\").rstrip("\0").upper()
+    want = {key(n): n for n in names}
+    out = {}
+    folder = os.path.dirname(os.path.abspath(idx_path))
+    for arc, files in parse(idx_path):
+        hits = [(want[key(fn)], off, size) for fn, off, size in files if key(fn) in want]
+        if not hits:
+            continue
+        with open(os.path.join(folder, arc.rstrip("\0").strip()), "rb") as fh:
+            for n, off, size in hits:
+                fh.seek(off)
+                out[n] = fh.read(size)
+    return out

@@ -1537,7 +1537,8 @@ def drop_table():
     The lv160-170 weapons and lv150-170 wings have no other source."""
     common = [("redirect", 1), ("redirect", 2), ("redirect", 3), ("redirect", 4)] * 3
     common += [(T_BACK, 1017),                      # Skyborn Preceptor 150
-               (T_WEAPON, 377),                     # Dual Steam Shockers 170
+               (T_WEAPON, 251),                     # Ballista Rifle 175 (was Dual Steam
+                                                    # Shockers 377: erase-dual-guns.py)
                (T_WEAPON, 73)]                      # Tribal Crossbow 156
     common += [(T_GEM, n) for n in (307, 317, 367, 377)]   # Garnet, Ruby, Diamond, Pink Opal [7]
     common += [(T_GEM, n) for n in (336, 346, 356, 366)]   # Topaz, Emerald, Peridot, Diamond [6]
@@ -1548,9 +1549,9 @@ def drop_table():
         1: [(T_WEAPON, n) for n in (22, 51, 74, 120, 149)],
         # Keil Cutter 170, Ferrum Bow 167, Ancient Gun 165, Ancient Launcher 166, Marvel Staff 166
         2: [(T_WEAPON, n) for n in (181, 221, 250, 278, 321)],
-        # Vision Wand 160, Blaze Wand 167, Bastard & Brave Gun 160, Glove Knuckle 165,
-        # Mythril Dual Wield 170
-        3: [(T_WEAPON, n) for n in (349, 350, 376, 420, 448)],
+        # Vision Wand 160, Blaze Wand 167, White Night Gun 155 (was Bastard & Brave Gun
+        # 376: erase-dual-guns.py), Glove Knuckle 165, Mythril Dual Wield 170
+        3: [(T_WEAPON, n) for n in (349, 350, 249, 420, 448)],
         # Holy Coffin 160, Sandalphon Wings 165, Deneb Blade 170, Moonlit Magic Circle 152
         4: [(T_BACK, n) for n in (1069, 1070, 1071, 1087)],
     }
