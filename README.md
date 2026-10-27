@@ -263,7 +263,7 @@ The client reads its content from a packed **VFS**: `data.idx` plus `rose.vfs`
 balanced against are available here (the link is updated with each release):
 
 ```
-https://mega.nz/file/xctRVZrC#ayPwf4dk_7mXiEZkSaY7ZCr6gSciU1YqdO8g-SMgNsU
+https://www.dropbox.com/scl/fi/snmrxd9j48qx75t52ero0/ROSEProject.rar?rlkey=oj7nlhhnb7yit126f0iuwjiv2&st=bwtz25ur&dl=0
 ```
 
 Place the raw files in [`data/`](data/) (layout in
