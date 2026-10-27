@@ -201,12 +201,15 @@ SOURCE_DUMPS = {
 }
 PREFIX_DUMP = {"kh_": "Jrose", "kak_": "Jrose", "ks_": "Jrose", "or_": "RoseZA",
                # SHIBUYA's Deaders (import-shibuya.py stage 4)
-               "sw_sby": "Jrose", "sw109_": "Jrose", "zombie_police": "Jrose"}
+               "sw_sby": "Jrose", "sw109_": "Jrose", "zombie_police": "Jrose",
+               # import-amphisbaena.py: the Amphisbaena and its summons' Jrose AI files
+               "kmd_": "Jrose", "uc_": "Jrose"}
 # import-karkia.py SKILL_PORTS (row -> row) and SKILL_REPOINT targets: our rows,
 # deliberately different from Jrose's at those ids. 7015-7018: import-shibuya.py's
 # CAST_REMAP, which rebuilds those AI files with the casts re-pointed at our tail.
 DELIBERATE = {"Jrose": {361, 1090, 3613, 3616, 3627, 3686, 3711, 3771, 3779, 3780, 3781,
-                        7015, 7016, 7017, 7018},
+                        7015, 7016, 7017, 7018,
+                        7201},          # import-amphisbaena.py: Jrose's 3096 (a silence)
               "RoseZA": set()}
 
 TARGET_LABEL = {0: "cond-char", 1: "cur-target", 2: "self"}

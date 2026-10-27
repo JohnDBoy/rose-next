@@ -4,6 +4,10 @@ The order of work for bringing one monster across from a reference client (Jrose
 667, 668, RoseZA ...). It is the playbook; [making-monsters.md](making-monsters.md) is the
 list of traps, and you need both. Worked examples, newest first:
 
+- `scripts/import-amphisbaena.py` (2026-10-27, Jrose): **the source's AI as is** -- a
+  gold-star dragon and the four monsters its AI summons, each with its own Jrose AI;
+  skills imported or re-pointed, an invisible weapon for the archer's arrows. Validated
+  in game: the summons do what their Jrose AIs say (the Cyclops is a healer).
 - `scripts/import-core-guardian.py` (2026-10-27, Jrose): the **hybrid** -- a legacy self
   buff (an existing row, cast as Jrose did) and a telegraphed cone slam cut from the
   source's own clip; bare-handed (the axe is part of the model), authored AI. Validated
@@ -217,7 +221,29 @@ its HP phases) and let them choose:
   numbering: a cast needs its skill imported or remapped, a summon needs that monster
   imported too (or the action stripped). Then check its throttles the way
   `fix-boss-cast-cooldowns.py` describes (casts that lock after one use, gates nobody can
-  pass).
+  pass). The worked example is `import-amphisbaena.py`; what it took:
+  - **Walk the whole tree first.** Follow every summon / morph action (act 9, 10, 18,
+    20, 36, 37) to its monster, then that monster's AI, until nothing new appears: the
+    Amphisbaena's AI reached four more monsters, one of which (the Ghost Seed) morphs
+    into a fifth. Ask the user how far to go before writing anything.
+  - **Sort every cast into three piles**: same row here (nothing to do -- Jrose's Candle /
+    Elec Ghost kit is ours), blank here (import in place with `import-monster-skills.py`,
+    statuses moved from the source's columns 88+), and **collisions** -- the same id is
+    another skill here, even a nameless no-op others cast -- which go to a tail row,
+    with **our copy of the AI file re-pointed** (`CAST_REMAP` in the script) and the row
+    added to `audit-ai-skill-refs.py`'s `DELIBERATE`.
+  - **An AI file we already ship stays ours**: the Cyclops reuses our FILE_AI row for
+    `kh_2676.aip`, which carries Karkia's re-points; copying Jrose's over it would undo them.
+  - **Register the file prefixes** in `audit-ai-skill-refs.py`'s `PREFIX_DUMP` (`kmd_`,
+    `uc_` -> Jrose), or its type check never compares them.
+  - **Monster weapons can be invisible carriers**: a ranged monster's weapon row may exist
+    only for its projectile (Jrose's "MOB dummy bow"). Check our model object at that id
+    before reusing it -- ours was a visible bow -- and give the dummy a free row
+    (`import-item.py --art-only --allow-placeholder`).
+  - **Summons drop nothing** (the Cerberus Hellhounds' rule) and get plain-role stats.
+  - **Count the summons in the sim**: `combat-sim.py run` lists "summon" under "fired but
+    not simulated". Rolls in the damaged pattern scale with how often the player hits:
+    the Amphisbaena called ~0.5 adds a fight against most builds and ~13 against a Scout.
 - **Author ours** when the skills are being made interactive (variant 1) or the source's
   behaviour is not wanted -- the Shadow Soldier's case. The shipped file is still worth
   reading for its design: which skill it opens with, its HP thresholds, what it summons.

@@ -360,6 +360,21 @@ SKILLS = {
     869: dict(name="Puppet Bolt", source="Jrose", dest=7015, dmgtype=2, power=45,
               clear=(2, 3, 4, 16, 17, 27, 35, 39, 40, 41, 42, 43, 44, 45, 46, 86)),
     2990: dict(name="Puppet Dispel", source="Jrose", set={11: 37}),
+    # The Amphisbaena 2911 (kmd_2911.aip, import-amphisbaena.py), Jrose's AI taken as
+    # is: its four casts. Jrose keeps statuses and abilities in its columns 88-95
+    # (status, ability, rate per slot); `set` moves them into our 11/12 and 21-26 --
+    # LIST_STATUS 18/19/20/30 are the same rows in both dumps (ATK up, ATK down, DEF
+    # up, Dumb). The two areas keep Jrose's 30 m radius ("as is", the user's test);
+    # damage goes to the magic formula (Jrose authors types 4/5), powers sized in the
+    # combat sim (import-amphisbaena.py's docstring). 3096 is our nameless type-0 row
+    # that Berkana Stone and others cast for nothing, so Jrose's silence lands at the
+    # tail (7201) and import-amphisbaena.py re-points the AI; ours is left alone.
+    3758: dict(name="Twin Fury", source="Jrose",
+               set={11: 18, 12: 20, 21: 18, 23: 20, 24: 19, 26: 20}),
+    3759: dict(name="Withering Roar", source="Jrose", dmgtype=2, power=80,
+               set={11: 19, 21: 18, 23: 20}),
+    3761: dict(name="Twin Cataclysm", source="Jrose", dmgtype=2, power=120),
+    3096: dict(name="Hushing Gaze", source="Jrose", dest=7201, set={11: 30}),
 }
 
 # LIST_SKILL columns (io_skill.h)

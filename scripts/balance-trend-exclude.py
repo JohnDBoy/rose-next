@@ -40,7 +40,11 @@ SHADOW_SOLDIER = frozenset({2297})
 # import-core-guardian.py: Jrose's Core Guardian at level 200, stats from the trend by hand.
 CORE_GUARDIAN = frozenset({2337})
 
-EXCLUDED = SHIBUYA | ULVERICK | CERBERUS | NECROMANCER | SHADOW_SOLDIER | CORE_GUARDIAN
+# import-amphisbaena.py: the Amphisbaena and the four monsters its AI summons.
+AMPHISBAENA = frozenset({2911, 2914, 2915, 2920, 2921})
+
+EXCLUDED = (SHIBUYA | ULVERICK | CERBERUS | NECROMANCER | SHADOW_SOLDIER | CORE_GUARDIAN
+            | AMPHISBAENA)
 
 
 def excluded(row):
