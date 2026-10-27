@@ -14,11 +14,12 @@ The fixed rules of the house, whatever the variant:
 
 - **Stats are ours.** Never copy a source's HP / ATK / DEF / skill power: every dump is on
   another scale (Jrose's 2290 had 4000 HP per level at level 250).
-- **The AI is ours**, but read the source's first when it ships one: **Jrose ships ~1,200
-  `.aip` files** (Karkia's AIs are Jrose's), tsuki none. The survey tool says which. A
-  shipped file is the authored kit -- the Shadow Soldier's `mst_boss1.aip` casts the two
-  skills *and summons its three Shadow siblings*, which nobody had seen when its import was
-  written. Its skill and monster ids are the source's numbering, not ours.
+- **The AI: the source's or ours, decided per monster by the user.** Some dumps ship
+  their `.aip` files (**Jrose ships ~1,200**, Karkia's AIs are Jrose's), others none
+  (tsuki). When one ships, read it, report what it does, and **ask** whether to take it or
+  author ours -- never assume either way. The Shadow Soldier's `mst_boss1.aip` casts the
+  same two skills and summons its three Shadow siblings; the user preferred our authored
+  AI (telegraphs, no summons). Section 7 has both routes.
 - **The script is the record.** `data/` is not in git. One `import-<name>.py` writes the
   row, the model, the clips, the skills, the AI and the weapon, with `--dry-run` and
   `--verify`, and its docstring says why every number is what it is.
@@ -175,7 +176,8 @@ monster its own copy with the event added, or pick another clip. Statuses go in 
 
 ## 7. The AI
 
-Built in the script with `import-hebarn.py`'s encoders (`heb.pat`, `heb.ev`, `c_*`, `a_*`)
+First the choice: the source's AI or ours (below, "Taking the source's AI, or not"). An
+authored AI is built in the script with `import-hebarn.py`'s encoders (`heb.pat`, `heb.ev`, `c_*`, `a_*`)
 and `audit-ai-monster-refs.py`'s `build_aip`; registered in FILE_AI and LIST_NPC col 16.
 The Shadow Soldier's `build_ai()` is the template:
 
@@ -188,9 +190,25 @@ The Shadow Soldier's `build_ai()` is the template:
 - **Size N with the sim**: a solo fight's length decides how many casts a player sees.
   At 10 the Shadow Soldier showed one skill per 10 s fight; at 5, both.
 
-If the source ships an `.aip`: copy it, then `audit-ai-skill-refs.py` (`--remap` for ids
-that mean something else here, `--remotion` for a slot layout that does not match the
-model) and `audit-ai-monster-refs.py`.
+### Taking the source's AI, or not
+
+When the survey shows a shipped `.aip`, summarise it for the user (its casts, its summons,
+its HP phases) and let them choose:
+
+- **Take it** when its behaviour is what they want -- typically a monster left legacy
+  (variant 3) or kept close to the original. Copy the file, register it, then run
+  `audit-ai-skill-refs.py` (`--remap` for skill ids that mean something else here,
+  `--remotion` for a slot layout that does not match the model) and
+  `audit-ai-monster-refs.py`. Every skill and monster id in it is the source's
+  numbering: a cast needs its skill imported or remapped, a summon needs that monster
+  imported too (or the action stripped). Then check its throttles the way
+  `fix-boss-cast-cooldowns.py` describes (casts that lock after one use, gates nobody can
+  pass).
+- **Author ours** when the skills are being made interactive (variant 1) or the source's
+  behaviour is not wanted -- the Shadow Soldier's case. The shipped file is still worth
+  reading for its design: which skill it opens with, its HP thresholds, what it summons.
+- **Mix**: start from ours and borrow one idea from the source (an HP phase, a summon),
+  written with our encoders.
 
 ## 8. Check, deploy, test
 
