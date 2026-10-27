@@ -6,8 +6,8 @@ list of traps, and you need both. Worked examples, newest first:
 
 - `scripts/import-core-guardian.py` (2026-10-27, Jrose): the **hybrid** -- a legacy self
   buff (an existing row, cast as Jrose did) and a telegraphed cone slam cut from the
-  source's own clip; bare-handed (the axe is part of the model), authored AI. Awaiting its
-  in-game test.
+  source's own clip; bare-handed (the axe is part of the model), authored AI. Validated
+  in game, no issues.
 - `scripts/import-shadow-soldier.py` (2026-10-27, Jrose): two telegraphed skills, its
   own sword, authored AI. **Validated first try; start from this one.**
 - `scripts/import-necromancer.py` (2026-10-24, tsuki): one legacy skill (a drain), its
