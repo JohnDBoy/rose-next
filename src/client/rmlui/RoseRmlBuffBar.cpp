@@ -230,14 +230,21 @@ RoseRmlBuffBar::CollectBuffs(CObjCHAR* pChar, std::vector<BuffVM>& out, int iSki
 
         const int iElapsed = iNow - pEntity->GetStartTime();
         const int iDuration = pEntity->GetEnduranceTimeMs();
-        const int iRemain = abs(iDuration - iElapsed);
+        /// Never counts back up once the duration is past: the server's clear may
+        /// still be on its way.
+        const int iRemain = max(0, iDuration - iElapsed);
 
         if (i == ING_GODDESS) {
             vm.expiring = false;
             vm.detail = GoddessDetail(pack, pEntity);
+        } else if (pEntity->IsDurationUnknown()) {
+            /// Its 100 s placeholder would read as a real countdown, then flash and
+            /// count up for the rest of a scroll's hour.
+            vm.expiring = false;
+            vm.detail = "Remaining time unknown.";
         } else {
             /// Past its duration but not yet removed flashes too, as before.
-            vm.expiring = iRemain < kExpiringMs || iElapsed > iDuration;
+            vm.expiring = iRemain < kExpiringMs;
             vm.time = ShortTime(iRemain);
             vm.detail = LongTime(iRemain);
         }

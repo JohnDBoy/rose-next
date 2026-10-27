@@ -2318,7 +2318,8 @@ CRecvPACKET::Recv_gsv_EQUIP_ITEM() {
                         if (nWeaponTYPE != 242) {
                             if (pCHAR->Get_L_WEAPON() != 0) {
                                 pCHAR->SetPartITEM(BODY_PART_WEAPON_L, 0);
-                                pCHAR->ClearLWeaponSkillEffect();
+                                // the server clears these unconditionally here
+                                pCHAR->ClearLWeaponSkillEffect(true);
                             }
                         }
                     }

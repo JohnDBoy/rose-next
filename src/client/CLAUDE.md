@@ -195,6 +195,17 @@ stayed on screen (burn icon and effect, no ticks) until the next status change o
   skill index -- the ones built from spawn flags carry a placeholder duration of 100 and stay
   server-driven, as do regen, the summon marker and revive.
 
+**Weapon swaps and spawn-flag statuses (2026-10-28, awaiting in-game test).** The client mirrors
+the server's weapon-swap clear (`Recv_gsv_EQUIP_ITEM` -> `ClearR/LWeaponSkillEffect`), and the
+server only clears a status whose `LIST_STATUS` gain/loss column (3) is below 2
+(`ClearStatusIfENABLED`). Every buff scroll's status (rows 44-54) is 2, so the client used to hide
+scroll buffs the server kept, and the server refuses the same scroll while it runs, so the icon
+stayed gone for the hour. `DeleteWeaponBoundState` applies the same test; the two-handed-over-shield
+clear is the server's one unconditional case (`ClearLWeaponSkillEffect(true)`). A status rebuilt
+from spawn flags (`IsDurationUnknown`: skill entity, index 0) has no real duration, so UI2 icons
+show "Remaining time unknown." instead of the 100 s placeholder; no timer counts back up past zero.
+Real remaining times would need the server to send them with `tag_ADD_CHAR` (not done).
+
 ## Bone-Attached Particle Budgeting
 
 Character model bone effects created by `CCharMODEL::CreateBoneEFFECT` are passive cosmetic effects and are registered with `CBoneEffectBudget` (`BoneEffectBudget.cpp/h`) using owner, NPC id, bone index, and effect hash. So are the ZSC dummy-point effects of equipped parts (`CObjCHAR::New_ModelDummyEFFECT`: imported backs, moving weapon pieces). Registration is intentionally narrow: do not add skill particles, hit effects, bullets, terrain/weather effects, item-table weapon effects, or general `g_pEffectLIST` effects to `BoneFx`.

@@ -8708,8 +8708,8 @@ CObjAVT::ClearRWeaponSkillEffect() {
 }
 
 void
-CObjAVT::ClearLWeaponSkillEffect() {
-    this->m_EndurancePack.ClearLWeaponSkillEffect();
+CObjAVT::ClearLWeaponSkillEffect(bool bAll) {
+    this->m_EndurancePack.ClearLWeaponSkillEffect(bAll);
 }
 
 //----------------------------------------------------------------------------------------------------

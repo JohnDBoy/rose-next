@@ -114,7 +114,9 @@ public:
 
     /// 장비교체시 해당 장비에 걸려있던 상태 제거..
     void ClearRWeaponSkillEffect();
-    void ClearLWeaponSkillEffect();
+    /// bAll: a two-handed weapon pushed the shield off, which clears every kind.
+    void ClearLWeaponSkillEffect(bool bAll = false);
+    void DeleteWeaponBoundState(int iStateType, bool bAll);
 
     /// 맞았을때 자동으로 풀려야하는 것들
     void ClearStateByHitted();
@@ -178,6 +180,12 @@ public:
                                                                 : m_iEnduranceTime * 1000;
     }
     virtual int GeteEntityType() { return m_iEnduranceEndityType; };
+    /// Rebuilt from a character's status flags when it came into view
+    /// ( Recv_tag_ADJ_STATUS ): the server sends no remaining time, so the duration is
+    /// a placeholder and must not be shown as a countdown.
+    bool IsDurationUnknown() {
+        return m_iEnduranceEndityType == ENDURANCE_TYPE_SKILL && m_iEndityIdx == 0;
+    }
     virtual int GetStartTime() { return m_iStartTime; }
     virtual int GetStateSTBNO() { return m_iStatusSTBNO; }
 

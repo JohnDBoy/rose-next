@@ -1439,7 +1439,7 @@ public:
 
     /// 장비 교체시 장비에 걸려있던 속성 해제..
     void ClearRWeaponSkillEffect();
-    void ClearLWeaponSkillEffect();
+    void ClearLWeaponSkillEffect(bool bAll = false);
 
     ///
     /// 루프를 돌리는 상태의 경우라도 이 플래그의 상태에따라 모션 리셋( STOP, MOVE... )

@@ -473,8 +473,11 @@ CEndurancePack::Draw() {
 
                 CGame::GetInstance().Get_MousePos(ptMouse);
                 if (PtInRect(&rcIcon, ptMouse)) {
-                    int iSeconds = (iRemainedTime / 1000) % 60;
-                    int iMinutes = (iRemainedTime / 1000) / 60;
+                    // iRemainedTime is abs() for the flash clock; past the duration the
+                    // tooltip says 0 rather than counting back up.
+                    const int iShownTime = max(0, iEnduranceTime - iElapsedTime);
+                    int iSeconds = (iShownTime / 1000) % 60;
+                    int iMinutes = (iShownTime / 1000) / 60;
                     char* cTimeRemaining = "";
                     switch (iMinutes) {
                         case 0:
@@ -924,10 +927,27 @@ CEndurancePack::ClearStateByDriveCart() {
 //----------------------------------------------------------------------------------------------------
 void
 CEndurancePack::ClearRWeaponSkillEffect() {
-    DeleteEntityByStateType(ING_INC_ATK_SPD);
-    DeleteEntityByStateType(ING_INC_APOWER);
-    DeleteEntityByStateType(ING_INC_HIT);
-    DeleteEntityByStateType(ING_INC_CRITICAL);
+    DeleteWeaponBoundState(ING_INC_ATK_SPD, false);
+    DeleteWeaponBoundState(ING_INC_APOWER, false);
+    DeleteWeaponBoundState(ING_INC_HIT, false);
+    DeleteWeaponBoundState(ING_INC_CRITICAL, false);
+}
+
+/// The server's rule for a weapon change (classUSER::Change_EQUIP_ITEM ->
+/// StatusEffects::ClearStatusIfENABLED): only a status whose LIST_STATUS gain/loss
+/// column is below 2 goes. Every buff scroll's status is 2 and survives the swap
+/// there, so deleting it here hid a buff that still ran -- and the server refuses the
+/// same scroll again while it does (STATE_CAN_DUPLICATED 0), so the icon stayed gone
+/// for the hour. bAll is the one unconditional clear: a two-handed weapon pushing the
+/// shield off (ClearSTATUS, no gain/loss test).
+void
+CEndurancePack::DeleteWeaponBoundState(int iStateType, bool bAll) {
+    CEnduranceProperty* pEntity = m_EntityList[iStateType];
+    if (pEntity == NULL)
+        return;
+    if (!bAll && STATE_PRIFITS_LOSSES(pEntity->GetStateSTBNO()) >= 2)
+        return;
+    DeleteEntityByStateType(iStateType);
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -938,10 +958,10 @@ CEndurancePack::ClearRWeaponSkillEffect() {
 ///			ING_SHIELD_DAMAGE	방패데미지
 //----------------------------------------------------------------------------------------------------
 void
-CEndurancePack::ClearLWeaponSkillEffect() {
-    DeleteEntityByStateType(ING_INC_DPOWER);
-    DeleteEntityByStateType(ING_INC_RES);
-    DeleteEntityByStateType(ING_SHIELD_DAMAGE);
+CEndurancePack::ClearLWeaponSkillEffect(bool bAll) {
+    DeleteWeaponBoundState(ING_INC_DPOWER, bAll);
+    DeleteWeaponBoundState(ING_INC_RES, bAll);
+    DeleteWeaponBoundState(ING_SHIELD_DAMAGE, bAll);
 }
 
 //------------------------------------------------------------------------------------------
