@@ -936,7 +936,10 @@ the server applies it (cast clip + release hit frame): size stun durations for t
 speed the clips up (LIST_SKILL cols 53/69 apply to monster casts on both sides).
 
 **Before adding a monster, read [doc/making-monsters.md](../doc/making-monsters.md)**: the
-row, model, skill, animation-event and AI traps in one checklist.
+row, model, skill, animation-event and AI traps in one checklist. **Importing one from
+another dump** follows [doc/importing-monsters.md](../doc/importing-monsters.md): survey,
+rows, model, weapon, stats, the three skill variants (telegraphed / legacy / none), AI,
+deploy; `import-shadow-soldier.py` is the template.
 
 **Monster speech (AI action 28) is the server's** (2026-10-09): the overhead bubble is a
 local chat the server sends for every line (`Recv_gsv_CHAT` shows a monster's as a red

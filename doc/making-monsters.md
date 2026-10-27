@@ -6,6 +6,9 @@ of Ulverick and the Oro/Karkia imports. Every trap here cost a test round at lea
 once. `scripts/import-cerberus.py` is the worked example: most rules below have a
 named constant or function there.
 
+Importing a monster from another dump? The order of work is in
+[importing-monsters.md](importing-monsters.md); this file is the traps to check along the way.
+
 `data/` is not in git, so **the import script is the only record** of a monster.
 Write the row, the model, the AI and the skills from a script, never by hand, and put
 the reasoning in its docstring.
