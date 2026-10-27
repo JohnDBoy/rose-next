@@ -939,7 +939,10 @@ speed the clips up (LIST_SKILL cols 53/69 apply to monster casts on both sides).
 row, model, skill, animation-event and AI traps in one checklist. **Importing one from
 another dump** follows [doc/importing-monsters.md](../doc/importing-monsters.md): survey,
 rows, model, weapon, stats, the three skill variants (telegraphed / legacy / none), AI,
-deploy; `import-shadow-soldier.py` is the template.
+deploy; `import-shadow-soldier.py` is the template. Start with `survey-monster.py <dump> <row>`
+(read-only, ~10 s): names, siblings, free rows, anim slots with events and the skills using
+each clip, motion profiles, the weapon against ours, and the source's AI when it ships
+(**Jrose ships ~1,200 `.aip` files**; tsuki none).
 
 **Monster speech (AI action 28) is the server's** (2026-10-09): the overhead bubble is a
 local chat the server sends for every line (`Recv_gsv_CHAT` shows a monster's as a red

@@ -14,18 +14,25 @@ The fixed rules of the house, whatever the variant:
 
 - **Stats are ours.** Never copy a source's HP / ATK / DEF / skill power: every dump is on
   another scale (Jrose's 2290 had 4000 HP per level at level 250).
-- **The AI is ours** unless the source actually ships its `.aip` (rare; Jrose, tsuki and
-  668 never do). A shipped one still needs its skill and monster ids checked: they are
-  the source's numbering, not ours.
+- **The AI is ours**, but read the source's first when it ships one: **Jrose ships ~1,200
+  `.aip` files** (Karkia's AIs are Jrose's), tsuki none. The survey tool says which. A
+  shipped file is the authored kit -- the Shadow Soldier's `mst_boss1.aip` casts the two
+  skills *and summons its three Shadow siblings*, which nobody had seen when its import was
+  written. Its skill and monster ids are the source's numbering, not ours.
 - **The script is the record.** `data/` is not in git. One `import-<name>.py` writes the
   row, the model, the clips, the skills, the AI and the weapon, with `--dry-run` and
   `--verify`, and its docstring says why every number is what it is.
 
 ## 1. Survey the source row
 
-Read the dump with `scripts/rose-data-reader.py` (it handles each dump's encoding, STL
-dialect and key column; the traps are in its docstring and `doc/jrose-survey.md` section 2).
-Note:
+**Run `python scripts/survey-monster.py <dump folder> <row>` first** (~10 s, read-only;
+`--profile` draws the skill clips' motion as bars). It prints everything below: both
+names, the neighbours (siblings), whether our row is free and the nearest free runs, a
+model of ours with the same meshes, every anim slot with its events and the skills that use
+the clip, motion profiles and loop seams, the weapon against ours, and the source AI's
+casts and summons if the file ships. What it does by hand is below, for when it is not
+enough. Underneath it reads with `scripts/rose-data-reader.py`'s rules (each dump's
+encoding, STL dialect and key column; `doc/jrose-survey.md` section 2). Note:
 
 - **LIST_NPC row:** name, model text, walk/run, size (col 4), right weapon (col 5), AI row
   (col 16), mark (col 27), glow (col 39). Cosmetic cells may be kept; stats never.
