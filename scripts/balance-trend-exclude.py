@@ -34,7 +34,10 @@ CERBERUS = frozenset({2680, 2681, 2682, 2683, 2684})
 # import-necromancer.py: tsuki's Necromancer at level 120, stats from the trend by hand.
 NECROMANCER = frozenset({2414})
 
-EXCLUDED = SHIBUYA | ULVERICK | CERBERUS | NECROMANCER
+# import-shadow-soldier.py: Jrose's Shadow Soldier at level 190, stats from the trend by hand.
+SHADOW_SOLDIER = frozenset({2297})
+
+EXCLUDED = SHIBUYA | ULVERICK | CERBERUS | NECROMANCER | SHADOW_SOLDIER
 
 
 def excluded(row):
