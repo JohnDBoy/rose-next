@@ -4,6 +4,10 @@ The order of work for bringing one monster across from a reference client (Jrose
 667, 668, RoseZA ...). It is the playbook; [making-monsters.md](making-monsters.md) is the
 list of traps, and you need both. Worked examples, newest first:
 
+- `scripts/import-core-guardian.py` (2026-10-27, Jrose): the **hybrid** -- a legacy self
+  buff (an existing row, cast as Jrose did) and a telegraphed cone slam cut from the
+  source's own clip; bare-handed (the axe is part of the model), authored AI. Awaiting its
+  in-game test.
 - `scripts/import-shadow-soldier.py` (2026-10-27, Jrose): two telegraphed skills, its
   own sword, authored AI. **Validated first try; start from this one.**
 - `scripts/import-necromancer.py` (2026-10-24, tsuki): one legacy skill (a drain), its
@@ -189,6 +193,16 @@ The Shadow Soldier's `build_ai()` is the template:
 - `kill`: a line, if it wants one. Lines are AI_s.STB rows; kind 0 = local chat.
 - **Size N with the sim**: a solo fight's length decides how many casts a player sees.
   At 10 the Shadow Soldier showed one skill per 10 s fight; at 5, both.
+- **A refused order still runs the rest of its event.** The server refuses a cast while
+  the monster is still casting another, but the event's `set var` actions run anyway: a
+  slam ordered during a buff's cast is lost *and* resets its counter. Space every cast on
+  one counter, and put the main skill **before** an HP-phase event in the pattern -- the
+  Core Guardian's 50% rally sat first, took the slam's turn against bursty builds, and a
+  solo fight saw no slam at all. `combat-sim.py run` shows it as casts per fight; a cast
+  that "lands 0%" was ordered so late the fight ended during its wind-up.
+- **Reach covers ranged players.** The sim puts a ranged player ~9.8 m from a monster of
+  NPC range 500 at size 400 (NPC range + size x 120). A cast gated at 8 m never touched
+  the Scout or the Artisan; gate inside the area but past where they stand.
 
 ### Taking the source's AI, or not
 
