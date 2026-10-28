@@ -940,10 +940,14 @@ CEndurancePack::ClearRWeaponSkillEffect() {
 /// same scroll again while it does (STATE_CAN_DUPLICATED 0), so the icon stayed gone
 /// for the hour. bAll is the one unconditional clear: a two-handed weapon pushing the
 /// shield off (ClearSTATUS, no gain/loss test).
+///
+/// A status rebuilt from spawn flags is skipped: its row is a guess from the type
+/// alone (a Strength Scroll reads as the skill buff), so the server's
+/// GSV_CLEAR_STATUS after the swap decides it.
 void
 CEndurancePack::DeleteWeaponBoundState(int iStateType, bool bAll) {
     CEnduranceProperty* pEntity = m_EntityList[iStateType];
-    if (pEntity == NULL)
+    if (pEntity == NULL || pEntity->IsDurationUnknown())
         return;
     if (!bAll && STATE_PRIFITS_LOSSES(pEntity->GetStateSTBNO()) >= 2)
         return;

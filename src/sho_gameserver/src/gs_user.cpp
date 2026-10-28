@@ -3011,6 +3011,7 @@ classUSER::Change_EQUIP_ITEM(short nEquipInvIDX, short nWeaponInvIDX) {
     BYTE btCurCON = this->GetCur_CON();
     short nRecvHP = this->m_nRecoverHP;
     short nRecvMP = this->m_nRecoverMP;
+    const DWORD dwIngBefore = this->m_IngSTATUS.GetFLAGs();
 
     bool bResult = true;
     // 바뀐 인벤토리 구조 전송..
@@ -3135,6 +3136,15 @@ classUSER::Change_EQUIP_ITEM(short nEquipInvIDX, short nWeaponInvIDX) {
 
         // 주변에 무기 바뀜을 통보...
         this->Send_gsv_EQUIP_ITEM(nEquipInvIDX, pEquipITEM);
+
+        // Say which statuses the swap ended. Clients mirror the clear on
+        // GSV_EQUIP_ITEM, but a status rebuilt from spawn flags carries only its
+        // type -- a buff scroll (kept) and a skill buff (cleared) look the same --
+        // so the client leaves those to this packet.
+        const DWORD dwIngCleared = dwIngBefore & ~this->m_IngSTATUS.GetFLAGs();
+        if (dwIngCleared) {
+            this->Send_gsv_CLEAR_STATUS(dwIngCleared);
+        }
 
         // If a costume item is equiped, show this one instead of equiped item
         if (nEquipInvIDX < MAX_COSTUME_IDX) {

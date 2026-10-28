@@ -195,7 +195,7 @@ stayed on screen (burn icon and effect, no ticks) until the next status change o
   skill index -- the ones built from spawn flags carry a placeholder duration of 100 and stay
   server-driven, as do regen, the summon marker and revive.
 
-**Weapon swaps and spawn-flag statuses (2026-10-28, awaiting in-game test).** The client mirrors
+**Weapon swaps and spawn-flag statuses (2026-10-28, solo swap + unknown timer validated).** The client mirrors
 the server's weapon-swap clear (`Recv_gsv_EQUIP_ITEM` -> `ClearR/LWeaponSkillEffect`), and the
 server only clears a status whose `LIST_STATUS` gain/loss column (3) is below 2
 (`ClearStatusIfENABLED`). Every buff scroll's status (rows 44-54) is 2, so the client used to hide
@@ -205,6 +205,11 @@ clear is the server's one unconditional case (`ClearLWeaponSkillEffect(true)`). 
 from spawn flags (`IsDurationUnknown`: skill entity, index 0) has no real duration, so UI2 icons
 show "Remaining time unknown." instead of the 100 s placeholder; no timer counts back up past zero.
 Real remaining times would need the server to send them with `tag_ADD_CHAR` (not done).
+**A rebuilt status's row is a guess from its type alone** (`m_StateSTBIDXTable`: a Strength Scroll's
+attack power reads as the skill buff, gain/loss 0), so the swap mirror skips it and the server's
+word decides: `Change_EQUIP_ITEM` now sends `GSV_CLEAR_STATUS` with whatever the swap cleared
+(before, it cleared silently and every client guessed; a party member who buffed out of view lost
+the icon on a swap in everyone else's view).
 
 ## Bone-Attached Particle Budgeting
 
