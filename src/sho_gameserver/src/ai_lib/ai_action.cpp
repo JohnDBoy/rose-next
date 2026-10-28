@@ -247,6 +247,9 @@ F_AIACT08(stActHead* pActDATA, t_AIPARAM* pEVENT) {
     fX = pTarget->Get_CurXPOS() - pEVENT->m_pSourCHAR->Get_CurXPOS();
     fY = pTarget->Get_CurYPOS() - pEVENT->m_pSourCHAR->Get_CurYPOS();
     fDistance = pEVENT->m_pSourCHAR->Get_DISTANCE(pTarget);
+    if (fDistance < 1.f) {
+        return; // standing on the target: no "away" direction (was a divide by zero)
+    }
 
     fPosX = pEVENT->m_pSourCHAR->Get_CurXPOS() - (pAct->iDistance * fX / fDistance);
     fPosY = pEVENT->m_pSourCHAR->Get_CurYPOS() - (pAct->iDistance * fY / fDistance);

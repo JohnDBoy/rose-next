@@ -2837,7 +2837,8 @@ classUSER::Recv_cli_CANTMOVE(t_PACKET* pPacket) {
         iSrvDist = ::distance ((int)m_PosMoveSTART.x, (int)m_PosMoveSTART.y, (int)m_PosCUR.x,
        (int)m_PosCUR.y); if ( iSrvDist >= iCliDist ) {
     */
-    this->m_nPosZ = pPacket->m_cli_MOUSECMD.m_nPosZ;
+    // Its own Z: through m_cli_MOUSECMD this read two bytes past the 16-byte packet.
+    this->m_nPosZ = pPacket->m_cli_CANTMOVE.m_nPosZ;
 
     iSrvDist = ::distance((int)m_PosGOTO.x, (int)m_PosGOTO.y, (int)m_PosCUR.x, (int)m_PosCUR.y);
     iCliDist = ::distance((int)m_PosGOTO.x,
@@ -2849,7 +2850,8 @@ classUSER::Recv_cli_CANTMOVE(t_PACKET* pPacket) {
         this->m_PosGOTO = pPacket->m_cli_CANTMOVE.m_PosCUR;
         // 클라이언트에서 정지 위치로 강제 이동 시킨다.
         this->m_PosCUR = pPacket->m_cli_CANTMOVE.m_PosCUR;
-        // TODO:: update sector ???
+        // The step back can cross a sector edge; scans and broadcasts go by sector.
+        this->GetZONE()->UpdateSECTOR(this);
 
         // 서버가 클라이언트에서 막힌 위치 보다 더 멀이 이동했다.
         // 더이상 이동 못하도록...

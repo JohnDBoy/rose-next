@@ -136,6 +136,24 @@ CObjCHAR::AI_FindNextOBJ() {
     return this->GetZONE()->FindNextCHAR();
 }
 
+void
+CObjCHAR::AI_CollectOBJs(tPOINTF& PosCENTER, int iDistance, std::vector<CObjCHAR*>& out) {
+    out.clear();
+    for (CObjCHAR* pFind = (CObjCHAR*)this->AI_FindFirstOBJ(PosCENTER, iDistance); pFind;
+         pFind = (CObjCHAR*)this->AI_FindNextOBJ()) {
+        out.push_back(pFind);
+    }
+}
+
+void
+CObjCHAR::AI_CollectOBJs(int iDistance, std::vector<CObjCHAR*>& out) {
+    out.clear();
+    for (CObjCHAR* pFind = (CObjCHAR*)this->AI_FindFirstOBJ(iDistance); pFind;
+         pFind = (CObjCHAR*)this->AI_FindNextOBJ()) {
+        out.push_back(pFind);
+    }
+}
+
 CAI_OBJ*
 CObjCHAR::Find_LocalNPC(int iNpcNO) {
     return g_pZoneLIST->Get_LocalNPC(iNpcNO);
@@ -336,6 +354,8 @@ CObjCHAR::Send_gsv_STOP() {
     pCPacket->m_HEADER.m_nSize = sizeof(gsv_STOP);
     pCPacket->m_gsv_STOP.m_wObjectIDX = this->Get_INDEX();
     pCPacket->m_gsv_STOP.m_PosCUR = this->m_PosCUR;
+    pCPacket->m_gsv_STOP.m_nPosZ = this->m_nPosZ; // was left as pooled-packet garbage
+
 
     this->GetZONE()->SendPacketToSectors(this, pCPacket);
 
@@ -1653,9 +1673,10 @@ CObjCHAR::Skill_ChangeIngSTATUS(CObjCHAR* pTarget) {
                 }
             }
         } else {
-            CObjCHAR* pFindCHAR;
-            pFindCHAR = (CObjCHAR*)pTarget->AI_FindFirstOBJ(SKILL_SCOPE_RADIUS(Get_ActiveSKILL()));
-            while (pFindCHAR) {
+            // Everyone in range first, then the statuses (AI_CollectOBJs).
+            std::vector<CObjCHAR*> found;
+            pTarget->AI_CollectOBJs(SKILL_SCOPE_RADIUS(Get_ActiveSKILL()), found);
+            for (CObjCHAR* pFindCHAR: found) {
                 if (this->Skill_IsPassFilter(pFindCHAR, Get_ActiveSKILL())) {
                     btResult = pFindCHAR->Skill_ApplyIngSTATUS(Get_ActiveSKILL(), this);
                     if (btResult) {
@@ -1666,8 +1687,6 @@ CObjCHAR::Skill_ChangeIngSTATUS(CObjCHAR* pTarget) {
                         nResultCNT++;
                     }
                 }
-
-                pFindCHAR = (CObjCHAR*)pTarget->AI_FindNextOBJ();
             }
         }
     }
@@ -1731,14 +1750,21 @@ CObjCHAR::Skill_DamageToAROUND(tPOINTF& PosCENTER) {
     }
 
     // PosGOTO좌표를 중심으로 탐색...
-    pFindCHAR = (CObjCHAR*)this->AI_FindFirstOBJ(PosSEARCH, iSearchDIST);
-    // The zone has one scan iterator. A victim's DAMAGED/DEAD AI can start its own
-    // scan from inside Apply_DAMAGE and take it over, which cuts this AoE short or
-    // moves its centre. Counted here (Phase 0 of doc/pathfinding-and-z-plan.md);
-    // the fix is a scan the AoE owns.
+    // Everyone in range first, then the damage: Apply_DAMAGE runs the victim's
+    // DAMAGED/DEAD AI at once, and an AI scan there took over the zone's single
+    // iterator, cutting the AoE short or moving its centre (AI_CollectOBJs).
+    std::vector<CObjCHAR*> found;
+    this->AI_CollectOBJs(PosSEARCH, iSearchDIST, found);
+    // Still counted: how often a victim's AI scans in the middle of an AoE, which
+    // is what used to break it (nav_stats, doc/pathfinding-and-z-plan.md).
     const DWORD dwScanGEN = this->GetZONE()->GetFindGEN();
     bool bScanClobbered = false;
-    while (pFindCHAR) {
+    for (CObjCHAR* pFound: found) {
+        pFindCHAR = pFound;
+        if (pFindCHAR->Get_HP() <= 0) {
+            continue; // killed since the scan (the scan only finds the living)
+        }
+
         bool bInside = true;
         if (bAimed) {
             const float fX = pFindCHAR->Get_CurXPOS() - m_PosCUR.x;
@@ -1779,8 +1805,6 @@ CObjCHAR::Skill_DamageToAROUND(tPOINTF& PosCENTER) {
             bScanClobbered = true;
             this->GetZONE()->m_NavMeter.CountScanClobber();
         }
-
-        pFindCHAR = (CObjCHAR*)this->AI_FindNextOBJ();
     }
 
     this->Send_gsv_RESULT_OF_SKILL(Get_ActiveSKILL() /*, nResultCNT */);
@@ -1844,9 +1868,10 @@ CObjCHAR::Skill_START_10_11(CObjCHAR* pTarget) {
             }
         }
     } else {
-        CObjCHAR* pFindCHAR;
-        pFindCHAR = (CObjCHAR*)pTarget->AI_FindFirstOBJ(SKILL_SCOPE_RADIUS(Get_ActiveSKILL()));
-        while (pFindCHAR) {
+        // Everyone in range first, then the statuses (AI_CollectOBJs).
+        std::vector<CObjCHAR*> found;
+        pTarget->AI_CollectOBJs(SKILL_SCOPE_RADIUS(Get_ActiveSKILL()), found);
+        for (CObjCHAR* pFindCHAR: found) {
             if (this->Skill_IsPassFilter(pFindCHAR, Get_ActiveSKILL())) {
                 // btResult = pFindCHAR->Skill_IncAbilityValue( Get_ActiveSKILL() );
                 btResult = pFindCHAR->Skill_ApplyIngSTATUS(Get_ActiveSKILL(), this);
@@ -1858,8 +1883,6 @@ CObjCHAR::Skill_START_10_11(CObjCHAR* pTarget) {
                     nResultCNT++;
                 }
             }
-
-            pFindCHAR = (CObjCHAR*)pTarget->AI_FindNextOBJ();
         }
     }
 

@@ -420,8 +420,19 @@ What retail files contain (phase 0 corpus scan, 1,538 IFOs):
 - `i32 width`, `i32 height` — 32 x 32, 5 m cells — then `width * height` bytes
   (`zonefile.cpp:289-326`).
 - Zero = AI may move there; any other value blocks.
-- **Rows run south → north** here, the opposite of HIM/TIL
-  (`editor/MOV.cs:5-6`, `zonefile.cpp:311-321`).
+- **The server and the editor read the rows south → north**, the opposite of
+  HIM/TIL (`editor/MOV.cs:5-6`, `zonefile.cpp:311-321`). **The data is north-first**,
+  like HIM/TIL, so every painted tile is mirrored north-south in game and in the
+  editor. This was measured on 2026-10-28, not tested in game, by three independent
+  checks:
+  - regen points on blocked cells: 85 of 736 as read, 0 of 736 flipped;
+  - in Forgotten Temple B1, the share of object-wall cells that are blocked rises
+    from 55% to 100% when flipped;
+  - blocked cells show high terrain relief only when flipped.
+
+  The reader was left alone because MOV is being retired for a baked walk grid
+  (`doc/pathfinding-and-z-plan.md`, decision 8). Only 18 zones have painted MOVs.
+  32 ship all-zero files, Shady Jungle among them, and 16 ship none.
 - Only `SetCMD_MOVE2D` consults it (monster leash/wander/flee); players and
   chasing do not (`src/sho_gameserver/src/zonefile.h:130-136`).
 

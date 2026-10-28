@@ -1,0 +1,82 @@
+{
+  "name": "Scout 100, Arrow Shower 10 (AoE test)",
+  "job": 322,
+  "level": 100,
+  "female": false,
+  "union": 0,
+  "stats": {
+    "STR": 15,
+    "DEX": 182,
+    "INT": 15,
+    "CON": 82,
+    "CHARM": 10,
+    "SENSE": 110
+  },
+  "equip": {
+    "cap": {
+      "id": 95,
+      "grade": 1
+    },
+    "body": {
+      "id": 534,
+      "grade": 1
+    },
+    "back": {
+      "id": 747,
+      "grade": 1
+    },
+    "arms": {
+      "id": 95,
+      "grade": 1
+    },
+    "foot": {
+      "id": 95,
+      "grade": 1
+    },
+    "weapon": {
+      "id": 679,
+      "grade": 3
+    }
+  },
+  "ammo": 313,
+  "skills": [
+    1418,
+    1450,
+    1453,
+    1480,
+    1490,
+    1524,
+    1588,
+    1627,
+    1704,
+    1716,
+    7106
+  ],
+  "rotation": [
+    7106,
+    1704,
+    1588,
+    1490,
+    1627,
+    1524
+  ],
+  "skill_spacing": 1,
+  "summons": [
+    1716
+  ],
+  "buffs": [
+    {
+      "skill": 1453,
+      "caster_int": 0,
+      "caster_level": 0
+    }
+  ],
+  "potions": {
+    "enabled": true,
+    "hp": 132,
+    "hp_below": 70,
+    "mp": 134,
+    "mp_below": 50
+  },
+  "notes": "Auto build, average gear: the class armour set of the newest tier, best weapon, body; weapon +3, armour +1; no gems; 2599 skill points (passives 1261, actives 1338, 0 left). Arrow Shower raised to rank 10 (8 m) for the pathfinding plan Phase 1 AoE test, 2026-10-28."
+}

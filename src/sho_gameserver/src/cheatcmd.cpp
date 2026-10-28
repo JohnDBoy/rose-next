@@ -1049,16 +1049,15 @@ classUSER::Cheat_damage(char* pArg1, char* pArg2, char* pArg3) {
             }
         }
 
-        CObjCHAR* pTarget;
-        pTarget = (CObjCHAR*)this->AI_FindFirstOBJ(iDistance);
-        while (pTarget) {
-            if (pTarget->IsA(OBJ_MOB)) {
+        // Everyone in range first, then the damage (AI_CollectOBJs).
+        std::vector<CObjCHAR*> found;
+        this->AI_CollectOBJs(iDistance, found);
+        for (CObjCHAR* pTarget: found) {
+            if (pTarget->IsA(OBJ_MOB) && pTarget->Get_HP() > 0) {
                 if (iDamage >= pTarget->Get_HP())
                     pTarget->Set_HP(1);
                 this->Give_DAMAGE(pTarget, sDamage);
             }
-
-            pTarget = (CObjCHAR*)this->AI_FindNextOBJ();
         }
     }
     return CHEAT_PROCED;

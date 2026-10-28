@@ -129,10 +129,15 @@ public:
 
 #define nATTR_GRID_SIZE 500
     bool IsMovablePOS(int iXPos, int iYPos) {
-        int iY = iYPos / nATTR_GRID_SIZE;
-        if (iY >= 0 && iY < MAP_MOVE_ATTR_GRID_CNT)
-            return (0 == this->m_ppMoveATTR[iY]->GetBit(iXPos / nATTR_GRID_SIZE));
-        return false;
+        // Off the grid is off the map. X used to go unchecked, and GetBit reads 0
+        // (walkable) out of its range; -499..-1 also truncated into cell 0.
+        if (iXPos < 0 || iYPos < 0)
+            return false;
+        const int iX = iXPos / nATTR_GRID_SIZE;
+        const int iY = iYPos / nATTR_GRID_SIZE;
+        if (iX >= MAP_MOVE_ATTR_GRID_CNT || iY >= MAP_MOVE_ATTR_GRID_CNT)
+            return false;
+        return (0 == this->m_ppMoveATTR[iY]->GetBit(iX));
     }
 
     BYTE Is_DAY();

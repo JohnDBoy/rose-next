@@ -1,9 +1,13 @@
 """Per-chunk grid files: .HIM (heights), .TIL (tiles), .MOV (AI walkability).
 
-Layouts and sources: docs/mapgen/FORMATS.md. Row order matters and differs:
+Layouts and sources: docs/mapgen/FORMATS.md. Row order matters:
 
 * HIM and TIL: the first row in the file is the NORTH edge.
-* MOV: the first row is the SOUTH edge.
+* MOV: the data's first row is also the NORTH edge, but the game server
+  (`LoadMOV`) and the map editor read it as the SOUTH edge, so every painted
+  tile is mirrored north-south in game. Measured 2026-10-28 (regen points on
+  blocked cells: 85/736 as read, 0/736 flipped; see FORMATS.md). Left as is:
+  MOV is being retired (doc/pathfinding-and-z-plan.md).
 
 The arrays below are kept in file order. Helpers that flip them belong to the
 generator, not the codec.
@@ -166,7 +170,8 @@ def build_til(til):
 class Mov:
     width: int                  # 32
     height: int                 # 32
-    cells: np.ndarray           # (height, width) uint8, row 0 = SOUTH; 0 = AI may move
+    cells: np.ndarray           # (height, width) uint8, file order: row 0 = NORTH in the
+                                # data, read as SOUTH by the server; 0 = AI may move
     tail: bytes = b""
 
 

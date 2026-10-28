@@ -95,7 +95,7 @@ ZoneMeter::Publish(CZoneTHREAD& zone) {
     const std::string text = fmt::format(
         "zone {} {}: object work avg {:.2f} ms, p99 {:.2f} ms, max {:.2f} ms over {} ticks; "
         "longest tick {:.0f} ms; {} monsters, {} objects, up to {} players; "
-        "AI moves refused {} (leash {}), AoE scans clobbered {}",
+        "AI moves refused {} (leash {}), AoE casts a victim's AI scanned in {}",
         zone.Get_ZoneNO(),
         zone_name(zone),
         n ? dSum / n : 0.0,

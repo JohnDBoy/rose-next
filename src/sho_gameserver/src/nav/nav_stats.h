@@ -24,6 +24,8 @@ public:
 
     void CountMoveReject() { m_MoveRejects.fetch_add(1, std::memory_order_relaxed); }
     void CountLeashFail() { m_LeashFails.fetch_add(1, std::memory_order_relaxed); }
+    // An AoE cast during which a victim's AI ran a scan of its own. That broke the
+    // AoE until it collected its targets first (Phase 1); now it only counts.
     void CountScanClobber() { m_ScanClobbers.fetch_add(1, std::memory_order_relaxed); }
 
     /// The last finished minute, as text (empty before the first one).

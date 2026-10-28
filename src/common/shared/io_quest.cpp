@@ -2384,15 +2384,16 @@ F_QSTREWD029(uniQstENTITY* pREWD, tQST_PARAM* pPARAM, bool bDoReward) {
         PosGOTO.x = (float)pREWD->m_Rewd028.iX;
         PosGOTO.y = (float)pREWD->m_Rewd028.iY;
 
-        classUSER* pFindUSER;
-        CAI_OBJ* pFindCHAR = pPARAM->m_pOWNER->AI_FindFirstOBJ(pREWD->m_Rewd028.iRange);
-        while (pFindCHAR) {
+        // Everyone in range first, then the warps: a warp moves the user out of the
+        // sectors the zone scan is walking (CObjCHAR::AI_CollectOBJs).
+        std::vector<CObjCHAR*> found;
+        pPARAM->m_pOWNER->AI_CollectOBJs(pREWD->m_Rewd028.iRange, found);
+        for (CObjCHAR* pFindCHAR: found) {
             if (pFindCHAR->Get_ObjTYPE() >= OBJ_AVATAR) {
-                pFindUSER = (classUSER*)pFindCHAR;
+                classUSER* pFindUSER = (classUSER*)pFindCHAR;
                 if (pPARAM->m_pOWNER->GetClanID() == pFindUSER->GetClanID())
                     pFindUSER->Reward_WARP(pREWD->m_Rewd028.nZoneNo, PosGOTO);
             }
-            pFindCHAR = pPARAM->m_pOWNER->AI_FindNextOBJ();
         }
         return true;
     }

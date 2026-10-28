@@ -483,7 +483,7 @@ What was built:
   - New viewers and speed re-syncs get the leg the clients were last told.
   - The step clamp applies only to path legs; ordinary moves are unchanged.
 - **`nav_stats`, the zone meter.**
-  - Per zone, once a minute while the zone has players (or when its p99 is 30 ms or more): `nav: zone N …` with object work avg/p99/max, longest tick, monsters, players, AI moves refused, leash points refused, and AoE scans clobbered.
+  - Per zone, once a minute while the zone has players (or when its p99 is 30 ms or more): `nav: zone N …` with object work avg/p99/max, longest tick, monsters, players, AI moves refused, leash points refused, and AoE casts a victim's AI scanned in (since Phase 1 this only counts; it no longer breaks the AoE).
   - Server-wide, after a minute and then every 5 minutes: `nav: server: …` with zones, monsters, worst p99, private bytes and address space used.
 - **`nav_probe`, the `/nav` command:**
   - `/nav rec` starts recording your click-move corners;
@@ -519,6 +519,21 @@ What was built:
 - **Exit:** no regression in AoE or movement.
 - **Kill switch / size:** none needed; these are bug fixes. About 200 lines.
 - **Player notices:** AoE hits the whole pack every time.
+
+**Status (2026-10-28): validated in game.**
+- **Test:** Arrow Shower (rank 10, 8 m) on packs in Goblin Cave B1–B3, plus running into walls. No issues.
+- **Meter:** 0 AoE casts had a victim's AI scan mid-AoE over about 8 minutes. The traced iterator bug never fired with these monsters, so the fix is a safeguard for monster AI that does scan on DAMAGED.
+- **Test character:** ScoutRain on test@local (`scripts/combatsim/builds/test-scout-aoe-100.json`).
+
+What changed:
+- **`CObjCHAR::AI_CollectOBJs`.** The AoE damage loop, both area-status loops (`Skill_ChangeIngSTATUS`, `Skill_START_10_11`), GM `/damage` and quest REWD_028 now collect every target before touching any.
+  - The damage loop also skips a target that died since the scan.
+  - The meter keeps counting the casts where a victim's AI scanned mid-AoE, which is what used to break them.
+- **`CANTMOVE`** reads its own Z and updates the sector after the step back.
+- **`gsv_STOP`** carries `m_nPosZ` instead of pooled-packet garbage.
+- **AIACT_08** does nothing when the monster stands on its target, instead of dividing by zero.
+- **`IsMovablePOS`** returns false off the grid.
+- **MOV row order:** documented in `chunk.py` and FORMATS.md. The reader is unchanged (decision 8).
 
 ### Phase 2: bake and server Z (invisible)
 

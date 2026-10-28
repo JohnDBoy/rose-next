@@ -170,6 +170,14 @@ public:
     CAI_OBJ* AI_FindFirstOBJ(int iDistance);
     CAI_OBJ* AI_FindNextOBJ();
 
+    /// Every character a zone scan finds, collected before any of them is touched.
+    /// The zone has one scan iterator, and applying damage or a status runs the
+    /// victim's AI at once. That AI can scan too, and a loop over AI_FindNextOBJ
+    /// would then resume from its centre and radius, or end early. Anything that
+    /// acts on what it finds must collect first, then act.
+    void AI_CollectOBJs(tPOINTF& PosCENTER, int iDistance, std::vector<CObjCHAR*>& out);
+    void AI_CollectOBJs(int iDistance, std::vector<CObjCHAR*>& out);
+
 public:
     // nSkillIDX is display metadata for the client damage meter (skill
     // attribution in the DamageEvent packet); it does not affect damage or

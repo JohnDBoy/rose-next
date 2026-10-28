@@ -260,7 +260,17 @@ and its §6 decisions before touching movement, height or AoE shape. Phase 0 is 
 - **`nav_stats`: `CZoneTHREAD::m_NavMeter`.** It times the object `Proc` loop, which runs
   *after* the frame wait, so its cost stretches the tick. It counts:
   - AI moves the grid refused, and refused leash points;
-  - AoE scans whose shared iterator a victim's AI took over (`GetFindGEN`).
+  - AoE casts during which a victim's AI ran its own scan (`GetFindGEN`). That used
+    to take over the zone's single scan iterator and cut the AoE short. Since Phase 1,
+    everything that acts on a scan collects its targets first
+    (`CObjCHAR::AI_CollectOBJs`): the three skill loops, GM `/damage` and quest
+    REWD_028. Do the same in any new loop that damages, buffs or warps what it finds.
+    Pure AI scans, which do not call out, still walk the iterator directly.
+- **`IsMovablePOS`** returns false off the grid. It used to read an out-of-range X as
+  walkable.
+- **`.MOV` rows are mirrored north-south as loaded** (data is north-first, `LoadMOV`
+  reads south-first; see `docs/mapgen/FORMATS.md`). This was left as is on purpose:
+  MOV is retired once the baked walk grid lands.
 
   It logs `nav: zone …` once a minute while the zone has players, and `nav: server: …`
   every 5 minutes. Baseline on 2026-10-28: 14,151 monsters; worst p99 3.4 ms (Sikuku);
