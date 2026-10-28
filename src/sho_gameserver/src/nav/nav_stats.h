@@ -34,6 +34,8 @@ public:
     // fell back to its point's centre.
     void CountSpawnReroll() { m_SpawnRerolls.fetch_add(1, std::memory_order_relaxed); }
     void CountSpawnFallback() { m_SpawnFallbacks.fetch_add(1, std::memory_order_relaxed); }
+    // A leash or a summon follow whose line was blocked, walked straight anyway (until A*).
+    void CountStraightFallback() { m_StraightFallbacks.fetch_add(1, std::memory_order_relaxed); }
     // A client height report, and whether it was more than 1 m from every floor.
     void CountZHint(bool bMiss) {
         m_ZHints.fetch_add(1, std::memory_order_relaxed);
@@ -67,6 +69,7 @@ private:
     std::atomic<uint32_t> m_AggroMisses{0};
     std::atomic<uint32_t> m_SpawnRerolls{0};
     std::atomic<uint32_t> m_SpawnFallbacks{0};
+    std::atomic<uint32_t> m_StraightFallbacks{0};
     std::atomic<uint32_t> m_ZMisses{0};
 
     std::mutex m_TextMutex;

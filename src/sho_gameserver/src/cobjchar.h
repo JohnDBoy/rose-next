@@ -116,6 +116,18 @@ public:
     /// This character's height as the server sees it: m_nNavZ for a player, where the
     /// client draws it (GetHeightTop) for anyone else; NO_Z without a grid.
     float Nav_Z();
+    /// The floor this character walks on (m_nNavZ, placed if needed). Unlike Nav_Z, a monster's
+    /// is its own floor, not where the client draws it. NO_Z without a grid.
+    float Nav_WalkZ();
+    /// Whether the straight walk from here to (x, y) stays on walkable floors (and where it
+    /// stops, if not). True without a grid.
+    bool Nav_CanWalkTo(float fX, float fY, float* pLastX = nullptr, float* pLastY = nullptr);
+    /// An AI walk as far as the line allows: the whole way, or to where it is blocked if that is
+    /// at least a metre (flee).
+    bool Nav_MoveTowards(float fX, float fY, BYTE btRunMODE);
+    /// An AI walk that must not be refused (leash home, summon follow): the gated move, else
+    /// straight as before Phase 4, until pathfinding finds the way round.
+    bool Nav_MoveOrStraight(float fX, float fY, BYTE btRunMODE);
     /// Take ownership and start the path. False (and deleted) if it cannot start.
     bool Nav_Start(Nav::Agent* pAgent);
     void Nav_Stop();

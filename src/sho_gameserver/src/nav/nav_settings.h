@@ -21,6 +21,8 @@ struct Settings {
     std::atomic<int> aoe_band_slope_pct{70};
     std::atomic<int> mob_layer_aggro{1}; ///< monster scans (aggro, help calls) use the rule
     std::atomic<int> spawn_roofs{1}; ///< re-roll a spawn the client would draw on a roof
+    std::atomic<int> ai_walls{1}; ///< AI walks (wander, flee, leash, follow) must walk their line
+    std::atomic<int> spawn_reach{1}; ///< re-roll a spawn behind a wall or off the walkable ground
 };
 
 Settings& settings();

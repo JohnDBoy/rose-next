@@ -298,7 +298,14 @@ An aimed skill's area "bullet" effect (`CSkillManager::ActionSkill`, type 7) is 
 to the caster's facing: it stands in the world at true size, where a casting effect would be
 linked to the model and drawn at its scale (8x on Cerberus). The geometry samples `CTERRAIN::GetHeight` per vertex (lifted 20 cm: bilinear
 heights against a triangulated mesh) and goes to the engine's ground overlay
-(`::setGroundOverlay`, see `src/engine/CLAUDE.md`) every frame. Users: the Warden's Seal
+(`::setGroundOverlay`, see `src/engine/CLAUDE.md`) every frame. **The player's aim, and any
+shape centred on a deck** (more than 1.5 m over the terrain), take the surface nearest the
+centre's height instead (`CGroundTelegraphs::Height`, 2026-10-29): the terrain or the top of a
+walkable map object (`IsWalkableNode`: what `GetHeightTop` stands characters on), within 3 m
+above and 5 m below, blended over a 1 m world lattice. Each lattice point costs a ray through
+every object there, so they are cached (cleared per aim and per zone) and at most 40 are
+sampled a frame; an unsampled point falls back to the terrain. The aim itself picks a deck
+under the cursor first (`CSkillAim::MouseOnGround`). Users: the Warden's Seal
 Burst (7023, a circle) and Cerberus's Hellfire Breath (7022, a cone), `import-cerberus.py`;
 the Fearsome Terrasaurus King's Charge (3603, a 15 x 7 m strip down its lunge),
 `terrasaurus-charge.py` (2026-10-24, the first retrofit: the wind-up re-cut so the cast

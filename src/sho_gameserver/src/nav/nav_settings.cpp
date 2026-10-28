@@ -37,6 +37,8 @@ LoadSettings(const std::string& tomlPath) {
         {"aoe_band_slope_pct", &s.aoe_band_slope_pct},
         {"mob_layer_aggro", &s.mob_layer_aggro},
         {"spawn_roofs", &s.spawn_roofs},
+        {"ai_walls", &s.ai_walls},
+        {"spawn_reach", &s.spawn_reach},
     };
     for (const auto& k: keys) {
         int64_t v = 0;
@@ -45,9 +47,10 @@ LoadSettings(const std::string& tomlPath) {
         }
     }
     toml_free(t);
-    LOG_INFO("nav: aoe_vertical {} (band {} cm + {}%), mob_layer_aggro {}, spawn_roofs {}",
+    LOG_INFO("nav: aoe_vertical {} (band {} cm + {}%), mob_layer_aggro {}, spawn_roofs {}, ai_walls {}, "
+             "spawn_reach {}",
         s.aoe_vertical.load(), s.aoe_band_base_cm.load(), s.aoe_band_slope_pct.load(),
-        s.mob_layer_aggro.load(), s.spawn_roofs.load());
+        s.mob_layer_aggro.load(), s.spawn_roofs.load(), s.ai_walls.load(), s.spawn_reach.load());
 }
 
 bool

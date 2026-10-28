@@ -308,6 +308,22 @@ and its §6 decisions before touching movement, height or AoE shape. Phase 0 is 
   - **`m_nPosZ` is not it:** that is the client's start-of-move report, broadcast to others as
     the remote-avatar Z hint. Never overwrite it with server Z.
   - For anyone but a player, `Nav_Z()` returns where the client draws them.
+- **Walls for AI moves and spawns (Phase 4).** `Grid::LineWalk` walks a straight line cell by
+  cell over reached walkable floors, stepping 135 cm on terrain and STAIRS floors and 45 cm
+  where an object floor is involved (the bake's own link rule).
+  - Every moving character keeps `m_nNavZ`. For a monster, `Nav_WalkZ()` is the floor it walks
+    on, while `Nav_Z()` stays where it is drawn.
+  - `CObjCHAR::SetCMD_MOVE2D` checks the whole line (`Nav_CanWalkTo`) on a gridded zone instead
+    of the `.MOV` destination cell. Every zone has a grid, so the `.MOV` no longer gates
+    monster moves.
+  - **A move that must happen walks straight when blocked** (`Nav_MoveOrStraight`): the leash
+    (`Run_AWAY`, after 6 points), summon follow, AIACT_29. Only optional moves (wander, flee)
+    may give up, or a monster chases forever and a summon is stranded.
+  - Player orders and chases are not checked until Phase 5 (A*).
+  - Regen spawns also re-roll spots off the walkable ground or behind a wall from the point's
+    centre (`NavPickSpawn`).
+  - Switches: `[nav] ai_walls`, `spawn_reach`; `/nav set walls|reach`. Readouts: `/nav spawns`
+    (the nearest regen square) and `/nav walk` (your target to you).
 
 ## Dependencies
 

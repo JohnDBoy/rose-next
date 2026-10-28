@@ -641,6 +641,34 @@ Predicted roof re-rolls (same rule offline): Muris 11 of 37 points (worst (5269,
 - **Kill switch / size:** `ai_moves`, `spawn_reach`. About 300 lines of Python and 400 of C++.
 - **Player notices:** idle monsters stop walking through houses, trees and cave walls; nothing spawns in rock or outside the Goblin tunnels.
 
+**Status (2026-10-29): validated in game.** Goblin Cave spawns stayed out of the rock, wanderers kept off the walls, leashed monsters ran home, and the aim circle lies on the Shady Jungle bridge planks.
+
+What changed:
+- **`Grid::LineWalk`** walks a straight line cell by cell over reached, walkable floors, with the bake's own step rule: 135 cm on terrain and stairs, 45 cm involving an object floor.
+  - The bake gained a STAIRS span flag (HEIGHTONLY floors) so stairs keep the 135 cm step at run time. All zones were re-baked.
+  - The start may be any floor, so a walker steps out of a blocked cell.
+- **Walk floor for monsters:** every moving character now keeps `m_nNavZ`. A regen spawn starts on its floor, and any other monster on the walkable floor nearest where the client drops it.
+  - `Nav_Z()` for a monster still returns where it is drawn (Stage A, for the vertical rule).
+  - `Nav_WalkZ()` returns the floor it walks on.
+- **`CObjCHAR::SetCMD_MOVE2D`** checks the whole line on the grid, not the `.MOV` destination cell. The `.MOV` stays only for zones without a grid; every zone has one now.
+  - Wander (AIACT_03/04) draws again up to 3 times, then rests that tick.
+  - Flee (AIACT_08) goes as far as the line allows (`Nav_MoveTowards`).
+  - "Move next to the found character" (AIACT_05) gives up that tick when the line is blocked, until A* (Phase 5) finds the way round.
+  - The leash (`Run_AWAY`) tries 6 points, then walks straight anyway (`Nav_MoveOrStraight`), so a monster never chases forever.
+  - Summon follow (the `CObjSUMMON::Proc` loop and AIACT_29) walks straight when its line is blocked, so it is never stranded.
+  - Player orders and chases are unchanged, until Phase 5.
+- **Regen spawns** (`NavPickSpawn`) also re-roll a spot with no reached walkable floor, or behind a wall from the point's centre (`LineWalk` from the anchor). The centre is the fallback.
+- **Switches:** `ai_walls` and `spawn_reach` in `[nav]` and in `/nav set` (`walls`, `reach`).
+- **Zone line:** adds the blocked leash and follow walks that went straight.
+- **Readouts:** `/nav spawns` samples the nearest regen point's square 200 times and counts the spots in rock or off the walkable ground, behind a wall and under a roof. `/nav walk` says whether your target could walk straight to you, or where a wall stops it.
+  - The worst Goblin spawn squares (share with no reached floor): B1 (5162, 5058) m at 8%, B3 (5243, 5357) m at 8%, B2 (5396, 5534) m at 6%.
+- **Client, done early** (it was a Phase 7 item; the user asked for it):
+  - The aim circle (`CSkillAim::MouseOnGround`) picks walkable map objects (decks, platforms) along the mouse ray, within the skill's reach plus 20 m, before the terrain.
+  - Ground telegraphs (`CGroundTelegraphs::Height`): the player's aim, and any shape centred on a deck, take the surface nearest the centre's height, the terrain or the top of a walkable map object, within 3 m above and 5 m below. Past a deck's edge, with nothing in reach, the shape hangs flat. Boss telegraphs on the ground drape over the terrain as before.
+    - The object tops are sampled by a ray down at each point of a 1 m world lattice, cached and blended. At most 40 points are sampled a frame, so a new aim settles over a few frames.
+    - **First in-game test (2026-10-29):** the circle was at the deck's height but invisible on the planks. The engine drew the overlay right after the terrain without writing depth, so every map object drawn later painted over it. It is now drawn after the opaque objects, still z-tested, so it shows on planks and hides behind whatever stands in front of it.
+  - When the range clamp moves an aim that is on a deck, it keeps the deck's height.
+
 ### Phase 5: pathfinding (server only)
 
 - **Changes:**

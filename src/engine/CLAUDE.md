@@ -188,10 +188,12 @@ engine timer the same way -- ungated, its accumulators also never reset and wrap
 `::setGroundOverlay(xyz_cm, argb, count)` hands the engine translucent triangles to lay on
 the terrain (the client's boss telegraphs). It **replaces** one buffer
 (`zz_scene_octree::ground_overlay`), so the client sends it every frame and an empty one
-when it has nothing; it never grows. `render_cull` draws it right after the terrain and
-before everything else (`draw_ground_overlay` ->
+when it has nothing; it never grows. `render_cull` draws it after the opaque objects and
+before the transparent ones (`draw_ground_overlay` ->
 `zz_renderer_d3d::draw_ground_triangles`): fixed function, vertex colours, z-tested, no
-z-write, so rocks hide it and characters stand over it. It is `DrawPrimitiveUP` from
+z-write, so rocks hide it and characters stand over it. **It used to be drawn right after
+the terrain** (until 2026-10-29): with no z-write, every map object drawn later painted
+over it, so a shape on a bridge deck vanished under the planks. It is `DrawPrimitiveUP` from
 client memory, so nothing lives on the device and a reset has nothing to rebuild. Every
 raw render, texture-stage and transform state it changes is read back and restored, so
 the renderer's own flags (`state.use_alpha`, `use_fog`) stay true; only the shader

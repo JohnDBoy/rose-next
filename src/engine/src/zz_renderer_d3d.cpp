@@ -5292,7 +5292,7 @@ void zz_renderer_d3d::draw_camera_frustum()
 }
 
 // The ground overlay (zz_scene_octree::draw_ground_overlay; 2026-10-18): translucent
-// coloured triangles over the terrain drawn so far. Fixed function, vertex colours only, no
+// coloured triangles over the terrain and opaque objects drawn so far. Fixed function, vertex colours only, no
 // texture; z-tested, no z-write. Drawn from client memory (DrawPrimitiveUP), so nothing
 // lives on the device and a reset has nothing to rebuild. Every raw state it changes is
 // read back and restored, so the renderer's own bookkeeping (state.use_alpha, use_fog, ...)

@@ -11,6 +11,9 @@ constexpr short NO_Z = -32768;
 
 /// The avatar's step (UpdateFootHeight_Avatar casts down from foot + 135 cm).
 constexpr float STEP_CM = 135.f;
+/// What an object floor allows between neighbouring cells: the avatar's forward body sphere
+/// stops it on any mesh steeper than about 20 degrees (scripts/mapgen/navbake.py, rule 4).
+constexpr float OBJ_STEP_CM = 45.f;
 
 enum SpanFlag : unsigned char {
     SPAN_WALK = 1, ///< nothing 30-180 cm above it: a body fits
@@ -18,6 +21,7 @@ enum SpanFlag : unsigned char {
     SPAN_TERRAIN = 4,
     SPAN_UP = 8, ///< an up-facing floor (or the terrain)
     SPAN_HAZARD = 16, ///< the client would draw a monster here 3 m+ higher (a roof)
+    SPAN_STAIRS = 32, ///< a floor on HEIGHTONLY parts: links at the terrain's step, not 45 cm
 };
 
 /// One floor at a spot.
@@ -62,8 +66,17 @@ public:
     /// lowest floor when every one is higher (it falls). The avatar's own rule.
     float FollowZ(float fromZ, float fromX, float fromY, float toX, float toY) const;
 
-    /// The floor nearest z within 'within' cm at a world position; false if none.
-    bool NearestSpan(float x, float y, float z, float within, Span& out) const;
+    /// The floor nearest z within 'within' cm at a world position whose flags include all of
+    /// 'mask'; false if none.
+    bool NearestSpan(float x, float y, float z, float within, Span& out, unsigned char mask = 0) const;
+
+    /// Walk the straight line from (x0, y0) at height z0 to (x1, y1) cell by cell over reached,
+    /// walkable floors, with the bake's step rule (135 cm on terrain and stairs, 45 cm where an
+    /// object floor is involved). The start may be any floor (a walker steps out of a blocked
+    /// cell). True if it gets there; either way pLastX/pLastY (if given) receive the last cell
+    /// centre it reached, or the end point.
+    bool LineWalk(float x0, float y0, float z0, float x1, float y1, float* pLastX = nullptr,
+        float* pLastY = nullptr) const;
 
     /// The floor a regen point's monsters belong to, as the bake resolved it (the point's
     /// authored height, or where the client drops a spawn), or NO_Z for a position that is

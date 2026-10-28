@@ -15,6 +15,17 @@ const float PI = 3.14159265f;
 const float LIFT_CM = 20.f; // over the terrain: GetHeight is bilinear, the mesh is triangles
 const float SEGMENT_CM = 80.f; // rim length per segment
 const float STEP_CM = 100.f; // spacing of the points the terrain is sampled on
+// A shape whose centre stands this far over the terrain is on a deck or a platform.
+const float FLAT_CM = 150.f;
+// Map-object surfaces (Height): sampled on a 1 m world lattice, a surface counted when it is
+// within this much above or below the shape's centre (the server's vertical band base is
+// 5 m), a few lattice points a frame (each is a ray through every object there).
+const float SURF_CELL_CM = 100.f;
+const float SURF_UP_CM = 300.f;
+const float SURF_DOWN_CM = 500.f;
+const float SURF_RAY_CM = 100000.f; // the rays start this high
+const int SURF_POINTS_PER_FRAME = 40;
+const size_t SURF_CACHE_MAX = 40000;
 const int MIN_SEGMENTS = 4;
 const int MIN_CIRCLE_SEGMENTS = 24;
 const int MAX_SEGMENTS = 96;
@@ -96,6 +107,7 @@ CGroundTelegraphs::OnCastStart(CObjCHAR* pCaster, short nSkillIDX, unsigned long
     t.dwStart = ::GetTickCount();
     t.dwCastMS = dwCastMS ? dwCastMS : DEFAULT_CAST_MS;
     t.dwFiredAt = 0;
+    t.bSurfaces = false;
 
     Aim(t, pCaster);
 
@@ -163,6 +175,7 @@ CGroundTelegraphs::Update() {
     const unsigned long now = ::GetTickCount();
     m_XYZ.clear();
     m_Colors.clear();
+    m_iSurfaceBudget = SURF_POINTS_PER_FRAME;
 
     for (size_t i = 0; i < m_List.size();) {
         Telegraph& t = m_List[i];
@@ -209,6 +222,7 @@ CGroundTelegraphs::Update() {
 void
 CGroundTelegraphs::Forget() {
     m_List.clear();
+    m_Surfaces.clear();
     if (m_bSent) {
         ::setGroundOverlay(NULL, NULL, 0);
         m_bSent = false;
@@ -217,10 +231,16 @@ CGroundTelegraphs::Forget() {
 
 void
 CGroundTelegraphs::SetPreview(const D3DXVECTOR3& posCaster, const D3DXVECTOR3& posAim, short nSkillIDX) {
+    // A new aim samples the map objects afresh: the cache may hold points sampled before
+    // the objects there had streamed in.
+    if (!m_bPreview)
+        m_Surfaces.clear();
+
     Telegraph t = {};
     t.nObjIdx = -1;
     t.pCaster = NULL;
     t.nSkillIDX = nSkillIDX;
+    t.bSurfaces = true;
     t.shape = SHAPE_CIRCLE;
     t.fDirX = 1.f;
     t.fDirY = 0.f;
@@ -252,13 +272,123 @@ CGroundTelegraphs::SetPreview(const D3DXVECTOR3& posCaster, const D3DXVECTOR3& p
     m_bPreview = t.fLength > 0.f && r.fLength > 0.f;
 }
 
+bool
+CGroundTelegraphs::IsWalkableNode(unsigned int hNode) {
+    const HNODE h = hNode;
+    if (!h || ::isA(h, ZZ_TYPE_TERRAIN) || ::isA(h, ZZ_TYPE_OCEAN) || ::isA(h, ZZ_TYPE_MODEL)
+        || ::isDescendantOfType(h, ZZ_TYPE_MODEL))
+        return false;
+    const int level = ::getCollisionLevel(h);
+    if ((level & 0x7) == ZZ_CL_NONE || ZZ_IS_NOTMOVEABLE(level))
+        return false;
+    if (HNODE ud = ::getUserData(h)) {
+        if (reinterpret_cast<CGameOBJ*>(ud)->IsA(OBJ_ITEM))
+            return false;
+    }
+    return true;
+}
+
+// The terrain alone drew a shape aimed on a bridge deck on the ground far below, and drew
+// any shape under the planks of a platform. The player's aim, and a shape whose centre
+// stands on a deck, take the surface nearest the centre's height among the terrain and
+// the walkable map objects; anything else drapes over the terrain as before.
 float
-CGroundTelegraphs::Height(const Telegraph& t, float fX, float fY) const {
+CGroundTelegraphs::Height(const Telegraph& t, float fX, float fY) {
     bool bNotFound = false;
-    float fZ = g_pTerrain ? g_pTerrain->GetHeight(fX, fY, &bNotFound) : t.fZ;
+    const float fTerrain = g_pTerrain ? g_pTerrain->GetHeight(fX, fY, &bNotFound) : t.fZ;
     if (!g_pTerrain || bNotFound)
-        fZ = t.fZ;
-    return fZ + LIFT_CM;
+        return t.fZ + LIFT_CM;
+    bool bNF = false;
+    const float fCentre = g_pTerrain->GetHeight(t.fX, t.fY, &bNF);
+    const bool bRaised = bNF || t.fZ > fCentre + FLAT_CM; // centred on a deck or a platform
+    float fZ;
+    if ((t.bSurfaces || bRaised) && this->SurfaceHeight(t, bRaised, fX, fY, fZ))
+        return fZ + LIFT_CM;
+    // the terrain; on a deck not sampled yet, flat at the centre's height away from it
+    if (bRaised && fabsf(fTerrain - t.fZ) > FLAT_CM)
+        return t.fZ + LIFT_CM;
+    return fTerrain + LIFT_CM;
+}
+
+bool
+CGroundTelegraphs::SurfaceHeight(const Telegraph& t, bool bRaised, float fX, float fY, float& fOut) {
+    const float gx = fX / SURF_CELL_CM, gy = fY / SURF_CELL_CM;
+    const int ix = (int)floorf(gx), iy = (int)floorf(gy);
+    const float fx = gx - ix, fy = gy - iy;
+    float h[4];
+    bool bObject = false;
+    for (int k = 0; k < 4; ++k) {
+        const int px = ix + (k & 1), py = iy + (k >> 1);
+        SurfacePoint p;
+        if (!this->SurfacePointAt(px, py, p))
+            return false;
+        bool bNF = false;
+        const float fTerrain = g_pTerrain->GetHeight(px * SURF_CELL_CM, py * SURF_CELL_CM, &bNF);
+        // the surface nearest the centre's height, within reach of it
+        float fBest = 0.f, fBestD = 1.0e30f;
+        bool bTop = false;
+        if (!bNF && fTerrain <= t.fZ + SURF_UP_CM && fTerrain >= t.fZ - SURF_DOWN_CM) {
+            fBest = fTerrain;
+            fBestD = fabsf(fTerrain - t.fZ);
+        }
+        for (int i = 0; i < p.n; ++i) {
+            const float z = p.fTop[i];
+            const float d = fabsf(z - t.fZ);
+            if (z <= t.fZ + SURF_UP_CM && z >= t.fZ - SURF_DOWN_CM && d < fBestD) {
+                fBest = z;
+                fBestD = d;
+                bTop = true;
+            }
+        }
+        if (fBestD > 1.0e29f) {
+            // nothing in reach: past a deck's edge the shape hangs flat; on the ground it
+            // stays on the terrain
+            if (bRaised) {
+                fBest = t.fZ;
+                bTop = true;
+            } else {
+                fBest = bNF ? t.fZ : fTerrain;
+            }
+        }
+        h[k] = fBest;
+        bObject = bObject || bTop;
+    }
+    if (!bObject)
+        return false;
+    fOut = (h[0] * (1.f - fx) + h[1] * fx) * (1.f - fy) + (h[2] * (1.f - fx) + h[3] * fx) * fy;
+    return true;
+}
+
+bool
+CGroundTelegraphs::SurfacePointAt(int iX, int iY, SurfacePoint& out) {
+    const long long key = ((long long)iX << 32) | (unsigned int)iY;
+    const std::unordered_map<long long, SurfacePoint>::const_iterator it = m_Surfaces.find(key);
+    if (it != m_Surfaces.end()) {
+        out = it->second;
+        return true;
+    }
+    if (m_iSurfaceBudget <= 0)
+        return false;
+    --m_iSurfaceBudget;
+    if (m_Surfaces.size() >= SURF_CACHE_MAX)
+        m_Surfaces.clear();
+
+    SurfacePoint p = {};
+    const float x = iX * SURF_CELL_CM, y = iY * SURF_CELL_CM;
+    float vMin[3] = {x - 1.f, y - 1.f, -SURF_RAY_CM};
+    float vMax[3] = {x + 1.f, y + 1.f, SURF_RAY_CM};
+    const int n = ::collectByMinMaxVec3(vMin, vMax);
+    for (int i = 0; i < n && p.n < 4; ++i) {
+        const HNODE h = ::getCollectNode(i);
+        if (!IsWalkableNode(h))
+            continue;
+        float cx, cy, cz, dist;
+        if (::intersectRay(h, x, y, SURF_RAY_CM, 0.f, 0.f, -1.f, &cx, &cy, &cz, &dist))
+            p.fTop[p.n++] = cz;
+    }
+    m_Surfaces[key] = p;
+    out = p;
+    return true;
 }
 
 template <class PosFn>

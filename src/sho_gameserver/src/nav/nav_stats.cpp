@@ -103,13 +103,15 @@ ZoneMeter::Publish(CZoneTHREAD& zone) {
     const uint32_t nAggro = m_AggroMisses.exchange(0, std::memory_order_relaxed);
     const uint32_t nReroll = m_SpawnRerolls.exchange(0, std::memory_order_relaxed);
     const uint32_t nFallback = m_SpawnFallbacks.exchange(0, std::memory_order_relaxed);
+    const uint32_t nStraight = m_StraightFallbacks.exchange(0, std::memory_order_relaxed);
 
     const std::string text = fmt::format(
         "zone {} {}: object work avg {:.2f} ms, p99 {:.2f} ms, max {:.2f} ms over {} ticks; "
         "longest tick {:.0f} ms; {} monsters, {} objects, up to {} players; "
         "AI moves refused {} (leash {}), AoE casts a victim's AI scanned in {}, "
         "client heights off the walk grid {} of {}; out of vertical reach: {} in areas, {} in "
-        "monster scans; roof spawns re-rolled {}, at the centre {}",
+        "monster scans; spawns re-rolled (roof, wall or off the ground) {}, at the centre {}; "
+        "blocked leash/follow walked straight {}",
         zone.Get_ZoneNO(),
         zone_name(zone),
         n ? dSum / n : 0.0,
@@ -128,7 +130,8 @@ ZoneMeter::Publish(CZoneTHREAD& zone) {
         nVert,
         nAggro,
         nReroll,
-        nFallback);
+        nFallback,
+        nStraight);
 
     if (m_iMaxUsers > 0 || fP99 >= LOG_P99_MS) {
         LOG_INFO("nav: {}", text);

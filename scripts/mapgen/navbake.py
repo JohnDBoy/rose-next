@@ -450,7 +450,7 @@ def bake(data_dir, row, log=print):
     kt = tile_of[korder]
     flags_n = (walk.astype(np.uint8) * lnav.WALK | reached.astype(np.uint8) * lnav.REACHED
                | nterrain.astype(np.uint8) * lnav.TERRAIN | nup.astype(np.uint8) * lnav.UP
-               | hazard.astype(np.uint8) * lnav.HAZARD)
+               | hazard.astype(np.uint8) * lnav.HAZARD | nho.astype(np.uint8) * lnav.STAIRS)
     tnode2 = tnode.reshape(NY, NX)
     for ty in range(nty):
         for tx in range(ntx):

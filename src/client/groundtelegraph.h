@@ -1,5 +1,6 @@
 #pragma once
 
+#include <unordered_map>
 #include <vector>
 
 #include <d3dx9math.h>
@@ -27,7 +28,9 @@ class CObjCHAR;
 ///
 /// The geometry follows the terrain (CTERRAIN::GetHeight per vertex, lifted a little)
 /// and goes to the engine's ground overlay (::setGroundOverlay) every frame, drawn
-/// right after the terrain: z-tested, so rocks hide it and characters stand over it.
+/// after the opaque map objects and characters: z-tested, so rocks hide it and characters
+/// stand over it, and it shows on a bridge deck. The player's aim, and any shape whose
+/// centre stands on a deck, follows the walkable map objects too (Height).
 class CGroundTelegraphs {
 public:
     static CGroundTelegraphs& Instance();
@@ -49,6 +52,10 @@ public:
     void SetPreview(const D3DXVECTOR3& posCaster, const D3DXVECTOR3& posAim, short nSkillIDX);
     void ClearPreview() { m_bPreview = false; }
 
+    /// A map object a character can stand on, as CTERRAIN::GetHeightTop counts them: a
+    /// collision level other than none, not "not moveable", not a character or an item.
+    static bool IsWalkableNode(unsigned int hNode);
+
 private:
     enum Shape { SHAPE_CIRCLE, SHAPE_CONE, SHAPE_STRIP };
 
@@ -65,6 +72,14 @@ private:
         unsigned long dwStart;
         unsigned long dwCastMS;
         unsigned long dwFiredAt; // 0 while casting; else when it fired (the flash)
+        bool bSurfaces; // follow the map objects as well as the terrain (the player's aim)
+    };
+
+    /// The tops of the walkable map objects at one point of a 1 m world lattice: a ray
+    /// down through each object found there. Cached for the zone (map objects stay put).
+    struct SurfacePoint {
+        float fTop[4];
+        unsigned char n;
     };
 
     CGroundTelegraphs() {}
@@ -76,7 +91,14 @@ private:
     /// The area, a bright rim over its outline (and a cone's or strip's sides).
     void AddOutline(const Telegraph& t, unsigned long rgb, unsigned long alphaArea, unsigned long alphaRim);
     bool StillCasting(const Telegraph& t) const;
-    float Height(const Telegraph& t, float fX, float fY) const;
+    /// The height a shape's point is drawn at (lifted): the terrain; or, for the player's
+    /// aim and for a shape centred on a deck, the surface nearest its centre's height.
+    float Height(const Telegraph& t, float fX, float fY);
+    /// The blend of the surfaces chosen at the four lattice points round fX, fY. False when
+    /// they are all the terrain (drape it as before) or one is not sampled yet.
+    bool SurfaceHeight(const Telegraph& t, bool bRaised, float fX, float fY, float& fOut);
+    /// The lattice point's object tops, sampled now if this frame's budget allows.
+    bool SurfacePointAt(int iX, int iY, SurfacePoint& out);
 
     /// A grid of (nRows + 1) x (nCols + 1) points on the terrain, pos(fRow, fCol) giving
     /// each point's world x, y for fractions 0..1; its colour goes from c0 on row 0 to c1
@@ -103,4 +125,6 @@ private:
     bool m_bPreview = false;
     Telegraph m_Preview; // the aimed area
     Telegraph m_PreviewRange; // the ring at the skill's range, around the player
+    std::unordered_map<long long, SurfacePoint> m_Surfaces; // lattice point -> object tops
+    int m_iSurfaceBudget = 0; // lattice points still allowed this frame (each is a few rays)
 };

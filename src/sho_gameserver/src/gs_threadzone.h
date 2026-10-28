@@ -86,7 +86,7 @@ private:
     DWORD m_dwFindGEN = 0; // +1 per FindFirstCHAR: tells a scan it was taken over
     float m_fFindBandZ = Nav::NO_Z; // a monster scan's height, for the vertical rule
     bool FindInBand(CObjCHAR* pChar);
-    void NavPickSpawn(CRegenPOINT* pRegen, float& fX, float& fY);
+    float NavPickSpawn(CRegenPOINT* pRegen, float& fX, float& fY);
 
     void DeleteZoneOBJ();
 

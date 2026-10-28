@@ -323,7 +323,14 @@ CObjCHAR::Nav_TrackZ() {
     }
     const float dx = m_PosCUR.x - m_PosNavLAST.x, dy = m_PosCUR.y - m_PosNavLAST.y;
     if (Nav::NO_Z == m_nNavZ || dx * dx + dy * dy > NAV_JUMP_CM * NAV_JUMP_CM) {
-        const float z = pGrid->VisualTopZ(m_PosCUR.x, m_PosCUR.y);
+        // where the client drops it; a monster then takes the walkable floor nearest that (a
+        // player stands where the client put it)
+        float z = pGrid->VisualTopZ(m_PosCUR.x, m_PosCUR.y);
+        Nav::Span span;
+        if (Nav::NO_Z != z && !this->IsUSER()
+            && pGrid->NearestSpan(m_PosCUR.x, m_PosCUR.y, z, 1.0e6f, span, Nav::SPAN_WALK | Nav::SPAN_REACHED)) {
+            z = span.z;
+        }
         m_nNavZ = Nav::NO_Z == z ? Nav::NO_Z : nav_short(z);
     } else {
         m_nNavZ = nav_short(pGrid->FollowZ(m_nNavZ, m_PosNavLAST.x, m_PosNavLAST.y, m_PosCUR.x, m_PosCUR.y));
@@ -376,6 +383,63 @@ CObjCHAR::Nav_Z() {
         return m_nNavZ;
     }
     return pGrid->VisualTopZ(m_PosCUR.x, m_PosCUR.y);
+}
+
+float
+CObjCHAR::Nav_WalkZ() {
+    Nav::Grid* pGrid = this->GetZONE() ? this->GetZONE()->NavGrid() : nullptr;
+    if (!pGrid) {
+        return Nav::NO_Z;
+    }
+    if (Nav::NO_Z == m_nNavZ) {
+        this->Nav_TrackZ();
+    }
+    return m_nNavZ;
+}
+
+bool
+CObjCHAR::Nav_CanWalkTo(float fX, float fY, float* pLastX, float* pLastY) {
+    Nav::Grid* pGrid = this->GetZONE() ? this->GetZONE()->NavGrid() : nullptr;
+    const float z = this->Nav_WalkZ();
+    if (!pGrid || Nav::NO_Z == z) {
+        if (pLastX) {
+            *pLastX = fX;
+            *pLastY = fY;
+        }
+        return true;
+    }
+    return pGrid->LineWalk(m_PosCUR.x, m_PosCUR.y, z, fX, fY, pLastX, pLastY);
+}
+
+bool
+CObjCHAR::Nav_MoveTowards(float fX, float fY, BYTE btRunMODE) {
+    if (this->SetCMD_MOVE2D(fX, fY, btRunMODE)) {
+        return true;
+    }
+    float fLX, fLY;
+    if (this->Nav_CanWalkTo(fX, fY, &fLX, &fLY)) {
+        return false; // refused for another reason (the MOV grid, a skill)
+    }
+    const float dx = fLX - m_PosCUR.x, dy = fLY - m_PosCUR.y;
+    if (dx * dx + dy * dy < 100.f * 100.f) {
+        return false;
+    }
+    return this->SetCMD_MOVE2D(fLX, fLY, btRunMODE);
+}
+
+bool
+CObjCHAR::Nav_MoveOrStraight(float fX, float fY, BYTE btRunMODE) {
+    if (this->SetCMD_MOVE2D(fX, fY, btRunMODE)) {
+        return true;
+    }
+    if (!this->GetZONE() || !this->GetZONE()->NavGrid()) {
+        return false; // no grid: the MOV refusal stands, as before
+    }
+    if (!CObjAI::SetCMD_MOVE2D(fX, fY, btRunMODE)) {
+        return false;
+    }
+    this->GetZONE()->m_NavMeter.CountStraightFallback();
+    return this->Send_gsv_MOVE();
 }
 
 // The last corner: stop there like any AI move (the clients stop on their own
@@ -1109,7 +1173,11 @@ CObjCHAR::SetCMD_MOVE(tPOINTF& PosCUR, tPOINTF& PosTO, int iTargetObjIDX) {
 bool
 CObjCHAR::SetCMD_MOVE2D(float fPosX, float fPosY, BYTE btRunMODE) {
     // 인공지능에서 호출되는 이동함수 !!!
-    if (!this->GetZONE()->IsMovablePOS((int)fPosX, (int)fPosY)) {
+    // With a walk grid, the whole straight walk must stay on walkable floors (Phase 4); without
+    // one, only the destination's MOV cell is checked, as before.
+    const bool bGrid = this->GetZONE()->NavGrid() && Nav::settings().ai_walls.load(std::memory_order_relaxed);
+    if (bGrid ? !this->Nav_CanWalkTo(fPosX, fPosY)
+              : !this->GetZONE()->IsMovablePOS((int)fPosX, (int)fPosY)) {
         this->GetZONE()->m_NavMeter.CountMoveReject();
         return false;
     }
@@ -2328,9 +2396,7 @@ CObjCHAR::RealProc(DWORD dwPassTIME) {
         } else {
             m_PosCUR += (m_MoveVEC * dwPassTIME);
         }
-        if (this->IsUSER()) {
-            this->Nav_TrackZ();
-        }
+        this->Nav_TrackZ(); // players and monsters: the floor each one walks on
         if (!this->GetZONE()->UpdateSECTOR(this)) { // 섹터 변환이 있을경우 호출하는 함수.
             // 좌표가 이상한넘이다 짤러 !!!
             return 0;

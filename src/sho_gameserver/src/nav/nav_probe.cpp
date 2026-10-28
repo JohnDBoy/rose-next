@@ -223,6 +223,75 @@ cmd_aoe(classUSER& user, const std::vector<std::string>& args) {
     }
 }
 
+// The nearest regen point's spawn square, sampled with the spawn rules (Phases 3 and 4):
+// how many random spots each rule would send back for another draw.
+void
+cmd_spawns(classUSER& user) {
+    CZoneTHREAD* pZone = user.GetZONE();
+    Grid* pGrid = pZone ? pZone->NavGrid() : nullptr;
+    CRegenPOINT* pRegen = pZone ? pZone->GetRegenPOINT(pZone->GetNearstRegenPOINT(user.m_PosCUR)) : nullptr;
+    if (!pGrid || !pRegen) {
+        user.send_server_whisper("No walk grid or no regen point here.");
+        return;
+    }
+    const float fAnchor = pGrid->AnchorZ(pRegen->m_fXPos, pRegen->m_fYPos);
+    if (NO_Z == fAnchor) {
+        user.send_server_whisper("This regen point has no baked floor (re-run scripts/nav-bake.py).");
+        return;
+    }
+    if (pRegen->m_iRange <= 0) {
+        user.send_server_whisper("This regen point spawns on its centre only.");
+        return;
+    }
+    const int N = 200;
+    int iOff = 0, iWall = 0, iRoof = 0;
+    for (int i = 0; i < N; ++i) {
+        // drawn as RegenCharacter draws them
+        const float x = pRegen->m_fXPos - pRegen->m_iRange + RANDOM(pRegen->m_iRange * 2);
+        const float y = pRegen->m_fYPos - pRegen->m_iRange + RANDOM(pRegen->m_iRange * 2);
+        Span s;
+        if (!pGrid->NearestSpan(x, y, fAnchor, 1.0e6f, s, SPAN_WALK | SPAN_REACHED)) {
+            ++iOff;
+        } else if (!pGrid->LineWalk(pRegen->m_fXPos, pRegen->m_fYPos, fAnchor, x, y)) {
+            ++iWall;
+        } else {
+            Span any;
+            const float fTop = pGrid->VisualTopZ(x, y);
+            if (pGrid->NearestSpan(x, y, fAnchor, 1.0e6f, any) && NO_Z != fTop && fTop - any.z > 300.f)
+                ++iRoof;
+        }
+    }
+    user.send_server_whisper(fmt::format("Nearest regen point ({:.0f}, {:.0f}) m, spawn square +/-{:.0f} m: of {} random spots, "
+                                         "{} in rock or off the walkable ground, {} behind a wall, {} under a roof.",
+        pRegen->m_fXPos / 100.f, pRegen->m_fYPos / 100.f, pRegen->m_iRange / 100.f, N, iOff, iWall, iRoof));
+    user.send_server_whisper(fmt::format("Those are drawn again now (reach {}, roofs {}); before Phase 3/4 they spawned there.",
+        settings().spawn_reach.load(), settings().spawn_roofs.load()));
+}
+
+// Whether your target could walk straight to you on the grid, or where a wall stops it.
+void
+cmd_walk(classUSER& user) {
+    CZoneTHREAD* pZone = user.GetZONE();
+    Grid* pGrid = pZone ? pZone->NavGrid() : nullptr;
+    CObjCHAR* pTarget = (CObjCHAR*)user.Get_TARGET(true);
+    if (!pGrid || !pTarget || pTarget == &user || pTarget->GetZONE() != pZone) {
+        user.send_server_whisper("Target a monster first (click it), then /nav walk.");
+        return;
+    }
+    float fLX, fLY;
+    const bool bOpen = pGrid->LineWalk(pTarget->m_PosCUR.x, pTarget->m_PosCUR.y, pTarget->Nav_WalkZ(),
+        user.m_PosCUR.x, user.m_PosCUR.y, &fLX, &fLY);
+    const float dx = user.m_PosCUR.x - pTarget->m_PosCUR.x, dy = user.m_PosCUR.y - pTarget->m_PosCUR.y;
+    const float fx = fLX - pTarget->m_PosCUR.x, fy = fLY - pTarget->m_PosCUR.y;
+    if (bOpen) {
+        user.send_server_whisper(fmt::format("{} could walk straight to you ({:.1f} m): nothing in the way.",
+            pTarget->Get_NAME(), sqrtf(dx * dx + dy * dy) / 100.f));
+    } else {
+        user.send_server_whisper(fmt::format("{} could not walk straight to you ({:.1f} m): blocked after {:.1f} m, at ({:.1f}, {:.1f}).",
+            pTarget->Get_NAME(), sqrtf(dx * dx + dy * dy) / 100.f, sqrtf(fx * fx + fy * fy) / 100.f, fLX / 100.f, fLY / 100.f));
+    }
+}
+
 void
 cmd_set(classUSER& user, const std::vector<std::string>& args) {
     Settings& s = settings();
@@ -236,6 +305,8 @@ cmd_set(classUSER& user, const std::vector<std::string>& args) {
         {"slope", &s.aoe_band_slope_pct, "band growth, % of the horizontal distance"},
         {"aggro", &s.mob_layer_aggro, "monster scans use the rule: 0 / 1"},
         {"roofs", &s.spawn_roofs, "re-roll spawns drawn on a roof: 0 / 1"},
+        {"walls", &s.ai_walls, "idle walks (wander, flee, leash, follow) avoid walls: 0 / 1"},
+        {"reach", &s.spawn_reach, "re-roll spawns behind walls or off the ground: 0 / 1"},
     };
     if (args.size() >= 4) {
         for (const auto& k: knobs) {
@@ -298,6 +369,16 @@ Command(classUSER& user, const char* szUsage, const std::vector<std::string>& ar
 
     if (action.empty() || action == "here") {
         cmd_here(user);
+        return true;
+    }
+
+    if (action == "spawns") {
+        cmd_spawns(user);
+        return true;
+    }
+
+    if (action == "walk") {
+        cmd_walk(user);
         return true;
     }
 

@@ -35,8 +35,9 @@ Layout, little endian:
 Span flags: WALK (no geometry 30-180 cm above it), REACHED (connected to a seed:
 an event point, a regen point or an NPC), TERRAIN, UP (an up-facing or terrain
 floor), HAZARD (the client would draw a monster here more than 3 m up, on a roof or
-a deck: today's GetHeightTop). visual_top is that height for the cell, or
-NO_HEIGHT when it is the terrain's.
+a deck: today's GetHeightTop), STAIRS (a floor on HEIGHTONLY parts: it links to its
+neighbours at the terrain's 135 cm, not the 45 cm of other object floors). visual_top is
+that height for the cell, or NO_HEIGHT when it is the terrain's.
 """
 
 from dataclasses import dataclass, field
@@ -52,7 +53,7 @@ TILE_CELLS = 160
 TILE_VERTS = 65
 NO_HEIGHT = -32768
 
-WALK, REACHED, TERRAIN, UP, HAZARD = 1, 2, 4, 8, 16
+WALK, REACHED, TERRAIN, UP, HAZARD, STAIRS = 1, 2, 4, 8, 16, 32
 
 SPAN_DTYPE = np.dtype([("z", "<i2"), ("flags", "u1"), ("clearance", "u1"), ("component", "<u2")])
 CELL_DTYPE = np.dtype([("visual_top", "<i2"), ("n_spans", "u1"), ("pad", "u1")])

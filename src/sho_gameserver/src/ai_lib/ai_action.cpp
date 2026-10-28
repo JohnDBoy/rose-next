@@ -10,6 +10,7 @@ pEVENT->m_pSourCHAR;
 
 #include "CAI_FILE.h"
 #include "CAI_LIB.h"
+#include "CObjCHAR.h"
 
 #include "rose/server_ai/non_aggro_skill_guard.h"
 #include "rose/common/log.h"
@@ -85,13 +86,14 @@ F_AIACT03(stActHead* pActDATA, t_AIPARAM* pEVENT) {
     */
     AIACT03* pAct = (AIACT03*)pActDATA;
 
-    float fPosX, fPosY;
-    fPosX =
-        pEVENT->m_pSourCHAR->Get_CurXPOS() + AI_SysRANDOM(pAct->iDistance * 2) - pAct->iDistance;
-    fPosY =
-        pEVENT->m_pSourCHAR->Get_CurYPOS() + AI_SysRANDOM(pAct->iDistance * 2) - pAct->iDistance;
-
-    pEVENT->m_pSourCHAR->SetCMD_MOVE2D(fPosX, fPosY, pAct->cSpeed);
+    // a spot behind a wall is refused (Phase 4): draw again, up to 3 times, then rest this tick
+    for (int iTry = 0; iTry < 3; ++iTry) {
+        float fPosX, fPosY;
+        fPosX = pEVENT->m_pSourCHAR->Get_CurXPOS() + AI_SysRANDOM(pAct->iDistance * 2) - pAct->iDistance;
+        fPosY = pEVENT->m_pSourCHAR->Get_CurYPOS() + AI_SysRANDOM(pAct->iDistance * 2) - pAct->iDistance;
+        if (pEVENT->m_pSourCHAR->SetCMD_MOVE2D(fPosX, fPosY, pAct->cSpeed))
+            break;
+    }
 }
 //-------------------------------------------------------------------------------------------------
 void
@@ -112,13 +114,14 @@ F_AIACT04(stActHead* pActDATA, t_AIPARAM* pEVENT) {
     */
     AIACT04* pAct = (AIACT04*)pActDATA;
 
-    float fPosX, fPosY;
-    fPosX =
-        pEVENT->m_pSourCHAR->Get_BornXPOS() + AI_SysRANDOM(pAct->iDistance * 2) - pAct->iDistance;
-    fPosY =
-        pEVENT->m_pSourCHAR->Get_BornYPOS() + AI_SysRANDOM(pAct->iDistance * 2) - pAct->iDistance;
-
-    pEVENT->m_pSourCHAR->SetCMD_MOVE2D(fPosX, fPosY, pAct->cSpeed);
+    // a spot behind a wall is refused (Phase 4): draw again, up to 3 times, then rest this tick
+    for (int iTry = 0; iTry < 3; ++iTry) {
+        float fPosX, fPosY;
+        fPosX = pEVENT->m_pSourCHAR->Get_BornXPOS() + AI_SysRANDOM(pAct->iDistance * 2) - pAct->iDistance;
+        fPosY = pEVENT->m_pSourCHAR->Get_BornYPOS() + AI_SysRANDOM(pAct->iDistance * 2) - pAct->iDistance;
+        if (pEVENT->m_pSourCHAR->SetCMD_MOVE2D(fPosX, fPosY, pAct->cSpeed))
+            break;
+    }
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -254,7 +257,8 @@ F_AIACT08(stActHead* pActDATA, t_AIPARAM* pEVENT) {
     fPosX = pEVENT->m_pSourCHAR->Get_CurXPOS() - (pAct->iDistance * fX / fDistance);
     fPosY = pEVENT->m_pSourCHAR->Get_CurYPOS() - (pAct->iDistance * fY / fDistance);
 
-    pEVENT->m_pSourCHAR->SetCMD_MOVE2D(fPosX, fPosY, pAct->cSpeed);
+    // backs off as far as the line allows (a wall behind it stops the flight there)
+    ((CObjCHAR*)pEVENT->m_pSourCHAR)->Nav_MoveTowards(fPosX, fPosY, pAct->cSpeed);
 }
 //-------------------------------------------------------------------------------------------------
 void
@@ -866,7 +870,8 @@ F_AIACT29(stActHead* pActDATA, t_AIPARAM* pEVENT) {
     float fPosX = pOwner->Get_CurXPOS() + (dx / fDistance) * FOLLOW_DISTANCE;
     float fPosY = pOwner->Get_CurYPOS() + (dy / fDistance) * FOLLOW_DISTANCE;
 
-    pEVENT->m_pSourCHAR->SetCMD_MOVE2D(fPosX, fPosY, 1 /* run mode */);
+    // a blocked line is walked straight: a summon must never be stranded (Phase 4)
+    ((CObjCHAR*)pEVENT->m_pSourCHAR)->Nav_MoveOrStraight(fPosX, fPosY, 1 /* run mode */);
 #endif
 }
 

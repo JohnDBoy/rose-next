@@ -784,12 +784,16 @@ CZoneTHREAD::RegenCharacter(CRegenPOINT* pRegen, int iIndex, int iCount) {
     for (int iC = 0; iC < iCount; iC++) {
         fXPos = fCX + RANDOM(pRegen->m_iRange * 2);
         fYPos = fCY + RANDOM(pRegen->m_iRange * 2);
-        this->NavPickSpawn(pRegen, fXPos, fYPos);
+        const float fFloorZ = this->NavPickSpawn(pRegen, fXPos, fYPos);
 
         CObjMOB* pNewOBJ = new CObjMOB;
         if (!pNewOBJ->Init(this, iIndex, fXPos, fYPos, TEAMNO_MOB, pRegen)) {
             delete pNewOBJ;
             return;
+        }
+        if (Nav::NO_Z != fFloorZ) { // the floor it walks on, from its first step
+            pNewOBJ->m_nNavZ = (short)fFloorZ;
+            pNewOBJ->m_PosNavLAST = pNewOBJ->m_PosCUR;
         }
 
         pRegen->AddLiveCNT();
@@ -1049,43 +1053,66 @@ nav_under_roof(Nav::Grid* pGrid, float fX, float fY, float fAnchorZ) {
 }
 } // namespace
 
-// A regen point's spawn that the client would draw on a roof, a deck or a wall top (more
-// than 3 m above the floor the point's monsters belong to) is drawn again, up to 6 times,
-// then put at the point's centre (decision 9). The floor is the point's baked anchor.
-void
+// A regen point's spawn is drawn again, up to 6 times, then put at the point's centre
+// (decision 9) when the client would draw it on a roof, a deck or a wall top (more than 3 m
+// above the floor the point's monsters belong to: Phase 3), or when it is off the walkable
+// ground or behind a wall from the centre (Phase 4: inside rock, outside the Goblin Cave
+// tunnels). The floor is the point's baked anchor. Returns the spawn's floor, or NO_Z.
+float
 CZoneTHREAD::NavPickSpawn(CRegenPOINT* pRegen, float& fX, float& fY) {
     Nav::Grid* pGrid = this->NavGrid();
-    if (!pGrid || !Nav::settings().spawn_roofs.load(std::memory_order_relaxed)) {
-        return;
+    if (!pGrid) {
+        return Nav::NO_Z;
     }
     const float fAnchorZ = pGrid->AnchorZ(pRegen->m_fXPos, pRegen->m_fYPos);
     if (Nav::NO_Z == fAnchorZ) {
-        return;
+        return Nav::NO_Z;
     }
-    for (int iTry = 0; iTry < NAV_SPAWN_TRIES; ++iTry) {
-        if (!nav_under_roof(pGrid, fX, fY, fAnchorZ)) {
-            return;
+    const bool bRoofs = Nav::settings().spawn_roofs.load(std::memory_order_relaxed) != 0;
+    const bool bReach = Nav::settings().spawn_reach.load(std::memory_order_relaxed) != 0;
+    // the spot's floor if it is fit for a spawn, else NO_Z
+    auto fit = [&](float x, float y) -> float {
+        Nav::Span span;
+        if (bReach) {
+            if (!pGrid->NearestSpan(x, y, fAnchorZ, 1.0e6f, span, Nav::SPAN_WALK | Nav::SPAN_REACHED)
+                || !pGrid->LineWalk(pRegen->m_fXPos, pRegen->m_fYPos, fAnchorZ, x, y)) {
+                return Nav::NO_Z;
+            }
+        } else if (!pGrid->NearestSpan(x, y, fAnchorZ, 1.0e6f, span)) {
+            return fAnchorZ;
         }
+        if (bRoofs && nav_under_roof(pGrid, x, y, fAnchorZ)) {
+            return Nav::NO_Z;
+        }
+        return span.z;
+    };
+    float fFloor = fit(fX, fY);
+    for (int iTry = 0; iTry < NAV_SPAWN_TRIES && Nav::NO_Z == fFloor; ++iTry) {
         m_NavMeter.CountSpawnReroll();
         fX = pRegen->m_fXPos - pRegen->m_iRange + RANDOM(pRegen->m_iRange * 2);
         fY = pRegen->m_fYPos - pRegen->m_iRange + RANDOM(pRegen->m_iRange * 2);
+        fFloor = fit(fX, fY);
     }
-    if (!nav_under_roof(pGrid, fX, fY, fAnchorZ)) {
-        return;
+    if (Nav::NO_Z != fFloor) {
+        return fFloor;
     }
     fX = pRegen->m_fXPos;
     fY = pRegen->m_fYPos;
     m_NavMeter.CountSpawnFallback();
-    if (nav_under_roof(pGrid, fX, fY, fAnchorZ)) {
+    fFloor = fit(fX, fY);
+    if (Nav::NO_Z == fFloor) {
         // even the centre: a data fix (move the point), logged at most once a minute a zone
         static thread_local DWORD s_dwLastLog = 0;
         const DWORD dwNow = ::timeGetTime();
         if (dwNow - s_dwLastLog > 60000) {
             s_dwLastLog = dwNow;
-            LOG_WARN("nav: zone {} regen point at ({:.1f}, {:.1f}) m spawns under a roof even at its centre: move it",
+            LOG_WARN("nav: zone {} regen point at ({:.1f}, {:.1f}) m: even its centre is under a roof or "
+                     "off the walkable ground: move it",
                 (int)this->Get_ZoneNO(), pRegen->m_fXPos / 100.f, pRegen->m_fYPos / 100.f);
         }
+        fFloor = fAnchorZ;
     }
+    return fFloor;
 }
 
 //-------------------------------------------------------------------------------------------------

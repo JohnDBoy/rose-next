@@ -272,8 +272,8 @@ public:
 	// Ground overlay (2026-10-18): translucent coloured triangles laid on the terrain by
 	// the client -- the boss attack telegraphs (client groundtelegraph.cpp). One buffer,
 	// replaced whole by every set_ground_overlay() (the client sends it each frame, empty
-	// when there is nothing), so it never grows. Drawn by render_cull right after the
-	// terrain: z-tested, no z-write, so everything standing in it draws over it.
+	// when there is nothing), so it never grows. Drawn by render_cull after the opaque
+	// objects (so it shows on a deck): z-tested, no z-write.
 	std::vector<ground_overlay_vertex> ground_overlay; // world, engine units
 	void set_ground_overlay(const float * xyz_cm, const unsigned long * colors, int vertex_count);
 	void draw_ground_overlay();

@@ -576,11 +576,14 @@ void zz_scene_octree::render_cull ()
 		pass = 1; ZZ_TIMED_PASS(ZZ_RPASS_BTERRAIN, render_bterrain());
 
 		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_RTERRAIN, render_rterrain());
-		ZZ_TIMED_PASS(ZZ_RPASS_OVERLAY, draw_ground_overlay()); // telegraphs: on the terrain, under everything else
 
 		// render opaque
 		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_OPAQUE, render_opaque());
 		pass = 1; ZZ_TIMED_PASS(ZZ_RPASS_OPAQUE, render_opaque());
+
+		// telegraphs: after the opaque objects, so they show on a bridge deck; z-tested,
+		// so whatever stands in front of them still hides them
+		ZZ_TIMED_PASS(ZZ_RPASS_OVERLAY, draw_ground_overlay());
 
 		pass = 0; ZZ_TIMED_PASS(ZZ_RPASS_TRANSPARENT, render_transparent());
 		pass = 1; ZZ_TIMED_PASS(ZZ_RPASS_TRANSPARENT, render_transparent());
@@ -602,8 +605,8 @@ void zz_scene_octree::render_cull ()
 		ZZ_TIMED_PASS(ZZ_RPASS_RTERRAIN, render_cterrain()); // batched cells
 		ZZ_TIMED_PASS(ZZ_RPASS_BTERRAIN, render_bterrain());
 		ZZ_TIMED_PASS(ZZ_RPASS_RTERRAIN, render_rterrain());
-		ZZ_TIMED_PASS(ZZ_RPASS_OVERLAY, draw_ground_overlay()); // telegraphs: on the terrain, under everything else
 		ZZ_TIMED_PASS(ZZ_RPASS_OPAQUE, render_opaque());
+		ZZ_TIMED_PASS(ZZ_RPASS_OVERLAY, draw_ground_overlay()); // telegraphs: after the opaque objects
 		ZZ_TIMED_PASS(ZZ_RPASS_TRANSPARENT, render_transparent());
 		ZZ_TIMED_PASS(ZZ_RPASS_GLOW, render_glow());
 		ZZ_TIMED_PASS(ZZ_RPASS_OCEAN, render_ocean());

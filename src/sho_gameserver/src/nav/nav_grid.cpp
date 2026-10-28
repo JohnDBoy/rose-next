@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <intrin.h>
 
@@ -417,12 +418,14 @@ Grid::AnchorZ(float x, float y) const {
 }
 
 bool
-Grid::NearestSpan(float x, float y, float z, float within, Span& out) const {
+Grid::NearestSpan(float x, float y, float z, float within, Span& out, unsigned char mask) const {
     Span spans[32];
     const int n = SpansAt(x, y, spans, 32);
     float best = within;
     bool found = false;
     for (int k = 0; k < n; ++k) {
+        if ((spans[k].flags & mask) != mask)
+            continue;
         const float d = fabsf(spans[k].z - z);
         if (d <= best) {
             best = d;
@@ -431,6 +434,76 @@ Grid::NearestSpan(float x, float y, float z, float within, Span& out) const {
         }
     }
     return found;
+}
+
+bool
+Grid::LineWalk(float x0, float y0, float z0, float x1, float y1, float* pLastX, float* pLastY) const {
+    constexpr unsigned char WALKABLE = SPAN_WALK | SPAN_REACHED;
+    constexpr unsigned char GENTLE = SPAN_TERRAIN | SPAN_STAIRS;
+    Span spans[32];
+    int n = SpansAt(x0, y0, spans, 32);
+    if (pLastX) {
+        *pLastX = x0;
+        *pLastY = y0;
+    }
+    if (!n)
+        return false;
+
+    // the start: the floor nearest the walker's height, whatever its flags
+    int k0 = 0;
+    for (int k = 1; k < n; ++k)
+        if (fabsf(spans[k].z - z0) < fabsf(spans[k0].z - z0))
+            k0 = k;
+    float cz = spans[k0].z;
+    bool bGentle = (spans[k0].flags & GENTLE) != 0;
+
+    // every 1 m cell the segment crosses (Amanatides & Woo), 4-connected
+    int cx = (int)floorf(x0 / CELL_CM), cy = (int)floorf(y0 / CELL_CM);
+    const int ex = (int)floorf(x1 / CELL_CM), ey = (int)floorf(y1 / CELL_CM);
+    const float dx = x1 - x0, dy = y1 - y0;
+    const int sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
+    const float INF = 1.0e30f;
+    float tMaxX = dx != 0 ? (((dx > 0 ? cx + 1 : cx) * CELL_CM - x0) / dx) : INF;
+    float tMaxY = dy != 0 ? (((dy > 0 ? cy + 1 : cy) * CELL_CM - y0) / dy) : INF;
+    const float tDX = dx != 0 ? CELL_CM / fabsf(dx) : INF, tDY = dy != 0 ? CELL_CM / fabsf(dy) : INF;
+    // exactly |ex - cx| + |ey - cy| steps, so float error near a boundary cannot step past the
+    // end cell
+    for (int steps = abs(ex - cx) + abs(ey - cy); steps > 0; --steps) {
+        if (cy == ey || (cx != ex && tMaxX < tMaxY)) {
+            cx += sx;
+            tMaxX += tDX;
+        } else {
+            cy += sy;
+            tMaxY += tDY;
+        }
+        const float px = (cx + 0.5f) * CELL_CM, py = (cy + 0.5f) * CELL_CM;
+        n = SpansAt(px, py, spans, 32);
+        int best = -1;
+        float bestD = INF;
+        for (int k = 0; k < n; ++k) {
+            if ((spans[k].flags & WALKABLE) != WALKABLE)
+                continue;
+            const bool bG = bGentle && (spans[k].flags & GENTLE);
+            const float d = fabsf(spans[k].z - cz);
+            if (d <= (bG ? STEP_CM : OBJ_STEP_CM) && d < bestD) {
+                best = k;
+                bestD = d;
+            }
+        }
+        if (best < 0)
+            return false;
+        cz = spans[best].z;
+        bGentle = (spans[best].flags & GENTLE) != 0;
+        if (pLastX) {
+            *pLastX = px;
+            *pLastY = py;
+        }
+    }
+    if (pLastX) {
+        *pLastX = x1;
+        *pLastY = y1;
+    }
+    return true;
 }
 
 } // namespace Nav

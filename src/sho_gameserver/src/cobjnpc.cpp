@@ -469,6 +469,20 @@ CObjMOB::Run_AWAY(int iDistance) {
         fY += m_PosBORN.y;
     }
 
+    // With a walk grid a few more points are tried, the last one walked straight: the leash
+    // must always fire, or the monster chases forever (Phase 4; A* will find the way round).
+    if (this->GetZONE()->NavGrid()) {
+        bool bMoved = this->SetCMD_MOVE2D(fX, fY, true);
+        for (int iTry = 0; iTry < 5 && !bMoved; ++iTry) {
+            fX = (m_pRegenPOINT ? m_pRegenPOINT->m_fXPos : m_PosBORN.x) + (RANDOM(iDistance * 2) - iDistance);
+            fY = (m_pRegenPOINT ? m_pRegenPOINT->m_fYPos : m_PosBORN.y) + (RANDOM(iDistance * 2) - iDistance);
+            bMoved = this->SetCMD_MOVE2D(fX, fY, true);
+        }
+        if (bMoved || this->Nav_MoveOrStraight(fX, fY, true)) {
+            this->Set_COMMAND(CMD_RUNAWAY);
+        }
+        return;
+    }
     if (this->SetCMD_MOVE2D(fX, fY, true))
         this->Set_COMMAND(CMD_RUNAWAY);
     else
@@ -826,8 +840,9 @@ CObjSUMMON::Proc() {
                         fPosX = ((CObjCHAR*)pOwner)->Get_CurXPOS() + (dx / fDist) * FOLLOW_DISTANCE;
                         fPosY = ((CObjCHAR*)pOwner)->Get_CurYPOS() + (dy / fDist) * FOLLOW_DISTANCE;
                     }
-                    // Fresh destination every tick → summon tracks owner continuously
-                    this->SetCMD_MOVE2D(fPosX, fPosY, 1 /* run */);
+                    // Fresh destination every tick → summon tracks owner continuously; a
+                    // blocked line is walked straight (a summon must never be stranded)
+                    this->Nav_MoveOrStraight(fPosX, fPosY, 1 /* run */);
                 }
             }
         }

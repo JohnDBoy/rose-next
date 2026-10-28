@@ -44,3 +44,5 @@ aoe_band_base_cm = 500  # band: a target may be this far above or below the cent
 aoe_band_slope_pct = 70 # ...plus this % of its horizontal distance from it
 mob_layer_aggro = 1     # monster aggro and help calls use the same rule
 spawn_roofs = 1         # re-roll a regen spawn the client would draw on a roof
+ai_walls = 1            # idle walks (wander, flee, leash, summon follow) walk their line on the grid
+spawn_reach = 1         # re-roll a regen spawn behind a wall or off the walkable ground

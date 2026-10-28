@@ -20,6 +20,37 @@ namespace {
 const float RANGE_MARGIN_CM = 50.f; // inside the range: the server's copy of us may lag a step
 const float MIN_AIM_CM = 100.f; // a strip or cone aimed at our feet points where we face
 const float MAX_RAY_CM = 60000.f; // how far along the mouse ray the ground is looked for
+const float PICK_MARGIN_CM = 2000.f; // decks looked for beyond the skill's reach (it is clamped)
+const float PICK_BELOW_CM = 10000.f; // ...and this far below the avatar
+const float FLAT_CM = 150.f; // an aim this far over the terrain is on a deck (groundtelegraph.cpp)
+
+// The nearest walkable map surface along the mouse ray, within reach of the avatar: a
+// bridge deck, a platform, a wall walk. The terrain march goes straight through them to
+// the ground below, but the server puts an area on the floor nearest the caster's height
+// (doc/pathfinding-and-z-plan.md, Phase 3), so the aim has to land on the deck too.
+// Walkable = what GetHeightTop stands characters on (CGroundTelegraphs::IsWalkableNode).
+bool
+pick_walkable_object(const D3DXVECTOR3& o, const D3DXVECTOR3& d, float fMaxT, float fReach,
+    D3DXVECTOR3& out) {
+    const D3DXVECTOR3& me = g_pAVATAR->Get_CurPOS();
+    D3DXVECTOR3 vMin(me.x - fReach, me.y - fReach, me.z - PICK_BELOW_CM);
+    D3DXVECTOR3 vMax(me.x + fReach, me.y + fReach, (o.z > me.z ? o.z : me.z) + 500.f);
+    const int n = ::collectByMinMaxVec3(vMin, vMax);
+    bool bFound = false;
+    float fBest = fMaxT;
+    for (int i = 0; i < n; ++i) {
+        HNODE h = ::getCollectNode(i);
+        if (!CGroundTelegraphs::IsWalkableNode(h))
+            continue;
+        float x, y, z, dist;
+        if (::intersectRay(h, o.x, o.y, o.z, d.x, d.y, d.z, &x, &y, &z, &dist) && dist < fBest) {
+            fBest = dist;
+            out = D3DXVECTOR3(x, y, z);
+            bFound = true;
+        }
+    }
+    return bFound;
+}
 const int RIGHT_CLICK_DRAG_PX = 5; // a right button that moved more turned the camera
 } // namespace
 
@@ -96,6 +127,8 @@ CSkillAim::MouseOnGround(D3DXVECTOR3& out) const {
 
     // Along the ray from the camera until it goes under the ground, steps growing with the
     // distance (1%, at least 25 cm), then halve the last step down to a few cm.
+    bool bGround = false;
+    D3DXVECTOR3 ground;
     float t = 0.f;
     for (int i = 0; i < 4000 && t < MAX_RAY_CM; ++i) {
         const float step = (t * 0.01f > 25.f) ? t * 0.01f : 25.f;
@@ -116,14 +149,23 @@ CSkillAim::MouseOnGround(D3DXVECTOR3& out) const {
             else
                 lo = mid;
         }
-        out = o + d * hi;
+        ground = o + d * hi;
         bool bNF = false;
-        const float hz = g_pTerrain->GetHeight(out.x, out.y, &bNF);
+        const float hz = g_pTerrain->GetHeight(ground.x, ground.y, &bNF);
         if (!bNF)
-            out.z = hz;
-        return true;
+            ground.z = hz;
+        t = hi;
+        bGround = true;
+        break;
     }
-    return false;
+
+    // a deck or a platform in front of that ground wins
+    const float fReach = (float)SKILL_DISTANCE(m_nSkillIDX) + PICK_MARGIN_CM;
+    if (g_pAVATAR && pick_walkable_object(o, d, bGround ? t : MAX_RAY_CM, fReach, out))
+        return true;
+    if (bGround)
+        out = ground;
+    return bGround;
 }
 
 void
@@ -150,11 +192,17 @@ CSkillAim::ClampToRange(D3DXVECTOR3& aim) const {
     if (range < 0.f)
         range = 0.f;
     if (dist > range && dist > 0.f) {
+        // an aim on a deck stays at the deck's height; one on the ground follows the ground
+        bool bNF0 = false;
+        const float h0 = g_pTerrain ? g_pTerrain->GetHeight(aim.x, aim.y, &bNF0) : aim.z;
+        const bool bOnDeck = !bNF0 && aim.z > h0 + FLAT_CM;
         aim.x = me.x + dx / dist * range;
         aim.y = me.y + dy / dist * range;
-        bool bNotFound = false;
-        const float h = g_pTerrain ? g_pTerrain->GetHeight(aim.x, aim.y, &bNotFound) : me.z;
-        aim.z = bNotFound ? me.z : h;
+        if (!bOnDeck) {
+            bool bNotFound = false;
+            const float h = g_pTerrain ? g_pTerrain->GetHeight(aim.x, aim.y, &bNotFound) : me.z;
+            aim.z = bNotFound ? me.z : h;
+        }
     }
 }
 
