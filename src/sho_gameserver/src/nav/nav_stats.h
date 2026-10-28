@@ -27,6 +27,13 @@ public:
     // An AoE cast during which a victim's AI ran a scan of its own. That broke the
     // AoE until it collected its targets first (Phase 1); now it only counts.
     void CountScanClobber() { m_ScanClobbers.fetch_add(1, std::memory_order_relaxed); }
+    // Characters the vertical rule kept out of an area effect, or out of a monster's scan.
+    void CountVerticalMiss() { m_VerticalMisses.fetch_add(1, std::memory_order_relaxed); }
+    void CountAggroMiss() { m_AggroMisses.fetch_add(1, std::memory_order_relaxed); }
+    // A regen spawn drawn again because the client would draw it on a roof, and one that
+    // fell back to its point's centre.
+    void CountSpawnReroll() { m_SpawnRerolls.fetch_add(1, std::memory_order_relaxed); }
+    void CountSpawnFallback() { m_SpawnFallbacks.fetch_add(1, std::memory_order_relaxed); }
     // A client height report, and whether it was more than 1 m from every floor.
     void CountZHint(bool bMiss) {
         m_ZHints.fetch_add(1, std::memory_order_relaxed);
@@ -56,6 +63,10 @@ private:
     std::atomic<uint32_t> m_LeashFails{0};
     std::atomic<uint32_t> m_ScanClobbers{0};
     std::atomic<uint32_t> m_ZHints{0};
+    std::atomic<uint32_t> m_VerticalMisses{0};
+    std::atomic<uint32_t> m_AggroMisses{0};
+    std::atomic<uint32_t> m_SpawnRerolls{0};
+    std::atomic<uint32_t> m_SpawnFallbacks{0};
     std::atomic<uint32_t> m_ZMisses{0};
 
     std::mutex m_TextMutex;

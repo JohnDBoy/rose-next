@@ -35,3 +35,12 @@ base_attack_power = 0
 base_attack_speed = 0
 base_hit = 0
 base_crit = 0
+# Height rules (doc/pathfinding-and-z-plan.md, Phase 3). Every key is optional: these are the
+# defaults. Needs the zone walk grids (scripts/nav-bake.py); a zone without one stays 2D.
+# GMs can change them live with /nav set.
+[nav]
+aoe_vertical = 1        # 0 = 2D as before, 1 = band, 2 = sphere, 3 = cylinder
+aoe_band_base_cm = 500  # band: a target may be this far above or below the centre...
+aoe_band_slope_pct = 70 # ...plus this % of its horizontal distance from it
+mob_layer_aggro = 1     # monster aggro and help calls use the same rule
+spawn_roofs = 1         # re-roll a regen spawn the client would draw on a roof

@@ -4,12 +4,15 @@
 
 #include "nav/nav_agent.h"
 #include "nav/nav_grid.h"
+#include "nav/nav_settings.h"
 #include "nav/nav_stats.h"
 
 #include "GS_ThreadZONE.h"
 #include "GS_USER.h"
 
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdlib>
 #include <mutex>
 #include <unordered_map>
@@ -180,6 +183,75 @@ cmd_here(classUSER& user) {
     }
 }
 
+// What an area effect centred on you would do under the current vertical rule: a test needs no
+// aiming and no counting of damage numbers.
+void
+cmd_aoe(classUSER& user, const std::vector<std::string>& args) {
+    float fRadius = args.size() >= 3 ? (float)std::atof(args[2].c_str()) * 100.f : 1500.f;
+    fRadius = fRadius < 100.f ? 100.f : (fRadius > 5000.f ? 5000.f : fRadius);
+    static const char* s_szRule[] = {"off (2D)", "band", "sphere", "cylinder"};
+    const int iRule = settings().aoe_vertical.load();
+    const std::string rule = iRule == AOE_BAND
+        ? fmt::format("band {} m + {}%", settings().aoe_band_base_cm.load() / 100.f, settings().aoe_band_slope_pct.load())
+        : std::string(iRule >= 0 && iRule <= 3 ? s_szRule[iRule] : "?");
+
+    std::vector<CObjCHAR*> found;
+    user.AI_CollectOBJs((int)fRadius, found);
+    const float fMyZ = user.Nav_Z();
+    struct Row {
+        float d, dz;
+        bool in;
+        CObjCHAR* p;
+    };
+    std::vector<Row> rows;
+    for (CObjCHAR* p: found) {
+        if (p == &user || !p->IsA(OBJ_MOB))
+            continue;
+        const float dx = p->m_PosCUR.x - user.m_PosCUR.x, dy = p->m_PosCUR.y - user.m_PosCUR.y;
+        const float d = sqrtf(dx * dx + dy * dy);
+        const float tz = p->Nav_Z();
+        rows.push_back({d, (NO_Z == tz || NO_Z == fMyZ) ? 0.f : tz - fMyZ, InVerticalReach(fMyZ, tz, d, fRadius), p});
+    }
+    std::sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) { return a.d < b.d; });
+    const int iIn = (int)std::count_if(rows.begin(), rows.end(), [](const Row& r) { return r.in; });
+    user.send_server_whisper(fmt::format("An area of {:.0f} m around you ({}): {} monsters inside it on the map, {} would be hit, {} left out by height.",
+        fRadius / 100.f, rule, rows.size(), iIn, (int)rows.size() - iIn));
+    for (size_t i = 0; i < rows.size() && i < 8; ++i) {
+        const Row& r = rows[i];
+        user.send_server_whisper(fmt::format("  {} {:.1f} m away, {:.1f} m {}: {}", r.p->Get_NAME(), r.d / 100.f,
+            fabsf(r.dz) / 100.f, r.dz >= 0 ? "above you" : "below you", r.in ? "HIT" : "left out"));
+    }
+}
+
+void
+cmd_set(classUSER& user, const std::vector<std::string>& args) {
+    Settings& s = settings();
+    const struct {
+        const char* name;
+        std::atomic<int>* value;
+        const char* help;
+    } knobs[] = {
+        {"aoe", &s.aoe_vertical, "0 off (2D), 1 band, 2 sphere, 3 cylinder"},
+        {"base", &s.aoe_band_base_cm, "band height at the centre, cm"},
+        {"slope", &s.aoe_band_slope_pct, "band growth, % of the horizontal distance"},
+        {"aggro", &s.mob_layer_aggro, "monster scans use the rule: 0 / 1"},
+        {"roofs", &s.spawn_roofs, "re-roll spawns drawn on a roof: 0 / 1"},
+    };
+    if (args.size() >= 4) {
+        for (const auto& k: knobs) {
+            if (args[2] == k.name) {
+                k.value->store(std::atoi(args[3].c_str()), std::memory_order_relaxed);
+                user.send_server_whisper(fmt::format("nav: {} = {} (whole server, until restart or reloadconfig)",
+                    k.name, k.value->load()));
+                return;
+            }
+        }
+    }
+    for (const auto& k: knobs) {
+        user.send_server_whisper(fmt::format("nav set {} {}  ({})", k.name, k.value->load(), k.help));
+    }
+}
+
 } // namespace
 
 void
@@ -226,6 +298,16 @@ Command(classUSER& user, const char* szUsage, const std::vector<std::string>& ar
 
     if (action.empty() || action == "here") {
         cmd_here(user);
+        return true;
+    }
+
+    if (action == "aoe") {
+        cmd_aoe(user, args);
+        return true;
+    }
+
+    if (action == "set") {
+        cmd_set(user, args);
         return true;
     }
 

@@ -2,6 +2,7 @@
 
 #include "nav/nav_grid.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -202,14 +203,21 @@ Grid::Load(const std::string& zoneDir, const std::string& baseDir, std::string& 
         e.size = c.get<uint32_t>();
     }
     const uint32_t nAnchors = c.get<uint32_t>();
-    c.take((size_t)nAnchors * 12); // regen anchors: used from Phase 3
+    std::unique_ptr<Grid> grid(new Grid());
+    grid->m_Anchors.resize(c.ok ? nAnchors : 0);
+    for (Anchor& a: grid->m_Anchors) {
+        a.x = c.get<float>();
+        a.y = c.get<float>();
+        a.z = c.get<short>();
+        a.flags = c.get<unsigned short>();
+    }
     if (!c.ok) {
         err = path + ": truncated header";
         return nullptr;
     }
-
-    std::unique_ptr<Grid> grid(new Grid());
-    grid->m_Bytes = sizeof(Grid);
+    std::sort(grid->m_Anchors.begin(), grid->m_Anchors.end(),
+        [](const Anchor& a, const Anchor& b) { return a.x < b.x; });
+    grid->m_Bytes = sizeof(Grid) + grid->m_Anchors.capacity() * sizeof(Anchor);
     for (const Index& e: index) {
         if (e.sx < 0 || e.sx >= 64 || e.sy < 0 || e.sy >= 64 || (size_t)e.off + e.size > data.size()) {
             err = path + ": bad tile index";
@@ -391,6 +399,21 @@ Grid::FollowZ(float fromZ, float fromX, float fromY, float toX, float toY) const
             z = Pick(spans, n, z);
     }
     return z;
+}
+
+float
+Grid::AnchorZ(float x, float y) const {
+    // the server computes a regen point's position as the bake did, give or take a float's
+    // last bit: match within a metre
+    constexpr float MATCH_CM = 100.f;
+    auto it = std::lower_bound(m_Anchors.begin(), m_Anchors.end(), x - MATCH_CM,
+        [](const Anchor& a, float v) { return a.x < v; });
+    for (; it != m_Anchors.end() && it->x <= x + MATCH_CM; ++it) {
+        if (fabsf(it->y - y) <= MATCH_CM) {
+            return it->z;
+        }
+    }
+    return NO_Z;
 }
 
 bool

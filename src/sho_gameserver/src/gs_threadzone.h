@@ -16,6 +16,7 @@
 
 #include "ZoneFILE.h"
 #include "ZoneSECTOR.h"
+#include "nav/nav_grid.h"
 #include "nav/nav_stats.h"
 
 #include <map>
@@ -83,6 +84,9 @@ private:
     classDLLNODE<CGameOBJ*>* m_pFindObjNODE;
     CGameOBJ* m_pObjFINDER;
     DWORD m_dwFindGEN = 0; // +1 per FindFirstCHAR: tells a scan it was taken over
+    float m_fFindBandZ = Nav::NO_Z; // a monster scan's height, for the vertical rule
+    bool FindInBand(CObjCHAR* pChar);
+    void NavPickSpawn(CRegenPOINT* pRegen, float& fX, float& fY);
 
     void DeleteZoneOBJ();
 
@@ -202,8 +206,12 @@ public:
     DWORD Toggle_PK_FLAG();
     void Set_PK_FLAG(BYTE btOnOff);
 
-    CObjCHAR* FindFirstCHAR(tPOINTF& PosCENTER, int iDistance, CGameOBJ* pObjFINDER);
-    CObjCHAR* FindFirstCHAR(CObjCHAR* pCenterCHAR, int iDistance, CGameOBJ* pObjFINDER);
+    /// fBandZ: the scan's height, to apply the vertical rule (monster aggro and help calls,
+    /// nav/nav_settings.h); NO_Z scans in 2D.
+    CObjCHAR* FindFirstCHAR(tPOINTF& PosCENTER, int iDistance, CGameOBJ* pObjFINDER,
+        float fBandZ = Nav::NO_Z);
+    CObjCHAR* FindFirstCHAR(CObjCHAR* pCenterCHAR, int iDistance, CGameOBJ* pObjFINDER,
+        float fBandZ = Nav::NO_Z);
     CObjCHAR* FindNextCHAR();
     DWORD GetFindGEN() { return m_dwFindGEN; }
 

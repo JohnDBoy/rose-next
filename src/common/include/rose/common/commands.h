@@ -71,7 +71,7 @@ const char* CERBERUS_HELP = "Drive the Cerberus Lair draw (open registration, dr
 const char* CERBERUS_USAGE = "Usage: cerberus <status|open|draw|reset|wall up|wall down>";
 
 const char* NAV_HELP = "Pathfinding and Z: the floors under you and your target; route probe; tick stats.";
-const char* NAV_USAGE = "Usage: nav [here|rec|mark|trail [lead_ms] [walk|run] [chase]|stats]";
+const char* NAV_USAGE = "Usage: nav [here|aoe [radius m]|set [aoe|base|slope|aggro|roofs value]|rec|mark|trail [lead_ms] [walk|run] [chase]|stats]";
 
 
 static const std::vector<CommandInfo> commands = {

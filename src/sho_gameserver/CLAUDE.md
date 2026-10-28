@@ -286,6 +286,21 @@ and its §6 decisions before touching movement, height or AoE shape. Phase 0 is 
   - It loads at the end of `LoadZONE` and warns when map files changed since the bake.
     **Re-bake a zone after any map edit.**
   - About 120 MB for all 66 zones.
+- **The vertical rule (Phase 3): `nav/nav_settings`.** `InVerticalReach`, defaulting to a
+  band of |dz| <= 5 m + 70% of the horizontal distance.
+  - Knobs come from `server.toml` `[nav]` (read at start and on `reloadconfig`) and the live
+    `/nav set`.
+  - Where it applies:
+    - the AoE damage loop, against the area's centre: the caster for cones and strips; for a
+      ground-target circle, the floor at the aim point nearest the caster;
+    - hostile area statuses only;
+    - monster scans, through `FindFirstCHAR(..., fBandZ)` from `AI_FindFirstOBJ(int)` of an
+      `OBJ_MOB`.
+  - Skill collects (`AI_CollectOBJs`) scan in 2D and apply the rule themselves.
+  - Regen spawns re-roll spots the client would draw on a roof (`NavPickSpawn`, against the
+    point's baked anchor).
+  - **Stage A:** a monster's height is where the client draws it (`VisualTopZ`), so under a
+    walk-on deck it counts as on the deck until Phase 6.
 - **`CObjCHAR::m_nNavZ` is the server's own height for a player.**
   - It follows each move step (`Nav_TrackZ`). It is re-anchored to the nearest floor within
     3 m by the client's height on click-move and `CANTMOVE` (`Nav_HintZ`), which also audits

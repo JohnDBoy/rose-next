@@ -21,6 +21,8 @@ void OnUserMove(classUSER& user);
 ///                                corners leg by leg, then stops or chases you;
 ///                                replays the same trail until the next rec
 ///   stats                        this zone's last minute and the server line
+///   set [name value]             the vertical rules, live (aoe, base, slope, aggro, roofs)
+///   aoe [radius m]               which monsters an area centred on you would hit or leave out
 bool Command(classUSER& user, const char* szUsage, const std::vector<std::string>& args);
 
 } // namespace Nav::Probe

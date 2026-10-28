@@ -65,6 +65,11 @@ public:
     /// The floor nearest z within 'within' cm at a world position; false if none.
     bool NearestSpan(float x, float y, float z, float within, Span& out) const;
 
+    /// The floor a regen point's monsters belong to, as the bake resolved it (the point's
+    /// authored height, or where the client drops a spawn), or NO_Z for a position that is
+    /// not a baked regen point.
+    float AnchorZ(float x, float y) const;
+
     size_t Bytes() const { return m_Bytes; }
     int TileCount() const { return m_iTiles; }
 
@@ -74,6 +79,13 @@ private:
     const Tile* TileAt(float x, float y, int& cell) const;
     float CellZ(const Tile& t, int cell, float x, float y, float stored, unsigned char flags) const;
     float Pick(const Span* spans, int n, float curZ) const;
+
+    struct Anchor {
+        float x, y;
+        short z;
+        unsigned short flags;
+    };
+    std::vector<Anchor> m_Anchors; // sorted by x
 
     Tile* m_pTiles[64][64];
     int m_iTiles = 0;

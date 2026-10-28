@@ -160,6 +160,9 @@
     <ClInclude Include="src\network.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\nav\nav_settings.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
     <ClInclude Include="src\nav\nav_grid.h">
       <Filter>Source Files</Filter>
     </ClInclude>
@@ -311,6 +314,9 @@
       <Filter>Common Files</Filter>
     </ClCompile>
     <ClCompile Include="src\network.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\nav\nav_settings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\nav\nav_grid.cpp">

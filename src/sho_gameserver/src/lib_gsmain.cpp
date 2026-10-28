@@ -6,6 +6,7 @@
 
 #include "GS_ThreadSQL.h"
 #include "GS_ThreadZONE.h"
+#include "nav/nav_settings.h"
 
 #include "CThreadGUILD.h"
 #include "GS_ListUSER.h"
@@ -206,6 +207,7 @@ CLIB_GameSRV::~CLIB_GameSRV() {
 void
 CLIB_GameSRV::init(HINSTANCE hInstance, const ServerConfig& config) {
     this->config = config;
+    Nav::LoadSettings(this->config.path); // [nav]: the vertical rules
 
     m_pInstance = this;
 
@@ -628,6 +630,7 @@ CLIB_GameSRV::reload_game_config() {
     }
 
     this->config.game = config.game;
+    Nav::LoadSettings(this->config.path);
 
     g_pUserLIST->for_each_user([](classUSER* user) { user->UpdateAbility(); });
     return true;

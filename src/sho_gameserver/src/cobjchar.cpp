@@ -9,6 +9,7 @@
 #include "network.h"
 #include "nav/nav_agent.h"
 #include "nav/nav_grid.h"
+#include "nav/nav_settings.h"
 
 #include "rose/combat/skill_presentation.h"
 #include "rose/network/packets/combat_generated.h"
@@ -127,14 +128,49 @@ CObjCHAR::AI_FindFirstOBJ(tPOINTF& PosCENTER, int iDistance) {
 }
 CAI_OBJ*
 CObjCHAR::AI_FindFirstOBJ(int iDistance) {
-    if (this->GetZONE())
-        return this->GetZONE()->FindFirstCHAR(this, iDistance, this);
+    // A monster's own scans (aggro, help calls: the AI file's conditions and actions) see
+    // nobody through a deck, a cliff or a cave floor (nav/nav_settings.h).
+    if (this->GetZONE()) {
+        const bool bBand = this->IsA(OBJ_MOB) && Nav::settings().mob_layer_aggro.load(std::memory_order_relaxed);
+        return this->GetZONE()->FindFirstCHAR(this, iDistance, this, bBand ? this->Nav_Z() : Nav::NO_Z);
+    }
 
     return NULL;
 }
 CAI_OBJ*
 CObjCHAR::AI_FindNextOBJ() {
     return this->GetZONE()->FindNextCHAR();
+}
+
+// Area effects on enemies follow the vertical rule; friendly ones (party buffs, heals) stay
+// 2D (decision 6). "All PCs" is friendly from a player and hostile from a monster.
+static bool
+nav_hostile_area(CObjCHAR* pCaster, short nSkillIDX) {
+    switch (SKILL_CLASS_FILTER(nSkillIDX)) {
+        case SKILL_TARGET_FILTER_MOB:
+        case SKILL_TARGET_FILTER_ENEMY_ALL:
+        case SKILL_TARGET_FILTER_ENEMY_PC:
+        case SKILL_TARGET_FILTER_ALL_CHAR:
+        case SKILL_TARGET_FILTER_ENEMY_MOB:
+            return true;
+        case SKILL_TARGET_FILTER_ALL_PC:
+            return !pCaster->IsUSER();
+        default:
+            return false;
+    }
+}
+
+// Whether pTarget is within the vertical rule of an area centred at (pos, fCentreZ).
+static bool
+nav_in_area(CObjCHAR* pTarget, const tPOINTF& pos, float fCentreZ, float fRadius) {
+    const float dx = pTarget->m_PosCUR.x - pos.x, dy = pTarget->m_PosCUR.y - pos.y;
+    if (Nav::InVerticalReach(fCentreZ, pTarget->Nav_Z(), sqrtf(dx * dx + dy * dy), fRadius)) {
+        return true;
+    }
+    if (pTarget->GetZONE()) {
+        pTarget->GetZONE()->m_NavMeter.CountVerticalMiss();
+    }
+    return false;
 }
 
 void
@@ -149,7 +185,10 @@ CObjCHAR::AI_CollectOBJs(tPOINTF& PosCENTER, int iDistance, std::vector<CObjCHAR
 void
 CObjCHAR::AI_CollectOBJs(int iDistance, std::vector<CObjCHAR*>& out) {
     out.clear();
-    for (CObjCHAR* pFind = (CObjCHAR*)this->AI_FindFirstOBJ(iDistance); pFind;
+    if (!this->GetZONE())
+        return;
+    // a plain 2D scan: the callers (skill areas) apply their own vertical rule
+    for (CObjCHAR* pFind = this->GetZONE()->FindFirstCHAR(this, iDistance, this); pFind;
          pFind = (CObjCHAR*)this->AI_FindNextOBJ()) {
         out.push_back(pFind);
     }
@@ -1755,7 +1794,13 @@ CObjCHAR::Skill_ChangeIngSTATUS(CObjCHAR* pTarget) {
             // Everyone in range first, then the statuses (AI_CollectOBJs).
             std::vector<CObjCHAR*> found;
             pTarget->AI_CollectOBJs(SKILL_SCOPE_RADIUS(Get_ActiveSKILL()), found);
+            const bool bVert = nav_hostile_area(this, Get_ActiveSKILL());
+            const float fCentreZ = bVert ? pTarget->Nav_Z() : Nav::NO_Z;
             for (CObjCHAR* pFindCHAR: found) {
+                if (bVert && !nav_in_area(pFindCHAR, pTarget->m_PosCUR, fCentreZ,
+                                 (float)SKILL_SCOPE_RADIUS(Get_ActiveSKILL()))) {
+                    continue;
+                }
                 if (this->Skill_IsPassFilter(pFindCHAR, Get_ActiveSKILL())) {
                     btResult = pFindCHAR->Skill_ApplyIngSTATUS(Get_ActiveSKILL(), this);
                     if (btResult) {
@@ -1834,6 +1879,21 @@ CObjCHAR::Skill_DamageToAROUND(tPOINTF& PosCENTER) {
     // iterator, cutting the AoE short or moving its centre (AI_CollectOBJs).
     std::vector<CObjCHAR*> found;
     this->AI_CollectOBJs(PosSEARCH, iSearchDIST, found);
+    // Height (doc/pathfinding-and-z-plan.md, 3.4): a cone or a frontal strip starts at the
+    // caster; a circle centred away from the caster (a ground target) sits on the floor there
+    // nearest the caster's height.
+    const float fCasterZ = this->Nav_Z();
+    float fCentreZ = fCasterZ;
+    const tPOINTF PosVERT = bAimed ? m_PosCUR : PosSEARCH;
+    if (!bAimed && Nav::NO_Z != fCasterZ && this->GetZONE()->NavGrid()) {
+        const float fAX = PosSEARCH.x - m_PosCUR.x, fAY = PosSEARCH.y - m_PosCUR.y;
+        Nav::Span span;
+        if (fAX * fAX + fAY * fAY > 100.f * 100.f
+            && this->GetZONE()->NavGrid()->NearestSpan(PosSEARCH.x, PosSEARCH.y, fCasterZ, 1.0e6f, span)) {
+            fCentreZ = span.z;
+        }
+    }
+    const float fVertRADIUS = (float)SKILL_SCOPE_RADIUS(nSkillIDX);
     // Still counted: how often a victim's AI scans in the middle of an AoE, which
     // is what used to break it (nav_stats, doc/pathfinding-and-z-plan.md).
     const DWORD dwScanGEN = this->GetZONE()->GetFindGEN();
@@ -1842,6 +1902,9 @@ CObjCHAR::Skill_DamageToAROUND(tPOINTF& PosCENTER) {
         pFindCHAR = pFound;
         if (pFindCHAR->Get_HP() <= 0) {
             continue; // killed since the scan (the scan only finds the living)
+        }
+        if (!nav_in_area(pFindCHAR, PosVERT, fCentreZ, fVertRADIUS)) {
+            continue; // across a floor, a deck or a cliff
         }
 
         bool bInside = true;
@@ -1950,7 +2013,13 @@ CObjCHAR::Skill_START_10_11(CObjCHAR* pTarget) {
         // Everyone in range first, then the statuses (AI_CollectOBJs).
         std::vector<CObjCHAR*> found;
         pTarget->AI_CollectOBJs(SKILL_SCOPE_RADIUS(Get_ActiveSKILL()), found);
+        const bool bVert = nav_hostile_area(this, Get_ActiveSKILL());
+        const float fCentreZ = bVert ? pTarget->Nav_Z() : Nav::NO_Z;
         for (CObjCHAR* pFindCHAR: found) {
+            if (bVert && !nav_in_area(pFindCHAR, pTarget->m_PosCUR, fCentreZ,
+                             (float)SKILL_SCOPE_RADIUS(Get_ActiveSKILL()))) {
+                continue;
+            }
             if (this->Skill_IsPassFilter(pFindCHAR, Get_ActiveSKILL())) {
                 // btResult = pFindCHAR->Skill_IncAbilityValue( Get_ActiveSKILL() );
                 btResult = pFindCHAR->Skill_ApplyIngSTATUS(Get_ActiveSKILL(), this);

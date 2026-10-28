@@ -8,6 +8,7 @@
 #include "GS_Party.h"
 #include "GS_ThreadSQL.h"
 #include "ZoneLIST.h"
+#include "nav/nav_settings.h"
 
 //-------------------------------------------------------------------------------------------------
 
@@ -783,6 +784,7 @@ CZoneTHREAD::RegenCharacter(CRegenPOINT* pRegen, int iIndex, int iCount) {
     for (int iC = 0; iC < iCount; iC++) {
         fXPos = fCX + RANDOM(pRegen->m_iRange * 2);
         fYPos = fCY + RANDOM(pRegen->m_iRange * 2);
+        this->NavPickSpawn(pRegen, fXPos, fYPos);
 
         CObjMOB* pNewOBJ = new CObjMOB;
         if (!pNewOBJ->Init(this, iIndex, fXPos, fYPos, TEAMNO_MOB, pRegen)) {
@@ -951,8 +953,9 @@ CZoneTHREAD::UpdateSECTOR(CObjCHAR* pCHAR) {
 
 //-------------------------------------------------------------------------------------------------
 CObjCHAR*
-CZoneTHREAD::FindFirstCHAR(tPOINTF& PosCENTER, int iDistance, CGameOBJ* pObjFINDER) {
+CZoneTHREAD::FindFirstCHAR(tPOINTF& PosCENTER, int iDistance, CGameOBJ* pObjFINDER, float fBandZ) {
     ++m_dwFindGEN;
+    m_fFindBandZ = fBandZ;
     m_iFindSecIDX = 0;
     m_iFindDistance = iDistance;
     m_pFindObjNODE = NULL;
@@ -966,8 +969,9 @@ CZoneTHREAD::FindFirstCHAR(tPOINTF& PosCENTER, int iDistance, CGameOBJ* pObjFIND
 }
 //-------------------------------------------------------------------------------------------------
 CObjCHAR*
-CZoneTHREAD::FindFirstCHAR(CObjCHAR* pCenterCHAR, int iDistance, CGameOBJ* pObjFINDER) {
+CZoneTHREAD::FindFirstCHAR(CObjCHAR* pCenterCHAR, int iDistance, CGameOBJ* pObjFINDER, float fBandZ) {
     ++m_dwFindGEN;
+    m_fFindBandZ = fBandZ;
     m_iFindSecIDX = 0;
     m_iFindDistance = iDistance;
     m_pFindObjNODE = NULL;
@@ -1000,7 +1004,8 @@ CZoneTHREAD::FindNextCHAR() {
 
         while (m_pFindObjNODE) {
             if (((CObjCHAR*)m_pFindObjNODE->DATA)->Get_HP() > 0) {
-                if (((CObjCHAR*)m_pFindObjNODE->DATA)->Get_DISTANCE(m_FindPOS) <= m_iFindDistance) {
+                if (((CObjCHAR*)m_pFindObjNODE->DATA)->Get_DISTANCE(m_FindPOS) <= m_iFindDistance
+                    && this->FindInBand((CObjCHAR*)m_pFindObjNODE->DATA)) {
                     return ((CObjCHAR*)(m_pFindObjNODE->DATA));
                 }
             }
@@ -1010,6 +1015,77 @@ CZoneTHREAD::FindNextCHAR() {
     }
 
     return NULL;
+}
+
+// A monster scan (aggro, help calls) sees only characters within the vertical rule of its
+// own height: nothing through a bridge deck, a cliff or a cave floor
+// (doc/pathfinding-and-z-plan.md, section 3.4). Every other scan is 2D.
+bool
+CZoneTHREAD::FindInBand(CObjCHAR* pChar) {
+    if (Nav::NO_Z == m_fFindBandZ) {
+        return true;
+    }
+    const float dx = pChar->m_PosCUR.x - m_FindPOS.x, dy = pChar->m_PosCUR.y - m_FindPOS.y;
+    if (Nav::InVerticalReach(m_fFindBandZ, pChar->Nav_Z(), sqrtf(dx * dx + dy * dy), (float)m_iFindDistance)) {
+        return true;
+    }
+    m_NavMeter.CountAggroMiss();
+    return false;
+}
+
+namespace {
+// where the client draws a monster (GetHeightTop) more than this above its floor: a roof
+constexpr float NAV_ROOF_CM = 300.f;
+constexpr int NAV_SPAWN_TRIES = 6;
+
+bool
+nav_under_roof(Nav::Grid* pGrid, float fX, float fY, float fAnchorZ) {
+    Nav::Span span;
+    if (!pGrid->NearestSpan(fX, fY, fAnchorZ, 1.0e6f, span)) {
+        return false;
+    }
+    const float fTop = pGrid->VisualTopZ(fX, fY);
+    return Nav::NO_Z != fTop && fTop - span.z > NAV_ROOF_CM;
+}
+} // namespace
+
+// A regen point's spawn that the client would draw on a roof, a deck or a wall top (more
+// than 3 m above the floor the point's monsters belong to) is drawn again, up to 6 times,
+// then put at the point's centre (decision 9). The floor is the point's baked anchor.
+void
+CZoneTHREAD::NavPickSpawn(CRegenPOINT* pRegen, float& fX, float& fY) {
+    Nav::Grid* pGrid = this->NavGrid();
+    if (!pGrid || !Nav::settings().spawn_roofs.load(std::memory_order_relaxed)) {
+        return;
+    }
+    const float fAnchorZ = pGrid->AnchorZ(pRegen->m_fXPos, pRegen->m_fYPos);
+    if (Nav::NO_Z == fAnchorZ) {
+        return;
+    }
+    for (int iTry = 0; iTry < NAV_SPAWN_TRIES; ++iTry) {
+        if (!nav_under_roof(pGrid, fX, fY, fAnchorZ)) {
+            return;
+        }
+        m_NavMeter.CountSpawnReroll();
+        fX = pRegen->m_fXPos - pRegen->m_iRange + RANDOM(pRegen->m_iRange * 2);
+        fY = pRegen->m_fYPos - pRegen->m_iRange + RANDOM(pRegen->m_iRange * 2);
+    }
+    if (!nav_under_roof(pGrid, fX, fY, fAnchorZ)) {
+        return;
+    }
+    fX = pRegen->m_fXPos;
+    fY = pRegen->m_fYPos;
+    m_NavMeter.CountSpawnFallback();
+    if (nav_under_roof(pGrid, fX, fY, fAnchorZ)) {
+        // even the centre: a data fix (move the point), logged at most once a minute a zone
+        static thread_local DWORD s_dwLastLog = 0;
+        const DWORD dwNow = ::timeGetTime();
+        if (dwNow - s_dwLastLog > 60000) {
+            s_dwLastLog = dwNow;
+            LOG_WARN("nav: zone {} regen point at ({:.1f}, {:.1f}) m spawns under a roof even at its centre: move it",
+                (int)this->Get_ZoneNO(), pRegen->m_fXPos / 100.f, pRegen->m_fYPos / 100.f);
+        }
+    }
 }
 
 //-------------------------------------------------------------------------------------------------

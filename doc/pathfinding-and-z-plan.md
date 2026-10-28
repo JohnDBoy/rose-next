@@ -607,6 +607,27 @@ The kill switch is to delete the `.lnav`. Nothing reads the heights yet except `
 - **Kill switch / size:** `aoe_band`, `mob_layer_aggro`, `spawn_hazard`. About 400 lines of C++ and 200 of Python.
 - **Player notices:** AoE from a bridge or cliff top no longer reaches far below; monsters below stop aggroing and stop answering help calls through floors; no monsters on Muris and Zant roofs.
 
+**Status (2026-10-29): validated in game.**
+- **Cliff test:** from the Shady Jungle valley at (5990, 5030) m, `/nav aoe 15` lists the pack as HIT. From the cliff top 25 m above, `/nav aoe 30` lists it as left out, and `/nav set aoe 0` brings back the 2D hit. Arrow Shower from the cliff edge does no damage below. With `aoe 0` it does.
+- **Log:**
+  - Muris re-rolled 5 roof spawns, none fell back to the centre;
+  - Shady monster scans skipped 4–18 cross-cliff targets a minute;
+  - the AoE rule excluded 3 targets in Shady and 0 in Muris;
+  - client heights stayed on the grid.
+- The arrow "stacking" seen on Muris lizards is not this phase: the rule excluded no area target there and does not touch normal attacks. Look at the client's projectile presentation if it comes back.
+- `/nav aoe [m]` was added for the test: it lists the monsters an area centred on you would hit, or leave out by height.
+
+What changed:
+- **`nav/nav_settings`:** the rule (`InVerticalReach`) and its knobs, read from `server.toml` `[nav]` at start and on `reloadconfig`, and changed live with `/nav set` (see `doc/server.toml.example`). The defaults are the decisions: band 500 cm + 70%, monster scans on, roof re-roll on.
+- **The rule's centre:** the AoE damage loop (types 7/17) checks every collected target against its centre. Cones and frontal strips start at the caster. A circle centred away from the caster (a ground target) takes the floor at the aim point nearest the caster's height. A monster's type-7 circle is centred on itself.
+- **Area statuses** (`Skill_ChangeIngSTATUS`, `Skill_START_10_11`) apply the rule only for hostile filters (4, 5, 6, 8, 10, and 7 from a monster). Party buffs and heals stay 2D.
+- **Monster scans** (`AI_FindFirstOBJ(int)` from an `OBJ_MOB`: aggro, help calls, the AI file's searches) pass the monster's height. `CZoneTHREAD::FindNextCHAR` applies the rule. Skill collects use a 2D scan and apply their own rule.
+- **Regen spawns:** `CZoneTHREAD::NavPickSpawn` re-rolls a spot where the client would draw the monster more than 3 m above the floor nearest the point's baked anchor, up to 6 times, then uses the centre. A centre under a roof logs a warning; the bake predicts none.
+- **Zone line:** adds "out of vertical reach: N in areas, M in monster scans; roof spawns re-rolled R, at the centre F".
+- **Stage A caveat:** a monster's height is where the client draws it. Under a walk-on deck it counts as on the deck, so an AoE from the deck still hits it (as seen on screen). Phase 6 fixes that.
+
+Predicted roof re-rolls (same rule offline): Muris 11 of 37 points (worst (5269, 5247) m, 44% of its square), Zant 10/29 (≤ 7%), Fossil Sanctuary 28/123 (≤ 17%), Sunshine Coast 13/327, Forest of Wandering 10/394, Shady Jungle 3/392. No centre is under a roof.
+
 ### Phase 4: walls for idle moves and spawns (server only)
 
 - **Changes:**
