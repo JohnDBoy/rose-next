@@ -1218,7 +1218,9 @@ CRecvPACKET::Recv_tag_ADJ_STATUS(short& nPacketOffset, tag_ADD_CHAR* ptagAddChar
             iStateSTBIDX = CEndurancePack::m_StateSTBIDXTable[iIngType];
 
             /// 아이템 사용에 의한 지속이 아니라면...
-            if (ING_INC_HP != iStateSTBIDX && ING_INC_MP != iStateSTBIDX) {
+            /// ( compares the type: it compared the STB row, 1 for HP but 4 for MP, so an MP
+            /// potion running when a character came into view got an icon and HP did not )
+            if (ING_INC_HP != iIngType && ING_INC_MP != iIngType) {
                 if (iStateSTBIDX == ING_DEC_LIFE_TIME)
                     pChar->AddEnduranceEntity(0, 43, 100, ENDURANCE_TYPE_SKILL);
                 else
@@ -3595,15 +3597,20 @@ CRecvPACKET::Recv_gsv_CLEAR_STATUS() {
                 (unsigned int)pObjCHAR->Get_STATE());
         }
 
+        // The server appends one value per potion it ended (HP, then MP), decided by
+        // what *it* cleared. A potion whose end never reached this client (sent to the
+        // party only, before) left the flag set here, and the old code read past the
+        // end of the packet; never read more values than were sent.
+        const int iAdjCount =
+            (m_pRecvPacket->m_HEADER.m_nSize - (int)sizeof(gsv_CLEAR_STATUS)) / (int)sizeof(short);
         int iIndexA = 0;
-        if (dwResult & FLAG_ING_HP) {
-            pObjCHAR->Set_HP(m_pRecvPacket->m_gsv_CLEAR_STATUS.m_nAdjVALUE[iIndexA]);
-            if (pObjCHAR->Get_HP() > pObjCHAR->Get_MaxHP())
-                pObjCHAR->Set_HP(pObjCHAR->Get_MaxHP());
-
+        if ((dwResult & FLAG_ING_HP) && iIndexA < iAdjCount) {
+            // Authoritative HP: a bare Set_HP moved only the visible bar.
+            pObjCHAR->Reconcile_HP(
+                min((int)m_pRecvPacket->m_gsv_CLEAR_STATUS.m_nAdjVALUE[iIndexA], pObjCHAR->Get_MaxHP()));
             iIndexA++;
         }
-        if (dwResult & FLAG_ING_MP) {
+        if ((dwResult & FLAG_ING_MP) && iIndexA < iAdjCount) {
             pObjCHAR->Set_MP(m_pRecvPacket->m_gsv_CLEAR_STATUS.m_nAdjVALUE[iIndexA]);
             if (pObjCHAR->Get_MP() > pObjCHAR->Get_MaxMP())
                 pObjCHAR->Set_MP(pObjCHAR->Get_MaxMP());

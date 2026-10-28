@@ -535,14 +535,11 @@ CObjCHAR::Send_gsv_CLEAR_STATUS(DWORD dwClearedFLAG) {
     pCPacket->m_gsv_CLEAR_STATUS.m_wObjectIDX = this->Get_INDEX();
     pCPacket->m_gsv_CLEAR_STATUS.m_dwStatusFLAG = this->m_IngSTATUS.GetFLAGs();
 
-    if (dwClearedFLAG & ~(FLAG_ING_HP | FLAG_ING_MP)) {
-        // 기타 적용이면 주변에 전송, 파티제외... 주변 파티원을 알아서, 멀리있는 파티원은 몰라..
-        this->GetZONE()->SendPacketToSectors(this, pCPacket);
-        // this->SendPacketToPartyExceptME( pCPacket );
-    } else {
-        // 물약 적용이면 파티원 한테만...
-        this->SendPacketToPARTY(pCPacket);
-    }
+    // Around the character, potions included. A potion's end used to go to the party
+    // only, while its start (Use_pITEM's GSV_USE_ITEM) goes to the sectors: every other
+    // client nearby kept its heal-over-time icon for good. Only clients in these
+    // sectors hold the character at all, the owner included.
+    this->GetZONE()->SendPacketToSectors(this, pCPacket);
 
     Packet_ReleaseNUnlock(pCPacket);
 
