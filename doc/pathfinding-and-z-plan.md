@@ -172,9 +172,14 @@ The painted cells are brush bands 10–15 m wide along walls. **MOV cannot be th
 2. **Classify each colliding triangle by its normal, two-sided:** a surface if |n_z| ≥ cos 54°, otherwise a wall. Flags do not decide.
 3. **Rasterise surfaces** (at 33 cm or finer) and cluster each cell's samples by z; a gap over 50 cm starts a new span.
 4. **Body test.** A span is blocked if a sample of another surface or wall lies 30–180 cm above it. This catches walls, low slabs, rock interiors and panel footprints. HEIGHTONLY parts (flag 36, stairs) never block; cylinders block discs.
-5. **Links** join walkable neighbouring spans whose |Δz| ≤ 135 cm.
-6. **Flood** from seeds: event points, regen centres, NPCs and warps, plus `scripts/nav/seeds/<ZONFOLDER>.json` (in git).
-   - A seed snaps to the span nearest its authored Z within 3 m, otherwise to the terrain. This covers the 190 z = 0 points.
+5. **Links** join walkable neighbouring spans whose |Δz| ≤ 135 cm on terrain and HEIGHTONLY stairs, and ≤ 45 cm (about 24°) where an object floor is involved.
+   - The avatar's forward body sphere (45 cm up, 40 cm ahead, radius 30) stops it against any mesh rising more than about 20°, so a rock face is a wall even when it is not steep.
+   - With 135 cm everywhere, the first Goblin Cave B1 bake leaked out of the tunnels over a 7 m rock (2026-10-28, corrected).
+6. **Flood** from seeds: event points (start, revive and every warp landing), regen centres and NPCs, plus `scripts/nav/seeds/<ZONFOLDER>.json` (in git).
+   - **Not warp gate records** (IFO lump 10): a gate's pivot can stand past the end of its corridor, outside the walls. One in Goblin Cave B1 seeded the whole outside (2026-10-28).
+   - **Seed snapping:** first to where the client puts the seed today. Every spawn, NPC and warp landing is dropped onto `GetHeightTop`, so where the cell's visual top is raised, the seed takes the walkable span at most 3 m under it.
+     - Muris' plaza is a platform 3.9 m over flat terrain, and z = 0 regen points had seeded the hidden ground beneath it (96,981 hazard floors; 164 after the fix).
+     - Otherwise: the span nearest the authored Z within 3 m; then the terrain; then the nearest cell within 3 with a span within 3 m of that Z. Height comes before distance, because a Sikuku regen point on a pillar had snapped onto the roof 20 m up and seeded it (307,983 two-floor cells; 1,460 after the fix).
    - Reached spans get a component id.
    - Unreached **up-facing** spans are kept as Z-only. A player may stand there after a fall; paths and spawns ignore them.
    - Unreached down-facing spans (cave ceilings) are dropped and only provide headroom.

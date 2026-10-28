@@ -58,6 +58,7 @@ try {
         "Content/**", "ESTB/**",
         "MinimapBackups/**",                 # the editor's Tools > Make minimap keeps replaced minimaps here
         "*.json", "*.py", "*.tmp",
+        "*.lnav", "*.LNAV",                  # the server's walk grids (scripts/nav-bake.py); globs are case-sensitive
         "3DDATA/MAPS/JUNON/AGIT01/TEMP/**"   # stray retail tile files the client never probes
     )
     $manifest = @("# Temporary manifest for direct VFS packing from data/ (scripts/pack.ps1)") +
