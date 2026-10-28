@@ -210,7 +210,7 @@ attack power reads as the skill buff, gain/loss 0), so the swap mirror skips it 
 word decides: `Change_EQUIP_ITEM` now sends `GSV_CLEAR_STATUS` with whatever the swap cleared
 (before, it cleared silently and every client guessed; a party member who buffed out of view lost
 the icon on a swap in everyone else's view).
-**A potion's end reaches everyone nearby (2026-10-28, awaiting test).** `Send_gsv_CLEAR_STATUS` sent a
+**A potion's end reaches everyone nearby (2026-10-28, validated).** `Send_gsv_CLEAR_STATUS` sent a
 potion-only clear to the party, while the potion's start goes to the sectors, so other players nearby
 kept its heal-over-time icon (`CEnduranceItem` never ends by itself) for good. It goes to the sectors
 now. `Recv_gsv_CLEAR_STATUS` reads no more HP/MP values than the packet carries and applies HP
