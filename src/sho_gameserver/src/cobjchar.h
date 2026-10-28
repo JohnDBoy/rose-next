@@ -73,6 +73,9 @@ class CObjAVT;
 class classUSER;
 class CParty;
 class CGuild;
+namespace Nav {
+class Agent;
+}
 
 /**
  * \ingroup SHO_GS_LIB
@@ -96,6 +99,20 @@ public:
     // The move speed the last move packet told clients (Resync_MoveSPEED).
     uint16_t m_nBroadcastMoveSpeed = 0;
     void Resync_MoveSPEED();
+
+    // A multi-leg path in progress (nav/nav_agent.h), owned here; null otherwise.
+    // It walks the character corner by corner and is dropped as soon as anything
+    // else re-commands it. doc/pathfinding-and-z-plan.md, section 3.2.
+    Nav::Agent* m_pNav = nullptr;
+    /// Take ownership and start the path. False (and deleted) if it cannot start.
+    bool Nav_Start(Nav::Agent* pAgent);
+    void Nav_Stop();
+
+private:
+    void Nav_Finish();
+    int Nav_ProcMOVE();
+
+public:
 
 private:
     void Adjust_HEIGHT() { /* nop */

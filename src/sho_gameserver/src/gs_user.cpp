@@ -18,6 +18,7 @@
 #include "rose/common/util.h"
 #include "rose/network/packets/update_stats_generated.h"
 #include "network.h"
+#include "nav/nav_probe.h"
 
 #include <cstddef>
 #include <iomanip>
@@ -2808,6 +2809,9 @@ classUSER::Recv_cli_MOUSECMD(t_PACKET* pPacket) {
         return true;
 
     this->m_nPosZ = pPacket->m_cli_MOUSECMD.m_nPosZ;
+
+    // A GM recording a /nav trail: where this move starts is the next corner.
+    Nav::Probe::OnUserMove(*this);
 
     this->SetCMD_MOVE(this->m_PosCUR,
         pPacket->m_cli_MOUSECMD.m_PosTO,

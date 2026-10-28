@@ -10,6 +10,7 @@
 
 #include "LIB_gsMAIN.h"
 #include "cerberus_lair.h"
+#include "nav/nav_probe.h"
 #include "GS_USER.h"
 #include "ZoneLIST.h"
 #include "GS_ListUSER.h"
@@ -241,6 +242,14 @@ cerberus(classUSER* user, CommandInfo info, const std::vector<std::string>& args
     return true;
 }
 
+bool
+nav(classUSER* user, CommandInfo info, const std::vector<std::string>& args) {
+    if (!user || !user->GetZONE()) {
+        return false;
+    }
+    return Nav::Probe::Command(*user, info.usage, args);
+}
+
 using CommandFunction = std::function<bool(classUSER*, CommandInfo, const std::vector<std::string>&)>;
 static const std::unordered_map<std::string, std::tuple<CommandFunction, CommandInfo>>
     command_registry = {
@@ -255,6 +264,7 @@ static const std::unordered_map<std::string, std::tuple<CommandFunction, Command
         REGISTER_COMMAND(Command::TELEPORT, teleport),
         REGISTER_COMMAND(Command::RELOAD_CONFIG, reload_config),
         REGISTER_COMMAND(Command::CERBERUS, cerberus),
+        REGISTER_COMMAND(Command::NAV, nav),
     };
 
 char* l_szAbility[] = {"STR",

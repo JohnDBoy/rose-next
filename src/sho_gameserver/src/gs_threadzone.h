@@ -16,6 +16,7 @@
 
 #include "ZoneFILE.h"
 #include "ZoneSECTOR.h"
+#include "nav/nav_stats.h"
 
 #include <map>
 #include <mutex>
@@ -81,6 +82,7 @@ private:
     POINTS m_FindSECTOR;
     classDLLNODE<CGameOBJ*>* m_pFindObjNODE;
     CGameOBJ* m_pObjFINDER;
+    DWORD m_dwFindGEN = 0; // +1 per FindFirstCHAR: tells a scan it was taken over
 
     void DeleteZoneOBJ();
 
@@ -111,6 +113,7 @@ protected:
 public:
     CEconomy m_Economy;
     void* m_pListITEM;
+    Nav::ZoneMeter m_NavMeter; // tick timing and movement/scan counters (nav/nav_stats.h)
 
     CZoneTHREAD(bool CreateSuspended);
     ~CZoneTHREAD();
@@ -202,6 +205,7 @@ public:
     CObjCHAR* FindFirstCHAR(tPOINTF& PosCENTER, int iDistance, CGameOBJ* pObjFINDER);
     CObjCHAR* FindFirstCHAR(CObjCHAR* pCenterCHAR, int iDistance, CGameOBJ* pObjFINDER);
     CObjCHAR* FindNextCHAR();
+    DWORD GetFindGEN() { return m_dwFindGEN; }
 
     void Kill_AllMOB(classUSER* pUSER, bool drop_items);
 

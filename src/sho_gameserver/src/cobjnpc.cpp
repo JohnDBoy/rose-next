@@ -471,6 +471,8 @@ CObjMOB::Run_AWAY(int iDistance) {
 
     if (this->SetCMD_MOVE2D(fX, fY, true))
         this->Set_COMMAND(CMD_RUNAWAY);
+    else
+        this->GetZONE()->m_NavMeter.CountLeashFail(); // the leash point is not walkable
 }
 
 //-------------------------------------------------------------------------------------------------

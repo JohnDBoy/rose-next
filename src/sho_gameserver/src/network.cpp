@@ -106,6 +106,27 @@ build_char_move_packet(CObjCHAR& character) {
 }
 
 Packet
+build_char_move_leg_packet(CObjCHAR& character, const tPOINTF& to, float distance) {
+    flatbuffers::FlatBufferBuilder builder;
+    builder.ForceDefaults(true);
+
+    const Packets::Vec3 target_pos(to.x, to.y, 0);
+    const Packets::CharacterMoveMode move_mode = move_mode_from_int(character.Get_MoveMODE());
+
+    Packets::CharacterMoveBuilder char_move_builder(builder);
+    char_move_builder.add_character_id(character.Get_INDEX());
+    char_move_builder.add_target_id(0);
+    char_move_builder.add_target_pos(&target_pos);
+    char_move_builder.add_target_distance(distance);
+    character.m_nBroadcastMoveSpeed = character.total_move_speed();
+    char_move_builder.add_move_speed(character.m_nBroadcastMoveSpeed);
+    char_move_builder.add_move_mode(move_mode);
+    const auto pak = char_move_builder.Finish();
+
+    return build_packet_from_offset(builder, pak, Packets::PacketType::CharacterMove);
+}
+
+Packet
 build_char_move_attack_packet(CObjCHAR& character) {
     flatbuffers::FlatBufferBuilder builder;
     builder.ForceDefaults(true);
@@ -113,7 +134,9 @@ build_char_move_attack_packet(CObjCHAR& character) {
     const Packets::Vec3 target_pos(character.m_PosGOTO.x, character.m_PosGOTO.y, 0);
     const Packets::CharacterMoveMode move_mode = move_mode_from_int(character.Get_MoveMODE());
 
-    Packets::CharacterMoveBuilder char_move_builder(builder);
+    // Its own table's builder: it was built with CharacterMoveBuilder, which only
+    // worked because the two schemas are field-for-field identical.
+    Packets::CharacterMoveAttackBuilder char_move_builder(builder);
     char_move_builder.add_character_id(character.Get_INDEX());
     char_move_builder.add_target_id(character.Get_TargetIDX());
     char_move_builder.add_target_pos(&target_pos);

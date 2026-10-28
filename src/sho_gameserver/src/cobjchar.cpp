@@ -7,6 +7,7 @@
 #include "ZoneLIST.h"
 
 #include "network.h"
+#include "nav/nav_agent.h"
 
 #include "rose/combat/skill_presentation.h"
 #include "rose/network/packets/combat_generated.h"
@@ -221,6 +222,47 @@ CObjCHAR::CObjCHAR() {
 }
 CObjCHAR::~CObjCHAR() {
     //	LogString (LOG_NORMAL, "~CObjCHAR()  ObjTYPE: %d, ObjIDX: %d \n", Get_TYPE(), Get_INDEX() );
+    SAFE_DELETE(m_pNav);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool
+CObjCHAR::Nav_Start(Nav::Agent* pAgent) {
+    SAFE_DELETE(m_pNav);
+    m_pNav = pAgent;
+    if (!m_pNav->Begin(*this)) {
+        SAFE_DELETE(m_pNav);
+        return false;
+    }
+    return true;
+}
+
+void
+CObjCHAR::Nav_Stop() {
+    SAFE_DELETE(m_pNav);
+}
+
+// The last corner: stop there like any AI move (the clients stop on their own
+// when they reach it), or run at the chase target.
+void
+CObjCHAR::Nav_Finish() {
+    const int iChase = m_pNav->ChaseTarget();
+    this->Nav_Stop();
+    CObjAI::SetCMD_STOP();
+    if (iChase) {
+        this->SetCMD_RUNnATTACK(iChase);
+    }
+}
+
+// CMD_MOVE while on a path: the agent owns arrival, corners are clamped in
+// RealProc. A leg ordered during an uninterruptible motion starts here once the
+// motion allows it, as Goto_POSITION would start it.
+int
+CObjCHAR::Nav_ProcMOVE() {
+    if (!(Get_STATE() & CS_BIT_MOV)) {
+        this->Start_MOVE(this->total_move_speed());
+    }
+    return 1;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -369,6 +411,13 @@ CObjCHAR::Resync_MoveSPEED() {
     }
 
     this->Start_MOVE(nSpeed);
+
+    // On a path the clients walk the leg they were last told, which can be the
+    // next corner already: send that one again, not m_PosGOTO.
+    if (m_pNav && m_pNav->Owns(*this)) {
+        m_pNav->Resend(*this);
+        return;
+    }
 
     if (CMD_ATTACK == wCommand) {
         Packet p = build_char_move_attack_packet(*this);
@@ -732,7 +781,9 @@ void
 CObjCHAR::Init_ADD_CHAR(classPACKET* pCPacket) {
     pCPacket->m_tag_ADD_CHAR.m_wObjectIDX = this->Get_INDEX();
     pCPacket->m_tag_ADD_CHAR.m_PosCUR = this->m_PosCUR;
-    pCPacket->m_tag_ADD_CHAR.m_PosTO = this->m_PosGOTO;
+    // A new viewer of a character on a path walks the leg the others were told.
+    pCPacket->m_tag_ADD_CHAR.m_PosTO =
+        (m_pNav && m_pNav->Owns(*this)) ? m_pNav->AnnouncedPoint() : this->m_PosGOTO;
     pCPacket->m_tag_ADD_CHAR.m_wCommand = this->Get_COMMAND();
     pCPacket->m_tag_ADD_CHAR.m_wTargetOBJ = this->Get_TargetIDX();
     pCPacket->m_tag_ADD_CHAR.m_iHP = this->Get_HP();
@@ -920,8 +971,10 @@ CObjCHAR::SetCMD_MOVE(tPOINTF& PosCUR, tPOINTF& PosTO, int iTargetObjIDX) {
 bool
 CObjCHAR::SetCMD_MOVE2D(float fPosX, float fPosY, BYTE btRunMODE) {
     // 인공지능에서 호출되는 이동함수 !!!
-    if (!this->GetZONE()->IsMovablePOS((int)fPosX, (int)fPosY))
+    if (!this->GetZONE()->IsMovablePOS((int)fPosX, (int)fPosY)) {
+        this->GetZONE()->m_NavMeter.CountMoveReject();
         return false;
+    }
 
     // 타운트 상태면 풀어라...
     if (this->m_IngSTATUS.IsSET(FLAG_ING_TAUNT)) {
@@ -1679,6 +1732,12 @@ CObjCHAR::Skill_DamageToAROUND(tPOINTF& PosCENTER) {
 
     // PosGOTO좌표를 중심으로 탐색...
     pFindCHAR = (CObjCHAR*)this->AI_FindFirstOBJ(PosSEARCH, iSearchDIST);
+    // The zone has one scan iterator. A victim's DAMAGED/DEAD AI can start its own
+    // scan from inside Apply_DAMAGE and take it over, which cuts this AoE short or
+    // moves its centre. Counted here (Phase 0 of doc/pathfinding-and-z-plan.md);
+    // the fix is a scan the AoE owns.
+    const DWORD dwScanGEN = this->GetZONE()->GetFindGEN();
+    bool bScanClobbered = false;
     while (pFindCHAR) {
         bool bInside = true;
         if (bAimed) {
@@ -1714,6 +1773,11 @@ CObjCHAR::Skill_DamageToAROUND(tPOINTF& PosCENTER) {
                     pOutITEM);
                 nResultCNT++;
             }
+        }
+
+        if (!bScanClobbered && this->GetZONE()->GetFindGEN() != dwScanGEN) {
+            bScanClobbered = true;
+            this->GetZONE()->m_NavMeter.CountScanClobber();
         }
 
         pFindCHAR = (CObjCHAR*)this->AI_FindNextOBJ();
@@ -2080,8 +2144,19 @@ void CObjCHAR::Move_COMPLETED ()
 
 int
 CObjCHAR::RealProc(DWORD dwPassTIME) {
+    // A path ends the moment anything else (AI, a hit, a skill) re-commands us.
+    if (m_pNav && !m_pNav->Owns(*this)) {
+        this->Nav_Stop();
+    }
+
     if ((CS_BIT_MOV | CS_BIT_MOV2) & this->Get_STATE()) {
-        m_PosCUR += (m_MoveVEC * dwPassTIME);
+        if (m_pNav) {
+            if (!m_pNav->Advance(*this, dwPassTIME)) {
+                this->Nav_Finish();
+            }
+        } else {
+            m_PosCUR += (m_MoveVEC * dwPassTIME);
+        }
         if (!this->GetZONE()->UpdateSECTOR(this)) { // 섹터 변환이 있을경우 호출하는 함수.
             // 좌표가 이상한넘이다 짤러 !!!
             return 0;
@@ -2115,6 +2190,9 @@ CObjCHAR::RealProc(DWORD dwPassTIME) {
             return ProcCMD_STOP();
 
         case CMD_MOVE:
+            if (m_pNav) {
+                return this->Nav_ProcMOVE();
+            }
             return ProcCMD_MOVE();
 
         case CMD_RUNAWAY:

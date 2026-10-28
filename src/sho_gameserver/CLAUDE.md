@@ -239,6 +239,35 @@ opens the walkability grid and logs a warning. This is the server-side form of t
 - Same gate, same trap as `CObjSUMMON::PlayerOrderMoveTo` above, which exists because
   player click-to-move must not be gated either.
 
+## Pathfinding and Z (`src/nav/`, in progress)
+
+This is the experimental project in `doc/pathfinding-and-z-plan.md`. Read its phase list
+and its §6 decisions before touching movement, height or AoE shape. Phase 0 is in the tree.
+
+- **`nav_agent`: the leg follower, `CObjCHAR::m_pNav`.**
+  - Walks a character along waypoints, sending one **target-less** `CharacterMove` per
+    leg (`build_char_move_leg_packet`). A move that carries a target makes the client
+    home straight on it.
+  - Clamps the server exactly onto each corner and carries the leftover time into the
+    next leg. The plain mover overshoots by up to one step; the clamp applies to path
+    legs only.
+  - Caps a step at 500 ms.
+  - Sends the next leg `lead_ms` early. 100 ms was validated in game, and 0 also looked
+    fine: the client turns at the corner with no client change.
+  - **It is dropped the moment anything else re-commands the character**: `Owns()`
+    means `CMD_MOVE`, target 0, and `m_PosGOTO` = its current waypoint.
+  - `Resync_MoveSPEED` and `Init_ADD_CHAR` report the leg the clients were last told.
+- **`nav_stats`: `CZoneTHREAD::m_NavMeter`.** It times the object `Proc` loop, which runs
+  *after* the frame wait, so its cost stretches the tick. It counts:
+  - AI moves the grid refused, and refused leash points;
+  - AoE scans whose shared iterator a victim's AI took over (`GetFindGEN`).
+
+  It logs `nav: zone …` once a minute while the zone has players, and `nav: server: …`
+  every 5 minutes. Baseline on 2026-10-28: 14,151 monsters; worst p99 3.4 ms (Sikuku);
+  646 of 2,047 MB of address space.
+- **`nav_probe`: the GM `/nav rec|mark|trail [lead_ms] [walk|run] [chase]|stats` command.**
+  A monster walks your recorded click corners.
+
 ## Dependencies
 
 - `common-server` — IOCP sockets, SQL thread base

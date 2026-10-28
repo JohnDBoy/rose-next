@@ -160,6 +160,15 @@
     <ClInclude Include="src\network.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\nav\nav_agent.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\nav\nav_probe.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\nav\nav_stats.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\common\shared\io_quest.h">
       <Filter>Common Files</Filter>
     </ClInclude>
@@ -299,6 +308,15 @@
       <Filter>Common Files</Filter>
     </ClCompile>
     <ClCompile Include="src\network.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\nav\nav_agent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\nav\nav_probe.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\nav\nav_stats.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\common\shared\io_quest.cpp">

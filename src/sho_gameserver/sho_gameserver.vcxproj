@@ -30,6 +30,9 @@
     <ClInclude Include="src\cchatroom.h" />
     <ClInclude Include="src\cgameobj.h" />
     <ClInclude Include="src\network.h" />
+    <ClInclude Include="src\nav\nav_agent.h" />
+    <ClInclude Include="src\nav\nav_probe.h" />
+    <ClInclude Include="src\nav\nav_stats.h" />
     <ClInclude Include="src\status_effects.h" />
     <ClInclude Include="src\cobjavt.h" />
     <ClInclude Include="src\cobjchar.h" />
@@ -80,6 +83,9 @@
     <ClCompile Include="src\cerberus_lair.cpp" />
     <ClCompile Include="src\cheatcmd.cpp" />
     <ClCompile Include="src\network.cpp" />
+    <ClCompile Include="src\nav\nav_agent.cpp" />
+    <ClCompile Include="src\nav\nav_probe.cpp" />
+    <ClCompile Include="src\nav\nav_stats.cpp" />
     <ClCompile Include="src\status_effects.cpp" />
     <ClCompile Include="src\cobjavt.cpp" />
     <ClCompile Include="src\cobjchar.cpp" />

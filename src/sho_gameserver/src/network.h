@@ -31,6 +31,10 @@ build_packet_from_offset(flatbuffers::FlatBufferBuilder& builder,
 }
 
 Packet build_char_move_packet(CObjCHAR& character);
+// One leg of a server path: a move to `to` with no target, so the client walks
+// to the point instead of homing on the character's target. distance is what
+// the server still walks to get there (the path, not the straight line).
+Packet build_char_move_leg_packet(CObjCHAR& character, const tPOINTF& to, float distance);
 Packet build_char_move_attack_packet(CObjCHAR& character);
 // skill_id / source_attacker_id are display metadata for the client damage
 // meter (DoT caster, summon owner); presentation logic must not branch on

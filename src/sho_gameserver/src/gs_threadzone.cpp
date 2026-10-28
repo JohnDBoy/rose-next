@@ -186,9 +186,17 @@ CZoneTHREAD::Execute() {
 
         m_dwCurAbsSEC = classTIME::GetCurrentAbsSecond();
 
+        // Times the object work below: it runs after the frame wait, so whatever it
+        // costs stretches this zone's tick (nav/nav_stats.h).
+        m_NavMeter.BeginProc();
+        int iTickMOBs = 0;
+
         pObjNODE = m_ObjLIST.GetHeadNode();
         while (pObjNODE) {
             pNextNODE = m_ObjLIST.GetNextNode(pObjNODE);
+            if (pObjNODE->DATA->IsA(OBJ_MOB)) {
+                ++iTickMOBs;
+            }
 
             if (!pObjNODE->DATA->Proc()) {
                 pDelOBJ = pObjNODE->DATA;
@@ -225,6 +233,8 @@ CZoneTHREAD::Execute() {
 
         // the Cerberus Lair draw: acts in the lair's zone and the gatekeeper's only
         CCerberusLair::Instance().ProcZone(this);
+
+        m_NavMeter.EndProc(*this, iTickMOBs);
 
         pPacketNODE = m_SendingPacketLIST.GetHeadNode();
         while (pPacketNODE) {
@@ -942,6 +952,7 @@ CZoneTHREAD::UpdateSECTOR(CObjCHAR* pCHAR) {
 //-------------------------------------------------------------------------------------------------
 CObjCHAR*
 CZoneTHREAD::FindFirstCHAR(tPOINTF& PosCENTER, int iDistance, CGameOBJ* pObjFINDER) {
+    ++m_dwFindGEN;
     m_iFindSecIDX = 0;
     m_iFindDistance = iDistance;
     m_pFindObjNODE = NULL;
@@ -956,6 +967,7 @@ CZoneTHREAD::FindFirstCHAR(tPOINTF& PosCENTER, int iDistance, CGameOBJ* pObjFIND
 //-------------------------------------------------------------------------------------------------
 CObjCHAR*
 CZoneTHREAD::FindFirstCHAR(CObjCHAR* pCenterCHAR, int iDistance, CGameOBJ* pObjFINDER) {
+    ++m_dwFindGEN;
     m_iFindSecIDX = 0;
     m_iFindDistance = iDistance;
     m_pFindObjNODE = NULL;
