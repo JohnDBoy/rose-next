@@ -104,6 +104,18 @@ public:
     // It walks the character corner by corner and is dropped as soon as anything
     // else re-commands it. doc/pathfinding-and-z-plan.md, section 3.2.
     Nav::Agent* m_pNav = nullptr;
+    /// The server's own height for a player (cm), walked floor by floor on the zone's walk
+    /// grid; NO_Z (-32768) until placed. m_nPosZ stays the client's report: it is broadcast.
+    short m_nNavZ = -32768;
+    tPOINTF m_PosNavLAST = {0, 0};
+    /// Follow m_nNavZ to m_PosCUR (players, after each move step).
+    void Nav_TrackZ();
+    /// A client's height report: re-anchor m_nNavZ to the nearest real floor within 3 m,
+    /// and audit the grid (a report far from every floor is logged).
+    void Nav_HintZ(short nClientZ);
+    /// This character's height as the server sees it: m_nNavZ for a player, where the
+    /// client draws it (GetHeightTop) for anyone else; NO_Z without a grid.
+    float Nav_Z();
     /// Take ownership and start the path. False (and deleted) if it cannot start.
     bool Nav_Start(Nav::Agent* pAgent);
     void Nav_Stop();

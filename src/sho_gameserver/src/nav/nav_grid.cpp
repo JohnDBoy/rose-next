@@ -1,0 +1,413 @@
+#include "stdafx.h"
+
+#include "nav/nav_grid.h"
+
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <intrin.h>
+
+namespace Nav {
+
+namespace {
+
+constexpr int TC = 160; // cells per tile side
+constexpr int TV = 65; // height vertices per tile side
+constexpr int NCELL = TC * TC;
+constexpr float CELL_CM = 100.f;
+constexpr float VERT_CM = 250.f;
+constexpr float CHUNK_CM = 16000.f;
+constexpr short NO_HEIGHT = -32768;
+constexpr float FOLLOW_SAMPLE_CM = 50.f; // half a cell: no cell is skipped along a step
+
+#pragma pack(push, 1)
+struct FileSpan {
+    short z;
+    unsigned char flags;
+    unsigned char clearance;
+    unsigned short component;
+};
+#pragma pack(pop)
+static_assert(sizeof(FileSpan) == 6, "lnav span record is 6 bytes");
+
+uint32_t
+crc32_of(const std::vector<unsigned char>& d) {
+    static uint32_t s_Table[256];
+    static bool s_bInit = [] {
+        for (uint32_t i = 0; i < 256; ++i) {
+            uint32_t c = i;
+            for (int k = 0; k < 8; ++k)
+                c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+            s_Table[i] = c;
+        }
+        return true;
+    }();
+    (void)s_bInit;
+    uint32_t c = 0xFFFFFFFFu;
+    for (unsigned char b: d)
+        c = s_Table[(c ^ b) & 0xFF] ^ (c >> 8);
+    return c ^ 0xFFFFFFFFu;
+}
+
+bool
+read_file(const std::string& path, std::vector<unsigned char>& out) {
+    FILE* fp = fopen(path.c_str(), "rb");
+    if (!fp)
+        return false;
+    fseek(fp, 0, SEEK_END);
+    const long n = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    out.resize(n > 0 ? (size_t)n : 0);
+    const size_t got = n > 0 ? fread(out.data(), 1, (size_t)n, fp) : 0;
+    fclose(fp);
+    return got == out.size();
+}
+
+struct Cursor {
+    const unsigned char* p;
+    const unsigned char* end;
+    bool ok = true;
+
+    template <class T>
+    T get() {
+        T v{};
+        if (end - p < (ptrdiff_t)sizeof(T)) {
+            ok = false;
+            return v;
+        }
+        memcpy(&v, p, sizeof(T));
+        p += sizeof(T);
+        return v;
+    }
+    const unsigned char* take(size_t n) {
+        if ((size_t)(end - p) < n) {
+            ok = false;
+            return nullptr;
+        }
+        const unsigned char* r = p;
+        p += n;
+        return r;
+    }
+};
+
+std::string
+last_folder(const std::string& dir) {
+    std::string d = dir;
+    while (!d.empty() && (d.back() == '/' || d.back() == '\\'))
+        d.pop_back();
+    const size_t s = d.find_last_of("/\\");
+    return s == std::string::npos ? d : d.substr(s + 1);
+}
+
+std::string
+with_slash(const std::string& dir) {
+    if (!dir.empty() && dir.back() != '/' && dir.back() != '\\')
+        return dir + "/";
+    return dir;
+}
+
+} // namespace
+
+struct Grid::Tile {
+    struct Cell {
+        short visualTop;
+        unsigned char n;
+        unsigned char pad;
+        uint32_t first;
+    };
+
+    short sx = 0, sy = 0;
+    short heights[TV * TV];
+    unsigned char simple[NCELL / 4];
+    unsigned char complexBits[NCELL / 8];
+    unsigned short rank32[NCELL / 32]; // complex cells before each 32-cell word
+    unsigned short mainComponent = 0;
+    std::vector<unsigned short> components; // per cell, or empty (mainComponent covers it)
+    std::vector<Cell> cells;
+    std::vector<FileSpan> spans;
+
+    int ComplexIndex(int i) const {
+        uint32_t w;
+        memcpy(&w, complexBits + (i >> 5) * 4, 4);
+        const uint32_t bit = 1u << (i & 31);
+        if (!(w & bit))
+            return -1;
+        return rank32[i >> 5] + (int)__popcnt(w & (bit - 1));
+    }
+    int SimpleClass(int i) const { return (simple[i >> 2] >> ((i & 3) * 2)) & 3; }
+};
+
+Grid::Grid() {
+    memset(m_pTiles, 0, sizeof(m_pTiles));
+}
+
+Grid::~Grid() {
+    for (auto& row: m_pTiles)
+        for (Tile* t: row)
+            delete t;
+}
+
+std::unique_ptr<Grid>
+Grid::Load(const std::string& zoneDir, const std::string& baseDir, std::string& err, int& staleInputs) {
+    staleInputs = 0;
+    const std::string dir = with_slash(zoneDir);
+    const std::string path = dir + last_folder(zoneDir) + ".lnav";
+    std::vector<unsigned char> data;
+    if (!read_file(path, data)) {
+        err = "no " + path;
+        return nullptr;
+    }
+
+    Cursor c{data.data(), data.data() + data.size()};
+    const unsigned char* magic = c.take(4);
+    if (!magic || memcmp(magic, "LNAV", 4) != 0) {
+        err = path + ": not an LNAV file";
+        return nullptr;
+    }
+    const unsigned short version = c.get<unsigned short>();
+    const unsigned short cellCm = c.get<unsigned short>();
+    if (version != 1 || cellCm != (unsigned short)CELL_CM) {
+        err = path + ": unsupported version or cell size (re-bake with scripts/nav-bake.py)";
+        return nullptr;
+    }
+    for (int i = 0; i < 4; ++i)
+        c.get<short>(); // the bake's rules, for the record
+
+    // the bake's inputs: a changed map file means the grid no longer matches the map
+    const unsigned short nInputs = c.get<unsigned short>();
+    const std::string base = with_slash(baseDir);
+    for (int i = 0; i < nInputs && c.ok; ++i) {
+        const unsigned char len = c.get<unsigned char>();
+        const unsigned char* name = c.take(len);
+        const uint32_t crc = c.get<uint32_t>();
+        if (!c.ok)
+            break;
+        const std::string n((const char*)name, len);
+        const std::string file = (n.find('/') != std::string::npos ? base : dir) + n;
+        std::vector<unsigned char> input;
+        if (!read_file(file, input) || crc32_of(input) != crc)
+            ++staleInputs;
+    }
+
+    struct Index {
+        short sx, sy;
+        uint32_t off, size;
+    };
+    const unsigned short nTiles = c.get<unsigned short>();
+    std::vector<Index> index(nTiles);
+    for (auto& e: index) {
+        e.sx = c.get<short>();
+        e.sy = c.get<short>();
+        e.off = c.get<uint32_t>();
+        e.size = c.get<uint32_t>();
+    }
+    const uint32_t nAnchors = c.get<uint32_t>();
+    c.take((size_t)nAnchors * 12); // regen anchors: used from Phase 3
+    if (!c.ok) {
+        err = path + ": truncated header";
+        return nullptr;
+    }
+
+    std::unique_ptr<Grid> grid(new Grid());
+    grid->m_Bytes = sizeof(Grid);
+    for (const Index& e: index) {
+        if (e.sx < 0 || e.sx >= 64 || e.sy < 0 || e.sy >= 64 || (size_t)e.off + e.size > data.size()) {
+            err = path + ": bad tile index";
+            return nullptr;
+        }
+        Cursor t{data.data() + e.off, data.data() + e.off + e.size};
+        std::unique_ptr<Tile> tile(new Tile());
+        tile->sx = e.sx;
+        tile->sy = e.sy;
+        const unsigned char* h = t.take(sizeof(tile->heights));
+        const unsigned char* s = t.take(sizeof(tile->simple));
+        const unsigned char* cb = t.take(sizeof(tile->complexBits));
+        if (!t.ok) {
+            err = path + ": truncated tile";
+            return nullptr;
+        }
+        memcpy(tile->heights, h, sizeof(tile->heights));
+        memcpy(tile->simple, s, sizeof(tile->simple));
+        memcpy(tile->complexBits, cb, sizeof(tile->complexBits));
+        tile->mainComponent = t.get<unsigned short>();
+        if (t.get<unsigned char>()) {
+            const unsigned char* comp = t.take(NCELL * sizeof(unsigned short));
+            if (comp) {
+                tile->components.resize(NCELL);
+                memcpy(tile->components.data(), comp, NCELL * sizeof(unsigned short));
+            }
+        }
+        const uint32_t nComplex = t.get<uint32_t>();
+        unsigned short run = 0;
+        for (int w = 0; w < NCELL / 32; ++w) {
+            tile->rank32[w] = run;
+            uint32_t bits;
+            memcpy(&bits, tile->complexBits + w * 4, 4);
+            run = (unsigned short)(run + __popcnt(bits));
+        }
+        if (!t.ok || run != nComplex) {
+            err = path + ": complex cell count does not match its bitmap";
+            return nullptr;
+        }
+        tile->cells.resize(nComplex);
+        uint32_t first = 0;
+        for (auto& cell: tile->cells) {
+            cell.visualTop = t.get<short>();
+            cell.n = t.get<unsigned char>();
+            cell.pad = t.get<unsigned char>();
+            cell.first = first;
+            first += cell.n;
+        }
+        const unsigned char* sp = t.take((size_t)first * sizeof(FileSpan));
+        if (!t.ok || t.p != t.end) {
+            err = path + ": bad span block";
+            return nullptr;
+        }
+        tile->spans.resize(first);
+        if (first)
+            memcpy(tile->spans.data(), sp, (size_t)first * sizeof(FileSpan));
+        grid->m_Bytes += sizeof(Tile) + tile->components.capacity() * sizeof(unsigned short)
+            + tile->cells.capacity() * sizeof(Tile::Cell) + tile->spans.capacity() * sizeof(FileSpan);
+        grid->m_pTiles[e.sy][e.sx] = tile.release();
+        ++grid->m_iTiles;
+    }
+    return grid;
+}
+
+const Grid::Tile*
+Grid::TileAt(float x, float y, int& cell) const {
+    const int sx = (int)floorf(x / CHUNK_CM), sy = (int)floorf(y / CHUNK_CM);
+    if (sx < 0 || sx >= 64 || sy < 0 || sy >= 64)
+        return nullptr;
+    const Tile* t = m_pTiles[sy][sx];
+    if (!t)
+        return nullptr;
+    int c = (int)((x - sx * CHUNK_CM) / CELL_CM), r = (int)((y - sy * CHUNK_CM) / CELL_CM);
+    c = c < 0 ? 0 : (c >= TC ? TC - 1 : c);
+    r = r < 0 ? 0 : (r >= TC ? TC - 1 : r);
+    cell = r * TC + c;
+    return t;
+}
+
+float
+Grid::TerrainZ(float x, float y) const {
+    int cell;
+    const Tile* t = TileAt(x, y, cell);
+    if (!t)
+        return NO_Z;
+    const float fx = (x - t->sx * CHUNK_CM) / VERT_CM, fy = (y - t->sy * CHUNK_CM) / VERT_CM;
+    int ix = (int)fx, iy = (int)fy;
+    ix = ix < 0 ? 0 : (ix > TV - 2 ? TV - 2 : ix);
+    iy = iy < 0 ? 0 : (iy > TV - 2 ? TV - 2 : iy);
+    const float tx = fx - ix, ty = fy - iy;
+    const short* h = t->heights;
+    return h[iy * TV + ix] * (1 - tx) * (1 - ty) + h[iy * TV + ix + 1] * tx * (1 - ty)
+        + h[(iy + 1) * TV + ix] * (1 - tx) * ty + h[(iy + 1) * TV + ix + 1] * tx * ty;
+}
+
+// A terrain floor's stored height is its cell centre's, or a slab merged into it. Off the
+// centre the exact terrain is better, unless the floor is that slab.
+float
+Grid::CellZ(const Tile& t, int cell, float x, float y, float stored, unsigned char flags) const {
+    if (!(flags & SPAN_TERRAIN))
+        return stored;
+    const float cx = t.sx * CHUNK_CM + (cell % TC + 0.5f) * CELL_CM;
+    const float cy = t.sy * CHUNK_CM + (cell / TC + 0.5f) * CELL_CM;
+    if (stored > TerrainZ(cx, cy) + 5.f)
+        return stored;
+    return TerrainZ(x, y);
+}
+
+int
+Grid::SpansAt(float x, float y, Span* out, int iMax) const {
+    int cell;
+    const Tile* t = TileAt(x, y, cell);
+    if (!t || iMax <= 0)
+        return 0;
+    const int ci = t->ComplexIndex(cell);
+    if (ci < 0) {
+        const int cls = t->SimpleClass(cell);
+        out[0].z = TerrainZ(x, y);
+        out[0].flags = SPAN_TERRAIN | SPAN_UP | (cls ? (SPAN_WALK | SPAN_REACHED) : 0);
+        out[0].clearance = (unsigned char)cls;
+        out[0].component =
+            cls ? (t->components.empty() ? t->mainComponent : t->components[cell]) : 0;
+        return 1;
+    }
+    const Tile::Cell& rec = t->cells[ci];
+    int n = 0;
+    for (int k = 0; k < rec.n && n < iMax; ++k, ++n) {
+        const FileSpan& s = t->spans[rec.first + k];
+        out[n].z = CellZ(*t, cell, x, y, s.z, s.flags);
+        out[n].flags = s.flags;
+        out[n].clearance = s.clearance;
+        out[n].component = s.component;
+    }
+    return n;
+}
+
+float
+Grid::VisualTopZ(float x, float y) const {
+    int cell;
+    const Tile* t = TileAt(x, y, cell);
+    if (!t)
+        return NO_Z;
+    const int ci = t->ComplexIndex(cell);
+    if (ci >= 0 && t->cells[ci].visualTop != NO_HEIGHT)
+        return t->cells[ci].visualTop;
+    return TerrainZ(x, y);
+}
+
+float
+Grid::Pick(const Span* spans, int n, float curZ) const {
+    // the highest floor within a step up, else the lowest (the walker falls)
+    float best = spans[0].z;
+    bool found = false;
+    for (int k = 0; k < n; ++k) {
+        if (spans[k].z <= curZ + STEP_CM && (!found || spans[k].z > best)) {
+            best = spans[k].z;
+            found = true;
+        }
+    }
+    return best;
+}
+
+float
+Grid::FollowZ(float fromZ, float fromX, float fromY, float toX, float toY) const {
+    Span spans[32];
+    const float dx = toX - fromX, dy = toY - fromY;
+    const float len = sqrtf(dx * dx + dy * dy);
+    const int steps = (int)ceilf(len / FOLLOW_SAMPLE_CM);
+    float z = fromZ;
+    for (int i = 1; i <= steps; ++i) {
+        const float f = (float)i / steps;
+        const int n = SpansAt(fromX + dx * f, fromY + dy * f, spans, 32);
+        if (n)
+            z = Pick(spans, n, z);
+    }
+    if (steps == 0) {
+        const int n = SpansAt(toX, toY, spans, 32);
+        if (n)
+            z = Pick(spans, n, z);
+    }
+    return z;
+}
+
+bool
+Grid::NearestSpan(float x, float y, float z, float within, Span& out) const {
+    Span spans[32];
+    const int n = SpansAt(x, y, spans, 32);
+    float best = within;
+    bool found = false;
+    for (int k = 0; k < n; ++k) {
+        const float d = fabsf(spans[k].z - z);
+        if (d <= best) {
+            best = d;
+            out = spans[k];
+            found = true;
+        }
+    }
+    return found;
+}
+
+} // namespace Nav

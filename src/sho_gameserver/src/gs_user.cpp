@@ -18,6 +18,7 @@
 #include "rose/common/util.h"
 #include "rose/network/packets/update_stats_generated.h"
 #include "network.h"
+#include "nav/nav_grid.h"
 #include "nav/nav_probe.h"
 
 #include <cstddef>
@@ -2345,6 +2346,9 @@ classUSER::Recv_cli_JOIN_ZONE(t_PACKET* pPacket) {
             this->m_bRunMODE = false;
         }
         this->m_nPosZ = pPacket->m_cli_JOIN_ZONE.m_nPosZ;
+        // The client never writes that one; the server places the arrival itself, where
+        // the client drops the avatar (Nav_TrackZ from NO_Z).
+        this->m_nNavZ = Nav::NO_Z;
 
         this->Del_ActiveSKILL();
         this->CObjAI::SetCMD_STOP();
@@ -2812,6 +2816,8 @@ classUSER::Recv_cli_MOUSECMD(t_PACKET* pPacket) {
 
     // A GM recording a /nav trail: where this move starts is the next corner.
     Nav::Probe::OnUserMove(*this);
+    // where the move starts, the client's height: it picks the player's floor
+    this->Nav_HintZ(this->m_nPosZ);
 
     this->SetCMD_MOVE(this->m_PosCUR,
         pPacket->m_cli_MOUSECMD.m_PosTO,
@@ -2852,6 +2858,7 @@ classUSER::Recv_cli_CANTMOVE(t_PACKET* pPacket) {
         this->m_PosCUR = pPacket->m_cli_CANTMOVE.m_PosCUR;
         // The step back can cross a sector edge; scans and broadcasts go by sector.
         this->GetZONE()->UpdateSECTOR(this);
+        this->Nav_HintZ(this->m_nPosZ);
 
         // 서버가 클라이언트에서 막힌 위치 보다 더 멀이 이동했다.
         // 더이상 이동 못하도록...

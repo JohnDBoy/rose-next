@@ -11,7 +11,9 @@ namespace Nav::Probe {
 /// recording, the spot it starts from is the next corner of their trail.
 void OnUserMove(classUSER& user);
 
-/// /nav: the Phase 0 probe of doc/pathfinding-and-z-plan.md.
+/// /nav: the probe of doc/pathfinding-and-z-plan.md.
+///   (nothing) or here            the floors under you and your target, and every height the
+///                                server and the client hold
 ///   rec                          record your move corners from now on
 ///   mark                         add where you stand as a corner
 ///   trail [lead_ms] [walk|run] [chase]

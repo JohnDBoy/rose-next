@@ -3,6 +3,7 @@
     python scripts/nav-bake.py 31 62              bake Goblin Cave B1 and Shady Jungle
     python scripts/nav-bake.py 31 --no-write      numbers and picture only
     python scripts/nav-bake.py 31 --data D:/data  another data folder
+    python scripts/nav-bake.py --all              every LIST_ZONE row with a ZON (each folder once)
 
 Each zone writes:
   * data/<zone folder>/<FOLDER>.lnav, read by the game server (it lives in data/ like the
@@ -25,37 +26,69 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from mapgen import navbake  # noqa: E402
 from rosefmt import lnav  # noqa: E402
+from rosefmt.stb import Stb  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def all_zone_rows(data_dir):
+    """Every LIST_ZONE row whose ZON exists, one per zone folder (rows 4 and 10 share one)."""
+    s = Stb(os.path.join(data_dir, "3DDATA", "STB", "LIST_ZONE.STB"))
+    rows, seen = [], set()
+    for row in range(1, s.rows):
+        rel = navbake._rel(s.s(row, 1))
+        if not rel or not os.path.exists(os.path.join(data_dir, rel)):
+            continue
+        folder = os.path.dirname(rel).lower()
+        if folder not in seen:
+            seen.add(folder)
+            rows.append(row)
+    return rows
+
+
+def bake_one(a, row):
+    t0 = time.time()
+    b = navbake.bake(a.data, row)
+    blob = lnav.build(b.nav)
+    if lnav.build(lnav.parse(blob)) != blob:
+        raise SystemExit("lnav round trip failed for zone %d" % row)
+    text = navbake.report(b, a.data)
+    text += "\nbake time: %.1f s" % (time.time() - t0)
+    print(text)
+    with open(os.path.join(a.out, b.folder + ".txt"), "w", encoding="utf-8") as fh:
+        fh.write(text + "\n")
+    navbake.preview(b, os.path.join(a.out, b.folder + ".png"))
+    if not a.no_write:
+        path = os.path.join(b.zdir, b.folder + ".lnav")
+        with open(path, "wb") as fh:
+            fh.write(blob)
+        print("wrote %s (%.2f MB)" % (os.path.relpath(path, ROOT), len(blob) / 1e6))
+    print()
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("zones", type=int, nargs="+", help="LIST_ZONE rows")
+    ap.add_argument("zones", type=int, nargs="*", help="LIST_ZONE rows")
+    ap.add_argument("--all", action="store_true", help="every zone with a ZON")
     ap.add_argument("--data", default=os.path.join(ROOT, "data"))
     ap.add_argument("--out", default=os.path.join(ROOT, "build", "nav"), help="pictures and reports")
     ap.add_argument("--no-write", action="store_true", help="do not write the .lnav")
     a = ap.parse_args()
 
+    rows = all_zone_rows(a.data) if a.all else list(a.zones)
+    if not rows:
+        ap.error("give LIST_ZONE rows or --all")
     os.makedirs(a.out, exist_ok=True)
-    for row in a.zones:
-        t0 = time.time()
-        b = navbake.bake(a.data, row)
-        blob = lnav.build(b.nav)
-        if lnav.build(lnav.parse(blob)) != blob:
-            raise SystemExit("lnav round trip failed for zone %d" % row)
-        text = navbake.report(b, a.data)
-        text += "\nbake time: %.1f s" % (time.time() - t0)
-        print(text)
-        with open(os.path.join(a.out, b.folder + ".txt"), "w", encoding="utf-8") as fh:
-            fh.write(text + "\n")
-        navbake.preview(b, os.path.join(a.out, b.folder + ".png"))
-        if not a.no_write:
-            path = os.path.join(b.zdir, b.folder + ".lnav")
-            with open(path, "wb") as fh:
-                fh.write(blob)
-            print("wrote %s (%.2f MB)" % (os.path.relpath(path, ROOT), len(blob) / 1e6))
-        print()
+    failed = []
+    for row in rows:
+        try:
+            bake_one(a, row)
+        except Exception as e:  # noqa: BLE001 -- one broken zone must not stop the others
+            failed.append(row)
+            print("zone %d FAILED: %s: %s" % (row, type(e).__name__, e))
+            print()
+    if failed:
+        raise SystemExit("failed zones: %s" % failed)
 
 
 if __name__ == "__main__":

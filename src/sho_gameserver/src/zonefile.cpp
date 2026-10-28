@@ -4,6 +4,8 @@
 #include "ZoneLIST.h"
 #include "ZoneFILE.h"
 #include "CRegenAREA.h"
+#include "nav/nav_grid.h"
+#include "nav/nav_stats.h"
 
 //-------------------------------------------------------------------------------------------------
 
@@ -694,6 +696,26 @@ CZoneFILE::LoadZONE(char* szBaseDIR, short nZoneNO) {
             iTiles);
     }
 
+    // The layered walk grid: real heights and floors (doc/pathfinding-and-z-plan.md).
+    {
+        std::string err;
+        int iStale = 0;
+        std::unique_ptr<Nav::Grid> grid = Nav::Grid::Load(m_ZoneDIR.Get(), szBaseDIR, err, iStale);
+        if (grid) {
+            m_pNavGrid = grid.release();
+            Nav::AddGridBytes(m_pNavGrid->Bytes());
+            if (iStale) {
+                LOG_WARN("nav: zone {} grid is stale: {} map file(s) changed since the bake; "
+                         "re-run scripts/nav-bake.py {}",
+                    (int)nZoneNO, iStale, (int)nZoneNO);
+            }
+            LOG_INFO("nav: zone {} grid: {} tiles, {} KB", (int)nZoneNO, m_pNavGrid->TileCount(),
+                (int)(m_pNavGrid->Bytes() / 1024));
+        } else {
+            LOG_INFO("nav: zone {} has no walk grid ({})", (int)nZoneNO, err);
+        }
+    }
+
     this->m_iAgitCNT = 0;
     if (this->is_clan_zone()) {
         // 아지트 존이면... 부활위치를 기준으로... 아지트 구성...
@@ -748,6 +770,8 @@ CZoneFILE::FreeZONE(void) {
     for (short nI = 0; nI < MAP_MOVE_ATTR_GRID_CNT; nI++) {
         SAFE_DELETE(m_ppMoveATTR[nI]);
     }
+
+    SAFE_DELETE(m_pNavGrid);
 }
 
 bool

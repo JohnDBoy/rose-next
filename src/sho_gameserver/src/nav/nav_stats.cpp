@@ -39,9 +39,15 @@ zone_name(CZoneTHREAD& zone) {
 }
 
 std::atomic<DWORD> g_dwServerStart{0};
+std::atomic<size_t> g_GridBytes{0};
 std::atomic<DWORD> g_dwLastSummary{0};
 
 } // namespace
+
+void
+AddGridBytes(size_t bytes) {
+    g_GridBytes.fetch_add(bytes, std::memory_order_relaxed);
+}
 
 void
 ZoneMeter::BeginProc() {
@@ -91,11 +97,14 @@ ZoneMeter::Publish(CZoneTHREAD& zone) {
     const uint32_t nRejects = m_MoveRejects.exchange(0, std::memory_order_relaxed);
     const uint32_t nLeash = m_LeashFails.exchange(0, std::memory_order_relaxed);
     const uint32_t nClobbers = m_ScanClobbers.exchange(0, std::memory_order_relaxed);
+    const uint32_t nZHints = m_ZHints.exchange(0, std::memory_order_relaxed);
+    const uint32_t nZMisses = m_ZMisses.exchange(0, std::memory_order_relaxed);
 
     const std::string text = fmt::format(
         "zone {} {}: object work avg {:.2f} ms, p99 {:.2f} ms, max {:.2f} ms over {} ticks; "
         "longest tick {:.0f} ms; {} monsters, {} objects, up to {} players; "
-        "AI moves refused {} (leash {}), AoE casts a victim's AI scanned in {}",
+        "AI moves refused {} (leash {}), AoE casts a victim's AI scanned in {}, "
+        "client heights off the walk grid {} of {}",
         zone.Get_ZoneNO(),
         zone_name(zone),
         n ? dSum / n : 0.0,
@@ -108,7 +117,9 @@ ZoneMeter::Publish(CZoneTHREAD& zone) {
         m_iMaxUsers,
         nRejects,
         nLeash,
-        nClobbers);
+        nClobbers,
+        nZMisses,
+        nZHints);
 
     if (m_iMaxUsers > 0 || fP99 >= LOG_P99_MS) {
         LOG_INFO("nav: {}", text);
@@ -169,13 +180,14 @@ ServerSummaryText() {
 
     return fmt::format(
         "{} zones, {} monsters, {} players; worst object-work p99 {:.1f} ms (zone {} {}); "
-        "private {} MB, address space used {} of {} MB",
+        "walk grids {:.1f} MB; private {} MB, address space used {} of {} MB",
         iZones,
         nMobs,
         g_pUserLIST ? g_pUserLIST->Get_AccountCNT() : 0,
         nWorstP99x10 / 10.f,
         iWorstZone,
         szWorst,
+        g_GridBytes.load(std::memory_order_relaxed) / (1024.0 * 1024.0),
         pmc.PrivateUsage / (1024 * 1024),
         ullUsedVA / (1024 * 1024),
         ms.ullTotalVirtual / (1024 * 1024));

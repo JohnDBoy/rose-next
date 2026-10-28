@@ -27,6 +27,12 @@ public:
     // An AoE cast during which a victim's AI ran a scan of its own. That broke the
     // AoE until it collected its targets first (Phase 1); now it only counts.
     void CountScanClobber() { m_ScanClobbers.fetch_add(1, std::memory_order_relaxed); }
+    // A client height report, and whether it was more than 1 m from every floor.
+    void CountZHint(bool bMiss) {
+        m_ZHints.fetch_add(1, std::memory_order_relaxed);
+        if (bMiss)
+            m_ZMisses.fetch_add(1, std::memory_order_relaxed);
+    }
 
     /// The last finished minute, as text (empty before the first one).
     std::string LastWindow();
@@ -49,10 +55,15 @@ private:
     std::atomic<uint32_t> m_MoveRejects{0};
     std::atomic<uint32_t> m_LeashFails{0};
     std::atomic<uint32_t> m_ScanClobbers{0};
+    std::atomic<uint32_t> m_ZHints{0};
+    std::atomic<uint32_t> m_ZMisses{0};
 
     std::mutex m_TextMutex;
     std::string m_LastText;
 };
+
+/// Count a zone's walk grid in the server line (zone load).
+void AddGridBytes(size_t bytes);
 
 /// Server-wide line: zones, monsters, worst p99, process memory. Any zone thread
 /// may call it; one of them logs every few minutes.

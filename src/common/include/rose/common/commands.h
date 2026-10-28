@@ -70,8 +70,8 @@ const char* RELOADCONFIG_USAGE = "Usage: reloadconfig";
 const char* CERBERUS_HELP = "Drive the Cerberus Lair draw (open registration, draw now, reset, ice wall).";
 const char* CERBERUS_USAGE = "Usage: cerberus <status|open|draw|reset|wall up|wall down>";
 
-const char* NAV_HELP = "Pathfinding probe: record a route, have a monster walk it leg by leg; tick stats.";
-const char* NAV_USAGE = "Usage: nav <rec|mark|trail [lead_ms] [walk|run] [chase]|stats>";
+const char* NAV_HELP = "Pathfinding and Z: the floors under you and your target; route probe; tick stats.";
+const char* NAV_USAGE = "Usage: nav [here|rec|mark|trail [lead_ms] [walk|run] [chase]|stats]";
 
 
 static const std::vector<CommandInfo> commands = {

@@ -5,6 +5,10 @@
 
 #include "rose/common/pvp_state_types.h"
 
+namespace Nav {
+class Grid;
+}
+
 using namespace Rose::Common;
 
 #undef __NPC_TEST
@@ -103,6 +107,8 @@ protected:
     short m_nSectorSIZE;
     int m_iSectorLIMIT;
 
+    Nav::Grid* m_pNavGrid = nullptr;
+
     virtual CZoneTHREAD* GetZonePTR() = 0;
     virtual bool Add_RegenPOINT(FILE* fp, float fPosX, float fPosY) = 0;
     virtual bool Load_Economy(FILE* fp) = 0;
@@ -116,6 +122,10 @@ public:
 
     CZoneFILE(bool CreateSuspended);
     virtual __fastcall ~CZoneFILE();
+
+    /// The zone's layered walk grid (<FOLDER>.lnav, scripts/nav-bake.py), or null: heights
+    /// and floors for pathfinding and Z. A zone without one behaves as before.
+    Nav::Grid* NavGrid() { return m_pNavGrid; }
 
     bool LoadZONE(char* szBaseDIR, short nZoneNO);
     void FreeZONE(void);

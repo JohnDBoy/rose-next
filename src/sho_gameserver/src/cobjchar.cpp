@@ -8,6 +8,7 @@
 
 #include "network.h"
 #include "nav/nav_agent.h"
+#include "nav/nav_grid.h"
 
 #include "rose/combat/skill_presentation.h"
 #include "rose/network/packets/combat_generated.h"
@@ -258,6 +259,84 @@ CObjCHAR::Nav_Start(Nav::Agent* pAgent) {
 void
 CObjCHAR::Nav_Stop() {
     SAFE_DELETE(m_pNav);
+}
+
+//-------------------------------------------------------------------------------------------------
+namespace {
+// a teleport, not a step: start again from where the client drops the character
+constexpr float NAV_JUMP_CM = 2000.f;
+// a client height further than this from every floor is logged (the grid audit)
+constexpr float NAV_AUDIT_CM = 100.f;
+// a client height picks among real floors only, within this
+constexpr float NAV_HINT_SNAP_CM = 300.f;
+
+short
+nav_short(float z) {
+    return (short)(z < -32767.f ? -32767.f : (z > 32767.f ? 32767.f : z));
+}
+} // namespace
+
+void
+CObjCHAR::Nav_TrackZ() {
+    Nav::Grid* pGrid = this->GetZONE() ? this->GetZONE()->NavGrid() : nullptr;
+    if (!pGrid) {
+        return;
+    }
+    const float dx = m_PosCUR.x - m_PosNavLAST.x, dy = m_PosCUR.y - m_PosNavLAST.y;
+    if (Nav::NO_Z == m_nNavZ || dx * dx + dy * dy > NAV_JUMP_CM * NAV_JUMP_CM) {
+        const float z = pGrid->VisualTopZ(m_PosCUR.x, m_PosCUR.y);
+        m_nNavZ = Nav::NO_Z == z ? Nav::NO_Z : nav_short(z);
+    } else {
+        m_nNavZ = nav_short(pGrid->FollowZ(m_nNavZ, m_PosNavLAST.x, m_PosNavLAST.y, m_PosCUR.x, m_PosCUR.y));
+    }
+    m_PosNavLAST = m_PosCUR;
+}
+
+void
+CObjCHAR::Nav_HintZ(short nClientZ) {
+    Nav::Grid* pGrid = this->GetZONE() ? this->GetZONE()->NavGrid() : nullptr;
+    if (!pGrid) {
+        return;
+    }
+    Nav::Span span;
+    const bool bNear = pGrid->NearestSpan(m_PosCUR.x, m_PosCUR.y, nClientZ, NAV_AUDIT_CM, span);
+    this->GetZONE()->m_NavMeter.CountZHint(!bNear);
+    if (!bNear) {
+        // every miss is either a bake mistake or a client that stands somewhere the grid
+        // does not know: worth a line, but not a flood
+        static std::atomic<DWORD> s_dwLastLog{0};
+        const DWORD dwNow = ::timeGetTime();
+        DWORD dwLast = s_dwLastLog.load(std::memory_order_relaxed);
+        if (dwNow - dwLast > 10000 && s_dwLastLog.compare_exchange_strong(dwLast, dwNow)) {
+            Nav::Span spans[16];
+            const int n = pGrid->SpansAt(m_PosCUR.x, m_PosCUR.y, spans, 16);
+            std::string floors;
+            for (int k = 0; k < n; ++k)
+                floors += fmt::format("{}{:.0f}", k ? ", " : "", spans[k].z);
+            LOG_INFO("nav: client height {} off the grid: zone {} at ({:.1f}, {:.1f}) m, {}, floors [{}] cm",
+                (int)nClientZ, (int)this->GetZONE()->Get_ZoneNO(), m_PosCUR.x / 100.f,
+                m_PosCUR.y / 100.f, this->Get_NAME(), floors);
+        }
+    }
+    if (pGrid->NearestSpan(m_PosCUR.x, m_PosCUR.y, nClientZ, NAV_HINT_SNAP_CM, span)) {
+        m_nNavZ = nav_short(span.z);
+        m_PosNavLAST = m_PosCUR;
+    }
+}
+
+float
+CObjCHAR::Nav_Z() {
+    Nav::Grid* pGrid = this->GetZONE() ? this->GetZONE()->NavGrid() : nullptr;
+    if (!pGrid) {
+        return Nav::NO_Z;
+    }
+    if (this->IsUSER()) {
+        if (Nav::NO_Z == m_nNavZ) {
+            this->Nav_TrackZ();
+        }
+        return m_nNavZ;
+    }
+    return pGrid->VisualTopZ(m_PosCUR.x, m_PosCUR.y);
 }
 
 // The last corner: stop there like any AI move (the clients stop on their own
@@ -2179,6 +2258,9 @@ CObjCHAR::RealProc(DWORD dwPassTIME) {
             }
         } else {
             m_PosCUR += (m_MoveVEC * dwPassTIME);
+        }
+        if (this->IsUSER()) {
+            this->Nav_TrackZ();
         }
         if (!this->GetZONE()->UpdateSECTOR(this)) { // 섹터 변환이 있을경우 호출하는 함수.
             // 좌표가 이상한넘이다 짤러 !!!

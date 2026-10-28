@@ -559,6 +559,34 @@ What changed:
 - **Kill switch / size:** `enabled = 0`, or delete the file. About 1,000 lines of Python and 600 of C++.
 - **Player notices:** nothing.
 
+**Status (2026-10-28): validated in game.**
+- **`/nav` checks** (server height = client height at each spot, floors as expected):
+  - Shady Jungle `dari`: deck 74.7 m and ground 10.0 m, from both levels; the ground is ROOF-HAZARD.
+  - Goblin B3 altar: 4.8 m over terrain at −4.1 m (unreached).
+  - Junon: street −0.3 m, wall top 16.0 m, the ramp up to it.
+  - Muris: plaza platform 3.9 m over unreached terrain; a terrace at 18.2 m.
+- **Audit:** 1 of 452 client heights was more than 1 m from every floor, on a Muris stairway (17.2 m against 16.1 m).
+- **Startup:** about 3 s more for zone loading. Every grid loaded, none stale.
+- **Memory:** grids 119.7 MB resident; private memory 450 → 571 MB; address space 647 → 759 of 2,047 MB. That is over the 80 MB estimate, but the user approved the RAM.
+- The one apparent mismatch was the readout, not the server. "Your client" is the height at the start of the last click-move, the only height a client sends, so on a slope it lags. The wording now says so.
+
+**Bake** (committed `2dc17bfe`): `scripts/nav-bake.py [rows|--all]` writes `data/<zone folder>/<FOLDER>.lnav` plus `build/nav/<FOLDER>.png/.txt`. The 66 zone folders take about 15 minutes. The images were reviewed by the user, and four rules were corrected on them (§3.1 passes 5 and 6).
+
+**Server:**
+- `src/sho_gameserver/src/nav/nav_grid.*` loads the grid at the end of `LoadZONE` and logs `nav: zone N grid: … KB`, or `… has no walk grid`. If map files changed since the bake, it warns that the grid is stale.
+- Queries: `TerrainZ`, `SpansAt`, `VisualTopZ`, `FollowZ`, `NearestSpan`.
+- Players: `CObjCHAR::m_nNavZ` follows each move step, cell by cell, with the avatar's rule. It is re-anchored by the client's height on click-move and on `CANTMOVE` (the nearest floor within 3 m), and reset on zone join and on any jump over 20 m.
+- The client's height is audited: more than 1 m from every floor is counted in the zone line and logged at most every 10 s.
+- `m_nPosZ` keeps its meaning (the client's report, broadcast).
+- `/nav` (or `/nav here`) whispers the floors under you and your target: terrain, the height the client draws monsters at, and your server height against your client's.
+- The server line adds the total grid memory.
+
+**Not done** (moved to the phase that needs it):
+- reading IFO/ZON Z: regen anchors are in the grid, used in Phase 3;
+- the `[nav]` config section: comes with the first behaviour switch in Phase 3.
+
+The kill switch is to delete the `.lnav`. Nothing reads the heights yet except `/nav`.
+
 ### Phase 3: vertical band and roof spawns (server only)
 
 - **Changes:**

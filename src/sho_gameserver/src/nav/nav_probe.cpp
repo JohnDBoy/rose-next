@@ -3,6 +3,7 @@
 #include "nav/nav_probe.h"
 
 #include "nav/nav_agent.h"
+#include "nav/nav_grid.h"
 #include "nav/nav_stats.h"
 
 #include "GS_ThreadZONE.h"
@@ -137,6 +138,48 @@ cmd_trail(classUSER& user, const std::vector<std::string>& args) {
     return true;
 }
 
+std::string
+floors_text(const Span* spans, int n) {
+    // highest first: that is how one reads a stack of floors
+    std::string out;
+    for (int k = n - 1; k >= 0; --k) {
+        const Span& s = spans[k];
+        out += fmt::format("{}{:.1f} m {}{}{}{}", out.empty() ? "" : "; ", s.z / 100.f,
+            (s.flags & SPAN_TERRAIN) ? "terrain" : "object",
+            (s.flags & SPAN_REACHED) ? fmt::format(" reached c{}", (int)s.clearance) : " unreached",
+            (s.flags & SPAN_WALK) ? "" : " blocked", (s.flags & SPAN_HAZARD) ? " ROOF-HAZARD" : "");
+    }
+    return out;
+}
+
+void
+cmd_here(classUSER& user) {
+    CZoneTHREAD* pZone = user.GetZONE();
+    Grid* pGrid = pZone ? pZone->NavGrid() : nullptr;
+    if (!pGrid) {
+        user.send_server_whisper("This zone has no walk grid (scripts/nav-bake.py).");
+        return;
+    }
+    const float x = user.m_PosCUR.x, y = user.m_PosCUR.y;
+    Span spans[16];
+    const int n = pGrid->SpansAt(x, y, spans, 16);
+    user.send_server_whisper(fmt::format("nav at ({:.1f}, {:.1f}) m: terrain {:.1f} m, client draws monsters at {:.1f} m",
+        x / 100.f, y / 100.f, pGrid->TerrainZ(x, y) / 100.f, pGrid->VisualTopZ(x, y) / 100.f));
+    // m_nPosZ is the only height a client sends: where its last move started (cli_MOUSECMD),
+    // so on a slope it differs from where it stands now.
+    user.send_server_whisper(fmt::format("you: server {:.1f} m (your client was at {:.1f} m where your last move started)",
+        user.Nav_Z() / 100.f, user.m_nPosZ / 100.f));
+    user.send_server_whisper("floors: " + floors_text(spans, n));
+
+    CObjCHAR* pTarget = (CObjCHAR*)user.Get_TARGET(true);
+    if (pTarget && pTarget != &user && pTarget->GetZONE() == pZone) {
+        const float tx = pTarget->m_PosCUR.x, ty = pTarget->m_PosCUR.y;
+        const int tn = pGrid->SpansAt(tx, ty, spans, 16);
+        user.send_server_whisper(fmt::format("target {} (obj {}): server {:.1f} m; floors under it: {}",
+            pTarget->Get_NAME(), pTarget->Get_INDEX(), pTarget->Nav_Z() / 100.f, floors_text(spans, tn)));
+    }
+}
+
 } // namespace
 
 void
@@ -179,6 +222,11 @@ Command(classUSER& user, const char* szUsage, const std::vector<std::string>& ar
 
     if (action == "trail") {
         return cmd_trail(user, args);
+    }
+
+    if (action.empty() || action == "here") {
+        cmd_here(user);
+        return true;
     }
 
     if (action == "stats") {

@@ -276,7 +276,23 @@ and its §6 decisions before touching movement, height or AoE shape. Phase 0 is 
   every 5 minutes. Baseline on 2026-10-28: 14,151 monsters; worst p99 3.4 ms (Sikuku);
   646 of 2,047 MB of address space.
 - **`nav_probe`: the GM `/nav rec|mark|trail [lead_ms] [walk|run] [chase]|stats` command.**
-  A monster walks your recorded click corners.
+  A monster walks your recorded click corners. `/nav` (or `/nav here`) lists the floors under
+  you and your target.
+- **`nav_grid`: the layered walk grid (Phase 2).** `CZoneFILE::NavGrid()` holds
+  `data/<zone folder>/<FOLDER>.lnav`, baked offline by `scripts/nav-bake.py` (format in
+  `scripts/rosefmt/lnav.py`), or null.
+  - Queries: `TerrainZ`, `SpansAt`, `VisualTopZ` (where the client draws a monster:
+    `GetHeightTop`), `FollowZ` (the avatar's 135 cm step rule, cell by cell) and `NearestSpan`.
+  - It loads at the end of `LoadZONE` and warns when map files changed since the bake.
+    **Re-bake a zone after any map edit.**
+  - About 120 MB for all 66 zones.
+- **`CObjCHAR::m_nNavZ` is the server's own height for a player.**
+  - It follows each move step (`Nav_TrackZ`). It is re-anchored to the nearest floor within
+    3 m by the client's height on click-move and `CANTMOVE` (`Nav_HintZ`), which also audits
+    the grid. It resets on zone join and on any jump over 20 m.
+  - **`m_nPosZ` is not it:** that is the client's start-of-move report, broadcast to others as
+    the remote-avatar Z hint. Never overwrite it with server Z.
+  - For anyone but a player, `Nav_Z()` returns where the client draws them.
 
 ## Dependencies
 
