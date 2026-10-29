@@ -630,6 +630,64 @@ CObjCHAR::Nav_Chase(CObjCHAR* pTarget) {
 }
 
 bool
+CObjCHAR::IsInATTACK_RANGE(CObjCHAR* pT, int iRange) {
+    if (!this->IsInRANGE(pT, iRange)) {
+        return false;
+    }
+    const float dx = pT->m_PosCUR.x - m_PosCUR.x, dy = pT->m_PosCUR.y - m_PosCUR.y;
+    return Nav::InAttackBand(this->Nav_Z(), pT->Nav_Z(), sqrtf(dx * dx + dy * dy));
+}
+
+// pTarget is within reach on the map but out of the vertical band (Phase 7, decision 4).
+bool
+CObjCHAR::Nav_OtherLevel(CObjCHAR* pTarget) {
+    if (this->IsUSER()) {
+        // refused, not walked on forever (the server walks a player's attack in, and on a deck
+        // over the target it would stand over it for ever)
+        const bool bSkill = CMD_SKILL2OBJ == this->Get_COMMAND();
+        if (bSkill) {
+            this->Send_gsv_SKILL_CANCEL(SKILL_CANCEL_NEED_TARGET);
+            this->Del_ActiveSKILL();
+        }
+        CObjAI::SetCMD_STOP();
+        this->Send_gsv_STOP();
+        ((classUSER*)this)->send_server_whisper(
+            bSkill ? "That target is on another level: the skill cannot reach it."
+                   : "That target is on another level: you cannot reach it from here.");
+        return true;
+    }
+
+    // A monster or a summon keeps going while a path takes it up or down (Nav_Chase); stuck,
+    // it gives up after vertical_giveup_ms. A monster walks home (it still takes hits on the
+    // way, accepted: decision 4), a summon stops (its follow loop takes it back to its owner).
+    const DWORD dwNow = ::timeGetTime();
+    if (m_pNav && m_pNav->IsChase() && m_pNav->Owns(*this)) {
+        m_dwNavOtherSINCE = 0;
+        return false;
+    }
+    if (!m_dwNavOtherSINCE || dwNow - m_dwNavOtherLAST > 500) {
+        m_dwNavOtherSINCE = dwNow; // a new stretch (the last one was interrupted)
+    }
+    m_dwNavOtherLAST = dwNow;
+    if (dwNow - m_dwNavOtherSINCE < (DWORD)Nav::settings().vertical_giveup_ms.load(std::memory_order_relaxed)) {
+        return false;
+    }
+    m_dwNavOtherSINCE = 0;
+    this->GetZONE()->m_NavMeter.CountVerticalGiveUp();
+    if (this->Get_CALLER()) {
+        CObjAI::SetCMD_STOP();
+        this->Send_gsv_STOP();
+    } else {
+        CObjAI::SetCMD_STOP();
+        this->Run_AWAY(500);
+        if (CMD_STOP == this->Get_COMMAND()) {
+            this->Send_gsv_STOP(); // no way home either: it stays, idle
+        }
+    }
+    return true;
+}
+
+bool
 CObjCHAR::Nav_PathTo(float fX, float fY, float fZ, BYTE btRunMODE, int iGoalSnap) {
     if (!this->Nav_Pathing()) {
         return false;

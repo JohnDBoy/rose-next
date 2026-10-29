@@ -10,6 +10,7 @@
 #include "../CJustModelAVT.h"
 #include "../zoneobjects.h"
 #include "../groundtelegraph.h"
+#include "../CObjCHAR_Collision.h"
 #include "../SqliteDB.h"
 
 #include "system/cgame.h"
@@ -2969,7 +2970,10 @@ CRecvPACKET::Recv_gsv_POSITION_SKILL() {
         D3DVECTOR PosTarget;
         PosTarget.x = m_pRecvPacket->m_gsv_POSITION_SKILL.m_PosTARGET.x;
         PosTarget.y = m_pRecvPacket->m_gsv_POSITION_SKILL.m_PosTARGET.y;
-        PosTarget.z = pCHAR->Get_CurZPOS();
+        // The floor at the aim, as the server lands the area (the floor there nearest the
+        // caster, pathfinding Phase 3): aimed from a ledge down onto the ground, the effect plays
+        // on the ground, not at the caster's height in mid-air (Phase 7).
+        PosTarget.z = CObjCHAR_Collision::FloorBelow(PosTarget.x, PosTarget.y, pCHAR->Get_CurZPOS());
 
         pCHAR->SetCMD_Skill2POS(PosTarget, m_pRecvPacket->m_gsv_POSITION_SKILL.m_nSkillIDX);
 

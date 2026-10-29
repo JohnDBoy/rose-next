@@ -121,6 +121,8 @@ LoadSettings(const std::string& tomlPath) {
         {"path_tick_us", &s.path_tick_us},
         {"path_lead_ms", &s.path_lead_ms},
         {"send_z", &s.send_z},
+        {"vertical_range", &s.vertical_range},
+        {"vertical_giveup_ms", &s.vertical_giveup_ms},
     };
     for (const auto& k: keys) {
         int64_t v = 0;
@@ -143,11 +145,23 @@ LoadSettings(const std::string& tomlPath) {
     toml_free(t);
     LOG_INFO("nav: aoe_vertical {} (band {} cm + {}%), mob_layer_aggro {}, spawn_roofs {}, ai_walls {}, "
              "spawn_reach {}, pathing {} in zones {} ({} cells a search, {} searches / {} cells / {} us a tick), "
-             "send_z {}",
+             "send_z {}, vertical_range {} (give up after {} ms)",
         s.aoe_vertical.load(), s.aoe_band_base_cm.load(), s.aoe_band_slope_pct.load(),
         s.mob_layer_aggro.load(), s.spawn_roofs.load(), s.ai_walls.load(), s.spawn_reach.load(),
         s.pathing.load(), PathZonesText(), s.path_expansions.load(), s.path_tick_searches.load(),
-        s.path_tick_expansions.load(), s.path_tick_us.load(), s.send_z.load());
+        s.path_tick_expansions.load(), s.path_tick_us.load(), s.send_z.load(), s.vertical_range.load(),
+        s.vertical_giveup_ms.load());
+}
+
+bool
+InAttackBand(float attackerZ, float targetZ, float horizontal) {
+    constexpr float SLACK_CM = 100.f; // the client draws heights a little off the server's
+    const Settings& s = settings();
+    if (!s.vertical_range.load(std::memory_order_relaxed) || NO_Z == attackerZ || NO_Z == targetZ) {
+        return true;
+    }
+    return fabsf(targetZ - attackerZ) <= s.aoe_band_base_cm.load(std::memory_order_relaxed)
+        + s.aoe_band_slope_pct.load(std::memory_order_relaxed) * 0.01f * horizontal + SLACK_CM;
 }
 
 bool

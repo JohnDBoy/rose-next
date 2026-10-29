@@ -45,6 +45,8 @@ public:
     void CountPathStarted() { m_PathStarted.fetch_add(1, std::memory_order_relaxed); }
     void CountPathLineClear() { m_PathLineClear.fetch_add(1, std::memory_order_relaxed); }
     void CountPathReplan() { m_PathReplans.fetch_add(1, std::memory_order_relaxed); }
+    // A monster that gave up a target on another level it could not reach (Phase 7).
+    void CountVerticalGiveUp() { m_VerticalGiveUps.fetch_add(1, std::memory_order_relaxed); }
     // A client height report, and whether it was more than 1 m from every floor.
     void CountZHint(bool bMiss) {
         m_ZHints.fetch_add(1, std::memory_order_relaxed);
@@ -85,6 +87,7 @@ private:
     std::atomic<uint32_t> m_PathStarted{0};
     std::atomic<uint32_t> m_PathLineClear{0};
     std::atomic<uint32_t> m_PathReplans{0};
+    std::atomic<uint32_t> m_VerticalGiveUps{0};
     std::atomic<uint64_t> m_PathExpansions{0};
     std::atomic<uint64_t> m_PathMicros{0};
     std::atomic<uint32_t> m_PathMaxMicros{0};

@@ -337,6 +337,14 @@ and its §6 decisions before touching movement, height or AoE shape. Phase 0 is 
     zone threads, apart from the GM probe.
   - Switches: `[nav] pathing`, `path_zones`, `path_*` budgets; `/nav set path|zones|lead|cells`.
     Readout: `/nav path [go]`.
+- **Vertical attack range (Phase 7, `[nav] vertical_range`, `/nav set range|giveup`).**
+  - Attacks and targeted skills reach only within the band (`IsInATTACK_RANGE`, through
+    `Goto_TARGET(..., true)`).
+  - On another level, a player is refused with a whisper; a monster paths to the target's
+    floor and gives up after 3 s stuck (`Nav_OtherLevel`). A ground skill aimed onto another
+    level is refused in `Recv_cli_POSITION_SKILL` before it costs.
+  - After `Goto_TARGET` returns false, callers must check the command is still theirs: a
+    refusal or a give-up has already ended it.
 - **Stage B (Phase 6, `[nav] send_z`, `/nav set z`): monsters walk their own floor.**
   - `Nav_Z()` of a non-player is `m_nNavZ` (FollowZ, up-facing floors only), and
     `Nav_SendZ()` sends it in `gsv_MOB_CHAR.m_nPosZ` (a new field: client and server ship

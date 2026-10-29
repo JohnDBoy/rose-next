@@ -20,6 +20,7 @@
 #include "network.h"
 #include "nav/nav_grid.h"
 #include "nav/nav_probe.h"
+#include "nav/nav_settings.h"
 
 #include <cstddef>
 #include <iomanip>
@@ -6141,6 +6142,21 @@ classUSER::Recv_cli_POSITION_SKILL(t_PACKET* pPacket) {
 
         default:
             return IS_HACKING(this, "Recv_cli_POSITION_SKILL :: no position type skill");
+    }
+
+    // Aimed onto another level (Phase 7, decision 7): the area lands on the floor at the aim
+    // nearest the caster (Phase 3); outside the band from the caster, refused before it costs.
+    if (Nav::Grid* pGrid = this->GetZONE()->NavGrid()) {
+        const tPOINTF& aim = pPacket->m_cli_POSITION_SKILL.m_PosTARGET;
+        const float fCasterZ = this->Nav_Z();
+        Nav::Span span;
+        if (Nav::NO_Z != fCasterZ && pGrid->NearestSpan(aim.x, aim.y, fCasterZ, 1.0e6f, span, Nav::SPAN_UP)) {
+            const float dx = aim.x - m_PosCUR.x, dy = aim.y - m_PosCUR.y;
+            if (!Nav::InAttackBand(fCasterZ, span.z, sqrtf(dx * dx + dy * dy))) {
+                this->send_server_whisper("That spot is on another level: the skill cannot reach it.");
+                return true;
+            }
+        }
     }
 
     if (this->Skill_ActionCondition(nSkillIDX)) {

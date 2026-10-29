@@ -797,6 +797,20 @@ What was built:
 - **Kill switch / size:** `vertical_range`, sent at zone join. About 350 lines of client and 250 of server.
 - **Player notices:** attacks and casts respect floors; ground skills can be aimed onto decks.
 
+**Status (2026-10-29): validated in game.**
+
+Server only. In this codebase the server walks a player's attack and targeted skill in (the client follows `gsv_ATTACK` / `gsv_TARGET_SKILL` and halts on `gsv_STOP`), so the verdict lives there alone. No client change, no zone-join constants: both sides cannot disagree.
+
+- **Attack and targeted-skill range** use `CObjCHAR::IsInATTACK_RANGE`: the 2D range plus `Nav::InAttackBand`, the AoE band (5 m + 70% of d) plus 1 m of slack. It is wired through `Goto_TARGET(..., bAttack)` (ProcCMD_ATTACK, ProcCMD_Skill2OBJECT) and the attacking branch of ProcCMD_ATTACK. NPC talk and shop ranges stay 2D.
+- **Within 2D range but on another level** (`Nav_OtherLevel`):
+  - a **player** is refused at once ("That target is on another level..."): stop, and a skill cancelled before it costs. No endless walk.
+  - a **monster or summon** keeps going while a path takes it up or down. Stuck (no path) for `vertical_giveup_ms` (3 s), it gives up (decision 4): a monster walks home and takes hits on the way; a summon stops and its follow loop resumes. The zone line counts give-ups.
+- **A ground skill aimed onto another level** is refused before it costs (decision 7). The area lands on the floor at the aim nearest the caster (Phase 3), and that floor must be in the band from the caster.
+- **Switches:** `[nav] vertical_range`, `vertical_giveup_ms`; `/nav set range|giveup`.
+- **First test:** fine overall. A ground skill aimed onto a lower level within reach played its effect at the caster's height: `Recv_gsv_POSITION_SKILL` set the target Z to the caster's.
+  - **Fix (client):** `CObjCHAR_Collision::FloorBelow(aim, caster Z)` gives the highest surface at the aim no more than a step above the caster, never under the terrain. That matches the server's "floor at the aim nearest the caster".
+- **Not done:** the client's own `IsInRANGE` (attack-walk halt, owed swings) stays 2D, since it follows the server's packets. COND04 (AI distance condition) stays 2D. There is no aim Z from the client: the aim floor is the one nearest the caster.
+
 ### Phase 8: optional, each on its own
 
 - OBJ_MOB walk-line checks.

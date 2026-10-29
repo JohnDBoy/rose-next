@@ -156,6 +156,11 @@ public:
     bool Nav_Chase(CObjCHAR* pTarget) override;
     DWORD m_dwNavCheckTIME = 0; ///< the next chase line check
     DWORD m_dwNavStraightUNTIL = 0; ///< after a failed search: straight at the target until then
+    /// Phase 7: attack range with the vertical band, and what happens when only the band fails.
+    bool IsInATTACK_RANGE(CObjCHAR* pT, int iRange) override;
+    bool Nav_OtherLevel(CObjCHAR* pTarget) override;
+    DWORD m_dwNavOtherSINCE = 0; ///< since when a monster has been stuck on another level
+    DWORD m_dwNavOtherLAST = 0; ///< the last tick it was
 
 private:
     void Nav_Finish();

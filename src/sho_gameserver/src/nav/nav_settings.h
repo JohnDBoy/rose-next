@@ -36,6 +36,11 @@ struct Settings {
     /// sends (spawn, move and stop packets) and its vertical rule uses. 0: the client draws them
     /// on GetHeightTop and the rule uses that height, as before.
     std::atomic<int> send_z{1};
+    /// Phase 7: attacks and targeted skills reach only within the vertical band (the AoE band,
+    /// plus 1 m of slack). A player is refused with "another level"; a monster paths to the
+    /// target's floor, and gives up after vertical_giveup_ms when it cannot.
+    std::atomic<int> vertical_range{1};
+    std::atomic<int> vertical_giveup_ms{3000};
     /// Zones whose characters path (path_zones in server.toml: "all", or a list of zone
     /// numbers). One bit per zone number below 512.
     std::atomic<uint32_t> path_zone_bits[16];
@@ -60,5 +65,10 @@ void LoadSettings(const std::string& tomlPath);
 /// Whether a target dz away vertically and d away horizontally is inside an area of the
 /// given radius under the current rule. A height that is not known (NO_Z) never excludes.
 bool InVerticalReach(float centreZ, float targetZ, float horizontal, float radius);
+
+/// Phase 7: whether an attack, a targeted skill or a ground skill's aim at height targetZ, d away
+/// horizontally, is within reach of an attacker at attackerZ: the band (aoe_band_base_cm +
+/// aoe_band_slope_pct of d, plus 1 m of slack). True with vertical_range off or a height unknown.
+bool InAttackBand(float attackerZ, float targetZ, float horizontal);
 
 } // namespace Nav

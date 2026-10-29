@@ -127,6 +127,7 @@ ZoneMeter::Publish(CZoneTHREAD& zone) {
     const uint32_t nStarted = m_PathStarted.exchange(0, std::memory_order_relaxed);
     const uint32_t nLineClear = m_PathLineClear.exchange(0, std::memory_order_relaxed);
     const uint32_t nReplans = m_PathReplans.exchange(0, std::memory_order_relaxed);
+    const uint32_t nGiveUps = m_VerticalGiveUps.exchange(0, std::memory_order_relaxed);
     const uint64_t nExp = m_PathExpansions.exchange(0, std::memory_order_relaxed);
     const uint64_t nMicros = m_PathMicros.exchange(0, std::memory_order_relaxed);
     const uint32_t nMaxMicros = m_PathMaxMicros.exchange(0, std::memory_order_relaxed);
@@ -139,6 +140,8 @@ ZoneMeter::Publish(CZoneTHREAD& zone) {
               nSearches, nPath[0], nPath[1], nPath[2], nPath[3], nPath[4], nDeferred, nExp,
               n ? (double)nMicros / 1000.0 / n : 0.0, nMaxMicros / 1000.0, nStarted, nLineClear, nReplans)
         : std::string();
+    const std::string giveUpText =
+        nGiveUps ? fmt::format("; monsters that gave up a target on another level {}", nGiveUps) : std::string();
 
     const std::string text = fmt::format(
         "zone {} {}: object work avg {:.2f} ms, p99 {:.2f} ms, max {:.2f} ms over {} ticks; "
@@ -166,7 +169,7 @@ ZoneMeter::Publish(CZoneTHREAD& zone) {
         nAggro,
         nReroll,
         nFallback,
-        nStraight) + pathText;
+        nStraight) + pathText + giveUpText;
 
     if (m_iMaxUsers > 0 || fP99 >= LOG_P99_MS) {
         LOG_INFO("nav: {}", text);

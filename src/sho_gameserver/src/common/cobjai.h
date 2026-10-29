@@ -232,6 +232,11 @@ public:
     /// A chase toward pTarget is about to run straight at it (Goto_TARGET, ProcCMD_ATTACK).
     /// True when a path has the move in hand instead (CObjCHAR, pathfinding Phase 5).
     virtual bool Nav_Chase(CObjCHAR* pTarget) { return false; }
+    /// Attack and targeted-skill range: IsInRANGE, and (CObjCHAR, Phase 7) the vertical band.
+    virtual bool IsInATTACK_RANGE(CObjCHAR* pT, int iRange) { return IsInRANGE(pT, iRange); }
+    /// pTarget is within reach on the map but on another level (Phase 7). True when that ended
+    /// the command (a player refused, a monster that gave up), false to keep chasing.
+    virtual bool Nav_OtherLevel(CObjCHAR* pTarget) { return false; }
     virtual void Do_DamagedAI(CObjCHAR* pTarget, int iDamage) { /* nop */
     }
     virtual void Do_KillAI(CObjCHAR* pTarget, int iDamage) { /* nop */
@@ -282,7 +287,8 @@ private:
     char Do_SKILL(int iServerTarget, CObjCHAR* pTarget = NULL);
 
 public:
-    bool Goto_TARGET(CObjCHAR* pTarget, int iRange);
+    /// bAttack: an attack or a targeted skill, which must also reach vertically (Phase 7).
+    bool Goto_TARGET(CObjCHAR* pTarget, int iRange, bool bAttack = false);
     bool Goto_POSITION(int iRange = 0);
 
     int ProcCMD_SIT();

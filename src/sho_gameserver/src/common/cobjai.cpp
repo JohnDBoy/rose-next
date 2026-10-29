@@ -603,10 +603,14 @@ CObjAI::ProcMotionFrame(void) {
 
 //-------------------------------------------------------------------------------------------------
 bool
-CObjAI::Goto_TARGET(CObjCHAR* pTarget, int iRange) {
-    if (IsInRANGE(pTarget, iRange)) {
+CObjAI::Goto_TARGET(CObjCHAR* pTarget, int iRange, bool bAttack) {
+    if (bAttack ? IsInATTACK_RANGE(pTarget, iRange) : IsInRANGE(pTarget, iRange)) {
         this->m_PosGOTO = this->m_PosCUR;
         return true;
+    }
+    // within reach on the map but on another level: refused, or a monster's way up or down
+    if (bAttack && IsInRANGE(pTarget, iRange) && this->Nav_OtherLevel(pTarget)) {
+        return false;
     }
 
     // a path round what is in the way, or straight at the target
@@ -715,9 +719,12 @@ CObjAI::ProcCMD_ATTACK() {
         if (Get_STATE() & CS_BIT_ATTACK) {
             /// 공격중이다..
             if (!(Get_STATE() & CS_BIT_INT)) {
-                if (!IsInRANGE(pTarget, this->Get_AttackRange(0))) {
+                if (!IsInATTACK_RANGE(pTarget, this->Get_AttackRange(0))) {
                     // 범위를 벗어 났으면 이동...
                     m_wState = CS_STOP;
+                    if (IsInRANGE(pTarget, this->Get_AttackRange(0)) && this->Nav_OtherLevel(pTarget)) {
+                        return 1; // on another level: refused, or given up
+                    }
                     if (!this->Nav_Chase(pTarget)) {
                         m_PosGOTO = pTarget->m_PosCUR;
                         this->Start_MOVE(this->total_move_speed());
@@ -733,10 +740,10 @@ CObjAI::ProcCMD_ATTACK() {
         }
 
         /// 타겟으로 이동...
-        if (Goto_TARGET(pTarget, this->Get_AttackRange(0))) {
+        if (Goto_TARGET(pTarget, this->Get_AttackRange(0), true)) {
             // 도착 했으면 공격 시작 !!!
             this->Start_ATTACK(pTarget);
-        } else {
+        } else if (CMD_ATTACK == m_wCommand) { // not refused or given up (another level)
             if (!(Get_STATE() & CS_BIT_MOV)) {
                 this->Start_MOVE(this->total_move_speed());
             } else
@@ -794,8 +801,9 @@ CObjAI::ProcCMD_Skill2OBJECT() {
     if (pTarget) {
         if (!m_bCastingSTART) {
             /// 캐스팅중이 아니면 타겟으로 이동...
-            if (!Goto_TARGET(pTarget, this->Get_AttackRange(m_nToDoSkillIDX))) {
-                if (!(Get_STATE() & CS_BIT_MOV)) {
+            if (!Goto_TARGET(pTarget, this->Get_AttackRange(m_nToDoSkillIDX), true)) {
+                // not refused or given up (another level)
+                if (CMD_SKILL2OBJ == m_wCommand && !(Get_STATE() & CS_BIT_MOV)) {
                     // 이동중이 아니면..
                     this->Start_MOVE(this->total_move_speed());
                 }

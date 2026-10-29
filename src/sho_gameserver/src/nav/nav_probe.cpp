@@ -312,6 +312,8 @@ cmd_set(classUSER& user, const std::vector<std::string>& args) {
         {"lead", &s.path_lead_ms, "send a path's next leg this many ms before the corner"},
         {"cells", &s.path_expansions, "cells one search may expand"},
         {"z", &s.send_z, "monsters walk and are drawn on their own floor (needs the Phase 6 client): 0 / 1"},
+        {"range", &s.vertical_range, "attacks and targeted skills reach only within the band: 0 / 1"},
+        {"giveup", &s.vertical_giveup_ms, "a monster stuck below or above its target gives up after, ms"},
     };
     if (args.size() >= 4 && args[2] == "zones") {
         std::string text;
