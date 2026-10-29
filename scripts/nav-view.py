@@ -6,6 +6,7 @@
     python scripts/nav-view.py 52 5576 4622 --lnav build/nav/lnav-before-stairs/.../LP01.lnav --tag before
     python scripts/nav-view.py 62 5796 5258 --radius 22 --zmax 40   the stump ramp, without the deck above
     python scripts/nav-view.py 62 5804 5246 --radius 30 --pitch 1.15 --walkable   the whole ramp, from the side
+    python scripts/nav-view.py 71 5200 5235 --radius 34 --walkable --by-height    Muris' spawn pyramid
 
 Every floor the bake stored is drawn as a 1 m tile at its real height: walkable ground,
 walkable floors on map objects (decks, ramps, bridges, platforms), and, in grey, surfaces
@@ -100,6 +101,8 @@ PAGE = r"""<!DOCTYPE html>
   --series-ground: #1baf7a;
   --series-object: #2a78d6;
   --neutral-other: #c3c2bb;
+  --height-low: #b8d2f3;
+  --height-high: #123e8a;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) .viz-root {
@@ -111,6 +114,8 @@ PAGE = r"""<!DOCTYPE html>
     --series-ground: #199e70;
     --series-object: #3987e5;
     --neutral-other: #55544f;
+    --height-low: #1e3a63;
+    --height-high: #a8cbf7;
   }
 }
 html, body { margin: 0; height: 100%; }
@@ -122,6 +127,8 @@ h1 { font-size: 17px; margin: 0 0 4px; font-weight: 600; }
 .legend { display: flex; gap: 18px; padding: 8px 18px; flex-wrap: wrap; color: var(--text-secondary); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.ramp { width: 120px; height: 12px; border-radius: 3px; display: inline-block;
+  background: linear-gradient(90deg, var(--height-low), var(--height-high)); }
 .stage { position: relative; flex: 1; min-height: 300px; }
 canvas { width: 100%; height: 100%; display: block; cursor: grab; }
 canvas:active { cursor: grabbing; }
@@ -147,13 +154,16 @@ canvas:active { cursor: grabbing; }
 <script>
 const D = __DATA__;            // flat: x, y, z (m), kind
 const NAMES = __NAMES__;
+const BY_HEIGHT = __BY_HEIGHT__;   // colour by height (one hue, light = low) instead of by kind
 const N = D.length / 4;
 const root = document.querySelector('.viz-root');
 const css = n => getComputedStyle(root).getPropertyValue(n).trim();
-let COLORS, SURFACE;
+let COLORS, SURFACE, LOW, HIGH;
+const rgb = hex => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 function readColors() {
   COLORS = [css('--series-ground'), css('--series-object'), css('--neutral-other')];
   SURFACE = css('--surface-1');
+  LOW = rgb(css('--height-low')); HIGH = rgb(css('--height-high'));
 }
 readColors();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readColors(); draw(); });
@@ -167,6 +177,10 @@ document.getElementById('legend').innerHTML = NAMES.map((n, k) =>
 let zMin = Infinity, zMax = -Infinity;
 for (let i = 0; i < N; i++) { const z = D[i * 4 + 2]; if (z < zMin) zMin = z; if (z > zMax) zMax = z; }
 const zMid = (zMin + zMax) / 2;
+if (BY_HEIGHT)   // the kinds' counts give way to the height scale
+  document.getElementById('legend').innerHTML =
+    `<span>height ${zMin.toFixed(1)} m <i class="ramp"></i> ${zMax.toFixed(1)} m</span>`
+    + `<span>${N.toLocaleString()} floors (${NAMES.filter((n, k) => counts[k]).map((n, k) => n).join(', ')})</span>`;
 
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 let yaw = __YAW__, pitch = __PITCH__, zoom = 1, W = 0, H = 0, dpr = 1;
@@ -224,9 +238,14 @@ function draw() {
   ctx.lineWidth = tileGap; ctx.strokeStyle = SURFACE;
   for (let n = 0; n < N; n++) {
     const i = order[n];
-    // height cue: higher tiles a touch lighter, within the same hue
-    const f = 0.82 + 0.3 * (D[i * 4 + 2] - zMin) / span;
-    ctx.fillStyle = shade(COLORS[D[i * 4 + 3]], f);
+    if (BY_HEIGHT) {
+      const t = (D[i * 4 + 2] - zMin) / span;
+      ctx.fillStyle = `rgb(${LOW.map((v, c) => Math.round(v + (HIGH[c] - v) * t)).join(',')})`;
+    } else {
+      // height cue: higher tiles a touch lighter, within the same hue
+      const f = 0.82 + 0.3 * (D[i * 4 + 2] - zMin) / span;
+      ctx.fillStyle = shade(COLORS[D[i * 4 + 3]], f);
+    }
     ctx.beginPath();
     ctx.moveTo(P[i * 8], P[i * 8 + 1]);
     for (let k = 1; k < 4; k++) ctx.lineTo(P[i * 8 + k * 2], P[i * 8 + k * 2 + 1]);
@@ -323,6 +342,8 @@ def main():
     ap.add_argument("--zmax", type=float, help="leave out floors higher than this (metres): a deck over the spot")
     ap.add_argument("--walkable", action="store_true", help="only walkable floors (no grey): a cleaner picture")
     ap.add_argument("--yaw", type=float, default=-0.6, help="opening camera turn, radians (default -0.6)")
+    ap.add_argument("--by-height", action="store_true",
+                    help="colour by height (light = low) instead of by kind: reads better for one big structure")
     ap.add_argument("--pitch", type=float, default=0.75,
                     help="opening camera tilt, radians: 0 looks straight down, 1.55 from the side (default 0.75)")
     ap.add_argument("--data", default=os.path.join(ROOT, "data"))
@@ -356,6 +377,7 @@ def main():
             .replace("__DATA__", json.dumps(flat, separators=(",", ":")))
             .replace("__NAMES__", json.dumps(KIND_NAMES))
             .replace("__RADIUS__", str(a.radius)).replace("__CX__", str(a.x)).replace("__CY__", str(a.y))
+            .replace("__BY_HEIGHT__", "true" if a.by_height else "false")
             .replace("__YAW__", str(a.yaw)).replace("__PITCH__", str(max(0.05, min(1.55, a.pitch)))))
     with open(stem + ".html", "w", encoding="utf-8") as f:
         f.write(page)
