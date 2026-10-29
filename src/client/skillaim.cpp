@@ -28,11 +28,18 @@ const float FLAT_CM = 150.f; // an aim this far over the terrain is on a deck (g
 // bridge deck, a platform, a wall walk. The terrain march goes straight through them to
 // the ground below, but the server puts an area on the floor nearest the caster's height
 // (doc/pathfinding-and-z-plan.md, Phase 3), so the aim has to land on the deck too.
-// Walkable = what GetHeightTop stands characters on (CGroundTelegraphs::IsWalkableNode).
+// Walkable = what GetHeightTop stands characters on (CGroundTelegraphs::IsWalkableNode). A
+// "not moveable" object (flag 12) counts too while the avatar stands on an object itself and the
+// hit is near its height: the Shady Jungle rope bridges are flag 12, and the avatar walks them on
+// its own foot collision, but tree crowns and cave ceilings are flag 12 as well.
 bool
 pick_walkable_object(const D3DXVECTOR3& o, const D3DXVECTOR3& d, float fMaxT, float fReach,
     D3DXVECTOR3& out) {
     const D3DXVECTOR3& me = g_pAVATAR->Get_CurPOS();
+    bool bNF = false;
+    const float fGround = g_pTerrain ? g_pTerrain->GetHeight(me.x, me.y, &bNF) : me.z;
+    const bool bOnObject = !bNF && me.z > fGround + FLAT_CM;
+    constexpr float NOT_MOVEABLE_REACH_CM = 300.f;
     D3DXVECTOR3 vMin(me.x - fReach, me.y - fReach, me.z - PICK_BELOW_CM);
     D3DXVECTOR3 vMax(me.x + fReach, me.y + fReach, (o.z > me.z ? o.z : me.z) + 500.f);
     const int n = ::collectByMinMaxVec3(vMin, vMax);
@@ -40,10 +47,12 @@ pick_walkable_object(const D3DXVECTOR3& o, const D3DXVECTOR3& d, float fMaxT, fl
     float fBest = fMaxT;
     for (int i = 0; i < n; ++i) {
         HNODE h = ::getCollectNode(i);
-        if (!CGroundTelegraphs::IsWalkableNode(h))
+        if (!CGroundTelegraphs::IsWalkableNode(h, bOnObject))
             continue;
+        const bool bNotMoveable = CGroundTelegraphs::IsNotMoveableNode(h);
         float x, y, z, dist;
-        if (::intersectRay(h, o.x, o.y, o.z, d.x, d.y, d.z, &x, &y, &z, &dist) && dist < fBest) {
+        if (::intersectRay(h, o.x, o.y, o.z, d.x, d.y, d.z, &x, &y, &z, &dist) && dist < fBest
+            && (!bNotMoveable || fabsf(z - me.z) <= NOT_MOVEABLE_REACH_CM)) {
             fBest = dist;
             out = D3DXVECTOR3(x, y, z);
             bFound = true;

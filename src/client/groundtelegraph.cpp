@@ -273,13 +273,18 @@ CGroundTelegraphs::SetPreview(const D3DXVECTOR3& posCaster, const D3DXVECTOR3& p
 }
 
 bool
-CGroundTelegraphs::IsWalkableNode(unsigned int hNode) {
+CGroundTelegraphs::IsNotMoveableNode(unsigned int hNode) {
+    return hNode && ZZ_IS_NOTMOVEABLE(::getCollisionLevel(hNode));
+}
+
+bool
+CGroundTelegraphs::IsWalkableNode(unsigned int hNode, bool bNotMoveable) {
     const HNODE h = hNode;
     if (!h || ::isA(h, ZZ_TYPE_TERRAIN) || ::isA(h, ZZ_TYPE_OCEAN) || ::isA(h, ZZ_TYPE_MODEL)
         || ::isDescendantOfType(h, ZZ_TYPE_MODEL))
         return false;
     const int level = ::getCollisionLevel(h);
-    if ((level & 0x7) == ZZ_CL_NONE || ZZ_IS_NOTMOVEABLE(level))
+    if ((level & 0x7) == ZZ_CL_NONE || (ZZ_IS_NOTMOVEABLE(level) && !bNotMoveable))
         return false;
     if (HNODE ud = ::getUserData(h)) {
         if (reinterpret_cast<CGameOBJ*>(ud)->IsA(OBJ_ITEM))
@@ -332,6 +337,10 @@ CGroundTelegraphs::SurfaceHeight(const Telegraph& t, bool bRaised, float fX, flo
             fBestD = fabsf(fTerrain - t.fZ);
         }
         for (int i = 0; i < p.n; ++i) {
+            // a "not moveable" top (a rope bridge, but also a tree crown) only for a shape that
+            // stands on an object itself
+            if (((p.notMoveable >> i) & 1) && !bRaised)
+                continue;
             const float z = p.fTop[i];
             const float d = fabsf(z - t.fZ);
             if (z <= t.fZ + SURF_UP_CM && z >= t.fZ - SURF_DOWN_CM && d < fBestD) {
@@ -380,11 +389,14 @@ CGroundTelegraphs::SurfacePointAt(int iX, int iY, SurfacePoint& out) {
     const int n = ::collectByMinMaxVec3(vMin, vMax);
     for (int i = 0; i < n && p.n < 4; ++i) {
         const HNODE h = ::getCollectNode(i);
-        if (!IsWalkableNode(h))
+        if (!IsWalkableNode(h, true))
             continue;
         float cx, cy, cz, dist;
-        if (::intersectRay(h, x, y, SURF_RAY_CM, 0.f, 0.f, -1.f, &cx, &cy, &cz, &dist))
+        if (::intersectRay(h, x, y, SURF_RAY_CM, 0.f, 0.f, -1.f, &cx, &cy, &cz, &dist)) {
+            if (IsNotMoveableNode(h))
+                p.notMoveable |= (unsigned char)(1u << p.n);
             p.fTop[p.n++] = cz;
+        }
     }
     m_Surfaces[key] = p;
     out = p;

@@ -774,6 +774,9 @@ What was built:
   - **Server, the real fall:** a chaser checked its line only every 300 ms and ran straight at the target's current position in between. Near the ramp's inner edge that line crossed the gap by the stump, and FollowZ fell to the ground. Range is still 2D, so it attacked from below (Phase 7).
   - **Server fix:** the line is checked every tick. When it is blocked, the chaser keeps its last clear line until the next search, and also when the budget defers one. The 2.5 s straight walk after a failed search stays.
   - Shady with a player afterwards: object work avg 0.2–0.25 ms, p99 0.5–2.2 ms. Idle Sikuku Prison p99 ran 3.7–7.0 ms across the day's restarts, noisy and not affected by chaser checks.
+- **Aim circle on the Shady Jungle rope bridge at (5776, 5220) m (validated in game):** the circle fell to the ground there.
+  - The bridge is LIST_DECO object 98 with collision 12 (polygon, "not moveable"). GetHeightTop, and so the aim pick and the circle's surface sampling, skip such parts. The avatar walks it on its own foot collision, and the bake has it as a reached walkable floor, but its visual top is the terrain.
+  - Tree crowns and cave ceilings are flag 12 too. So `IsWalkableNode(h, true)` takes them only while the avatar, or the shape's centre, stands on an object (1.5 m over the terrain), and the aim pick only within 3 m of the avatar's height.
 - **Not changed: character shadows on decks.** The engine lets only terrain receive the dynamic character shadow (`zz_scene_octree::update_receive_shadow`, a 2005 "terrain only" test line). A character on a bridge casts its shadow on the ground below. This predates the plan.
 
 ### Phase 7: 3D attack range and aim (lockstep, optional)

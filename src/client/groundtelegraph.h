@@ -53,8 +53,13 @@ public:
     void ClearPreview() { m_bPreview = false; }
 
     /// A map object a character can stand on, as CTERRAIN::GetHeightTop counts them: a
-    /// collision level other than none, not "not moveable", not a character or an item.
-    static bool IsWalkableNode(unsigned int hNode);
+    /// collision level other than none, not "not moveable", not a character or an item. With
+    /// bNotMoveable, "not moveable" ones too: the avatar's own foot collision stands on them
+    /// (the Shady Jungle rope bridges are flag 12), but so are tree crowns and cave ceilings, so
+    /// a caller takes them only near a character that stands on an object itself.
+    static bool IsWalkableNode(unsigned int hNode, bool bNotMoveable = false);
+    /// Whether a node is "not moveable" (ZZ_CL_NOTMOVEABLE).
+    static bool IsNotMoveableNode(unsigned int hNode);
 
 private:
     enum Shape { SHAPE_CIRCLE, SHAPE_CONE, SHAPE_STRIP };
@@ -80,6 +85,7 @@ private:
     struct SurfacePoint {
         float fTop[4];
         unsigned char n;
+        unsigned char notMoveable; ///< bit i: fTop[i] is a "not moveable" object's (flag 12)
     };
 
     CGroundTelegraphs() {}
