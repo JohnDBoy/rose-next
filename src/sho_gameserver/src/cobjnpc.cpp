@@ -710,10 +710,11 @@ CObjSUMMON::PlayerOrderMoveTo(float fXPos, float fYPos) {
     // click-to-move has no such gate, so the summon should behave the same.
     // CObjAI::SetCMD_MOVE2D sets the run/destination state; Send_gsv_MOVE
     // broadcasts it to nearby clients so the move is actually shown.
-    // Round what is in the way when the straight line is blocked (Phase 5); the order is
-    // never refused: no path, it goes straight as before.
+    // Round what is in the way when the straight line is blocked (Phase 5), to the walkable
+    // floor nearest the click within 6 m (the packet has no height: the floor there nearest
+    // the summon's). The order is never refused: no path, it goes straight as before.
     if (this->Nav_Pathing() && !this->Nav_CanWalkTo(fXPos, fYPos)
-        && this->Nav_PathTo(fXPos, fYPos, Nav::NO_Z, 1 /* run */)) {
+        && this->Nav_PathTo(fXPos, fYPos, Nav::NO_Z, 1 /* run */, 6)) {
         return true;
     }
     if (CObjAI::SetCMD_MOVE2D(fXPos, fYPos, 1 /* run */)) {

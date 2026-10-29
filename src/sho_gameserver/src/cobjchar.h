@@ -139,7 +139,8 @@ public:
     /// Walk to (x, y) round what is in the way: a target-less path (leash, summon follow, a
     /// CTRL+click order). True if a path walks it there, including one already going within
     /// 4 m of it. fZ: the floor at (x, y), or NO_Z for the one nearest this character's.
-    bool Nav_PathTo(float fX, float fY, float fZ, BYTE btRunMODE);
+    /// iGoalSnap: how far round (x, y) a walkable floor may be (m), for a clicked spot.
+    bool Nav_PathTo(float fX, float fY, float fZ, BYTE btRunMODE, int iGoalSnap = 3);
     /// CObjAI's chase hook (Phase 5): every 300 ms a chaser checks the straight line to its
     /// target; blocked, it plans a path and walks it as target-less legs while staying in
     /// CMD_ATTACK. True while that path moves it.

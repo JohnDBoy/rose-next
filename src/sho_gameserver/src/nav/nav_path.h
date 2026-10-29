@@ -27,8 +27,9 @@ private:
 
 struct PathQuery {
     float x0, y0, z0; ///< the start: where the walker stands, on the floor it walks on
-    float x1, y1, z1; ///< the goal, on the goal's floor (NO_Z: the floor nearest z0)
+    float x1, y1, z1; ///< the goal, on the goal's floor (NO_Z: the floor nearest z0, at any height)
     int iPrefClass = 1; ///< the clearance class the walker prefers (1-3): narrower costs 3x
+    int iGoalSnapCells = 3; ///< how far round the goal a walkable floor is looked for (m)
 };
 
 enum class PathResult {

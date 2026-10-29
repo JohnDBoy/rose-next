@@ -588,7 +588,7 @@ CObjCHAR::Nav_Chase(CObjCHAR* pTarget) {
 }
 
 bool
-CObjCHAR::Nav_PathTo(float fX, float fY, float fZ, BYTE btRunMODE) {
+CObjCHAR::Nav_PathTo(float fX, float fY, float fZ, BYTE btRunMODE, int iGoalSnap) {
     if (!this->Nav_Pathing()) {
         return false;
     }
@@ -604,6 +604,7 @@ CObjCHAR::Nav_PathTo(float fX, float fY, float fZ, BYTE btRunMODE) {
     q.y1 = fY;
     q.z1 = fZ;
     q.iPrefClass = this->Nav_PrefClass();
+    q.iGoalSnapCells = iGoalSnap;
     std::vector<tPOINTF> points;
     const Nav::PathResult r =
         Nav::FindPath(*pZone->NavGrid(), q, pZone->m_NavBudget, pZone->m_NavMeter, points);

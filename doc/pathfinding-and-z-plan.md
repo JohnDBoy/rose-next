@@ -691,7 +691,26 @@ What changed:
 **Status (2026-10-29): validated in game.** In Goblin Cave B1, monsters chased round the corridor instead of through the rock, leashed monsters walked home along it, and `/nav set path 0` brought back the straight cut.
 - **Numbers:** 112 searches over the test, every one found (none partial, failed or deferred). The slowest took 0.46 ms, and nav time stayed at most 0.003 ms a tick.
 - **Sikuku Prison** p99 is about 4.2 ms with a player in it, against 3.2–3.6 ms before Phases 4–5. Most of the rise is Phase 4's line checks: it refuses about 4,500 idle moves a minute, each drawn again.
-- **Not tested yet:** summons (the test character is a Scout).
+- **Summons (tested after the commit):** CTRL+click orders mostly pathed, but now and then went straight through an obstacle.
+  - The log showed 12 searches ending "no floor" in Goblin B3.
+  - The order packet has no height, so the goal took the floor within 3 m of the summon's own height. A click up or down a slope found none, and the order fell back to straight.
+  - A summon whose tracked height a straight walk had left on a rock top failed the same way at the start.
+  - **Fix (built, awaiting the re-test):** a goal of unknown height takes the floor nearest the walker's at any height; clicks look up to 6 m round for a walkable spot; a start falls back to the nearest walkable floor at any height.
+  - **Re-test:** better, but at the Goblin B3 revive platform summons still cut through a pillar and ended on its top.
+    - The platform is an object floor 1 m over the cave floor. The bake's 45 cm object step leaves it a separate area (component 2, seeded only by the `restore` event at (5695, 5275) m), so every search between it and the cave floor was "unreachable" and went straight, across the 13 m pillars round it.
+    - **First fix (not enough):** walk to the walker's own nearest cell, then straight. On the second re-test a CTRL+clicked summon stopped beside the platform (no follow tick to finish the hop), and one ordered off the platform stopped against a pillar (its nearest platform cell), never stepping down to go round.
+    - **Fix (built, awaiting the re-test):**
+      - A* also steps **down** ledges of up to 2.5 m, one way only. Off the platform it drops at an edge and walks round the pillar.
+      - A goal on a floor it cannot climb to ends the search at its closest cell, and the goal follows as one straight leg when it is within 16 m. That covers the ledge up.
+      - The component check no longer refuses a search; it only caps the cells: 1,200 for a goal above, 2,500 otherwise.
+    - **Third re-test:** both cases work. A CTRL+clicked summon sometimes took an odd route onto the platform: with no way up, it walked round to the floor cell nearest the click, then climbed.
+      - **Fix (built):** A* may also climb ledges of up to 1.5 m onto reached walkable floors, at 4x a step's cost. It climbs at the nearest edge and crosses the platform, as the follow loop's straight moves always did.
+      - Only reached walkable floors are searched, so a climb never lands on a crate or a rock top.
+      - Monsters may now hop up 1 m ledges instead of walking round to the stairs, when that is much shorter.
+      - **Validated:** the summon goes up and down the platform sensibly.
+      - **Open:** it never uses the platform's stairs. They are ordinary meshes with risers up to 53 cm. The bake's body test sees each tread's next step as a ceiling, and object floors link only within 45 cm, so the treads are not walkable.
+      - **Bake follow-up:** a staircase's own risers should not count as a ceiling, and stair steps should link to about 60 cm. Then re-bake and re-check the B1 rock leak.
+    - Whether a player can really climb that 1 m ledge in game is unchecked. If so, the bake should link it.
 - **The first build crashed at startup:** freeing a `path_zones` string that `toml_get_str` never filled (no `[nav]` in `server.toml`) hits `FfiString`'s unchecked drop. It is now freed only when filled.
 
 What was built:

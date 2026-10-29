@@ -23,6 +23,12 @@ constexpr int NODES = WIN * WIN * MAX_LAYERS;
 constexpr float CELL = 100.f;
 constexpr int START_SNAP_CELLS = 2; // a start in a blocked cell steps out within 2 m
 constexpr int GOAL_SNAP_CELLS = 3; // a goal within 3 m
+constexpr float DROP_CM = 250.f; // a walker may step down a ledge this high (one way)
+constexpr float CLIMB_CM = 150.f; // ... and climb one this high onto a walkable floor, at a cost
+constexpr int CLIMB_FACTOR = 4; // a climb costs 4 steps: proper routes first, climbs when needed
+constexpr float HOP_CM = 1600.f; // an unreachable goal this near the closest cell: the last leg
+constexpr int CLIMB_EXPANSIONS = 1200; // cells to find the closest cell to a floor above ours
+constexpr int OTHER_AREA_EXPANSIONS = 2500; // ... and to look for a way down to another floor
 constexpr float SNAP_Z_CM = 300.f;
 constexpr float PARTIAL_GAIN_CM = 200.f;
 constexpr int MAX_WAYPOINTS = 16;
@@ -149,10 +155,20 @@ links(float za, unsigned char fa, float zb, unsigned char fb) {
     return fabsf(za - zb) <= (bGentle ? STEP_CM : OBJ_STEP_CM);
 }
 
+// A step a walker can take: the bake's link, down a ledge of up to DROP_CM, or up one of up to
+// CLIMB_CM (expensive). The bake links floors only within the avatar's step, so a platform 1 m
+// over the floor round it (the Goblin B3 revive platform) was its own island; a monster or a
+// summon goes up and down it as the follow loop's straight moves always did. Only reached
+// walkable floors are in the search, so a climb never lands on a crate or a rock top.
+bool
+walks(float za, unsigned char fa, float zb, unsigned char fb) {
+    return links(za, fa, zb, fb) || (zb < za && za - zb <= DROP_CM) || (zb > za && zb - za <= CLIMB_CM);
+}
+
 bool
 cell_links(const CellSpans& c, float z, unsigned char flags) {
     for (int k = 0; k < c.n; ++k)
-        if (links(z, flags, c.z[k], c.flags[k]))
+        if (walks(z, flags, c.z[k], c.flags[k]))
             return true;
     return false;
 }
@@ -163,9 +179,10 @@ node_id(int wx, int wy, int k) {
 }
 
 // The walkable floor nearest z in the window cell (wx, wy) or a cell within r of it, the
-// nearest cell first. False if none within SNAP_Z_CM (any height when z is NO_Z).
+// nearest cell first. False if none within zTol of z.
 bool
-snap(Search& S, const Grid& grid, int wx, int wy, float z, int r, int& outX, int& outY, int& outK) {
+snap(Search& S, const Grid& grid, int wx, int wy, float z, float zTol, int r, int& outX, int& outY,
+    int& outK) {
     for (int ring = 0; ring <= r; ++ring) {
         float fBest = 1.0e30f;
         bool bFound = false;
@@ -178,8 +195,8 @@ snap(Search& S, const Grid& grid, int wx, int wy, float z, int r, int& outX, int
                     continue;
                 const CellSpans& c = S.Cell(grid, cx, cy);
                 for (int k = 0; k < c.n; ++k) {
-                    const float d = (NO_Z == z) ? 0.f : fabsf(c.z[k] - z);
-                    if (d <= SNAP_Z_CM && d < fBest) {
+                    const float d = fabsf(c.z[k] - z);
+                    if (d <= zTol && d < fBest) {
                         fBest = d;
                         outX = cx;
                         outY = cy;
@@ -287,6 +304,7 @@ FindPath(const Grid& grid, const PathQuery& q, TickBudget& budget, ZoneMeter& me
     S.oy = (std::min)((std::max)((scy + gcy) / 2 - WIN / 2, scy - (WIN - 1 - WIN_MARGIN)), scy - WIN_MARGIN);
 
     PathResult result = PathResult::Failed;
+    bool bOtherArea = false; // the goal's floor is not connected both ways to ours
     int iExp = 0;
 
     auto finish = [&](PathResult r) {
@@ -299,7 +317,11 @@ FindPath(const Grid& grid, const PathQuery& q, TickBudget& budget, ZoneMeter& me
     };
 
     int sx, sy, sk;
-    if (!snap(S, grid, scx - S.ox, scy - S.oy, q.z0, START_SNAP_CELLS, sx, sy, sk)) {
+    // The start: the floor nearest the walker's height. A walker whose height went astray (a
+    // straight fallback walked it over a rock it cannot stand on) takes the nearest walkable
+    // floor at any height rather than never finding a path again.
+    if (!snap(S, grid, scx - S.ox, scy - S.oy, q.z0, SNAP_Z_CM, START_SNAP_CELLS, sx, sy, sk)
+        && !snap(S, grid, scx - S.ox, scy - S.oy, q.z0, 1.0e9f, START_SNAP_CELLS, sx, sy, sk)) {
         return finish(PathResult::NoFloor);
     }
     const CellSpans& startCell = S.Cell(grid, sx, sy);
@@ -311,13 +333,19 @@ FindPath(const Grid& grid, const PathQuery& q, TickBudget& budget, ZoneMeter& me
     const int gwx = gcx - S.ox, gwy = gcy - S.oy;
     const bool bGoalInWin = gwx >= 0 && gwy >= 0 && gwx < WIN && gwy < WIN;
     if (bGoalInWin) {
-        if (!snap(S, grid, gwx, gwy, NO_Z == q.z1 ? q.z0 : q.z1, GOAL_SNAP_CELLS, gx, gy, gk)) {
+        // a goal of unknown height (a clicked spot, a summoned monster's birth point) takes the
+        // floor there nearest the walker's, however far up or down the slope that is
+        const bool bAnyZ = NO_Z == q.z1;
+        const int iSnap = q.iGoalSnapCells > 0 ? q.iGoalSnapCells : GOAL_SNAP_CELLS;
+        if (!snap(S, grid, gwx, gwy, bAnyZ ? q.z0 : q.z1, bAnyZ ? 1.0e9f : SNAP_Z_CM, iSnap, gx, gy, gk)) {
             return finish(PathResult::NoFloor);
         }
+        // A floor the bake never connected to ours both ways (the Goblin B3 revive platform,
+        // 1 m over the cave floor round it): a way down may still exist (steps down are one
+        // way); a way up does not. Either way the search ends at our closest cell, and the
+        // goal follows as one straight leg (below).
         const unsigned short goalComp = S.Cell(grid, gx, gy).comp[gk];
-        if (startComp && goalComp && startComp != goalComp) {
-            return finish(PathResult::Unreachable);
-        }
+        bOtherArea = startComp && goalComp && startComp != goalComp;
     } else {
         // only a partial path can come of it: aim at the real goal cell
         gx = gwx;
@@ -331,8 +359,11 @@ FindPath(const Grid& grid, const PathQuery& q, TickBudget& budget, ZoneMeter& me
         return (uint32_t)(h * 6 / 5); // weighted 1.2: fewer cells, near-shortest paths
     };
 
-    const int iMaxExp = (std::min)(settings().path_expansions.load(std::memory_order_relaxed),
-        budget.ExpansionsLeft());
+    int iMaxExp = (std::min)(settings().path_expansions.load(std::memory_order_relaxed), budget.ExpansionsLeft());
+    if (bOtherArea) {
+        const bool bAbove = S.Cell(grid, gx, gy).z[gk] > startZ + OBJ_STEP_CM;
+        iMaxExp = (std::min)(iMaxExp, bAbove ? CLIMB_EXPANSIONS : OTHER_AREA_EXPANSIONS);
+    }
     const int iPref = q.iPrefClass < 1 ? 1 : (q.iPrefClass > 3 ? 3 : q.iPrefClass);
 
     const int startId = node_id(sx, sy, sk);
@@ -388,11 +419,13 @@ FindPath(const Grid& grid, const PathQuery& q, TickBudget& budget, ZoneMeter& me
                 continue;
             const CellSpans& nc = S.Cell(grid, nx, ny);
             for (int k = 0; k < nc.n; ++k) {
-                if (!links(cz, cf, nc.z[k], nc.flags[k]))
+                if (!walks(cz, cf, nc.z[k], nc.flags[k]))
                     continue;
                 uint32_t cost = bDiag ? COST_DIAGONAL : COST_STRAIGHT;
                 if (nc.clearance[k] < iPref)
                     cost *= NARROW_FACTOR;
+                if (nc.z[k] > cz && !links(cz, cf, nc.z[k], nc.flags[k]))
+                    cost *= CLIMB_FACTOR;
                 const int nid = node_id(nx, ny, k);
                 NodeRec& nr = S.Node(nid);
                 if (nr.closed || g + cost >= nr.g)
@@ -440,6 +473,17 @@ FindPath(const Grid& grid, const PathQuery& q, TickBudget& budget, ZoneMeter& me
         return finish(PathResult::Failed);
 
     pull(grid, s_Pts, out);
+    if (PathResult::Partial == result && bOtherArea) {
+        // the closest cell of ours: the goal itself is one straight leg from there (a ledge up
+        // onto the platform), as the follow loop's next straight move would take it anyway
+        const float hx = q.x1 - s_Pts.back().x, hy = q.y1 - s_Pts.back().y;
+        if (hx * hx + hy * hy <= HOP_CM * HOP_CM) {
+            tPOINTF p;
+            p.x = q.x1;
+            p.y = q.y1;
+            out.push_back(p);
+        }
+    }
     return finish(result);
 }
 
