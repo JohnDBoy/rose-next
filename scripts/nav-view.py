@@ -4,6 +4,8 @@
     python scripts/nav-view.py 62 5660 5200 --radius 30 the high bridge
     python scripts/nav-view.py 31 5162 5057 --png       Goblin B1, plus a still picture
     python scripts/nav-view.py 52 5576 4622 --lnav build/nav/lnav-before-stairs/.../LP01.lnav --tag before
+    python scripts/nav-view.py 62 5796 5258 --radius 22 --zmax 40   the stump ramp, without the deck above
+    python scripts/nav-view.py 62 5804 5246 --radius 30 --pitch 1.15 --walkable   the whole ramp, from the side
 
 Every floor the bake stored is drawn as a 1 m tile at its real height: walkable ground,
 walkable floors on map objects (decks, ramps, bridges, platforms), and, in grey, surfaces
@@ -167,7 +169,7 @@ for (let i = 0; i < N; i++) { const z = D[i * 4 + 2]; if (z < zMin) zMin = z; if
 const zMid = (zMin + zMax) / 2;
 
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
-let yaw = -0.6, pitch = 0.75, zoom = 1, W = 0, H = 0, dpr = 1;
+let yaw = __YAW__, pitch = __PITCH__, zoom = 1, W = 0, H = 0, dpr = 1;
 let fit = 1, offX = 0, offY = 0;   // the opening view fits the whole model, centred
 function resize() {
   dpr = window.devicePixelRatio || 1;
@@ -318,6 +320,11 @@ def main():
     ap.add_argument("--png", action="store_true", help="also a still picture (matplotlib)")
     ap.add_argument("--lnav", help="read this .lnav instead of the zone's (an older bake, to compare)")
     ap.add_argument("--tag", default="", help="added to the output name (with --lnav)")
+    ap.add_argument("--zmax", type=float, help="leave out floors higher than this (metres): a deck over the spot")
+    ap.add_argument("--walkable", action="store_true", help="only walkable floors (no grey): a cleaner picture")
+    ap.add_argument("--yaw", type=float, default=-0.6, help="opening camera turn, radians (default -0.6)")
+    ap.add_argument("--pitch", type=float, default=0.75,
+                    help="opening camera tilt, radians: 0 looks straight down, 1.55 from the side (default 0.75)")
     ap.add_argument("--data", default=os.path.join(ROOT, "data"))
     ap.add_argument("--out", default=os.path.join(ROOT, "build", "nav"))
     a = ap.parse_args()
@@ -329,6 +336,10 @@ def main():
         raise SystemExit("no walk grid: %s (run scripts/nav-bake.py %d)" % (lnav_path, a.zone))
     nav = lnav.parse(open(lnav_path, "rb").read())
     pts = floors(nav, a.x * 100, a.y * 100, a.radius)
+    if a.zmax is not None:
+        pts = [p for p in pts if p[2] <= a.zmax]
+    if a.walkable:
+        pts = [p for p in pts if p[3] != OTHER]
     if not pts:
         raise SystemExit("no floors there")
 
@@ -344,7 +355,8 @@ def main():
     page = (PAGE.replace("__TITLE__", title).replace("__SUB__", sub)
             .replace("__DATA__", json.dumps(flat, separators=(",", ":")))
             .replace("__NAMES__", json.dumps(KIND_NAMES))
-            .replace("__RADIUS__", str(a.radius)).replace("__CX__", str(a.x)).replace("__CY__", str(a.y)))
+            .replace("__RADIUS__", str(a.radius)).replace("__CX__", str(a.x)).replace("__CY__", str(a.y))
+            .replace("__YAW__", str(a.yaw)).replace("__PITCH__", str(max(0.05, min(1.55, a.pitch)))))
     with open(stem + ".html", "w", encoding="utf-8") as f:
         f.write(page)
     counts = [sum(1 for p in pts if p[3] == k) for k in range(3)]

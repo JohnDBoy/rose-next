@@ -742,6 +742,28 @@ What changed:
         - It is the same model, but B3's sits about 0.5 m lower in the cave floor: its centre is 0.64 m over the floor, B1's 1.14 m. Each stair's bottom tread lies within 50 cm of the ground and merges into the terrain floor. Terrain floors kept no surface extents, so the next riser counted as a ceiling over that floor.
         - The stairs ended one cell short of the floor. The platform joined the cave only by 54 cm hops onto its bevelled sides at the stair cheeks.
       - **Fix (2026-10-29):** a terrain floor's body test starts from the top of the surface merged into it, with the same 60 cm cap. All four B3 stairs now reach the floor, two or three cells wide, like B1's. Only B3 was re-baked. **Validated:** B3's summons and monsters use the stairs. Its grid before is in `build/nav/lnav-before-risers/`. In memory, other zones gain patches of at most 43 floors (El Verloon +112). Muris was baked just before this rule and will change by a few cells at its next bake.
+      - **Regen warnings (2026-10-29):** "even its centre is under a roof or off the walkable ground" fired for two points.
+        - Spire Village (zone 88) at (5016.2, 5141.2) m: its centre is on a 60 cm step edge.
+        - Sikuku Underground Prison (zone 65) at (5017.4, 4872.5) m: its centre is on a low ledge.
+        - The old body test blocked both centre cells. `LineWalk` starts at the centre, so every reroll failed and all of the point's monsters spawned on that one spot.
+        - The terrain-floor rule above clears both. Both zones were re-baked, and the grids before are in `build/nav/lnav-before-risers/`.
+        - Spire Village drops from 612,584 to 217,605 reached cells: the steep-terrain rule cuts the bluffs and mountains round the village, where no regen point, NPC or warp lies.
+        - The prison gains 0.4% and loses a ring of steep terrain round a pit hidden under its floor meshes.
+      - **Full re-bake for the tester session (2026-10-29):** every zone, on the rules committed in 2ba765cf. The grids before are in `build/nav/lnav-before-full/`.
+        - The first pass leaked in two zones. Goblin Cave B1 went from 66,235 to 305,343 reached cells: the whole rock mass round its tunnels. The Starlight Lounge went from 3,195 to 12,653.
+        - B1's joint was one link at (5456, 5536–5537) m. It landed on a rock surface with an overhang 30 cm to 1.5 m above it. Both were within 50 cm, so they merged into one floor, and a floor's own samples never blocked it.
+        - **Fix 1:** a down-facing sample above the floor's top always blocks.
+        - **Fix 2:** a ramp link compares the two surfaces along the edge the cells share, 40 cm deep, instead of their whole height ranges.
+        - The server still applies the whole-cell extents (`Nav::StepLinks`). That is looser, but it walks only floors the bake reached.
+        - Second full pass: B1 has 66,805 cells, the lounge 3,469. Every validated spot still passes: Muris' three flights and the narrow stairs, B3's stair feet, the Shady stump ramp, the Spire Village regen centre.
+        - Most other zones lose their outer mountains and cliff faces, 10–65%. Skaaj town loses 93%: the old grid reached the whole ground plane round the floating island.
+        - No regen point lost its floor.
+        - Gains: a Clan House side room with tiered steps (+30%), the Abandoned Church's curved ramp and stairs (+14%), and less than 9% in the Colosseum, Portal Room, Live House and lounge.
+        - **Flagged, not changed:**
+          - Luna Clan Field (LPVP01) gains 900%. The arena's outer walls are smooth 45-degree slopes, which the client climbs, so the outside is reached.
+          - Lion's Plains (zone 8) loses 98%. Its start plateau's only exits are slopes of 54 degrees or more, which the client walks down but never up. Links must work both ways, so the map is cut from its two seeds. It has no regen points.
+          - Oro desert: spawn squares on steep canyon slopes shrink. The worst is ODRP01's point at (5479.4, 5039.0) m, with 76% of its square unreached.
+        - `scripts/nav-view.py --zmax` leaves out floors above a height, for a deck that hides the spot.
     - Whether a player can really climb that 1 m ledge in game is unchecked. If so, the bake should link it.
 - **The first build crashed at startup:** freeing a `path_zones` string that `toml_get_str` never filled (no `[nav]` in `server.toml`) hits `FfiString`'s unchecked drop. It is now freed only when filled.
 

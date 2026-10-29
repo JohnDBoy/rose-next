@@ -29,7 +29,10 @@ Rules (each one decided in the plan; the numbers are the client avatar's):
      client climbs, not a ceiling. Muris' great stairs and the stairs by its spawn came out in
      strips, and monsters went up the side ridges. A terrain floor's surface is what merged into
      it: Goblin Cave B3's revive platform sits 0.5 m lower than B1's, each stair's bottom tread
-     merged into the ground, and the stairs ended a cell short of the cave floor.
+     merged into the ground, and the stairs ended a cell short of the cave floor. A floor's own
+     samples never block it, except a down-facing one above its top: an overhang within 50 cm
+     merges into the floor under it, and a rock's in Goblin Cave B1 let the grid out of the
+     tunnels onto the whole rock mass round them (2026-10-29).
      3b. A step, not a ceiling (2026-10-29): when everything above a floor in that band lies at
      most 75 cm up, and an up-facing floor (the next tread) lies 15-75 cm up in its cell or a
      neighbour, the floor is walkable. A terrain floor only below a floor of level treads (the
@@ -39,15 +42,17 @@ Rules (each one decided in the plan; the numbers are the client avatar's):
      Cave B3 revive platform's stairs were all unwalkable (scripts/nav-view.py showed it).
   4. Neighbouring walkable floors link when they differ by at most 135 cm on terrain and on
      HEIGHTONLY stairs (the avatar's step; over a 1 m cell that is 53.5 degrees, its 54-degree
-     slope rule). Where an object floor is involved, by at most 60 cm, or by at most 135 when
-     the higher floor's surface starts within 60 cm of the lower one's top: the client walks up
-     any mesh under 54 degrees, and stops on a steeper face only when it rises above about 0.7
-     of the avatar's centre of mass over its feet (UpdateFootHeight_Avatar), so a riser, not a
-     cell's average rise, is the limit. A ramp or a fine flight rises through its cell: Muris'
-     great stairs rise 78 cm a metre and were cut into 1 m islands. Each floor stores how far
-     its surface reaches below and above its height (.lnav version 2) and the server applies
-     the same rule (Nav::StepLinks). With 135 on average heights, Goblin Cave B1 leaked out of
-     its tunnels over a 7 m rock (2026-10-28): steep faces between a rock's facets leave a gap.
+     slope rule). Where an object floor is involved, by at most 60 cm, or by at most 135 when,
+     along the edge the two cells share (40 cm deep), the higher floor's surface starts within
+     60 cm of the lower one's: the client walks up any mesh under 54 degrees, and stops on a
+     steeper face only when it rises above about 0.7 of the avatar's centre of mass over its
+     feet (UpdateFootHeight_Avatar), so a riser, not a cell's average rise, is the limit. A ramp
+     or a fine flight rises through its cell: Muris' great stairs rise 78 cm a metre and were
+     cut into 1 m islands. Each floor stores how far its whole surface reaches below and above
+     its height (.lnav version 2), and the server applies the rule to those (Nav::StepLinks):
+     looser than the edge test, but it walks only floors the bake reached, so it cannot leak.
+     With 135 on average heights, Goblin Cave B1 leaked out of its tunnels over a 7 m rock
+     (2026-10-28): steep faces between a rock's facets leave a gap.
      The object step was 45 cm until 2026-10-29; the B3 stairs' risers are up to 53 cm.
      Terrain: the client refuses every move but downhill on a 2.5 m quad of 54 degrees or more
      (its slope from the south-west corner along both edges, CMAP::GetNormal), so a link out of
@@ -94,6 +99,7 @@ FLAT_NZ = math.cos(math.radians(8.0))    # a tread: an up-facing sample this clo
 TREAD_SHARE = 0.8                        # a floor of treads: this share of its up samples flat
 STEEP_GRAD = math.tan(0.3 * math.pi)     # the client's terrain slope limit (54 degrees)
 ON_TERRAIN_CM = 15.0                     # ...applied while the feet are this close to the terrain
+EDGE_CM = 40.0                           # 4: a floor's surface along a cell edge, this deep
 SURFACE_NZ = math.cos(math.radians(54.0))
 CLUSTER_GAP = 50.0
 TERRAIN_MERGE = 50.0
@@ -277,7 +283,9 @@ def bake(data_dir, row, log=print):
                 inputs.append((_rel(rel).encode("latin-1")[-255:], zlib.crc32(fh.read())))
 
     models = Models(data_dir, deco_rel, cnst_rel)
-    cells, zs, kinds, flags = [], [], [], []      # flags: 1 heightonly, 2 visual (not "not moveable"), 4 level
+    # flags: 1 heightonly, 2 visual (not "not moveable"), 4 level; 8/16/32/64 within EDGE_CM of
+    # the cell's west/east/south/north edge
+    cells, zs, kinds, flags = [], [], [], []
     nrec = {}
     for slot, parsed in chunks.items():
         for lump, key in LUMPS:
@@ -308,6 +316,9 @@ def bake(data_dir, row, log=print):
                 fl = (((coll[ti] & COLL_HEIGHTONLY) != 0).astype(np.uint8)
                       | (((coll[ti] & COLL_NOTMOVEABLE) == 0).astype(np.uint8) << 1)
                       | ((nz[ti] >= FLAT_NZ).astype(np.uint8) << 2))
+                lx, ly = np.mod(p[:, 0], CELL), np.mod(p[:, 1], CELL)
+                fl |= (((lx < EDGE_CM).astype(np.uint8) << 3) | ((lx >= CELL - EDGE_CM).astype(np.uint8) << 4)
+                       | ((ly < EDGE_CM).astype(np.uint8) << 5) | ((ly >= CELL - EDGE_CM).astype(np.uint8) << 6))
                 cells.append(ci.astype(np.int32))
                 zs.append(p[:, 2].astype(np.float32))
                 kinds.append(k.astype(np.int8))
@@ -343,6 +354,7 @@ def bake(data_dir, row, log=print):
     t_top = t_z.copy()             # the top of the surface merged into each terrain floor (3.)
     obj_cell, obj_z, obj_up, obj_ho = [], [], [], []
     obj_tread, obj_lo, obj_hi = [], [], []
+    obj_blo, obj_bhi = np.zeros((4, 0)), np.zeros((4, 0))
     if len(s_idx):
         brk = np.r_[True, (sc[1:] != sc[:-1]) | (sz[1:] - sz[:-1] > CLUSTER_GAP)]
         starts = np.nonzero(brk)[0]
@@ -364,6 +376,14 @@ def bake(data_dir, row, log=print):
         isupk = sk == KIND_UP
         clo = np.where(cup, np.minimum.reduceat(np.where(isupk, sz, np.inf), starts), cz)
         chi = np.where(cup, np.maximum.reduceat(np.where(isupk, sz, -np.inf), starts), cz)
+        # ...and along each edge of the cell (west, east, south, north): where a ramp meets the next
+        # cell (inf / -inf where the surface does not reach that edge)
+        blo, bhi = [], []
+        for j in range(4):
+            m = isupk & ((fl[s_idx] & (8 << j)) != 0)
+            blo.append(np.minimum.reduceat(np.where(m, sz, np.inf), starts))
+            bhi.append(np.maximum.reduceat(np.where(m, sz, -np.inf), starts))
+        blo, bhi = np.array(blo), np.array(bhi)
         ct = tz[ccell]
         near = np.abs(cz - ct) <= TERRAIN_MERGE
         above = cz > ct + TERRAIN_MERGE
@@ -379,6 +399,7 @@ def bake(data_dir, row, log=print):
             cluster_owner = np.full(len(starts), -1, np.int64)
         obj_cell, obj_z, obj_up, obj_ho = ccell[above], cz[above], cup[above], cho[above]
         obj_tread, obj_lo, obj_hi = ctread[above], clo[above], chi[above]
+        obj_blo, obj_bhi = blo[:, above], bhi[:, above]
         cluster_owner[above] = n_terrain + np.arange(int(above.sum()))
         owner[s_idx] = cluster_owner[cid]
 
@@ -395,6 +416,9 @@ def bake(data_dir, row, log=print):
     nbelow = np.r_[np.zeros(n_terrain), np.clip(np.round(zr[n_terrain:] - np.asarray(obj_lo, np.float64)), 0, 255)]
     nabove = np.r_[np.zeros(n_terrain), np.clip(np.round(np.asarray(obj_hi, np.float64) - zr[n_terrain:]), 0, 255)]
     nlo, nhi = zr - nbelow, zr + nabove
+    # the surface along each cell edge (a terrain floor: its height)
+    nblo = np.concatenate([np.tile(zr[:n_terrain], (4, 1)), obj_blo], axis=1)
+    nbhi = np.concatenate([np.tile(zr[:n_terrain], (4, 1)), obj_bhi], axis=1)
     # the client's terrain slope (CMAP::GetNormal): the 2.5 m quad under the walker, from its
     # south-west corner along both edges; at 54 degrees or more it refuses every move that is not
     # downhill (CObjCHAR_Collision::ApplySliding), while the feet are on the terrain
@@ -421,7 +445,9 @@ def bake(data_dir, row, log=print):
     nkey_lo = ncell * KEYM + (body_lo + ZOFF)
     nkey_hi = ncell * KEYM + (nz + BODY_HI + ZOFF)
     total = np.searchsorted(okey, nkey_hi, "right") - np.searchsorted(okey, nkey_lo, "right")
-    own_m = obst & (owner >= 0)
+    # a floor's own samples are not in the way, except a down-facing one above its top: an
+    # overhang within 50 cm merges into the floor under it (a rock in Goblin Cave B1)
+    own_m = obst & (owner >= 0) & ((kind != KIND_DOWN) | (z <= top[np.maximum(owner, 0)]))
     if own_m.any():
         k2 = owner[own_m] * KEYM + (z[own_m] + ZOFF)
         k2.sort()
@@ -489,8 +515,11 @@ def bake(data_dir, row, log=print):
                 step = np.where((nterrain[na] | nho[na]) & (nterrain[nb] | nho[nb]), STEP_CM, OBJ_STEP_CM)
                 dz = np.abs(zr[na] - zr[nb])            # as stored: the server sees these
                 # a ramp or a flight steeper than the object step (Muris' great stairs, 78 cm a
-                # metre): the higher floor starts within a riser of the lower one's top
-                gap = np.where(zr[na] <= zr[nb], nlo[nb] - nhi[na], nlo[na] - nhi[nb])
+                # metre): along the edge the two cells share, the higher floor's surface starts
+                # within a riser of the lower one's. Over the whole cells, a rock's facets passed
+                # with a steep face between them, and Goblin Cave B1 leaked out of its tunnels
+                ja, jb = (1, 0) if dx else (3, 2)          # a's east / north edge, b's west / south
+                gap = np.where(zr[na] <= zr[nb], nblo[jb, nb] - nbhi[ja, na], nblo[ja, na] - nbhi[jb, nb])
                 ramp = (gap <= OBJ_STEP_CM) & (dz <= STEP_CM) & (dz > OBJ_STEP_CM) & (step < STEP_CM)
                 if ramp.any():
                     # ...unless a higher floor in the cell stepped into is within reach: the
