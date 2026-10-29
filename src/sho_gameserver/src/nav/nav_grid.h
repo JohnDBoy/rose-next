@@ -11,9 +11,11 @@ constexpr short NO_Z = -32768;
 
 /// The avatar's step (UpdateFootHeight_Avatar casts down from foot + 135 cm).
 constexpr float STEP_CM = 135.f;
-/// What an object floor allows between neighbouring cells: the avatar's forward body sphere
-/// stops it on any mesh steeper than about 20 degrees (scripts/mapgen/navbake.py, rule 4).
-constexpr float OBJ_STEP_CM = 45.f;
+/// The riser an object floor allows between neighbouring cells: the client stops the avatar on a
+/// mesh face steeper than 54 degrees that rises above about 0.7 of its centre of mass over the
+/// feet (scripts/mapgen/navbake.py, rule 4). 45 cm until 2026-10-29; 60 lets ordinary-mesh stairs
+/// (risers up to 53 cm) link. Keep it equal to the bake's.
+constexpr float OBJ_STEP_CM = 60.f;
 
 enum SpanFlag : unsigned char {
     SPAN_WALK = 1, ///< nothing 30-180 cm above it: a body fits
@@ -27,10 +29,29 @@ enum SpanFlag : unsigned char {
 /// One floor at a spot.
 struct Span {
     float z;
+    /// Its surface's lowest and highest point in the cell: a ramp or a flight of steps rises
+    /// through its cell (lnav version 2). z for the terrain and for version 1 grids.
+    float lo, hi;
     unsigned char flags;
     unsigned char clearance; ///< 1 next to an obstacle, 2 with 1.5 m clear, 3 with 2.5 m
     unsigned short component; ///< 0 = unreached
 };
+
+/// The bake's link rule between floors in neighbouring cells (scripts/mapgen/navbake.py, rule 4):
+/// within STEP_CM on the terrain and HEIGHTONLY stairs; elsewhere within OBJ_STEP_CM, or, on a
+/// ramp or a flight steeper than that (Muris' great stairs: 78 cm a metre), within STEP_CM when
+/// the higher floor starts within a riser of the lower one's top.
+inline bool
+StepLinks(const Span& a, const Span& b) {
+    constexpr unsigned char GENTLE = SPAN_TERRAIN | SPAN_STAIRS;
+    const float dz = a.z > b.z ? a.z - b.z : b.z - a.z;
+    if ((a.flags & GENTLE) && (b.flags & GENTLE))
+        return dz <= STEP_CM;
+    if (dz <= OBJ_STEP_CM)
+        return true;
+    const float gap = a.z <= b.z ? b.lo - a.hi : a.lo - b.hi;
+    return dz <= STEP_CM && gap <= OBJ_STEP_CM;
+}
 
 /// A zone's layered walk grid, <ZONE FOLDER>.lnav, baked by scripts/nav-bake.py (format:
 /// scripts/rosefmt/lnav.py; design: doc/pathfinding-and-z-plan.md, section 3.1). Read-only
@@ -71,8 +92,7 @@ public:
     bool NearestSpan(float x, float y, float z, float within, Span& out, unsigned char mask = 0) const;
 
     /// Walk the straight line from (x0, y0) at height z0 to (x1, y1) cell by cell over reached,
-    /// walkable floors, with the bake's step rule (135 cm on terrain and stairs, 45 cm where an
-    /// object floor is involved). The start may be any floor (a walker steps out of a blocked
+    /// walkable floors, with the bake's step rule (StepLinks). The start may be any floor (a walker steps out of a blocked
     /// cell). True if it gets there; either way pLastX/pLastY (if given) receive the last cell
     /// centre it reached, or the end point, and pLastZ the floor it stands on there.
     bool LineWalk(float x0, float y0, float z0, float x1, float y1, float* pLastX = nullptr,

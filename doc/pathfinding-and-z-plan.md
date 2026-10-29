@@ -172,7 +172,7 @@ The painted cells are brush bands 10–15 m wide along walls. **MOV cannot be th
 2. **Classify each colliding triangle by its normal, two-sided:** a surface if |n_z| ≥ cos 54°, otherwise a wall. Flags do not decide.
 3. **Rasterise surfaces** (at 33 cm or finer) and cluster each cell's samples by z; a gap over 50 cm starts a new span.
 4. **Body test.** A span is blocked if a sample of another surface or wall lies 30–180 cm above it. This catches walls, low slabs, rock interiors and panel footprints. HEIGHTONLY parts (flag 36, stairs) never block; cylinders block discs.
-5. **Links** join walkable neighbouring spans whose |Δz| ≤ 135 cm on terrain and HEIGHTONLY stairs, and ≤ 45 cm (about 24°) where an object floor is involved.
+5. **Links** join walkable neighbouring spans whose |Δz| ≤ 135 cm on terrain and HEIGHTONLY stairs, and ≤ 45 cm (about 24°) where an object floor is involved. (Since 2026-10-29: 60 cm, or up to 135 cm on a ramp or flight whose next floor starts within 60 cm of this one's top; terrain links out of a 54° quad only downhill. See Phase 5's B3 notes.)
    - The avatar's forward body sphere (45 cm up, 40 cm ahead, radius 30) stops it against any mesh rising more than about 20°, so a rock face is a wall even when it is not steep.
    - With 135 cm everywhere, the first Goblin Cave B1 bake leaked out of the tunnels over a 7 m rock (2026-10-28, corrected).
 6. **Flood** from seeds: event points (start, revive and every warp landing), regen centres and NPCs, plus `scripts/nav/seeds/<ZONFOLDER>.json` (in git).
@@ -644,7 +644,7 @@ Predicted roof re-rolls (same rule offline): Muris 11 of 37 points (worst (5269,
 **Status (2026-10-29): validated in game.** Goblin Cave spawns stayed out of the rock, wanderers kept off the walls, leashed monsters ran home, and the aim circle lies on the Shady Jungle bridge planks.
 
 What changed:
-- **`Grid::LineWalk`** walks a straight line cell by cell over reached, walkable floors, with the bake's own step rule: 135 cm on terrain and stairs, 45 cm involving an object floor.
+- **`Grid::LineWalk`** walks a straight line cell by cell over reached, walkable floors, with the bake's own step rule: 135 cm on terrain and stairs, 45 cm involving an object floor (now `Nav::StepLinks`, 2026-10-29).
   - The bake gained a STAIRS span flag (HEIGHTONLY floors) so stairs keep the 135 cm step at run time. All zones were re-baked.
   - The start may be any floor, so a walker steps out of a blocked cell.
 - **Walk floor for monsters:** every moving character now keeps `m_nNavZ`. A regen spawn starts on its floor, and any other monster on the walkable floor nearest where the client drops it.
@@ -710,6 +710,38 @@ What changed:
       - **Validated:** the summon goes up and down the platform sensibly.
       - **Open:** it never uses the platform's stairs. They are ordinary meshes with risers up to 53 cm. The bake's body test sees each tread's next step as a ceiling, and object floors link only within 45 cm, so the treads are not walkable.
       - **Bake follow-up:** a staircase's own risers should not count as a ceiling, and stair steps should link to about 60 cm. Then re-bake and re-check the B1 rock leak.
+      - **Done (2026-10-29, full re-bake):**
+        - Bake rule 3b: an object floor whose only obstruction lies at most 75 cm up, with an up-facing tread 15–75 cm up in its cell or a neighbour, is walkable.
+        - Rule 4's object step went from 45 to 60 cm; the server's `OBJ_STEP_CM` matches.
+        - `scripts/nav-view.py` showed the B3 treads unwalkable. It also showed that the Shady spiral ramp was fine: its foot links to the ground, all one component; the grey there is the ground under the ramp and the stump's base.
+        - B3's revive platform, its treads and the cave floor became one component; the platform was component 2 before.
+        - `scripts/nav-view.py --lnav <old.lnav> --tag before` renders an older bake to compare. The grids before it are in `build/nav/lnav-before-stairs/`.
+      - **In-game check:** Skaaj and the El Verloon plaza fine. Four problems:
+        - B3 monsters still climbed the platform's side. A* kept its 1.5 m climb at 4x a step's cost, about 4 m of walking, cheaper than going round to a stair.
+        - Muris' lower stairs (5202, 5191) m were taken on a slant. Their bottom row was unwalkable: the first tread merges into the terrain floor, and the next riser blocks it; 3b was object-only.
+        - On Muris' great stairs (5236, 5383) m a monster fell to the ground when it gave up. The flight rises 78 cm a metre, so its 1 m cells never linked at 60 cm. With no floor there, its path home started on the ground 20 m below.
+        - Gorge of Silence plateaus (5041, 5393) and (4993, 5530) m were reached, though players cannot get up there. The grid climbed the canyon walls on terrain: 1 m bilinear steps stay under 135 cm where the quads are 56–71 degrees.
+      - **Fixes (2026-10-29, validated in the checks below):**
+        - **Server:** A* climbs and drops ledges only toward a goal in another component. Between floors the bake connected, it uses the bake's links only.
+        - **Steep terrain.** The client refuses every move but downhill on a 2.5 m quad of 54 degrees or more (`CMAP::GetNormal`: from the quad's south-west corner along both edges; `ApplySliding`). A terrain link out of such a quad must head downhill, both ways. The Gorge's plateaus and the seabed round Mana Snowfields drop out; that seabed was the 0.27 km² Mana "plain".
+        - **Ramps and flights.** The client walks up any mesh under 54 degrees. It stops on a steeper face only when the face rises above about 0.7 of its centre of mass over the feet (`UpdateFootHeight_Avatar`). An object link may therefore rise up to 135 cm when the higher floor's surface starts within 60 cm of the lower one's top.
+        - Each floor now stores how far its surface reaches below and above its height (`.lnav` version 2). The server applies the same rule (`Nav::StepLinks`) and still reads version 1.
+        - A ramp link is refused when a higher floor in the cell stepped into is within reach: the client lands on the highest surface under its feet + 135 cm. Without that check, a pyramid's skirt under Muris' plaza deck opened all the hidden ground beneath the city (+172%).
+        - **3b on terrain** applies only below a floor of level treads, so a snow drift's sloped skin stays shut.
+        - Re-baked only Gorge of Silence, Mana Snowfields, Goblin Cave B3 and Muris. The grids before are in `build/nav/lnav-before-ramps/`.
+        - Reached cells: Gorge −35%, Mana −52% (the seabed), B3 +0.7%, Muris +2.6%.
+        - Not re-baked yet: El Verloon −29% and Adventurer's Plain −21%, the outer mountains and cliff faces. Every zone changes like that at its next bake.
+      - **Second in-game check:** Goblin Cave B1's stairs (5428, 5505) m, Muris' lower stairs and the walk down Muris' great stairs all work. The B3 and Gorge spots were not tested: `/tp` takes tens of metres, and the spots were given in metres. Two problems:
+        - Monsters started up Muris' great stairs on the side ridge and only moved onto the steps a few metres up.
+        - Monsters took the side ridges of the stairs by Muris' spawn (5200, 5214) m instead of the steps.
+        - Both flights were striped in `scripts/nav-view.py`: every other row of treads was unwalkable. Their steps are 16–20 cm, so a 1 m cell holds four or five treads. The body test started 30 cm above the floor's average height, and the cell's own top risers fell in it, with the next row more than 3b's 75 cm up.
+      - **Fix (2026-10-29, Muris re-baked, validated):** the body test starts 30 cm above the top of the floor's own up-facing surface, at most 60 cm over its height. Both flights are walkable from bottom to top. Bake only; the server is unchanged. The grid before is in `build/nav/lnav-before-risers/`.
+        - Muris: reached cells 216,078 → 289,333. Nearly all of it is the outer rim, 114 m up: the cliff-top walkway (the dome, reached by the narrow stairs beside the sphinx) joins it at (5392, 5136) m, up a smooth 53-degree mesh slope. The client climbs any mesh under 54 degrees, so a player can probably walk up there too; cut it if not.
+        - In memory, other zones gain 0.1–0.5%, in patches of at most 124 floors: B3 +766 floors, B1 +342, Gorge +533, Mana +638, Shady Jungle +1,144, El Verloon +414. Not re-baked.
+      - **Third in-game check:** both Muris flights work, and so does the Gorge. Players and monsters can walk on the slopes beside the long stairs. B3: summons and monsters still do not use the platform's stairs, while B1's identical platform works.
+        - It is the same model, but B3's sits about 0.5 m lower in the cave floor: its centre is 0.64 m over the floor, B1's 1.14 m. Each stair's bottom tread lies within 50 cm of the ground and merges into the terrain floor. Terrain floors kept no surface extents, so the next riser counted as a ceiling over that floor.
+        - The stairs ended one cell short of the floor. The platform joined the cave only by 54 cm hops onto its bevelled sides at the stair cheeks.
+      - **Fix (2026-10-29):** a terrain floor's body test starts from the top of the surface merged into it, with the same 60 cm cap. All four B3 stairs now reach the floor, two or three cells wide, like B1's. Only B3 was re-baked. **Validated:** B3's summons and monsters use the stairs. Its grid before is in `build/nav/lnav-before-risers/`. In memory, other zones gain patches of at most 43 floors (El Verloon +112). Muris was baked just before this rule and will change by a few cells at its next bake.
     - Whether a player can really climb that 1 m ledge in game is unchecked. If so, the bake should link it.
 - **The first build crashed at startup:** freeing a `path_zones` string that `toml_get_str` never filled (no `[nav]` in `server.toml`) hits `FfiString`'s unchecked drop. It is now freed only when filled.
 

@@ -28,9 +28,11 @@ struct FileSpan {
     unsigned char flags;
     unsigned char clearance;
     unsigned short component;
+    unsigned char below, above; ///< version 2: the floor's surface spans z - below .. z + above
 };
 #pragma pack(pop)
-static_assert(sizeof(FileSpan) == 6, "lnav span record is 6 bytes");
+static_assert(sizeof(FileSpan) == 8, "lnav span record is 8 bytes");
+constexpr size_t FILE_SPAN_V1 = 6; // version 1: no below/above
 
 uint32_t
 crc32_of(const std::vector<unsigned char>& d) {
@@ -168,7 +170,7 @@ Grid::Load(const std::string& zoneDir, const std::string& baseDir, std::string& 
     }
     const unsigned short version = c.get<unsigned short>();
     const unsigned short cellCm = c.get<unsigned short>();
-    if (version != 1 || cellCm != (unsigned short)CELL_CM) {
+    if ((version != 1 && version != 2) || cellCm != (unsigned short)CELL_CM) {
         err = path + ": unsupported version or cell size (re-bake with scripts/nav-bake.py)";
         return nullptr;
     }
@@ -267,14 +269,18 @@ Grid::Load(const std::string& zoneDir, const std::string& baseDir, std::string& 
             cell.first = first;
             first += cell.n;
         }
-        const unsigned char* sp = t.take((size_t)first * sizeof(FileSpan));
+        const size_t spanSize = version >= 2 ? sizeof(FileSpan) : FILE_SPAN_V1;
+        const unsigned char* sp = t.take((size_t)first * spanSize);
         if (!t.ok || t.p != t.end) {
             err = path + ": bad span block";
             return nullptr;
         }
         tile->spans.resize(first);
-        if (first)
-            memcpy(tile->spans.data(), sp, (size_t)first * sizeof(FileSpan));
+        for (uint32_t i = 0; i < first; ++i) {
+            FileSpan& fs = tile->spans[i];
+            fs.below = fs.above = 0;
+            memcpy(&fs, sp + i * spanSize, spanSize);
+        }
         grid->m_Bytes += sizeof(Tile) + tile->components.capacity() * sizeof(unsigned short)
             + tile->cells.capacity() * sizeof(Tile::Cell) + tile->spans.capacity() * sizeof(FileSpan);
         grid->m_pTiles[e.sy][e.sx] = tile.release();
@@ -336,7 +342,7 @@ Grid::SpansAt(float x, float y, Span* out, int iMax) const {
     const int ci = t->ComplexIndex(cell);
     if (ci < 0) {
         const int cls = t->SimpleClass(cell);
-        out[0].z = TerrainZ(x, y);
+        out[0].z = out[0].lo = out[0].hi = TerrainZ(x, y);
         out[0].flags = SPAN_TERRAIN | SPAN_UP | (cls ? (SPAN_WALK | SPAN_REACHED) : 0);
         out[0].clearance = (unsigned char)cls;
         out[0].component =
@@ -348,6 +354,8 @@ Grid::SpansAt(float x, float y, Span* out, int iMax) const {
     for (int k = 0; k < rec.n && n < iMax; ++k, ++n) {
         const FileSpan& s = t->spans[rec.first + k];
         out[n].z = CellZ(*t, cell, x, y, s.z, s.flags);
+        out[n].lo = (s.flags & SPAN_TERRAIN) ? out[n].z : (float)s.z - s.below;
+        out[n].hi = (s.flags & SPAN_TERRAIN) ? out[n].z : (float)s.z + s.above;
         out[n].flags = s.flags;
         out[n].clearance = s.clearance;
         out[n].component = s.component;
@@ -450,7 +458,6 @@ bool
 Grid::LineWalk(float x0, float y0, float z0, float x1, float y1, float* pLastX, float* pLastY,
     float* pLastZ) const {
     constexpr unsigned char WALKABLE = SPAN_WALK | SPAN_REACHED;
-    constexpr unsigned char GENTLE = SPAN_TERRAIN | SPAN_STAIRS;
     Span spans[32];
     int n = SpansAt(x0, y0, spans, 32);
     if (pLastX) {
@@ -465,10 +472,9 @@ Grid::LineWalk(float x0, float y0, float z0, float x1, float y1, float* pLastX, 
     for (int k = 1; k < n; ++k)
         if (fabsf(spans[k].z - z0) < fabsf(spans[k0].z - z0))
             k0 = k;
-    float cz = spans[k0].z;
-    bool bGentle = (spans[k0].flags & GENTLE) != 0;
+    Span cur = spans[k0];
     if (pLastZ)
-        *pLastZ = cz;
+        *pLastZ = cur.z;
 
     // every 1 m cell the segment crosses (Amanatides & Woo), 4-connected
     int cx = (int)floorf(x0 / CELL_CM), cy = (int)floorf(y0 / CELL_CM);
@@ -496,23 +502,21 @@ Grid::LineWalk(float x0, float y0, float z0, float x1, float y1, float* pLastX, 
         for (int k = 0; k < n; ++k) {
             if ((spans[k].flags & WALKABLE) != WALKABLE)
                 continue;
-            const bool bG = bGentle && (spans[k].flags & GENTLE);
-            const float d = fabsf(spans[k].z - cz);
-            if (d <= (bG ? STEP_CM : OBJ_STEP_CM) && d < bestD) {
+            const float d = fabsf(spans[k].z - cur.z);
+            if (d < bestD && StepLinks(cur, spans[k])) {
                 best = k;
                 bestD = d;
             }
         }
         if (best < 0)
             return false;
-        cz = spans[best].z;
-        bGentle = (spans[best].flags & GENTLE) != 0;
+        cur = spans[best];
         if (pLastX) {
             *pLastX = px;
             *pLastY = py;
         }
         if (pLastZ)
-            *pLastZ = cz;
+            *pLastZ = cur.z;
     }
     if (pLastX) {
         *pLastX = x1;

@@ -3,6 +3,7 @@
     python scripts/nav-view.py 62 5790 5240             Shady Jungle, 45 m round (5790, 5240) m
     python scripts/nav-view.py 62 5660 5200 --radius 30 the high bridge
     python scripts/nav-view.py 31 5162 5057 --png       Goblin B1, plus a still picture
+    python scripts/nav-view.py 52 5576 4622 --lnav build/nav/lnav-before-stairs/.../LP01.lnav --tag before
 
 Every floor the bake stored is drawn as a 1 m tile at its real height: walkable ground,
 walkable floors on map objects (decks, ramps, bridges, platforms), and, in grey, surfaces
@@ -315,13 +316,15 @@ def main():
     ap.add_argument("y", type=float)
     ap.add_argument("--radius", type=float, default=45.0, help="metres round the centre (default 45)")
     ap.add_argument("--png", action="store_true", help="also a still picture (matplotlib)")
+    ap.add_argument("--lnav", help="read this .lnav instead of the zone's (an older bake, to compare)")
+    ap.add_argument("--tag", default="", help="added to the output name (with --lnav)")
     ap.add_argument("--data", default=os.path.join(ROOT, "data"))
     ap.add_argument("--out", default=os.path.join(ROOT, "build", "nav"))
     a = ap.parse_args()
 
     name, zon_path, folder, _deco, _cnst = navbake.zone_row(a.data, a.zone)
     fname = os.path.basename(os.path.normpath(folder))
-    lnav_path = os.path.join(folder, fname + ".lnav")
+    lnav_path = a.lnav or os.path.join(folder, fname + ".lnav")
     if not os.path.exists(lnav_path):
         raise SystemExit("no walk grid: %s (run scripts/nav-bake.py %d)" % (lnav_path, a.zone))
     nav = lnav.parse(open(lnav_path, "rb").read())
@@ -330,7 +333,7 @@ def main():
         raise SystemExit("no floors there")
 
     os.makedirs(a.out, exist_ok=True)
-    stem = os.path.join(a.out, "view-%s-%d-%d" % (fname, round(a.x), round(a.y)))
+    stem = os.path.join(a.out, "view-%s-%d-%d%s" % (fname, round(a.x), round(a.y), ("-" + a.tag) if a.tag else ""))
     title = "%s walk grid, %d m round (%d, %d) m" % (name, round(a.radius), round(a.x), round(a.y))
     sub = ("Every floor the server walks on, as a 1 m tile at its real height (scripts/nav-bake.py). "
            "Where floors are stacked (a bridge over the ground, a ramp over a lower turn) each one is "

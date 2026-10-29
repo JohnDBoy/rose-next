@@ -36,7 +36,6 @@ constexpr int MAX_PULL_CELLS = 40; // one pulled leg spans at most this many pat
 constexpr float LEG_Z_CM = 100.f; // a pulled leg must end on the path's own floor
 constexpr int COST_STRAIGHT = 10, COST_DIAGONAL = 14, NARROW_FACTOR = 3;
 constexpr unsigned char WALKABLE = SPAN_WALK | SPAN_REACHED;
-constexpr unsigned char GENTLE = SPAN_TERRAIN | SPAN_STAIRS;
 
 struct PathPoint {
     float x, y, z;
@@ -49,6 +48,18 @@ struct CellSpans {
     unsigned char clearance[MAX_LAYERS];
     unsigned short comp[MAX_LAYERS];
     float z[MAX_LAYERS];
+    float lo[MAX_LAYERS], hi[MAX_LAYERS];
+
+    Span At(int k) const {
+        Span s;
+        s.z = z[k];
+        s.lo = lo[k];
+        s.hi = hi[k];
+        s.flags = flags[k];
+        s.clearance = clearance[k];
+        s.component = comp[k];
+        return s;
+    }
 };
 
 struct NodeRec {
@@ -103,6 +114,8 @@ struct Search {
             if ((sp[k].flags & WALKABLE) != WALKABLE)
                 continue;
             c.z[c.n] = sp[k].z;
+            c.lo[c.n] = sp[k].lo;
+            c.hi[c.n] = sp[k].hi;
             c.flags[c.n] = sp[k].flags;
             c.clearance[c.n] = sp[k].clearance;
             c.comp[c.n] = sp[k].component;
@@ -150,25 +163,31 @@ qpc_freq() {
 
 // The bake's own link rule (scripts/mapgen/navbake.py, rule 4; Grid::LineWalk).
 bool
-links(float za, unsigned char fa, float zb, unsigned char fb) {
-    const bool bGentle = (fa & GENTLE) && (fb & GENTLE);
-    return fabsf(za - zb) <= (bGentle ? STEP_CM : OBJ_STEP_CM);
+links(const CellSpans& a, int ka, const CellSpans& b, int kb) {
+    return StepLinks(a.At(ka), b.At(kb));
 }
 
-// A step a walker can take: the bake's link, down a ledge of up to DROP_CM, or up one of up to
-// CLIMB_CM (expensive). The bake links floors only within the avatar's step, so a platform 1 m
-// over the floor round it (the Goblin B3 revive platform) was its own island; a monster or a
-// summon goes up and down it as the follow loop's straight moves always did. Only reached
-// walkable floors are in the search, so a climb never lands on a crate or a rock top.
+// A step a walker can take: the bake's link, or, toward a goal on a floor the bake never
+// connected to ours (bShortcuts), down a ledge of up to DROP_CM or up one of up to CLIMB_CM
+// (expensive): a monster or a summon goes up and down such an island as the follow loop's
+// straight moves always did. Only reached walkable floors are in the search, so a climb never
+// lands on a crate or a rock top. Never between floors the bake connected: the Goblin B3 revive
+// platform's stairs link it to the cave floor, and a climb up its side looked cheaper than
+// walking round to them (2026-10-29).
 bool
-walks(float za, unsigned char fa, float zb, unsigned char fb) {
-    return links(za, fa, zb, fb) || (zb < za && za - zb <= DROP_CM) || (zb > za && zb - za <= CLIMB_CM);
+walks(const CellSpans& a, int ka, const CellSpans& b, int kb, bool bShortcuts) {
+    if (links(a, ka, b, kb))
+        return true;
+    if (!bShortcuts)
+        return false;
+    const float za = a.z[ka], zb = b.z[kb];
+    return (zb < za && za - zb <= DROP_CM) || (zb > za && zb - za <= CLIMB_CM);
 }
 
 bool
-cell_links(const CellSpans& c, float z, unsigned char flags) {
+cell_links(const CellSpans& c, const CellSpans& from, int kf, bool bShortcuts) {
     for (int k = 0; k < c.n; ++k)
-        if (walks(z, flags, c.z[k], c.flags[k]))
+        if (walks(from, kf, c, k, bShortcuts))
             return true;
     return false;
 }
@@ -365,6 +384,7 @@ FindPath(const Grid& grid, const PathQuery& q, TickBudget& budget, ZoneMeter& me
         iMaxExp = (std::min)(iMaxExp, bAbove ? CLIMB_EXPANSIONS : OTHER_AREA_EXPANSIONS);
     }
     const int iPref = q.iPrefClass < 1 ? 1 : (q.iPrefClass > 3 ? 3 : q.iPrefClass);
+    const bool bShortcuts = bOtherArea;
 
     const int startId = node_id(sx, sy, sk);
     {
@@ -405,7 +425,6 @@ FindPath(const Grid& grid, const PathQuery& q, TickBudget& budget, ZoneMeter& me
 
         const CellSpans& cc = S.Cell(grid, cx, cy);
         const float cz = cc.z[ck];
-        const unsigned char cf = cc.flags[ck];
         const uint32_t g = cur.g;
 
         for (int d = 0; d < 8; ++d) {
@@ -415,16 +434,17 @@ FindPath(const Grid& grid, const PathQuery& q, TickBudget& budget, ZoneMeter& me
             const bool bDiag = d >= 4;
             // no corner cutting: both cells beside a diagonal step must be walkable from here
             if (bDiag
-                && (!cell_links(S.Cell(grid, nx, cy), cz, cf) || !cell_links(S.Cell(grid, cx, ny), cz, cf)))
+                && (!cell_links(S.Cell(grid, nx, cy), cc, ck, bShortcuts)
+                    || !cell_links(S.Cell(grid, cx, ny), cc, ck, bShortcuts)))
                 continue;
             const CellSpans& nc = S.Cell(grid, nx, ny);
             for (int k = 0; k < nc.n; ++k) {
-                if (!walks(cz, cf, nc.z[k], nc.flags[k]))
+                if (!walks(cc, ck, nc, k, bShortcuts))
                     continue;
                 uint32_t cost = bDiag ? COST_DIAGONAL : COST_STRAIGHT;
                 if (nc.clearance[k] < iPref)
                     cost *= NARROW_FACTOR;
-                if (nc.z[k] > cz && !links(cz, cf, nc.z[k], nc.flags[k]))
+                if (nc.z[k] > cz && !links(cc, ck, nc, k))
                     cost *= CLIMB_FACTOR;
                 const int nid = node_id(nx, ny, k);
                 NodeRec& nr = S.Node(nid);

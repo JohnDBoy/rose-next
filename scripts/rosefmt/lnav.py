@@ -30,14 +30,21 @@ Layout, little endian:
         u8  dense_components      ...this is 1: then u16 component[25600] follows
         u32 n_complex
         { i16 visual_top, u8 n_spans, u8 pad } * n_complex       in cell order
-        { i16 z, u8 flags, u8 clearance, u16 component } * (sum of n_spans)
+        { i16 z, u8 flags, u8 clearance, u16 component, u8 below, u8 above } * (sum of n_spans)
+                                  (version 1: without below/above, read as 0)
 
 Span flags: WALK (no geometry 30-180 cm above it), REACHED (connected to a seed:
 an event point, a regen point or an NPC), TERRAIN, UP (an up-facing or terrain
 floor), HAZARD (the client would draw a monster here more than 3 m up, on a roof or
 a deck: today's GetHeightTop), STAIRS (a floor on HEIGHTONLY parts: it links to its
-neighbours at the terrain's 135 cm, not the 45 cm of other object floors). visual_top is
+neighbours at the terrain's 135 cm, not the 60 cm of other object floors). visual_top is
 that height for the cell, or NO_HEIGHT when it is the terrain's.
+
+below/above (version 2, 2026-10-29): the floor's surface spans z - below .. z + above cm in
+its cell (0 on the terrain). A ramp or a flight of steps rises through its cell, so two of
+its floors can be 78 cm apart (Muris' great stairs) yet joined: the server links object
+floors within 60 cm, or within 135 when the higher one starts within 60 of the lower one's
+top (Nav::StepLinks).
 """
 
 from dataclasses import dataclass, field
@@ -48,14 +55,16 @@ import numpy as np
 from .binio import FormatError, Reader, Writer
 
 MAGIC = b"LNAV"
-VERSION = 1
+VERSION = 2
 TILE_CELLS = 160
 TILE_VERTS = 65
 NO_HEIGHT = -32768
 
 WALK, REACHED, TERRAIN, UP, HAZARD, STAIRS = 1, 2, 4, 8, 16, 32
 
-SPAN_DTYPE = np.dtype([("z", "<i2"), ("flags", "u1"), ("clearance", "u1"), ("component", "<u2")])
+SPAN_DTYPE = np.dtype([("z", "<i2"), ("flags", "u1"), ("clearance", "u1"), ("component", "<u2"),
+                       ("below", "u1"), ("above", "u1")])
+SPAN_DTYPE_V1 = np.dtype([("z", "<i2"), ("flags", "u1"), ("clearance", "u1"), ("component", "<u2")])
 CELL_DTYPE = np.dtype([("visual_top", "<i2"), ("n_spans", "u1"), ("pad", "u1")])
 
 
@@ -134,7 +143,7 @@ def _build_tile(t):
     return w.getvalue()
 
 
-def _parse_tile(r, sx, sy):
+def _parse_tile(r, sx, sy, version=VERSION):
     n = TILE_CELLS * TILE_CELLS
     heights = r.array("<i2", TILE_VERTS * TILE_VERTS).reshape(TILE_VERTS, TILE_VERTS)
     simple = _unpack_bits(r.array("u1", n // 4), 2, n).reshape(TILE_CELLS, TILE_CELLS)
@@ -146,7 +155,13 @@ def _parse_tile(r, sx, sy):
     if nc != int(cmask.sum()):
         raise FormatError("tile %d,%d: %d cell records for %d complex cells" % (sx, sy, nc, int(cmask.sum())))
     cells = r.array(CELL_DTYPE, nc)
-    spans = r.array(SPAN_DTYPE, int(cells["n_spans"].sum()))
+    if version >= 2:
+        spans = r.array(SPAN_DTYPE, int(cells["n_spans"].sum()))
+    else:
+        old = r.array(SPAN_DTYPE_V1, int(cells["n_spans"].sum()))
+        spans = np.zeros(len(old), SPAN_DTYPE)
+        for name in SPAN_DTYPE_V1.names:
+            spans[name] = old[name]
     return Tile(sx, sy, heights, simple, cmask, main, comps, cells, spans)
 
 
@@ -192,8 +207,8 @@ def parse(data):
     if r.raw(4) != MAGIC:
         raise FormatError("not an LNAV file")
     version = r.u16()
-    if version != VERSION:
-        raise FormatError("LNAV version %d, expected %d" % (version, VERSION))
+    if version not in (1, VERSION):
+        raise FormatError("LNAV version %d, expected 1 or %d" % (version, VERSION))
     nav = Lnav(cell_cm=r.u16())
     nav.step_cm, nav.body_lo_cm, nav.body_hi_cm, nav.hazard_cm = r.i16(), r.i16(), r.i16(), r.i16()
     for _ in range(r.u16()):
@@ -207,7 +222,7 @@ def parse(data):
         nav.anchors.append(Anchor(x, y, r.i16(), r.u16()))
     for sx, sy, off, size in index:
         tr = Reader(data, off, off + size)
-        nav.tiles[(sx, sy)] = _parse_tile(tr, sx, sy)
+        nav.tiles[(sx, sy)] = _parse_tile(tr, sx, sy, version)
         if tr.remaining():
             raise FormatError("tile %d,%d: %d bytes left over" % (sx, sy, tr.remaining()))
     return nav
