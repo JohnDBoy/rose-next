@@ -580,14 +580,20 @@ CObjCHAR::Nav_Chase(CObjCHAR* pTarget) {
         }
         pZone->m_NavMeter.CountPathReplan();
     } else {
-        if ((int)(dwNow - m_dwNavStraightUNTIL) < 0 || (int)(dwNow - m_dwNavCheckTIME) < 0) {
-            return false;
+        if ((int)(dwNow - m_dwNavStraightUNTIL) < 0) {
+            return false; // a failed search: straight, as before pathing (no safe spot)
         }
-        // staggered: chasers of one tick do not all look again on the same later tick
-        m_dwNavCheckTIME = dwNow + NAV_CHASE_CHECK_MS + (this->Get_INDEX() % 3) * 33;
+        // The line is looked at every tick (a few dozen cells): the target moves between two
+        // searches, and running straight at where it is now could cut across a gap. A chaser
+        // on the Shady Jungle spiral ramp fell 26 m through the gap by the stump that way.
         if (this->Nav_LineTo(pTarget)) {
             return false;
         }
+        if ((int)(dwNow - m_dwNavCheckTIME) < 0) {
+            return true; // blocked: keep the last line (it was clear) until the next search
+        }
+        // staggered: chasers of one tick do not all search again on the same later tick
+        m_dwNavCheckTIME = dwNow + NAV_CHASE_CHECK_MS + (this->Get_INDEX() % 3) * 33;
     }
 
     Nav::PathQuery q;
@@ -609,8 +615,9 @@ CObjCHAR::Nav_Chase(CObjCHAR* pTarget) {
             return true;
         }
     } else if (Nav::PathResult::Deferred == r) {
-        m_dwNavCheckTIME = dwNow; // keep what we were doing, ask again next tick
-        return bOnPath;
+        // keep what we were doing (the path, or the last clear line), ask again next tick
+        m_dwNavCheckTIME = dwNow;
+        return true;
     } else {
         m_dwNavStraightUNTIL = dwNow + NAV_STRAIGHT_MS; // pathing alone makes no safe spot
     }

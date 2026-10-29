@@ -373,7 +373,29 @@ CObjCHAR_Collision::MonsterFloorZ(float fX, float fY) {
     if (!m_pObj->HasNavRefZ()) {
         return g_pTerrain->GetHeightTop(fX, fY);
     }
-    const float fZ = FloorBelow(fX, fY, m_pObj->m_fNavRefZ);
+    const float fRef = m_pObj->m_fNavRefZ;
+    float fZ = FloorBelow(fX, fY, fRef);
+    // The server walks a monster on 1 m cells, and a cell only partly on a ramp or a deck counts as
+    // on it: a leg can graze the edge where the mesh under its exact spot is gone. Falling there
+    // dropped a monster off the Shady Jungle spiral ramp to the floor far below, where it fought on
+    // while the server had it on the ramp. A fall deeper than the server ever steps down (2.5 m)
+    // keeps the floor at its own height if one lies within EDGE_CM; only a real edge drops it.
+    constexpr float EDGE_FALL_CM = 300.f;
+    constexpr float EDGE_CM = 80.f;
+    constexpr float STEP_CM = 135.f;
+    if (fRef - fZ > EDGE_FALL_CM) {
+        static const float DIRS[8][2] = {
+            {1.f, 0.f}, {-1.f, 0.f}, {0.f, 1.f}, {0.f, -1.f},
+            {0.7071f, 0.7071f}, {0.7071f, -0.7071f}, {-0.7071f, 0.7071f}, {-0.7071f, -0.7071f}};
+        float fNear = -1.0e9f;
+        for (const auto& d: DIRS) {
+            const float z = FloorBelow(fX + d[0] * EDGE_CM, fY + d[1] * EDGE_CM, fRef);
+            if (z >= fRef - STEP_CM && z > fNear)
+                fNear = z;
+        }
+        if (fNear > -1.0e8f)
+            fZ = fNear;
+    }
     m_pObj->m_fNavRefZ = fZ;
     m_pObj->m_dwNavRefTIME = ::timeGetTime();
     return fZ;
