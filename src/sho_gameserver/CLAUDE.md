@@ -324,6 +324,19 @@ and its §6 decisions before touching movement, height or AoE shape. Phase 0 is 
     centre (`NavPickSpawn`).
   - Switches: `[nav] ai_walls`, `spawn_reach`; `/nav set walls|reach`. Readouts: `/nav spawns`
     (the nearest regen square) and `/nav walk` (your target to you).
+- **Pathfinding (Phase 5): `nav/nav_path` (A*), `nav/nav_agent` (the leg follower).**
+  - **A chase on a path stays in `CMD_ATTACK` on its target.** Only `m_PosGOTO` walks the
+    waypoints, and the clients get target-less legs. Ending the path for any reason while
+    still chasing must re-send `CharacterMoveAttack`, or the clients leave the monster walking
+    to its last leg (`Nav_ResumeChase`, `RealProc`'s drop).
+  - The hook is `CObjAI::Nav_Chase`, called from `Goto_TARGET` and `ProcCMD_ATTACK`'s
+    out-of-range branch. It acts only in `CMD_ATTACK`; skill chases still go straight.
+  - Walks (leash, summon follow, CTRL+click) are target-less agents. The agent owns
+    `CMD_MOVE` and `CMD_RUNAWAY`, and re-issuing a walk toward a goal within 4 m keeps it.
+  - Search arrays are per thread (`thread_local`, about 2 MB each). Searches run only on
+    zone threads, apart from the GM probe.
+  - Switches: `[nav] pathing`, `path_zones`, `path_*` budgets; `/nav set path|zones|lead|cells`.
+    Readout: `/nav path [go]`.
 
 ## Dependencies
 

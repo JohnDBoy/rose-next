@@ -33,6 +33,7 @@
     <ClInclude Include="src\nav\nav_settings.h" />
     <ClInclude Include="src\nav\nav_grid.h" />
     <ClInclude Include="src\nav\nav_agent.h" />
+    <ClInclude Include="src\nav\nav_path.h" />
     <ClInclude Include="src\nav\nav_probe.h" />
     <ClInclude Include="src\nav\nav_stats.h" />
     <ClInclude Include="src\status_effects.h" />
@@ -88,6 +89,7 @@
     <ClCompile Include="src\nav\nav_settings.cpp" />
     <ClCompile Include="src\nav\nav_grid.cpp" />
     <ClCompile Include="src\nav\nav_agent.cpp" />
+    <ClCompile Include="src\nav\nav_path.cpp" />
     <ClCompile Include="src\nav\nav_probe.cpp" />
     <ClCompile Include="src\nav\nav_stats.cpp" />
     <ClCompile Include="src\status_effects.cpp" />

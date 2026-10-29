@@ -190,6 +190,7 @@ CZoneTHREAD::Execute() {
         // Times the object work below: it runs after the frame wait, so whatever it
         // costs stretches this zone's tick (nav/nav_stats.h).
         m_NavMeter.BeginProc();
+        m_NavBudget.Reset();
         int iTickMOBs = 0;
 
         pObjNODE = m_ObjLIST.GetHeadNode();

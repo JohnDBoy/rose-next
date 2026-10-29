@@ -688,6 +688,34 @@ What changed:
 - **Kill switch / size:** `pathing`, `path_zones`, `/nav pathing off`. About 1,300 lines of C++.
 - **Player notices:** monsters and summons go around obstacles; leashing monsters walk home along corridors. **Leashes trigger more often in caves**, because paths are longer than the straight-line leash distance.
 
+**Status (2026-10-29): validated in game.** In Goblin Cave B1, monsters chased round the corridor instead of through the rock, leashed monsters walked home along it, and `/nav set path 0` brought back the straight cut.
+- **Numbers:** 112 searches over the test, every one found (none partial, failed or deferred). The slowest took 0.46 ms, and nav time stayed at most 0.003 ms a tick.
+- **Sikuku Prison** p99 is about 4.2 ms with a player in it, against 3.2–3.6 ms before Phases 4–5. Most of the rise is Phase 4's line checks: it refuses about 4,500 idle moves a minute, each drawn again.
+- **Not tested yet:** summons (the test character is a Scout).
+- **The first build crashed at startup:** freeing a `path_zones` string that `toml_get_str` never filled (no `[nav]` in `server.toml`) hits `FfiString`'s unchecked drop. It is now freed only when filled.
+
+What was built:
+- **`nav/nav_path`:** A* over the reached walkable floors, with these rules:
+  - 8 neighbours, the bake's step rule between floors, and no corner cutting;
+  - octile costs ×1.2, and cells narrower than the walker's class cost ×3;
+  - a 128-cell window, with the start kept 8 cells inside;
+  - generation-stamped arrays per zone thread; snapping within 2 m (start) and 3 m (goal);
+  - a component check before searching, and the best partial path accepted when it ends 2 m closer;
+  - bisection string-pulling into at most 16 waypoints, each leg checked with `LineWalk` to end on the path's own floor.
+- **`TickBudget`** per zone tick: 6 searches, 8,000 cells, 3 ms of QPC time; 4,000 cells per search. A refused search keeps the current leg and asks again next tick.
+- **Chase** (`CObjCHAR::Nav_Chase`, hooked into `Goto_TARGET` and `ProcCMD_ATTACK`'s out-of-range branch through a `CObjAI` virtual):
+  - an attack chase checks its line every 300 ms, staggered; the line is clear only if it ends on the target's floor;
+  - blocked, it plans and walks target-less legs while staying in `CMD_ATTACK`;
+  - it re-plans when the target moves 4 m;
+  - it goes back to running straight, with one `CharacterMoveAttack`, when the line clears, at the path's end, or once in range;
+  - a failed search runs straight for 2.5 s.
+- **Not pathed yet:** skill chases (`CMD_SKILL2OBJ`). Re-announcing them would mean re-sending `GSV_TARGET_SKILL`, which risks restarting the client's skill presentation.
+- **Walks** (`Nav_PathTo`): the leash goes home on a path (`CMD_RUNAWAY` is accepted by the agent, and its arrival belongs to the agent); summon follow and AIACT_29 path to the owner's floor; CTRL+click orders path when blocked. All of them still walk straight when no path is found.
+- **New viewers** see a pathing character as a target-less move to its announced leg. The speed resync covers leash paths.
+- **Switches:** `pathing`, `path_zones` ("all" by default), the budgets and `path_lead_ms` in `[nav]`; `/nav set path|lead|cells`, `/nav set zones <list>`.
+- **Readouts:** `/nav path [go]` plans from your target to you; the zone line adds searches by result, deferrals, cells, nav ms a tick, walks started, chases back to straight and re-plans.
+- **Not built yet:** the dynamic overlay for the Cerberus ice wall (decision 10).
+
 ### Phase 6: the client draws the server's floor (lockstep)
 
 - **Changes:**

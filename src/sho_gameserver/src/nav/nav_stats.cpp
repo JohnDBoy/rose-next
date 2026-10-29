@@ -50,6 +50,19 @@ AddGridBytes(size_t bytes) {
 }
 
 void
+ZoneMeter::CountPathSearch(int iResult, int iExpansions, double dMS) {
+    if (iResult >= 0 && iResult < 6) {
+        m_PathResults[iResult].fetch_add(1, std::memory_order_relaxed);
+    }
+    m_PathExpansions.fetch_add((uint64_t)iExpansions, std::memory_order_relaxed);
+    const uint32_t us = (uint32_t)(dMS * 1000.0 + 0.5);
+    m_PathMicros.fetch_add(us, std::memory_order_relaxed);
+    uint32_t prev = m_PathMaxMicros.load(std::memory_order_relaxed);
+    while (us > prev && !m_PathMaxMicros.compare_exchange_weak(prev, us, std::memory_order_relaxed)) {
+    }
+}
+
+void
 ZoneMeter::BeginProc() {
     ::QueryPerformanceCounter(&m_liStart);
 }
@@ -104,6 +117,28 @@ ZoneMeter::Publish(CZoneTHREAD& zone) {
     const uint32_t nReroll = m_SpawnRerolls.exchange(0, std::memory_order_relaxed);
     const uint32_t nFallback = m_SpawnFallbacks.exchange(0, std::memory_order_relaxed);
     const uint32_t nStraight = m_StraightFallbacks.exchange(0, std::memory_order_relaxed);
+    uint32_t nPath[6];
+    uint32_t nSearches = 0;
+    for (int i = 0; i < 6; ++i) {
+        nPath[i] = m_PathResults[i].exchange(0, std::memory_order_relaxed);
+        nSearches += nPath[i];
+    }
+    const uint32_t nDeferred = m_PathDeferred.exchange(0, std::memory_order_relaxed);
+    const uint32_t nStarted = m_PathStarted.exchange(0, std::memory_order_relaxed);
+    const uint32_t nLineClear = m_PathLineClear.exchange(0, std::memory_order_relaxed);
+    const uint32_t nReplans = m_PathReplans.exchange(0, std::memory_order_relaxed);
+    const uint64_t nExp = m_PathExpansions.exchange(0, std::memory_order_relaxed);
+    const uint64_t nMicros = m_PathMicros.exchange(0, std::memory_order_relaxed);
+    const uint32_t nMaxMicros = m_PathMaxMicros.exchange(0, std::memory_order_relaxed);
+
+    // PathResult order: found, partial, failed, unreachable, no floor (deferred is counted apart)
+    const std::string pathText = nSearches || nDeferred
+        ? fmt::format("; paths: {} searches (found {}, partial {}, failed {}, unreachable {}, no floor {}), "
+                      "deferred {}, {} cells, nav {:.3f} ms a tick (search max {:.2f} ms); {} walks started, "
+                      "{} chases back to straight, {} re-planned",
+              nSearches, nPath[0], nPath[1], nPath[2], nPath[3], nPath[4], nDeferred, nExp,
+              n ? (double)nMicros / 1000.0 / n : 0.0, nMaxMicros / 1000.0, nStarted, nLineClear, nReplans)
+        : std::string();
 
     const std::string text = fmt::format(
         "zone {} {}: object work avg {:.2f} ms, p99 {:.2f} ms, max {:.2f} ms over {} ticks; "
@@ -131,7 +166,7 @@ ZoneMeter::Publish(CZoneTHREAD& zone) {
         nAggro,
         nReroll,
         nFallback,
-        nStraight);
+        nStraight) + pathText;
 
     if (m_iMaxUsers > 0 || fP99 >= LOG_P99_MS) {
         LOG_INFO("nav: {}", text);

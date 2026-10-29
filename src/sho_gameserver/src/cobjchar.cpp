@@ -9,6 +9,7 @@
 #include "network.h"
 #include "nav/nav_agent.h"
 #include "nav/nav_grid.h"
+#include "nav/nav_path.h"
 #include "nav/nav_settings.h"
 
 #include "rose/combat/skill_presentation.h"
@@ -308,6 +309,16 @@ constexpr float NAV_JUMP_CM = 2000.f;
 constexpr float NAV_AUDIT_CM = 100.f;
 // a client height picks among real floors only, within this
 constexpr float NAV_HINT_SNAP_CM = 300.f;
+constexpr DWORD NAV_CHASE_CHECK_MS = 300; // how often a chaser looks at its line
+constexpr DWORD NAV_STRAIGHT_MS = 2500; // a failed search runs straight this long
+constexpr float NAV_REPLAN_CM = 400.f; // a goal that moved this far is planned again
+constexpr float NAV_LINE_Z_CM = 150.f; // a line "reaches" a target ending this near its floor
+
+float
+nav_dist(const tPOINTF& a, float x, float y) {
+    const float dx = a.x - x, dy = a.y - y;
+    return sqrtf(dx * dx + dy * dy);
+}
 
 short
 nav_short(float z) {
@@ -428,12 +439,19 @@ CObjCHAR::Nav_MoveTowards(float fX, float fY, BYTE btRunMODE) {
 }
 
 bool
-CObjCHAR::Nav_MoveOrStraight(float fX, float fY, BYTE btRunMODE) {
+CObjCHAR::Nav_MoveOrStraight(float fX, float fY, BYTE btRunMODE, float fZ) {
+    // a path already on its way there (summon follow re-issues this every 300 ms)
+    if (m_pNav && !m_pNav->IsChase() && m_pNav->Owns(*this) && nav_dist(m_pNav->Goal(), fX, fY) <= NAV_REPLAN_CM) {
+        return true;
+    }
     if (this->SetCMD_MOVE2D(fX, fY, btRunMODE)) {
         return true;
     }
     if (!this->GetZONE() || !this->GetZONE()->NavGrid()) {
         return false; // no grid: the MOV refusal stands, as before
+    }
+    if (this->Nav_PathTo(fX, fY, fZ, btRunMODE)) {
+        return true;
     }
     if (!CObjAI::SetCMD_MOVE2D(fX, fY, btRunMODE)) {
         return false;
@@ -447,11 +465,160 @@ CObjCHAR::Nav_MoveOrStraight(float fX, float fY, BYTE btRunMODE) {
 void
 CObjCHAR::Nav_Finish() {
     const int iChase = m_pNav->ChaseTarget();
+    const bool bChase = m_pNav->IsChase();
     this->Nav_Stop();
+    if (bChase) {
+        // the end of a chase path: run straight at the target again
+        CObjCHAR* pTarget = (CObjCHAR*)this->Get_TARGET();
+        if (pTarget && CMD_ATTACK == this->Get_COMMAND() && iChase == this->Get_TargetIDX()) {
+            this->Nav_ResumeChase(pTarget);
+        }
+        return;
+    }
     CObjAI::SetCMD_STOP();
     if (iChase) {
         this->SetCMD_RUNnATTACK(iChase);
     }
+}
+
+bool
+CObjCHAR::Nav_Pathing() {
+    CZoneTHREAD* pZone = this->GetZONE();
+    return !this->IsUSER() && this->Get_HP() > 0 && pZone && pZone->NavGrid()
+        && Nav::PathingIn(pZone->Get_ZoneNO());
+}
+
+int
+CObjCHAR::Nav_PrefClass() {
+    const float s = this->Get_SCALE();
+    return s < 1.2f ? 1 : (s <= 2.5f ? 2 : 3);
+}
+
+bool
+CObjCHAR::Nav_LineTo(CObjCHAR* pTarget) {
+    Nav::Grid* pGrid = this->GetZONE()->NavGrid();
+    const float z0 = this->Nav_WalkZ(), z1 = pTarget->Nav_WalkZ();
+    if (!pGrid || Nav::NO_Z == z0) {
+        return true;
+    }
+    float fLZ;
+    if (!pGrid->LineWalk(m_PosCUR.x, m_PosCUR.y, z0, pTarget->m_PosCUR.x, pTarget->m_PosCUR.y, nullptr, nullptr,
+            &fLZ)) {
+        return false;
+    }
+    // from the ravine the line reaches the spot under a player on the deck, on another floor
+    return Nav::NO_Z == z1 || fabsf(fLZ - z1) <= NAV_LINE_Z_CM;
+}
+
+void
+CObjCHAR::Nav_ResumeChase(CObjCHAR* pTarget) {
+    m_PosGOTO = pTarget->m_PosCUR;
+    this->Start_MOVE(this->total_move_speed());
+    Packet p = build_char_move_attack_packet(*this);
+    send_packet_nearby(*this, p);
+}
+
+bool
+CObjCHAR::Nav_Chase(CObjCHAR* pTarget) {
+    // an attack chase only: Goto_TARGET also walks players and monsters up to an NPC
+    if (!pTarget || CMD_ATTACK != this->Get_COMMAND() || !this->Nav_Pathing()) {
+        return false;
+    }
+    CZoneTHREAD* pZone = this->GetZONE();
+    const DWORD dwNow = ::timeGetTime();
+    const bool bOnPath = m_pNav && m_pNav->IsChase() && m_pNav->Owns(*this);
+
+    if (bOnPath) {
+        if ((int)(dwNow - m_dwNavCheckTIME) < 0) {
+            return true;
+        }
+        m_dwNavCheckTIME = dwNow + NAV_CHASE_CHECK_MS;
+        if (this->Nav_LineTo(pTarget)) {
+            // nothing in the way any more: straight at it, as the clients are told
+            pZone->m_NavMeter.CountPathLineClear();
+            this->Nav_Stop();
+            this->Nav_ResumeChase(pTarget);
+            return true;
+        }
+        if (nav_dist(m_pNav->Goal(), pTarget->m_PosCUR.x, pTarget->m_PosCUR.y) <= NAV_REPLAN_CM) {
+            return true;
+        }
+        pZone->m_NavMeter.CountPathReplan();
+    } else {
+        if ((int)(dwNow - m_dwNavStraightUNTIL) < 0 || (int)(dwNow - m_dwNavCheckTIME) < 0) {
+            return false;
+        }
+        // staggered: chasers of one tick do not all look again on the same later tick
+        m_dwNavCheckTIME = dwNow + NAV_CHASE_CHECK_MS + (this->Get_INDEX() % 3) * 33;
+        if (this->Nav_LineTo(pTarget)) {
+            return false;
+        }
+    }
+
+    Nav::PathQuery q;
+    q.x0 = m_PosCUR.x;
+    q.y0 = m_PosCUR.y;
+    q.z0 = this->Nav_WalkZ();
+    q.x1 = pTarget->m_PosCUR.x;
+    q.y1 = pTarget->m_PosCUR.y;
+    q.z1 = pTarget->Nav_WalkZ();
+    q.iPrefClass = this->Nav_PrefClass();
+    std::vector<tPOINTF> points;
+    const Nav::PathResult r =
+        Nav::FindPath(*pZone->NavGrid(), q, pZone->m_NavBudget, pZone->m_NavMeter, points);
+    if (Nav::PathResult::Found == r || Nav::PathResult::Partial == r) {
+        const DWORD dwLead = (DWORD)Nav::settings().path_lead_ms.load(std::memory_order_relaxed);
+        if (this->Nav_Start(new Nav::Agent(std::move(points), true, dwLead, pTarget->Get_INDEX(), true,
+                pTarget->m_PosCUR))) {
+            pZone->m_NavMeter.CountPathStarted();
+            return true;
+        }
+    } else if (Nav::PathResult::Deferred == r) {
+        m_dwNavCheckTIME = dwNow; // keep what we were doing, ask again next tick
+        return bOnPath;
+    } else {
+        m_dwNavStraightUNTIL = dwNow + NAV_STRAIGHT_MS; // pathing alone makes no safe spot
+    }
+    if (bOnPath || m_pNav) {
+        this->Nav_Stop();
+        this->Nav_ResumeChase(pTarget);
+        return true;
+    }
+    return false;
+}
+
+bool
+CObjCHAR::Nav_PathTo(float fX, float fY, float fZ, BYTE btRunMODE) {
+    if (!this->Nav_Pathing()) {
+        return false;
+    }
+    if (m_pNav && !m_pNav->IsChase() && m_pNav->Owns(*this) && nav_dist(m_pNav->Goal(), fX, fY) <= NAV_REPLAN_CM) {
+        return true; // already on its way there
+    }
+    CZoneTHREAD* pZone = this->GetZONE();
+    Nav::PathQuery q;
+    q.x0 = m_PosCUR.x;
+    q.y0 = m_PosCUR.y;
+    q.z0 = this->Nav_WalkZ();
+    q.x1 = fX;
+    q.y1 = fY;
+    q.z1 = fZ;
+    q.iPrefClass = this->Nav_PrefClass();
+    std::vector<tPOINTF> points;
+    const Nav::PathResult r =
+        Nav::FindPath(*pZone->NavGrid(), q, pZone->m_NavBudget, pZone->m_NavMeter, points);
+    if (Nav::PathResult::Found != r && Nav::PathResult::Partial != r) {
+        return false;
+    }
+    tPOINTF goal;
+    goal.x = fX;
+    goal.y = fY;
+    const DWORD dwLead = (DWORD)Nav::settings().path_lead_ms.load(std::memory_order_relaxed);
+    if (!this->Nav_Start(new Nav::Agent(std::move(points), btRunMODE != 0, dwLead, 0, false, goal))) {
+        return false;
+    }
+    pZone->m_NavMeter.CountPathStarted();
+    return true;
 }
 
 // CMD_MOVE while on a path: the agent owns arrival, corners are clamped in
@@ -597,7 +764,7 @@ CObjCHAR::Resync_MoveSPEED() {
     }
 
     const WORD wCommand = this->Get_COMMAND();
-    const bool bSend = CMD_ATTACK == wCommand || CMD_MOVE == wCommand;
+    const bool bSend = CMD_ATTACK == wCommand || CMD_MOVE == wCommand || (m_pNav && m_pNav->Owns(*this));
     LogString(LOG_DEBUG_,
         "CombatTrace server move speed resync: obj %d %s speed sent %d -> %d moving at %.0f command %d\n",
         this->Get_INDEX(),
@@ -983,11 +1150,12 @@ void
 CObjCHAR::Init_ADD_CHAR(classPACKET* pCPacket) {
     pCPacket->m_tag_ADD_CHAR.m_wObjectIDX = this->Get_INDEX();
     pCPacket->m_tag_ADD_CHAR.m_PosCUR = this->m_PosCUR;
-    // A new viewer of a character on a path walks the leg the others were told.
-    pCPacket->m_tag_ADD_CHAR.m_PosTO =
-        (m_pNav && m_pNav->Owns(*this)) ? m_pNav->AnnouncedPoint() : this->m_PosGOTO;
-    pCPacket->m_tag_ADD_CHAR.m_wCommand = this->Get_COMMAND();
-    pCPacket->m_tag_ADD_CHAR.m_wTargetOBJ = this->Get_TargetIDX();
+    // A new viewer of a character on a path walks the leg the others were told, as a
+    // target-less move (a chase on a path would otherwise run straight at its target).
+    const bool bOnPath = m_pNav && m_pNav->Owns(*this);
+    pCPacket->m_tag_ADD_CHAR.m_PosTO = bOnPath ? m_pNav->AnnouncedPoint() : this->m_PosGOTO;
+    pCPacket->m_tag_ADD_CHAR.m_wCommand = bOnPath ? (WORD)CMD_MOVE : this->Get_COMMAND();
+    pCPacket->m_tag_ADD_CHAR.m_wTargetOBJ = bOnPath ? 0 : this->Get_TargetIDX();
     pCPacket->m_tag_ADD_CHAR.m_iHP = this->Get_HP();
 
     pCPacket->m_tag_ADD_CHAR.m_btMoveMODE = this->Get_MoveMODE();
@@ -2383,9 +2551,17 @@ void CObjCHAR::Move_COMPLETED ()
 
 int
 CObjCHAR::RealProc(DWORD dwPassTIME) {
-    // A path ends the moment anything else (AI, a hit, a skill) re-commands us.
+    // A path ends the moment anything else (AI, a hit, a skill) re-commands us. A chase
+    // that reached its range (Goto_TARGET set m_PosGOTO to where it stands) is still a
+    // chase: the clients, walking a target-less leg, are told it again.
     if (m_pNav && !m_pNav->Owns(*this)) {
+        const bool bChase = m_pNav->IsChase();
+        const int iTarget = m_pNav->ChaseTarget();
         this->Nav_Stop();
+        if (bChase && CMD_ATTACK == this->Get_COMMAND() && iTarget == this->Get_TargetIDX()) {
+            Packet p = build_char_move_attack_packet(*this);
+            send_packet_nearby(*this, p);
+        }
     }
 
     if ((CS_BIT_MOV | CS_BIT_MOV2) & this->Get_STATE()) {
@@ -2436,6 +2612,11 @@ CObjCHAR::RealProc(DWORD dwPassTIME) {
             return ProcCMD_MOVE();
 
         case CMD_RUNAWAY:
+            if (m_pNav) {
+                return this->Nav_ProcMOVE(); // a leash home on a path: the agent owns arrival
+            }
+            return ProcCMD_PICK_ITEM();
+
         case CMD_PICK_ITEM:
             return ProcCMD_PICK_ITEM();
 

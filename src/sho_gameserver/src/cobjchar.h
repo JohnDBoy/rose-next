@@ -125,16 +125,37 @@ public:
     /// An AI walk as far as the line allows: the whole way, or to where it is blocked if that is
     /// at least a metre (flee).
     bool Nav_MoveTowards(float fX, float fY, BYTE btRunMODE);
-    /// An AI walk that must not be refused (leash home, summon follow): the gated move, else
-    /// straight as before Phase 4, until pathfinding finds the way round.
-    bool Nav_MoveOrStraight(float fX, float fY, BYTE btRunMODE);
+    /// An AI walk that must not be refused (leash home, summon follow): a path already going
+    /// there, else the gated straight move, else a path round what is in the way (Phase 5),
+    /// else straight as before Phase 4. fZ: the floor at (x, y), or NO_Z.
+    bool Nav_MoveOrStraight(float fX, float fY, BYTE btRunMODE, float fZ = -32768.f);
     /// Take ownership and start the path. False (and deleted) if it cannot start.
     bool Nav_Start(Nav::Agent* pAgent);
     void Nav_Stop();
 
+    /// Whether this character finds paths here: not a player, alive, on a zone with a walk
+    /// grid that is in [nav] path_zones with pathing on.
+    bool Nav_Pathing();
+    /// Walk to (x, y) round what is in the way: a target-less path (leash, summon follow, a
+    /// CTRL+click order). True if a path walks it there, including one already going within
+    /// 4 m of it. fZ: the floor at (x, y), or NO_Z for the one nearest this character's.
+    bool Nav_PathTo(float fX, float fY, float fZ, BYTE btRunMODE);
+    /// CObjAI's chase hook (Phase 5): every 300 ms a chaser checks the straight line to its
+    /// target; blocked, it plans a path and walks it as target-less legs while staying in
+    /// CMD_ATTACK. True while that path moves it.
+    bool Nav_Chase(CObjCHAR* pTarget) override;
+    DWORD m_dwNavCheckTIME = 0; ///< the next chase line check
+    DWORD m_dwNavStraightUNTIL = 0; ///< after a failed search: straight at the target until then
+
 private:
     void Nav_Finish();
     int Nav_ProcMOVE();
+    /// Whether the straight walk from here reaches pTarget's own floor.
+    bool Nav_LineTo(CObjCHAR* pTarget);
+    /// Run straight at pTarget again and tell the clients (a chase leaving its path).
+    void Nav_ResumeChase(CObjCHAR* pTarget);
+    /// The clearance class this character prefers (NPC scale: under 120% 1, to 250% 2, else 3).
+    int Nav_PrefClass();
 
 public:
 

@@ -17,6 +17,7 @@
 #include "ZoneFILE.h"
 #include "ZoneSECTOR.h"
 #include "nav/nav_grid.h"
+#include "nav/nav_path.h"
 #include "nav/nav_stats.h"
 
 #include <map>
@@ -118,6 +119,7 @@ public:
     CEconomy m_Economy;
     void* m_pListITEM;
     Nav::ZoneMeter m_NavMeter; // tick timing and movement/scan counters (nav/nav_stats.h)
+    Nav::TickBudget m_NavBudget; // this tick's path searches (nav/nav_path.h), zone thread only
 
     CZoneTHREAD(bool CreateSuspended);
     ~CZoneTHREAD();

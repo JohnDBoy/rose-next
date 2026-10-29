@@ -74,9 +74,9 @@ public:
     /// walkable floors, with the bake's step rule (135 cm on terrain and stairs, 45 cm where an
     /// object floor is involved). The start may be any floor (a walker steps out of a blocked
     /// cell). True if it gets there; either way pLastX/pLastY (if given) receive the last cell
-    /// centre it reached, or the end point.
+    /// centre it reached, or the end point, and pLastZ the floor it stands on there.
     bool LineWalk(float x0, float y0, float z0, float x1, float y1, float* pLastX = nullptr,
-        float* pLastY = nullptr) const;
+        float* pLastY = nullptr, float* pLastZ = nullptr) const;
 
     /// The floor a regen point's monsters belong to, as the bake resolved it (the point's
     /// authored height, or where the client drops a spawn), or NO_Z for a position that is

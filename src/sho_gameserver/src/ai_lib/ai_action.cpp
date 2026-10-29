@@ -870,8 +870,9 @@ F_AIACT29(stActHead* pActDATA, t_AIPARAM* pEVENT) {
     float fPosX = pOwner->Get_CurXPOS() + (dx / fDistance) * FOLLOW_DISTANCE;
     float fPosY = pOwner->Get_CurYPOS() + (dy / fDistance) * FOLLOW_DISTANCE;
 
-    // a blocked line is walked straight: a summon must never be stranded (Phase 4)
-    ((CObjCHAR*)pEVENT->m_pSourCHAR)->Nav_MoveOrStraight(fPosX, fPosY, 1 /* run mode */);
+    // a blocked line takes a path to the owner's floor, else straight: a summon must never be
+    // stranded (Phases 4 and 5)
+    ((CObjCHAR*)pEVENT->m_pSourCHAR)->Nav_MoveOrStraight(fPosX, fPosY, 1 /* run mode */, ((CObjCHAR*)pOwner)->Nav_WalkZ());
 #endif
 }
 

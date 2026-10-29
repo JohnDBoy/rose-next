@@ -25,6 +25,7 @@ void OnUserMove(classUSER& user);
 ///   aoe [radius m]               which monsters an area centred on you would hit or leave out
 ///   spawns                       the nearest regen point: random spots in rock, behind walls, on roofs
 ///   walk                         could your target walk straight to you, or where a wall stops it
+///   path [go]                    the A* path from your target to you (go: it walks it)
 bool Command(classUSER& user, const char* szUsage, const std::vector<std::string>& args);
 
 } // namespace Nav::Probe

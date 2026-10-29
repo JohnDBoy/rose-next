@@ -4,6 +4,7 @@
 
 #include "nav/nav_agent.h"
 #include "nav/nav_grid.h"
+#include "nav/nav_path.h"
 #include "nav/nav_settings.h"
 #include "nav/nav_stats.h"
 
@@ -307,7 +308,23 @@ cmd_set(classUSER& user, const std::vector<std::string>& args) {
         {"roofs", &s.spawn_roofs, "re-roll spawns drawn on a roof: 0 / 1"},
         {"walls", &s.ai_walls, "idle walks (wander, flee, leash, follow) avoid walls: 0 / 1"},
         {"reach", &s.spawn_reach, "re-roll spawns behind walls or off the ground: 0 / 1"},
+        {"path", &s.pathing, "chases, leashes, summon follow and CTRL+click use A*: 0 / 1"},
+        {"lead", &s.path_lead_ms, "send a path's next leg this many ms before the corner"},
+        {"cells", &s.path_expansions, "cells one search may expand"},
     };
+    if (args.size() >= 4 && args[2] == "zones") {
+        std::string text;
+        for (size_t i = 3; i < args.size(); ++i) {
+            text += args[i] + " ";
+        }
+        if (SetPathZones(text)) {
+            user.send_server_whisper(fmt::format("nav: path zones = {} (whole server, until restart or reloadconfig)",
+                PathZonesText()));
+        } else {
+            user.send_server_whisper("nav: zones takes all, none, or zone numbers (/nav set zones 31 32 33).");
+        }
+        return;
+    }
     if (args.size() >= 4) {
         for (const auto& k: knobs) {
             if (args[2] == k.name) {
@@ -320,6 +337,69 @@ cmd_set(classUSER& user, const std::vector<std::string>& args) {
     }
     for (const auto& k: knobs) {
         user.send_server_whisper(fmt::format("nav set {} {}  ({})", k.name, k.value->load(), k.help));
+    }
+    user.send_server_whisper(fmt::format("nav set zones {}  (zones whose monsters path: all, none or numbers; "
+                                         "this zone: {})",
+        PathZonesText(), PathingIn(user.GetZONE() ? user.GetZONE()->Get_ZoneNO() : -1) ? "yes" : "no"));
+}
+
+// A path from your target (or the nearest monster) to you: what the search found, and with
+// "go" the monster walks it.
+void
+cmd_path(classUSER& user, const std::vector<std::string>& args) {
+    CZoneTHREAD* pZone = user.GetZONE();
+    Grid* pGrid = pZone ? pZone->NavGrid() : nullptr;
+    CObjCHAR* pMob = pick_monster(user);
+    if (!pGrid || !pMob) {
+        user.send_server_whisper("No walk grid here, or no monster: target one first.");
+        return;
+    }
+    PathQuery q;
+    q.x0 = pMob->m_PosCUR.x;
+    q.y0 = pMob->m_PosCUR.y;
+    q.z0 = pMob->Nav_WalkZ();
+    q.x1 = user.m_PosCUR.x;
+    q.y1 = user.m_PosCUR.y;
+    q.z1 = user.Nav_WalkZ();
+    const float s = pMob->Get_SCALE();
+    q.iPrefClass = s < 1.2f ? 1 : (s <= 2.5f ? 2 : 3);
+    TickBudget budget; // the probe's own: the zone's is for its monsters
+    budget.Reset();
+    LARGE_INTEGER a, b, f;
+    ::QueryPerformanceFrequency(&f);
+    ::QueryPerformanceCounter(&a);
+    std::vector<tPOINTF> points;
+    int iCells = 0;
+    const PathResult r = FindPath(*pGrid, q, budget, pZone->m_NavMeter, points, &iCells);
+    ::QueryPerformanceCounter(&b);
+    const double ms = (double)(b.QuadPart - a.QuadPart) * 1000.0 / (double)f.QuadPart;
+
+    float fLen = 0.f;
+    tPOINTF prev = pMob->m_PosCUR;
+    std::string corners;
+    for (const tPOINTF& p: points) {
+        fLen += sqrtf((p.x - prev.x) * (p.x - prev.x) + (p.y - prev.y) * (p.y - prev.y));
+        prev = p;
+        if (corners.size() < 160) {
+            corners += fmt::format(" ({:.1f}, {:.1f})", p.x / 100.f, p.y / 100.f);
+        }
+    }
+    const float dx = user.m_PosCUR.x - pMob->m_PosCUR.x, dy = user.m_PosCUR.y - pMob->m_PosCUR.y;
+    const bool bLine = pGrid->LineWalk(pMob->m_PosCUR.x, pMob->m_PosCUR.y, q.z0, user.m_PosCUR.x, user.m_PosCUR.y);
+    user.send_server_whisper(fmt::format("{} to you: straight {:.1f} m ({}); path {}: {} corners, {:.1f} m, "
+                                         "{} cells, {:.2f} ms.",
+        pMob->Get_NAME(), sqrtf(dx * dx + dy * dy) / 100.f, bLine ? "open" : "blocked", PathResultName(r),
+        points.size(), fLen / 100.f, iCells, ms));
+    if (!points.empty()) {
+        user.send_server_whisper("Corners (m):" + corners);
+    }
+    user.send_server_whisper(fmt::format("Pathing here: {}.", PathingIn(pZone->Get_ZoneNO()) ? "on" : "off (/nav set path, /nav set zones)"));
+
+    if (args.size() >= 3 && args[2] == "go" && !points.empty()) {
+        if (pMob->Nav_Start(new Agent(std::move(points), false,
+                (DWORD)settings().path_lead_ms.load(std::memory_order_relaxed), 0))) {
+            user.send_server_whisper("It walks the path now.");
+        }
     }
 }
 
@@ -369,6 +449,11 @@ Command(classUSER& user, const char* szUsage, const std::vector<std::string>& ar
 
     if (action.empty() || action == "here") {
         cmd_here(user);
+        return true;
+    }
+
+    if (action == "path") {
+        cmd_path(user, args);
         return true;
     }
 

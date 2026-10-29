@@ -31,8 +31,14 @@ dist2d(const tPOINTF& a, const tPOINTF& b) {
 
 } // namespace
 
-Agent::Agent(std::vector<tPOINTF> points, bool run, DWORD lead_ms, int chase_target):
-    m_Points(std::move(points)), m_bRun(run), m_dwLeadMS(lead_ms), m_iChaseTarget(chase_target) {
+Agent::Agent(std::vector<tPOINTF> points, bool run, DWORD lead_ms, int chase_target, bool chase,
+    tPOINTF goal):
+    m_Points(std::move(points)),
+    m_bRun(run),
+    m_dwLeadMS(lead_ms),
+    m_iChaseTarget(chase_target),
+    m_bChase(chase),
+    m_Goal(goal) {
 }
 
 bool
@@ -44,9 +50,15 @@ Agent::Begin(CObjCHAR& c) {
     m_Cur = 0;
     m_Announced = 0;
 
-    // The base move: no walkability gate and no packet. SendLeg sends a
-    // target-less leg instead of the plain move packet.
-    if (!c.CObjAI::SetCMD_MOVE2D(m_Points[0].x, m_Points[0].y, m_bRun ? 1 : 0)) {
+    if (m_bChase) {
+        // A chase keeps its command and target: only where it runs to changes. Called from
+        // the chase itself (ProcCMD_ATTACK), never inside an uninterruptible motion.
+        c.m_bRunMODE = m_bRun;
+        c.m_PosGOTO = m_Points[0];
+        c.Start_MOVE(c.total_move_speed());
+    } else if (!c.CObjAI::SetCMD_MOVE2D(m_Points[0].x, m_Points[0].y, m_bRun ? 1 : 0)) {
+        // The base move: no walkability gate and no packet. SendLeg sends a
+        // target-less leg instead of the plain move packet.
         return false;
     }
 
@@ -56,8 +68,15 @@ Agent::Begin(CObjCHAR& c) {
 
 bool
 Agent::Owns(CObjCHAR& c) const {
-    return CMD_MOVE == c.Get_COMMAND() && 0 == c.Get_TargetIDX()
-        && c.m_PosGOTO.x == m_Points[m_Cur].x && c.m_PosGOTO.y == m_Points[m_Cur].y;
+    if (c.m_PosGOTO.x != m_Points[m_Cur].x || c.m_PosGOTO.y != m_Points[m_Cur].y) {
+        return false;
+    }
+    const WORD wCommand = c.Get_COMMAND();
+    if (m_bChase) {
+        return CMD_ATTACK == wCommand && m_iChaseTarget == c.Get_TargetIDX();
+    }
+    // a leash sets CMD_RUNAWAY once its walk has begun (CObjMOB::Run_AWAY)
+    return (CMD_MOVE == wCommand || CMD_RUNAWAY == wCommand) && 0 == c.Get_TargetIDX();
 }
 
 bool

@@ -609,7 +609,10 @@ CObjAI::Goto_TARGET(CObjCHAR* pTarget, int iRange) {
         return true;
     }
 
-    this->Restart_MOVE(pTarget->m_PosCUR);
+    // a path round what is in the way, or straight at the target
+    if (!this->Nav_Chase(pTarget)) {
+        this->Restart_MOVE(pTarget->m_PosCUR);
+    }
 
     return false;
 }
@@ -715,8 +718,10 @@ CObjAI::ProcCMD_ATTACK() {
                 if (!IsInRANGE(pTarget, this->Get_AttackRange(0))) {
                     // 범위를 벗어 났으면 이동...
                     m_wState = CS_STOP;
-                    m_PosGOTO = pTarget->m_PosCUR;
-                    this->Start_MOVE(this->total_move_speed());
+                    if (!this->Nav_Chase(pTarget)) {
+                        m_PosGOTO = pTarget->m_PosCUR;
+                        this->Start_MOVE(this->total_move_speed());
+                    }
                     return 1;
                 }
 

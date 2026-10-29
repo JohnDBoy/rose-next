@@ -437,7 +437,8 @@ Grid::NearestSpan(float x, float y, float z, float within, Span& out, unsigned c
 }
 
 bool
-Grid::LineWalk(float x0, float y0, float z0, float x1, float y1, float* pLastX, float* pLastY) const {
+Grid::LineWalk(float x0, float y0, float z0, float x1, float y1, float* pLastX, float* pLastY,
+    float* pLastZ) const {
     constexpr unsigned char WALKABLE = SPAN_WALK | SPAN_REACHED;
     constexpr unsigned char GENTLE = SPAN_TERRAIN | SPAN_STAIRS;
     Span spans[32];
@@ -456,6 +457,8 @@ Grid::LineWalk(float x0, float y0, float z0, float x1, float y1, float* pLastX, 
             k0 = k;
     float cz = spans[k0].z;
     bool bGentle = (spans[k0].flags & GENTLE) != 0;
+    if (pLastZ)
+        *pLastZ = cz;
 
     // every 1 m cell the segment crosses (Amanatides & Woo), 4-connected
     int cx = (int)floorf(x0 / CELL_CM), cy = (int)floorf(y0 / CELL_CM);
@@ -498,6 +501,8 @@ Grid::LineWalk(float x0, float y0, float z0, float x1, float y1, float* pLastX, 
             *pLastX = px;
             *pLastY = py;
         }
+        if (pLastZ)
+            *pLastZ = cz;
     }
     if (pLastX) {
         *pLastX = x1;

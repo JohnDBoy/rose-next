@@ -229,6 +229,9 @@ public:
     }
     virtual void Do_AttackMoveAI(CObjCHAR* pTarget) { /* nop */
     }
+    /// A chase toward pTarget is about to run straight at it (Goto_TARGET, ProcCMD_ATTACK).
+    /// True when a path has the move in hand instead (CObjCHAR, pathfinding Phase 5).
+    virtual bool Nav_Chase(CObjCHAR* pTarget) { return false; }
     virtual void Do_DamagedAI(CObjCHAR* pTarget, int iDamage) { /* nop */
     }
     virtual void Do_KillAI(CObjCHAR* pTarget, int iDamage) { /* nop */

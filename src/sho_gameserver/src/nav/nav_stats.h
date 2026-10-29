@@ -36,6 +36,15 @@ public:
     void CountSpawnFallback() { m_SpawnFallbacks.fetch_add(1, std::memory_order_relaxed); }
     // A leash or a summon follow whose line was blocked, walked straight anyway (until A*).
     void CountStraightFallback() { m_StraightFallbacks.fetch_add(1, std::memory_order_relaxed); }
+    // Path searches (Phase 5): each one's outcome (PathResult), cells and time; a search the
+    // tick's budget refused; a character that began walking a path; a chase that went back
+    // to running straight because its line cleared; a chase path planned again because its
+    // target moved away from the goal.
+    void CountPathSearch(int iResult, int iExpansions, double dMS);
+    void CountPathDeferred() { m_PathDeferred.fetch_add(1, std::memory_order_relaxed); }
+    void CountPathStarted() { m_PathStarted.fetch_add(1, std::memory_order_relaxed); }
+    void CountPathLineClear() { m_PathLineClear.fetch_add(1, std::memory_order_relaxed); }
+    void CountPathReplan() { m_PathReplans.fetch_add(1, std::memory_order_relaxed); }
     // A client height report, and whether it was more than 1 m from every floor.
     void CountZHint(bool bMiss) {
         m_ZHints.fetch_add(1, std::memory_order_relaxed);
@@ -71,6 +80,14 @@ private:
     std::atomic<uint32_t> m_SpawnFallbacks{0};
     std::atomic<uint32_t> m_StraightFallbacks{0};
     std::atomic<uint32_t> m_ZMisses{0};
+    std::atomic<uint32_t> m_PathResults[6] = {};
+    std::atomic<uint32_t> m_PathDeferred{0};
+    std::atomic<uint32_t> m_PathStarted{0};
+    std::atomic<uint32_t> m_PathLineClear{0};
+    std::atomic<uint32_t> m_PathReplans{0};
+    std::atomic<uint64_t> m_PathExpansions{0};
+    std::atomic<uint64_t> m_PathMicros{0};
+    std::atomic<uint32_t> m_PathMaxMicros{0};
 
     std::mutex m_TextMutex;
     std::string m_LastText;

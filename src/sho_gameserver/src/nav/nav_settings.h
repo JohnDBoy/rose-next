@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <string>
 
 namespace Nav {
@@ -23,7 +24,29 @@ struct Settings {
     std::atomic<int> spawn_roofs{1}; ///< re-roll a spawn the client would draw on a roof
     std::atomic<int> ai_walls{1}; ///< AI walks (wander, flee, leash, follow) must walk their line
     std::atomic<int> spawn_reach{1}; ///< re-roll a spawn behind a wall or off the walkable ground
+
+    // Pathfinding (Phase 5)
+    std::atomic<int> pathing{1}; ///< chases, leashes, summon follow and CTRL+click orders use A*
+    std::atomic<int> path_expansions{4000}; ///< cells one search may expand
+    std::atomic<int> path_tick_searches{6}; ///< searches a zone tick may run
+    std::atomic<int> path_tick_expansions{8000}; ///< cells a zone tick may expand
+    std::atomic<int> path_tick_us{3000}; ///< nav time a zone tick may spend (QPC, microseconds)
+    std::atomic<int> path_lead_ms{100}; ///< send the next leg this long before a corner
+    /// Zones whose characters path (path_zones in server.toml: "all", or a list of zone
+    /// numbers). One bit per zone number below 512.
+    std::atomic<uint32_t> path_zone_bits[16];
+    std::atomic<int> path_all_zones{1};
+
+    Settings();
 };
+
+/// Whether characters in zone iZoneNo path (pathing on, and the zone in path_zones).
+bool PathingIn(int iZoneNo);
+/// Set path_zones from text: "all", "none", or zone numbers separated by commas or spaces.
+/// False (unchanged) if it does not parse.
+bool SetPathZones(const std::string& text);
+/// path_zones as text.
+std::string PathZonesText();
 
 Settings& settings();
 

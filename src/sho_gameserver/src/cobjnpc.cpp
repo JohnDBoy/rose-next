@@ -469,16 +469,22 @@ CObjMOB::Run_AWAY(int iDistance) {
         fY += m_PosBORN.y;
     }
 
-    // With a walk grid a few more points are tried, the last one walked straight: the leash
-    // must always fire, or the monster chases forever (Phase 4; A* will find the way round).
-    if (this->GetZONE()->NavGrid()) {
+    // With a walk grid a few more points are tried; none in a straight line, the monster
+    // walks a path home (Phase 5), or straight there: the leash must always fire, or the
+    // monster chases forever.
+    if (Nav::Grid* pGrid = this->GetZONE()->NavGrid()) {
         bool bMoved = this->SetCMD_MOVE2D(fX, fY, true);
         for (int iTry = 0; iTry < 5 && !bMoved; ++iTry) {
             fX = (m_pRegenPOINT ? m_pRegenPOINT->m_fXPos : m_PosBORN.x) + (RANDOM(iDistance * 2) - iDistance);
             fY = (m_pRegenPOINT ? m_pRegenPOINT->m_fYPos : m_PosBORN.y) + (RANDOM(iDistance * 2) - iDistance);
             bMoved = this->SetCMD_MOVE2D(fX, fY, true);
         }
-        if (bMoved || this->Nav_MoveOrStraight(fX, fY, true)) {
+        if (!bMoved) {
+            const float fHomeX = m_pRegenPOINT ? m_pRegenPOINT->m_fXPos : m_PosBORN.x;
+            const float fHomeY = m_pRegenPOINT ? m_pRegenPOINT->m_fYPos : m_PosBORN.y;
+            bMoved = this->Nav_MoveOrStraight(fHomeX, fHomeY, true, pGrid->AnchorZ(fHomeX, fHomeY));
+        }
+        if (bMoved) {
             this->Set_COMMAND(CMD_RUNAWAY);
         }
         return;
@@ -704,6 +710,12 @@ CObjSUMMON::PlayerOrderMoveTo(float fXPos, float fYPos) {
     // click-to-move has no such gate, so the summon should behave the same.
     // CObjAI::SetCMD_MOVE2D sets the run/destination state; Send_gsv_MOVE
     // broadcasts it to nearby clients so the move is actually shown.
+    // Round what is in the way when the straight line is blocked (Phase 5); the order is
+    // never refused: no path, it goes straight as before.
+    if (this->Nav_Pathing() && !this->Nav_CanWalkTo(fXPos, fYPos)
+        && this->Nav_PathTo(fXPos, fYPos, Nav::NO_Z, 1 /* run */)) {
+        return true;
+    }
     if (CObjAI::SetCMD_MOVE2D(fXPos, fYPos, 1 /* run */)) {
         return this->Send_gsv_MOVE();
     }
@@ -841,8 +853,9 @@ CObjSUMMON::Proc() {
                         fPosY = ((CObjCHAR*)pOwner)->Get_CurYPOS() + (dy / fDist) * FOLLOW_DISTANCE;
                     }
                     // Fresh destination every tick → summon tracks owner continuously; a
-                    // blocked line is walked straight (a summon must never be stranded)
-                    this->Nav_MoveOrStraight(fPosX, fPosY, 1 /* run */);
+                    // blocked line takes a path to the owner's floor, else straight (a
+                    // summon must never be stranded)
+                    this->Nav_MoveOrStraight(fPosX, fPosY, 1 /* run */, ((CObjCHAR*)pOwner)->Nav_WalkZ());
                 }
             }
         }

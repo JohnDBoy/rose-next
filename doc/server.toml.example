@@ -46,3 +46,10 @@ mob_layer_aggro = 1     # monster aggro and help calls use the same rule
 spawn_roofs = 1         # re-roll a regen spawn the client would draw on a roof
 ai_walls = 1            # idle walks (wander, flee, leash, summon follow) walk their line on the grid
 spawn_reach = 1         # re-roll a regen spawn behind a wall or off the walkable ground
+pathing = 1             # chases, leashes, summon follow and CTRL+click orders find a way round (A*)
+path_zones = "all"      # zones whose monsters path: "all", "none", or "31,32,33,62"
+path_expansions = 4000  # cells one search may expand
+path_tick_searches = 6  # searches a zone tick may run (more wait for the next tick)
+path_tick_expansions = 8000
+path_tick_us = 3000     # wall-clock a zone tick may spend searching, microseconds
+path_lead_ms = 100      # send a path's next leg this long before the corner (0 = at the corner)
