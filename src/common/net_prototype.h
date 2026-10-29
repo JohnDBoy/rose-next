@@ -898,6 +898,9 @@ struct tag_ADD_CHAR: public t_PACKETHEADER {
 struct gsv_MOB_CHAR: public tag_ADD_CHAR {
     short m_nCharIdx;
     short m_nQuestIDX;
+    // The floor the server walks it on, cm (pathfinding Phase 6), or -32768: unknown, the
+    // client draws it as before (GetHeightTop). Client and server must ship together.
+    short m_nPosZ;
     // short		m_nAdjSTATUS[];
 };
 
@@ -1053,6 +1056,9 @@ struct tag_DROPITEM {
 };
 struct gsv_ADD_FIELDITEM: public t_PACKETHEADER, public tag_DROPITEM {
     WORD m_wRemainTIME;
+    // The floor it lies on, cm (pathfinding Phase 6): a drop under a bridge lies under it.
+    // -32768 = unknown (GetHeightTop, as before). Read only when the packet is this long.
+    short m_nPosZ;
 };
 
 struct gsv_SUB_FIELDITEM: public t_PACKETHEADER {

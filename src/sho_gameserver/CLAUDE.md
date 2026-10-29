@@ -337,6 +337,16 @@ and its §6 decisions before touching movement, height or AoE shape. Phase 0 is 
     zone threads, apart from the GM probe.
   - Switches: `[nav] pathing`, `path_zones`, `path_*` budgets; `/nav set path|zones|lead|cells`.
     Readout: `/nav path [go]`.
+- **Stage B (Phase 6, `[nav] send_z`, `/nav set z`): monsters walk their own floor.**
+  - `Nav_Z()` of a non-player is `m_nNavZ` (FollowZ, up-facing floors only), and
+    `Nav_SendZ()` sends it in `gsv_MOB_CHAR.m_nPosZ` (a new field: client and server ship
+    together), in the `target_pos.z` of move packets (the mover's floor at the start), and in
+    `gsv_STOP`. Players send 0 there as before.
+  - **A spawn's floor must be set before the next zone pass announces it** (`m_ObjWAIT`).
+    Pass the caller's floor: `RegenCharacter(..., fFloorZ)` / `RegenMOB` (queued calls carry
+    it in `tagCalledMOB`), `Nav_PlaceNear` for a summon. Without one it falls back to the
+    floor nearest where `GetHeightTop` would draw it, which is the deck above a summoner
+    standing under a bridge.
 
 ## Dependencies
 

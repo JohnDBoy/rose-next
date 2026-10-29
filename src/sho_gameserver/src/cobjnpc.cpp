@@ -139,6 +139,7 @@ CObjMOB::Make_gsv_ADD_OBJECT(classPACKET* pCPacket) {
 
     pCPacket->m_gsv_MOB_CHAR.m_nCharIdx = this->m_nCharIdx;
     pCPacket->m_gsv_MOB_CHAR.m_nQuestIDX = this->m_nQuestIDX;
+    pCPacket->m_gsv_MOB_CHAR.m_nPosZ = (short)this->Nav_SendZ();
 
     this->Add_ADJ_STATUS(pCPacket);
 
@@ -554,6 +555,7 @@ CObjMOB::Drop_ITEM(short nDropITEM, BYTE btToOwner) {
                     pObjITEM->InitItemOBJ(NULL, DropPOS, this->m_PosSECTOR, sITEM);
             } else
                 pObjITEM->InitItemOBJ(NULL, DropPOS, this->m_PosSECTOR, sITEM);
+            pObjITEM->m_fFloorZ = this->Nav_FloorAt(DropPOS.x, DropPOS.y); // the dropper's floor (Phase 6)
 
             this->GetZONE()->Add_DIRECT(pObjITEM); // AI에서 떨굼 아이템
             /*
@@ -923,6 +925,7 @@ CObjNPC::Make_gsv_ADD_OBJECT(classPACKET* pCPacket) {
         pCPacket->m_gsv_NPC_CHAR.m_nCharIdx = -this->m_nCharIdx;
 
     pCPacket->m_gsv_NPC_CHAR.m_nQuestIDX = this->m_nQuestIDX;
+    pCPacket->m_gsv_NPC_CHAR.m_nPosZ = (short)this->Nav_SendZ();
     pCPacket->m_gsv_NPC_CHAR.m_fModelDIR = this->m_fModelDIR;
 
     pCPacket->m_gsv_NPC_CHAR.m_nEventSTATUS = this->m_nEventSTATUS;

@@ -243,7 +243,8 @@ CObjCHAR::Create_PET(int iCharIDX,
         iCharIDX,
         1,
         this->Get_TeamNO() /* TEAMNO_MOB */,
-        bImmediate);
+        bImmediate,
+        this->Nav_WalkZ()); // on its caller's floor, not on a deck above it
     if (pNewPET) {
         if (btSetOwner) {
             // 소환 주체를 오너로 설정...
@@ -387,13 +388,47 @@ CObjCHAR::Nav_Z() {
     if (!pGrid) {
         return Nav::NO_Z;
     }
-    if (this->IsUSER()) {
+    if (this->IsUSER() || Nav::settings().send_z.load(std::memory_order_relaxed)) {
+        // a player; or, in Stage B, anyone: the client draws monsters on the floor sent to it
         if (Nav::NO_Z == m_nNavZ) {
             this->Nav_TrackZ();
         }
         return m_nNavZ;
     }
-    return pGrid->VisualTopZ(m_PosCUR.x, m_PosCUR.y);
+    return pGrid->VisualTopZ(m_PosCUR.x, m_PosCUR.y); // Stage A: where GetHeightTop draws it
+}
+
+float
+CObjCHAR::Nav_SendZ() {
+    if (this->IsUSER() || !Nav::settings().send_z.load(std::memory_order_relaxed)) {
+        return Nav::NO_Z;
+    }
+    return this->Nav_WalkZ();
+}
+
+float
+CObjCHAR::Nav_FloorAt(float fX, float fY) {
+    Nav::Grid* pGrid = this->GetZONE() ? this->GetZONE()->NavGrid() : nullptr;
+    const float fRefZ = this->Nav_WalkZ();
+    Nav::Span span;
+    if (!pGrid || Nav::NO_Z == fRefZ || !pGrid->NearestSpan(fX, fY, fRefZ, 1.0e6f, span, Nav::SPAN_UP)) {
+        return Nav::NO_Z;
+    }
+    return span.z;
+}
+
+void
+CObjCHAR::Nav_PlaceNear(float fRefZ) {
+    Nav::Grid* pGrid = this->GetZONE() ? this->GetZONE()->NavGrid() : nullptr;
+    if (!pGrid || Nav::NO_Z == fRefZ) {
+        return;
+    }
+    Nav::Span span;
+    if (pGrid->NearestSpan(m_PosCUR.x, m_PosCUR.y, fRefZ, 1.0e6f, span, Nav::SPAN_WALK | Nav::SPAN_REACHED)
+        || pGrid->NearestSpan(m_PosCUR.x, m_PosCUR.y, fRefZ, 1.0e6f, span, Nav::SPAN_UP)) {
+        m_nNavZ = nav_short(span.z);
+        m_PosNavLAST = m_PosCUR;
+    }
 }
 
 float
@@ -704,7 +739,8 @@ CObjCHAR::Send_gsv_STOP() {
     pCPacket->m_HEADER.m_nSize = sizeof(gsv_STOP);
     pCPacket->m_gsv_STOP.m_wObjectIDX = this->Get_INDEX();
     pCPacket->m_gsv_STOP.m_PosCUR = this->m_PosCUR;
-    pCPacket->m_gsv_STOP.m_nPosZ = this->m_nPosZ; // was left as pooled-packet garbage
+    // a player's own report (it was pooled-packet garbage); a monster's floor (Phase 6)
+    pCPacket->m_gsv_STOP.m_nPosZ = this->IsUSER() ? this->m_nPosZ : (short)this->Nav_SendZ();
 
 
     this->GetZONE()->SendPacketToSectors(this, pCPacket);
@@ -1604,6 +1640,8 @@ CObjCHAR::Apply_DAMAGE(CObjCHAR* pTarget,
                                             pMobOWNER,
                                             false,
                                             pCParty); // 죽을때 떨굼
+                                    // on the dead monster's floor (Phase 6)
+                                    (*ppOutITEM)->m_fFloorZ = pTarget->Nav_FloorAt(PosSET.x, PosSET.y);
 
                                     /// Must precede Add_DIRECT. The item is
                                     /// created inactive (m_iRemainTIME = 0)
@@ -2425,6 +2463,8 @@ CObjCHAR::Skill_START(CObjCHAR* pTarget) {
                     150,
                     SKILL_SUMMON_PET(Get_ActiveSKILL()),
                     this->Get_TeamNO())) {
+                // on its summoner's floor, not on a deck above it (announced next zone pass)
+                pNewPET->Nav_PlaceNear(this->Nav_WalkZ());
                 // pNewPET->m_btSummonCMD = this->Get_SummonCMD();
                 pNewPET->SetCallerOBJ(this->Get_INDEX(),
                     this->Get_CharHASH(),

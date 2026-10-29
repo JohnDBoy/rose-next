@@ -340,21 +340,43 @@ CObjCHAR_Collision::AdjustHeight_Monster(void)
 
         if (CollisionResponseMonster(pPatch)) {
 
-            m_vCurrent.z =
-                g_pTerrain->GetHeightTop(m_vCurrent.x, m_vCurrent.y) + m_pObj->m_fAltitude;
+            m_vCurrent.z = this->MonsterFloorZ(m_vCurrent.x, m_vCurrent.y) + m_pObj->m_fAltitude;
             m_pObj->ResetCUR_POS(m_vCurrent);
             CObjCHAR* pTarget = (CObjCHAR*)m_pObj->Get_TARGET();
             if (pTarget != NULL)
                 m_pObj->Restart_MOVE_AL(pTarget->Get_CurPOS());
         } else {
-            m_vCurrent.z = g_pTerrain->GetHeightTop(m_vCOM.x, m_vCOM.y) + m_pObj->m_fAltitude;
+            m_vCurrent.z = this->MonsterFloorZ(m_vCOM.x, m_vCOM.y) + m_pObj->m_fAltitude;
             m_pObj->ResetCUR_POS(m_vCurrent);
         }
 
     } else {
-        m_vCurrent.z = g_pTerrain->GetHeightTop(m_vCOM.x, m_vCOM.y) + m_pObj->m_fAltitude;
+        m_vCurrent.z = this->MonsterFloorZ(m_vCOM.x, m_vCOM.y) + m_pObj->m_fAltitude;
         m_pObj->ResetCUR_POS(m_vCurrent);
     }
+}
+
+float
+CObjCHAR_Collision::FloorBelow(float fX, float fY, float fRefZ) {
+    constexpr float STEP_CM = 135.f; // the avatar's step, and the server's (Nav::STEP_CM)
+    bool bNotFound = false;
+    const float fTerrain = g_pTerrain->GetHeight(fX, fY, &bNotFound);
+    const float fHit = ::getFloorBelowInScene(fX, fY, fRefZ + STEP_CM, -1.0e9f);
+    if (fHit > -1.0e8f) {
+        return (!bNotFound && fTerrain > fHit) ? fTerrain : fHit;
+    }
+    return bNotFound ? fRefZ : fTerrain;
+}
+
+float
+CObjCHAR_Collision::MonsterFloorZ(float fX, float fY) {
+    if (!m_pObj->HasNavRefZ()) {
+        return g_pTerrain->GetHeightTop(fX, fY);
+    }
+    const float fZ = FloorBelow(fX, fY, m_pObj->m_fNavRefZ);
+    m_pObj->m_fNavRefZ = fZ;
+    m_pObj->m_dwNavRefTIME = ::timeGetTime();
+    return fZ;
 }
 
 bool

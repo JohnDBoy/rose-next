@@ -84,12 +84,20 @@ send_packet_nearby(CGameOBJ& object, Packet& packet) {
     return sent_to_all;
 }
 
+// The z of a move's target_pos: the mover's own floor as the move starts (Phase 6), which is
+// what the original game put there ("the target's z is really the start height", client
+// CObjCHAR::Reset_Position). -32768 for a player or with send_z off; 0 for a player as before.
+static float
+move_start_z(CObjCHAR& character) {
+    return character.IsUSER() ? 0.f : character.Nav_SendZ();
+}
+
 Packet
 build_char_move_packet(CObjCHAR& character) {
     flatbuffers::FlatBufferBuilder builder;
     builder.ForceDefaults(true);
 
-    const Packets::Vec3 target_pos(character.m_PosGOTO.x, character.m_PosGOTO.y, 0);
+    const Packets::Vec3 target_pos(character.m_PosGOTO.x, character.m_PosGOTO.y, move_start_z(character));
     const Packets::CharacterMoveMode move_mode = move_mode_from_int(character.Get_MoveMODE());
 
     Packets::CharacterMoveBuilder char_move_builder(builder);
@@ -110,7 +118,7 @@ build_char_move_leg_packet(CObjCHAR& character, const tPOINTF& to, float distanc
     flatbuffers::FlatBufferBuilder builder;
     builder.ForceDefaults(true);
 
-    const Packets::Vec3 target_pos(to.x, to.y, 0);
+    const Packets::Vec3 target_pos(to.x, to.y, move_start_z(character));
     const Packets::CharacterMoveMode move_mode = move_mode_from_int(character.Get_MoveMODE());
 
     Packets::CharacterMoveBuilder char_move_builder(builder);
@@ -131,7 +139,7 @@ build_char_move_attack_packet(CObjCHAR& character) {
     flatbuffers::FlatBufferBuilder builder;
     builder.ForceDefaults(true);
 
-    const Packets::Vec3 target_pos(character.m_PosGOTO.x, character.m_PosGOTO.y, 0);
+    const Packets::Vec3 target_pos(character.m_PosGOTO.x, character.m_PosGOTO.y, move_start_z(character));
     const Packets::CharacterMoveMode move_mode = move_mode_from_int(character.Get_MoveMODE());
 
     // Its own table's builder: it was built with CharacterMoveBuilder, which only

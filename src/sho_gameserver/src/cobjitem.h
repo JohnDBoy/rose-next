@@ -36,6 +36,11 @@ public:
     DWORD m_dwDropperDBID; /// db id
     DWORD m_dwDropperClanID;
 
+    /// The floor it lies on (pathfinding Phase 6): at its own spot, the one nearest its dropper's
+    /// (CObjCHAR::Nav_FloorAt), -32768 if unknown. Resolved at the drop, not when it is announced:
+    /// Add_DIRECT announces it before SetZONE, so the item has no zone (and no walk grid) yet.
+    float m_fFloorZ = -32768.f;
+
     /*
         CObjITEM ();
     */

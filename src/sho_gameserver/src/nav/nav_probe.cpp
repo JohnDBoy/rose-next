@@ -311,6 +311,7 @@ cmd_set(classUSER& user, const std::vector<std::string>& args) {
         {"path", &s.pathing, "chases, leashes, summon follow and CTRL+click use A*: 0 / 1"},
         {"lead", &s.path_lead_ms, "send a path's next leg this many ms before the corner"},
         {"cells", &s.path_expansions, "cells one search may expand"},
+        {"z", &s.send_z, "monsters walk and are drawn on their own floor (needs the Phase 6 client): 0 / 1"},
     };
     if (args.size() >= 4 && args[2] == "zones") {
         std::string text;

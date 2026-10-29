@@ -389,6 +389,24 @@ Rules:
   filtered out entirely, so the only evidence of a broken object was the subject-less engine
   line. `LogString` formats before it filters and always logs at Debug.
 
+## Monsters Walk The Server's Floor (pathfinding Phase 6, 2026-10-29)
+
+A monster, a summon or an NPC the server gave a floor (`gsv_MOB_CHAR` / `gsv_NPC_CHAR`
+`m_nPosZ`, the `target_pos.z` of `CharacterMove` / `CharacterMoveAttack`, `gsv_STOP.m_nPosZ`;
+-32768 = none) is drawn on that floor, not on `GetHeightTop`:
+- `CObjCHAR::m_fNavRefZ` holds the floor.
+- `CObjCHAR_Collision::MonsterFloorZ` follows it each frame with the server's step rule: the
+  highest up-facing surface (`::getFloorBelowInScene`) no more than 135 cm above last frame's
+  floor, never under the terrain.
+- So one under a bridge stays under it. `GetHeightTop` would put it on the deck.
+- `SetServerZ` re-seeds it on a spawn, and on a move or stop when none is held, when it is
+  stale (1 s unfollowed) or more than 3 m off.
+- No floor (a client-only puppet, `[nav] send_z = 0`): exactly the old behaviour. Avatars are
+  untouched.
+- **Client and server ship together:** the spawn packet gained a field.
+- The move target's z stays the 0 it always was. The floor rides in the slot only to be read
+  by `SetServerZ`.
+
 ## Dummy Indices: `getNumDummies()` Is Authored Count + 1, And A Valid Index Is `< count`
 
 `zz_skeleton::load_skeleton` appends one extra root-bone dummy (`_p1`) to every

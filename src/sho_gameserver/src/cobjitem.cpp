@@ -3,6 +3,7 @@
 #include "LIB_gsMAIN.h"
 #include "OBJECT.h"
 #include "GS_ThreadZONE.h"
+#include "nav/nav_settings.h"
 
 
 CObjITEM::~CObjITEM() {
@@ -83,6 +84,12 @@ CObjITEM::Make_gsv_ADD_OBJECT(classPACKET* pCPacket) {
     pCPacket->m_gsv_ADD_FIELDITEM.m_PosCUR = this->m_PosCUR;
     pCPacket->m_gsv_ADD_FIELDITEM.m_wOwnerObjIDX = this->m_iOwnerObjIDX;
     pCPacket->m_gsv_ADD_FIELDITEM.m_wRemainTIME = m_iRemainTIME;
+
+    // the floor it lies on (Phase 6), resolved at the drop
+    pCPacket->m_gsv_ADD_FIELDITEM.m_nPosZ =
+        (m_fFloorZ > Nav::NO_Z && Nav::settings().send_z.load(std::memory_order_relaxed))
+        ? (short)m_fFloorZ
+        : Nav::NO_Z;
 
     return true;
 }

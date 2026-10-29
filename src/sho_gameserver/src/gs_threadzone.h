@@ -40,6 +40,7 @@ struct tagCalledMOB {
     int m_iCharNO;
     int m_iCount;
     int m_iTeamNO;
+    float m_fFloorZ; // the floor to start on (the caller's), or NO_Z (pathfinding Phase 6)
 };
 
 /**
@@ -140,8 +141,15 @@ public:
     CZoneSECTOR* GetSECTOR(int iSectorX, int iSectorY);
     bool UpdateSECTOR(CObjCHAR* pCHAR);
 
-    CObjMOB*
-    RegenMOB(float fCenterX, float fCenterY, int iRange, int iIndex, int iCount, int iTeamNO);
+    /// fFloorZ: the floor the spawns start on (their caller's), NO_Z for where the client
+    /// would drop them (pathfinding Phase 6).
+    CObjMOB* RegenMOB(float fCenterX,
+        float fCenterY,
+        int iRange,
+        int iIndex,
+        int iCount,
+        int iTeamNO,
+        float fFloorZ = Nav::NO_Z);
     bool RegenCharacter(CObjMOB* pNewMOB,
         float fCenterX,
         float fCenterY,
@@ -154,7 +162,8 @@ public:
         int iIndex,
         int iCount,
         int iTeamNO,
-        bool bImmediate);
+        bool bImmediate,
+        float fFloorZ = Nav::NO_Z);
     void RegenCharacter(CRegenPOINT* pRegenPOINT, int iIndex, int iCount);
     void SendPacketToSectors(CGameOBJ* pGameObj, classPACKET* pCPacket);
     void SendTeamPacketToSectors(CGameOBJ* pGameObj, classPACKET* pCPacket, int iTeamNO);

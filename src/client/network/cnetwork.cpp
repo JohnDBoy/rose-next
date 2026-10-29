@@ -1069,6 +1069,11 @@ CNetwork::recv_char_move(Packet& p) {
     TraceReceivedMove(character, "move", req->target_id(), req->move_speed(),
         req->target_distance(), to);
 
+    // a monster's floor as the move starts (Phase 6; the original game's "start height" slot);
+    // the move itself keeps the 0 it always had there
+    character->SetServerZ(to.z);
+    to.z = 0.f;
+
     character->stats.move_speed = req->move_speed();
     character->m_btMoveMODE = static_cast<int8_t>(req->move_mode());
     character->m_bRunMODE = req->move_mode() != Packets::CharacterMoveMode::Walk;
@@ -1095,6 +1100,9 @@ CNetwork::recv_char_move_attack(Packet& p) {
 
     TraceReceivedMove(character, "move_attack", req->target_id(), req->move_speed(),
         req->target_distance(), to);
+
+    character->SetServerZ(to.z); // a monster's floor as the chase starts (Phase 6)
+    to.z = 0.f;
 
     character->stats.move_speed = req->move_speed();
     character->m_btMoveMODE = static_cast<int8_t>(req->move_mode());

@@ -2985,6 +2985,14 @@ float applyGravity ( HNODE hVis );
 ZZ_SCRIPT
 float getWorldObjectHeightInScene ( float fWorldX, float fWorldY, float fDefaultHeight );
 
+/// The floor a monster walking at fFromZ stands on (pathfinding Phase 6, the client's
+/// CObjCHAR_Collision::AdjustHeight_Monster): the highest up-facing surface of the scene's
+/// colliding objects at (fWorldX, fWorldY) no higher than fFromZ, "not moveable" ones included
+/// (the server's walk grid has them too), or fDefault when there is none. Terrain, ocean and
+/// characters are left out: the caller takes the terrain itself.
+ZZ_DLL
+float getFloorBelowInScene ( float fWorldX, float fWorldY, float fFromZ, float fDefault );
+
 //--------------------------------------------------------------------------------
 // drawFontLater ()
 //--------------------------------------------------------------------------------

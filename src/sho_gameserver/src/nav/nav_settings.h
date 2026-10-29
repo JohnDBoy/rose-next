@@ -32,6 +32,10 @@ struct Settings {
     std::atomic<int> path_tick_expansions{8000}; ///< cells a zone tick may expand
     std::atomic<int> path_tick_us{3000}; ///< nav time a zone tick may spend (QPC, microseconds)
     std::atomic<int> path_lead_ms{100}; ///< send the next leg this long before a corner
+    /// Stage B (Phase 6): monsters, summons and NPCs walk their own floor, which the server
+    /// sends (spawn, move and stop packets) and its vertical rule uses. 0: the client draws them
+    /// on GetHeightTop and the rule uses that height, as before.
+    std::atomic<int> send_z{1};
     /// Zones whose characters path (path_zones in server.toml: "all", or a list of zone
     /// numbers). One bit per zone number below 512.
     std::atomic<uint32_t> path_zone_bits[16];

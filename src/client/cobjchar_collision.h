@@ -86,6 +86,14 @@ public:
     void AdjustHeight_AvatarCgear(void);
     void AdjustHeight_OtherCgear(void);
     void AdjustHeight_Monster(void);
+    /// Where a monster is drawn at (x, y): GetHeightTop; or, for one the server gave a floor
+    /// (Phase 6), the highest up-facing surface no more than a step (135 cm) above the floor it
+    /// walked on last frame, never under the terrain, as the server's FollowZ walks it.
+    float MonsterFloorZ(float fX, float fY);
+    /// The highest up-facing surface at (x, y) no more than a step (135 cm) above fRefZ, never
+    /// under the terrain (fRefZ itself off the map): where a monster or a dropped item that was
+    /// at fRefZ stands (pathfinding Phase 6).
+    static float FloorBelow(float fX, float fY, float fRefZ);
     void AdjustHeight_Other(void);
     void AdjustHeight_Avatar(void);
 

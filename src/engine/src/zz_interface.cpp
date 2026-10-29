@@ -9151,6 +9151,52 @@ float getWorldObjectHeightInScene ( float fWorldX, float fWorldY, float fDefault
 	return max_height*ZZ_SCALE_OUT;
 }
 
+ZZ_DLL
+float getFloorBelowInScene ( float fWorldX, float fWorldY, float fFromZ, float fDefault )
+{
+	CHECK_INTERFACE(getFloorBelowInScene);
+	const vec3 down_dir(0, 0, -1);
+	const float x = fWorldX * ZZ_SCALE_IN;
+	const float y = fWorldY * ZZ_SCALE_IN;
+	const float top = fFromZ * ZZ_SCALE_IN;
+
+	vec3 minmax[2];
+	minmax[0].set(x, y, ZZ_OCTREE_MINZ);
+	minmax[1].set(x, y, top);
+	const int pack_index = 0;
+	const int num_nodes = znzin->scene.collect_by_minmax(pack_index, minmax, true);
+
+	bool found = false;
+	float best = 0;
+	for (int i = 0; i < num_nodes; i++) {
+		zz_visible * vis = znzin->scene.get_collect_node(pack_index, i);
+		if (!vis) continue;
+		if (vis->is_a(ZZ_RUNTIME_TYPE(zz_terrain_block)) || vis->is_a(ZZ_RUNTIME_TYPE(zz_ocean_block))) continue;
+		if (vis->is_a(ZZ_RUNTIME_TYPE(zz_model)) || vis->is_descendant_of_type(ZZ_RUNTIME_TYPE(zz_model))) continue;
+		const zz_bvolume * bv = vis->get_bvolume();
+		const zz_bounding_aabb * aabb = bv ? bv->get_aabb() : NULL;
+		if (!aabb) continue;
+		if (x < aabb->pmin.x || x > aabb->pmax.x || y < aabb->pmin.y || y > aabb->pmax.y || aabb->pmin.z > top) continue;
+
+		// The ray test is two-sided: a down-facing hit (a cave ceiling's or an overhang's
+		// underside) is passed through and the ray cast again just below it.
+		vec3 origin(x, y, top);
+		vec3 contact, normal;
+		for (int pass = 0; pass < 4; ++pass) {
+			if (!vis->get_intersection_ray(origin, down_dir, contact, normal, zz_mesh_tool::ZZ_SM_NEAREST)) break;
+			if (normal.z > 0) {
+				if (!found || contact.z > best) {
+					best = contact.z;
+					found = true;
+				}
+				break;
+			}
+			origin.z = contact.z - ZZ_SCALE_IN; // 1 cm under the underside
+		}
+	}
+	return found ? best * ZZ_SCALE_OUT : fDefault;
+}
+
 ZZ_SCRIPT
 HNODE loadSound ( ZSTRING strSoundName, ZSTRING strWaveFileName, int iNumBuffers )
 {

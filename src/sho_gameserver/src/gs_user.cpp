@@ -763,6 +763,7 @@ classUSER::Save_ItemToFILED(tagITEM& sDropITEM, int iRemainTime) {
             true,
             NULL); // 사용자 드롭.
         pObjITEM->m_iRemainTIME = iRemainTime; // 30분간 유효 하도록...
+        pObjITEM->m_fFloorZ = this->Nav_FloorAt(PosSET.x, PosSET.y); // the player's floor (Phase 6)
 
         this->GetZONE()->Add_DIRECT(pObjITEM); // 드롭 아이템
     }
@@ -4323,6 +4324,7 @@ classUSER::Recv_cli_DROP_ITEM(t_PACKET* pPacket) {
             PosSET.y = this->m_PosCUR.y + RANDOM(201) - 100;
 
             pObjITEM->InitItemOBJ(this, PosSET, this->m_PosSECTOR, sDropITEM); // 사용자 드롭.
+            pObjITEM->m_fFloorZ = this->Nav_FloorAt(PosSET.x, PosSET.y); // the player's floor (Phase 6)
             this->GetZONE()->Add_DIRECT(pObjITEM); // 드롭 아이템
         }
     }

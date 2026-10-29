@@ -1312,6 +1312,9 @@ CRecvPACKET::Recv_gsv_NPC_CHAR() {
         CObjCHAR* pSourCHAR = g_pObjMGR->Get_CharOBJ(nCObj, false);
         if (pSourCHAR) /// 2004/2/27:추가 nAvy
         {
+            // the floor the server stands it on (Phase 6), not the highest one here
+            pSourCHAR->SetServerZ(m_pRecvPacket->m_gsv_NPC_CHAR.m_nPosZ, true);
+
             if (m_pRecvPacket->m_gsv_NPC_CHAR.m_nCharIdx < 0) {
                 ((CObjNPC*)pSourCHAR)->HIDE();
             }
@@ -1455,6 +1458,9 @@ CRecvPACKET::Recv_gsv_MOB_CHAR() {
             CObjCHAR* mob = g_pObjMGR->Get_CharOBJ(nCObj, false);
             if (mob) {
                 mob->pvp_state = m_pRecvPacket->m_gsv_MOB_CHAR.pvp_state;
+                // the floor the server walks it on (Phase 6), not the highest one here: a
+                // monster under a bridge is drawn under it
+                mob->SetServerZ(m_pRecvPacket->m_gsv_MOB_CHAR.m_nPosZ, true);
 
                 // A summon's max HP is the server's scaled value, for every viewer.
                 // CObjMOB::Create seeded NPC_HP * NPC_LEVEL, the wild-monster formula,
@@ -1779,6 +1785,7 @@ CRecvPACKET::Recv_gsv_STOP() {
                 "CombatTrace GSV_STOP received: obj %d\n",
                 pCHAR->Get_INDEX());
         }
+        pCHAR->SetServerZ(m_pRecvPacket->m_gsv_STOP.m_nPosZ); // a monster's floor (Phase 6)
         pCHAR->SetCMD_STOP();
     }
 }
@@ -2636,9 +2643,15 @@ CRecvPACKET::Recv_gsv_ADD_FIELDITEM() {
 
     /// 내가 떨어뜨린것이다.
     {
+        // the floor it lies on (Phase 6), when the server sent one
+        const short nPosZ = m_pRecvPacket->m_HEADER.m_nSize >= (short)sizeof(gsv_ADD_FIELDITEM)
+            ? m_pRecvPacket->m_gsv_ADD_FIELDITEM.m_nPosZ
+            : (short)-32768;
         int iItemOBJ = g_pObjMGR->Add_GndITEM(m_pRecvPacket->m_gsv_ADD_FIELDITEM.m_wServerItemIDX,
             m_pRecvPacket->m_gsv_ADD_FIELDITEM.m_ITEM,
-            m_pRecvPacket->m_gsv_ADD_FIELDITEM.m_PosCUR);
+            m_pRecvPacket->m_gsv_ADD_FIELDITEM.m_PosCUR,
+            (float)nPosZ,
+            nPosZ != -32768);
         if (iItemOBJ) {
             CObjITEM* pITEM = (CObjITEM*)g_pObjMGR->Get_OBJECT(iItemOBJ);
             pITEM->m_wOwnerServerObjIDX = m_pRecvPacket->m_gsv_ADD_FIELDITEM.m_wOwnerObjIDX;

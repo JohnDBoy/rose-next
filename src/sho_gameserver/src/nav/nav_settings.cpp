@@ -120,6 +120,7 @@ LoadSettings(const std::string& tomlPath) {
         {"path_tick_expansions", &s.path_tick_expansions},
         {"path_tick_us", &s.path_tick_us},
         {"path_lead_ms", &s.path_lead_ms},
+        {"send_z", &s.send_z},
     };
     for (const auto& k: keys) {
         int64_t v = 0;
@@ -141,11 +142,12 @@ LoadSettings(const std::string& tomlPath) {
     }
     toml_free(t);
     LOG_INFO("nav: aoe_vertical {} (band {} cm + {}%), mob_layer_aggro {}, spawn_roofs {}, ai_walls {}, "
-             "spawn_reach {}, pathing {} in zones {} ({} cells a search, {} searches / {} cells / {} us a tick)",
+             "spawn_reach {}, pathing {} in zones {} ({} cells a search, {} searches / {} cells / {} us a tick), "
+             "send_z {}",
         s.aoe_vertical.load(), s.aoe_band_base_cm.load(), s.aoe_band_slope_pct.load(),
         s.mob_layer_aggro.load(), s.spawn_roofs.load(), s.ai_walls.load(), s.spawn_reach.load(),
         s.pathing.load(), PathZonesText(), s.path_expansions.load(), s.path_tick_searches.load(),
-        s.path_tick_expansions.load(), s.path_tick_us.load());
+        s.path_tick_expansions.load(), s.path_tick_us.load(), s.send_z.load());
 }
 
 bool

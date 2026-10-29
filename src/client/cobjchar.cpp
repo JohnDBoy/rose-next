@@ -5148,6 +5148,26 @@ CObjCHAR::Warp_POSITION(float fX, float fY) {
 //--------------------------------------------------------------------------------
 
 void
+CObjCHAR::SetServerZ(float fZ, bool bPlace) {
+    if (fZ <= -32767.f || !(this->IsA(OBJ_MOB) || this->IsA(OBJ_NPC))) {
+        return;
+    }
+    constexpr DWORD STALE_MS = 1000;
+    constexpr float RESYNC_CM = 300.f;
+    const DWORD dwNow = ::timeGetTime();
+    if (bPlace || !this->HasNavRefZ() || dwNow - m_dwNavRefTIME > STALE_MS
+        || fabsf(fZ - m_fNavRefZ) > RESYNC_CM) {
+        m_fNavRefZ = fZ;
+        m_dwNavRefTIME = dwNow;
+        if (bPlace && m_hNodeMODEL) {
+            m_PosCUR.z = fZ + m_fAltitude;
+            ::setPosition(m_hNodeMODEL, m_PosCUR.x, m_PosCUR.y, m_PosCUR.z);
+            ::savePrevPosition(m_hNodeMODEL);
+        }
+    }
+}
+
+void
 CObjCHAR::DropFromSky(float fX, float fY) {
     m_PosCUR.x = fX;
     m_PosCUR.y = fY;

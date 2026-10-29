@@ -746,6 +746,31 @@ What was built:
 - **Kill switch / size:** `send_z = 0` sends −32768, and the client falls back to `GetHeightTop`. About 350 lines of client and 150 of server.
 - **Player notices:** monsters, NPCs and summons stand on the floor they are really on.
 
+**Status (2026-10-29): validated in game.** Monsters under the Shady bridge are drawn and fought on the ground, maps look normal, and loot lies on the floor its monster died on.
+
+What was built:
+- **Server (Stage B, `[nav] send_z`, on by default):**
+  - `Nav_Z()` of a monster, a summon or an NPC is its own walk floor (`m_nNavZ`, FollowZ), not where GetHeightTop draws it. The vertical band and the aggro scans now see a monster under a deck on the ground.
+  - FollowZ (`Grid::Pick`) only stands on up-facing floors.
+  - The floor goes out in three places, as -32768 for "unknown" (and for players):
+    - **`gsv_MOB_CHAR.m_nPosZ`**, a new field after `m_nQuestIDX`, inherited by `gsv_NPC_CHAR`. **This is the lockstep change:** client and server must ship together.
+    - **`target_pos.z` of `CharacterMove` / `CharacterMoveAttack`** and the path legs carry the mover's floor as the move starts. That is the slot the original game used ("the target's z is really the start height", client `Reset_Position`). Players still send 0.
+    - **`gsv_STOP.m_nPosZ`** carries the floor for monsters.
+  - **Spawn floors:** a spawn starts on its caller's floor before it is announced. Summon skills (`Nav_PlaceNear`), AI calls for help (`Create_PET`, immediate and delayed through `tagCalledMOB.m_fFloorZ`), GM `/mon` and regen points all pass one; Cerberus spawns keep the visual-top default.
+  - `/nav set z 0|1` switches it live.
+- **Engine:** `getFloorBelowInScene(x, y, fromZ, default)` returns the highest up-facing surface of the colliding objects at (x, y) at or below fromZ, "not moveable" ones included. A down-facing hit (a ceiling's underside) is passed through and cast again.
+- **Client:**
+  - `CObjCHAR::m_fNavRefZ` is the floor a monster or an NPC walks on. It is seeded by `SetServerZ`: the spawn packet places it; a move or stop replaces it only when none is held, when it is stale (not followed for 1 s, out of view) or more than 3 m off.
+  - `CObjCHAR_Collision::MonsterFloorZ` follows it frame by frame with the server's rule: the highest up-facing surface no more than 135 cm above last frame's floor, never under the terrain.
+  - Without a server floor (a client-only puppet, `send_z` off), it draws on GetHeightTop as before. Avatars are untouched. The move target's z stays the 0 it always was.
+- **In-game test (2026-10-29):** the bridge and a few maps look normal and behave as expected.
+- **Loot under a deck (validated after a fix):**
+  - A field item gets its floor at the drop (`CObjITEM::m_fFloorZ`, from `CObjCHAR::Nav_FloorAt`): the up-facing floor at its spot nearest its dropper's (a dead monster, an AI drop, a player).
+  - `gsv_ADD_FIELDITEM.m_nPosZ` (new, size-gated on the client) sends it.
+  - **First version, resolved when announced:** the first announcement carried no floor. `Add_DIRECT` announces an item before `SetZONE`, so it had no zone and no walk grid yet. Loot landed on the deck and was right only on a re-announce after a respawn or teleport.
+  - The client's `Add_GndITEM` uses its long-disabled reference-height branch, through `CObjCHAR_Collision::FloorBelow`. It serves both routes: the broadcast, with the server floor, and the inline drop, with the dead monster's height. Without one it uses GetHeightTop.
+- **Not changed: character shadows on decks.** The engine lets only terrain receive the dynamic character shadow (`zz_scene_octree::update_receive_shadow`, a 2005 "terrain only" test line). A character on a bridge casts its shadow on the ground below. This predates the plan.
+
 ### Phase 7: 3D attack range and aim (lockstep, optional)
 
 - **Changes:**

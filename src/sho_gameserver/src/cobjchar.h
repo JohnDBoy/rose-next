@@ -116,9 +116,18 @@ public:
     /// This character's height as the server sees it: m_nNavZ for a player, where the
     /// client draws it (GetHeightTop) for anyone else; NO_Z without a grid.
     float Nav_Z();
-    /// The floor this character walks on (m_nNavZ, placed if needed). Unlike Nav_Z, a monster's
-    /// is its own floor, not where the client draws it. NO_Z without a grid.
+    /// The floor this character walks on (m_nNavZ, placed if needed). Unlike Nav_Z in Stage A, a
+    /// monster's is its own floor, not where the client draws it. NO_Z without a grid.
     float Nav_WalkZ();
+    /// The floor sent to the clients for a monster, a summon or an NPC (Phase 6), NO_Z for a
+    /// player, without a grid or with [nav] send_z off.
+    float Nav_SendZ();
+    /// Start on the walkable floor here nearest fRefZ (a summon next to its caster, a spawn on
+    /// its regen point's floor): set before the spawn is announced to the clients.
+    void Nav_PlaceNear(float fRefZ);
+    /// The up-facing floor at (x, y) nearest this character's: where something it drops there
+    /// lies (off a deck's edge, the floor below). NO_Z without a grid.
+    float Nav_FloorAt(float fX, float fY);
     /// Whether the straight walk from here to (x, y) stays on walkable floors (and where it
     /// stops, if not). True without a grid.
     bool Nav_CanWalkTo(float fX, float fY, float* pLastX = nullptr, float* pLastY = nullptr);

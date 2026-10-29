@@ -994,7 +994,8 @@ classUSER::Cheat_mon(char* pArg1, char* pArg2) {
             iMobIDX,
             iMobCNT,
             TEAMNO_MOB,
-            true);
+            true,
+            this->Nav_WalkZ()); // on the GM's floor (under a bridge, under it)
     }
     return CHEAT_PROCED;
 }

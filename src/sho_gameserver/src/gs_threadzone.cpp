@@ -142,7 +142,8 @@ CZoneTHREAD::Execute() {
                 pMobNODE->DATA.m_iRange,
                 pMobNODE->DATA.m_iCharNO,
                 pMobNODE->DATA.m_iCount,
-                pMobNODE->DATA.m_iTeamNO);
+                pMobNODE->DATA.m_iTeamNO,
+                pMobNODE->DATA.m_fFloorZ);
             m_MobCALLED.DeleteHeadNFree();
             pMobNODE = m_MobCALLED.GetHeadNode();
         }
@@ -707,7 +708,8 @@ CZoneTHREAD::RegenMOB(float fCenterX,
     int iRange,
     int iIndex,
     int iCount,
-    int iTeamNO) {
+    int iTeamNO,
+    float fFloorZ) {
     float fXPos, fYPos;
 
     fCenterX -= iRange;
@@ -723,6 +725,8 @@ CZoneTHREAD::RegenMOB(float fCenterX,
             delete pNewOBJ;
             return NULL;
         }
+        // its caller's floor, not a deck above it: set before the next zone pass announces it
+        pNewOBJ->Nav_PlaceNear(fFloorZ);
 
         // ¿©±â¼± ÇÏÁö ¸»ÀÚ... ÀÌÇÔ¼ö°¡ È£ÃâµÇ´Â °÷ÀÇ À§Ä¡°¡ User RecvPakcetÀÌ¶ó ¾îÂ¾Áö ºÒ¾È..
         // pNewOBJ->Do_CreatedAI ();
@@ -738,7 +742,8 @@ CZoneTHREAD::RegenCharacter(float fCenterX,
     int iIndex,
     int iCount,
     int iTeamNO,
-    bool bImmediate) {
+    bool bImmediate,
+    float fFloorZ) {
     if (iIndex < 1 || iIndex >= g_TblNPC.row_count) {
         return NULL;
     }
@@ -760,12 +765,13 @@ CZoneTHREAD::RegenCharacter(float fCenterX,
             pNewNODE->DATA.m_iCharNO = iIndex;
             pNewNODE->DATA.m_iCount = iCount;
             pNewNODE->DATA.m_iTeamNO = iTeamNO;
+            pNewNODE->DATA.m_fFloorZ = fFloorZ;
         }
         m_csZoneMobCALLED.Unlock();
 
         return NULL;
     }
-    return this->RegenMOB(fCenterX, fCenterY, iRange, iIndex, iCount, iTeamNO);
+    return this->RegenMOB(fCenterX, fCenterY, iRange, iIndex, iCount, iTeamNO, fFloorZ);
 }
 
 //-------------------------------------------------------------------------------------------------

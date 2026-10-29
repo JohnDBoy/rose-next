@@ -88,6 +88,18 @@ public:
     /// 설정상의 고도( 비행유닛의 고도 )
     float m_fAltitude;
 
+    /// The floor a monster or an NPC walks on (pathfinding Phase 6): seeded by the server (its
+    /// spawn packet, the start of each move, a stop) and followed frame by frame with the step
+    /// rule the server uses, so one under a bridge stays under it. -32768 when the server sent
+    /// none: drawn on GetHeightTop as before. Avatars never have one.
+    float m_fNavRefZ = -32768.f;
+    DWORD m_dwNavRefTIME = 0; ///< when the follow last moved m_fNavRefZ (timeGetTime)
+    bool HasNavRefZ() const { return m_fNavRefZ > -32767.f; }
+    /// The server's floor for this character (-32768: none). It replaces the followed one when
+    /// none is held yet, when that one is stale (not followed for a second: out of view) or more
+    /// than 3 m off, and always with bPlace (a spawn, which is also drawn there at once).
+    void SetServerZ(float fZ, bool bPlace = false);
+
 protected:
     CObjCHAR_Collision* m_pCollision; // 충돌 정보
     float m_fStature; // 신장(키)

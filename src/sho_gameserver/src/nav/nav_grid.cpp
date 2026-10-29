@@ -369,16 +369,26 @@ Grid::VisualTopZ(float x, float y) const {
 
 float
 Grid::Pick(const Span* spans, int n, float curZ) const {
-    // the highest floor within a step up, else the lowest (the walker falls)
-    float best = spans[0].z;
-    bool found = false;
+    // the highest up-facing floor within a step up, else the lowest one (the walker falls); a
+    // cell with no up-facing floor at all (rare: kept reached surfaces) uses every one
+    bool bAnyUp = false;
+    for (int k = 0; k < n && !bAnyUp; ++k)
+        bAnyUp = (spans[k].flags & SPAN_UP) != 0;
+    float best = 0.f, lowest = 0.f;
+    bool found = false, bLowest = false;
     for (int k = 0; k < n; ++k) {
+        if (bAnyUp && !(spans[k].flags & SPAN_UP))
+            continue;
+        if (!bLowest || spans[k].z < lowest) {
+            lowest = spans[k].z;
+            bLowest = true;
+        }
         if (spans[k].z <= curZ + STEP_CM && (!found || spans[k].z > best)) {
             best = spans[k].z;
             found = true;
         }
     }
-    return best;
+    return found ? best : lowest;
 }
 
 float

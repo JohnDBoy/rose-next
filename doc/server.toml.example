@@ -53,3 +53,4 @@ path_tick_searches = 6  # searches a zone tick may run (more wait for the next t
 path_tick_expansions = 8000
 path_tick_us = 3000     # wall-clock a zone tick may spend searching, microseconds
 path_lead_ms = 100      # send a path's next leg this long before the corner (0 = at the corner)
+send_z = 1              # monsters, summons, NPCs and loot are drawn on the floor the server walks them on (needs the matching client)

@@ -13,6 +13,7 @@
 #include "CObjMORPH.h"
 #include "CObjGROUND.h"
 #include "CObjCHAR.h"
+#include "CObjCHAR_Collision.h"
 #include "common\IO_AI.h"
 #include "Game_FUNC.h"
 #include "CObjCart.h"
@@ -403,11 +404,13 @@ CObjectMANAGER::Add_GndITEM(WORD wServerObjectIndex,
     PosSET.x = PosXY.x;
     PosSET.y = PosXY.y;
 
-    // if( !bUseRefZPos )
-    if (1)
-        PosSET.z = g_pTerrain->GetHeightTop(PosXY.x, PosXY.y);
+    // With a reference height (the server's floor for it, or the dead monster's height for an
+    // inline drop), the floor under that, not the highest one here: loot from a monster killed
+    // under a bridge lies under it (pathfinding Phase 6). Without one, as before.
+    if (bUseRefZPos && fRefZPos > -32767.f)
+        PosSET.z = CObjCHAR_Collision::FloorBelow(PosXY.x, PosXY.y, fRefZPos);
     else
-        PosSET.z = fRefZPos;
+        PosSET.z = g_pTerrain->GetHeightTop(PosXY.x, PosXY.y);
 
     if (!pITEM->Create(g_DATA.m_ModelFieldITEM.GetMODEL(sITEM.GetModelINDEX()), PosSET, true)) {
         delete pITEM;
