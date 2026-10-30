@@ -7,6 +7,7 @@
     python scripts/nav-view.py 62 5796 5258 --radius 22 --zmax 40   the stump ramp, without the deck above
     python scripts/nav-view.py 62 5804 5246 --radius 30 --pitch 1.15 --walkable   the whole ramp, from the side
     python scripts/nav-view.py 71 5200 5235 --radius 34 --walkable --by-height    Muris' spawn pyramid
+    python scripts/nav-view.py 25 5385 5205 --radius 100 --by-height --spawns --water   Anima Lake's middle
 
 Every floor the bake stored is drawn as a 1 m tile at its real height: walkable ground,
 walkable floors on map objects (decks, ramps, bridges, platforms), and, in grey, surfaces
@@ -20,6 +21,7 @@ Writes build/nav/view-<FOLDER>-<x>-<y>.html (and .png with --png). Read-only.
 import argparse
 import json
 import os
+import re
 import sys
 
 import numpy as np
@@ -27,14 +29,14 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from mapgen import navbake  # noqa: E402
-from rosefmt import lnav  # noqa: E402
+from rosefmt import ifo, lnav  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TILE_CM = 16000
 CELL_CM = 100
 WR = lnav.WALK | lnav.REACHED
-GROUND, OBJECT, OTHER = 0, 1, 2
-KIND_NAMES = ["walkable ground", "walkable floor on an object", "not walkable"]
+GROUND, OBJECT, OTHER, WATER = 0, 1, 2, 3
+KIND_NAMES = ["walkable ground", "walkable floor on an object", "not walkable", "water surface"]
 
 
 def terrain_z(t, lx, ly):
@@ -45,6 +47,31 @@ def terrain_z(t, lx, ly):
     h = t.heights.astype(np.float64)
     return (h[iy, ix] * (1 - tx) * (1 - ty) + h[iy, ix + 1] * tx * (1 - ty)
             + h[iy + 1, ix] * (1 - tx) * ty + h[iy + 1, ix + 1] * tx * ty)
+
+
+def water(zone_dir, pts, cx, cy):
+    """Water-surface tiles (x, y, level m, WATER) over the floors in pts that lie under one of
+    the zone's flat water rectangles (IFO lump 9: corners x, level, y, client cm less the
+    520000 origin). One tile per cell, at the highest level covering it."""
+    rects = []
+    for f in os.listdir(zone_dir):
+        if re.match(r"\d+_\d+\.ifo$", f, re.I):
+            o = ifo.parse(open(os.path.join(zone_dir, f), "rb").read()).lump(ifo.OCEAN)
+            for sx, sz, sy, ex, ez, ey in (o.rects if o is not None else []):
+                rects.append((min(sx, ex) + 520000, max(sx, ex) + 520000,
+                              min(sy, ey) + 520000, max(sy, ey) + 520000, sz))
+    low = {}
+    for x, y, z, k in pts:
+        if k != WATER and z < low.get((x, y), 1e9):
+            low[(x, y)] = z
+    out = []
+    for (x, y), z in low.items():
+        wx, wy = cx + x * 100, cy + y * 100
+        lv = max((r[4] for r in rects if r[0] <= wx <= r[1] and r[2] <= wy <= r[3] and z * 100 < r[4]),
+                 default=None)
+        if lv is not None:
+            out.append((x, y, lv / 100.0, WATER))
+    return out
 
 
 def floors(nav, cx, cy, radius_m):
@@ -103,6 +130,8 @@ PAGE = r"""<!DOCTYPE html>
   --neutral-other: #c3c2bb;
   --height-low: #b8d2f3;
   --height-high: #123e8a;
+  --mark: #d9480f;
+  --water: #3d8fd6;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) .viz-root {
@@ -116,6 +145,8 @@ PAGE = r"""<!DOCTYPE html>
     --neutral-other: #55544f;
     --height-low: #1e3a63;
     --height-high: #a8cbf7;
+    --mark: #ff8a4c;
+    --water: #4aa3ef;
   }
 }
 html, body { margin: 0; height: 100%; }
@@ -127,6 +158,8 @@ h1 { font-size: 17px; margin: 0 0 4px; font-weight: 600; }
 .legend { display: flex; gap: 18px; padding: 8px 18px; flex-wrap: wrap; color: var(--text-secondary); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: var(--mark);
+  box-shadow: 0 0 0 2px var(--surface-1); }
 .ramp { width: 120px; height: 12px; border-radius: 3px; display: inline-block;
   background: linear-gradient(90deg, var(--height-low), var(--height-high)); }
 .stage { position: relative; flex: 1; min-height: 300px; }
@@ -154,33 +187,50 @@ canvas:active { cursor: grabbing; }
 <script>
 const D = __DATA__;            // flat: x, y, z (m), kind
 const NAMES = __NAMES__;
-const BY_HEIGHT = __BY_HEIGHT__;   // colour by height (one hue, light = low) instead of by kind
+const BY_HEIGHT = __BY_HEIGHT__;   // colour walkable floors by height (one hue, light = low)
+const MARKS = __MARKS__;           // regen points: x, y, z (m), drawn on top
 const N = D.length / 4;
 const root = document.querySelector('.viz-root');
 const css = n => getComputedStyle(root).getPropertyValue(n).trim();
-let COLORS, SURFACE, LOW, HIGH;
+let COLORS, SURFACE, LOW, HIGH, MARK;
 const rgb = hex => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 function readColors() {
-  COLORS = [css('--series-ground'), css('--series-object'), css('--neutral-other')];
+  COLORS = [css('--series-ground'), css('--series-object'), css('--neutral-other'), css('--water')];
   SURFACE = css('--surface-1');
   LOW = rgb(css('--height-low')); HIGH = rgb(css('--height-high'));
+  MARK = css('--mark');
 }
 readColors();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readColors(); draw(); });
 
 // legend with counts (identity never colour alone: names beside the swatches)
-const counts = [0, 0, 0];
+const counts = [0, 0, 0, 0];
 for (let i = 0; i < N; i++) counts[D[i * 4 + 3]]++;
-document.getElementById('legend').innerHTML = NAMES.map((n, k) =>
-  `<span><i class="sw" style="background:var(${['--series-ground','--series-object','--neutral-other'][k]})"></i>${n} (${counts[k].toLocaleString()})</span>`).join('');
+const SWATCH = ['--series-ground', '--series-object', '--neutral-other', '--water'];
+const swatch = k => `<span><i class="sw" style="background:var(${SWATCH[k]})${k === 3 ? ';opacity:.5' : ''}"></i>${NAMES[k]} (${counts[k].toLocaleString()})</span>`;
+document.getElementById('legend').innerHTML = [0, 1, 2, 3].filter(k => k < 3 || counts[k]).map(swatch).join('');
 
 let zMin = Infinity, zMax = -Infinity;
 for (let i = 0; i < N; i++) { const z = D[i * 4 + 2]; if (z < zMin) zMin = z; if (z > zMax) zMax = z; }
 const zMid = (zMin + zMax) / 2;
-if (BY_HEIGHT)   // the kinds' counts give way to the height scale
+// the height ramp's range: the 2nd-98th percentile of the walkable floors, so a few tiles on a
+// tall structure do not wash out the ground's relief (beyond it, the ends of the ramp)
+let rLo = zMin, rHi = zMax;
+if (BY_HEIGHT) {
+  const zs = [];
+  for (let i = 0; i < N; i++) if (D[i * 4 + 3] < 2) zs.push(D[i * 4 + 2]);
+  zs.sort((a, b) => a - b);
+  if (zs.length) { rLo = zs[Math.floor(zs.length * 0.02)]; rHi = zs[Math.min(zs.length - 1, Math.floor(zs.length * 0.98))]; }
+  if (rHi - rLo < 0.5) rHi = rLo + 0.5;
+}
+if (BY_HEIGHT)   // walkable floors on the height scale; not walkable stays grey
   document.getElementById('legend').innerHTML =
-    `<span>height ${zMin.toFixed(1)} m <i class="ramp"></i> ${zMax.toFixed(1)} m</span>`
-    + `<span>${N.toLocaleString()} floors (${NAMES.filter((n, k) => counts[k]).map((n, k) => n).join(', ')})</span>`;
+    `<span>walkable, by height: ${rLo.toFixed(1)} m <i class="ramp"></i> ${rHi.toFixed(1)} m `
+    + `(${(counts[0] + counts[1]).toLocaleString()})</span>`
+    + swatch(2) + (counts[3] ? swatch(3) : '');
+if (MARKS.length)
+  document.getElementById('legend').insertAdjacentHTML('beforeend',
+    `<span><i class="dot"></i>regen point (${MARKS.length / 3})</span>`);
 
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 let yaw = __YAW__, pitch = __PITCH__, zoom = 1, W = 0, H = 0, dpr = 1;
@@ -240,8 +290,17 @@ function draw() {
   ctx.lineWidth = tileGap || 0.8;
   for (let n = 0; n < N; n++) {
     const i = order[n];
-    if (BY_HEIGHT) {
-      const t = (D[i * 4 + 2] - zMin) / span;
+    if (D[i * 4 + 3] === 3) {
+      // water: a translucent surface over the floor beneath, no seam stroke (it would double up)
+      ctx.globalAlpha = 0.45; ctx.fillStyle = COLORS[3];
+      ctx.beginPath();
+      ctx.moveTo(P[i * 8], P[i * 8 + 1]);
+      for (let k = 1; k < 4; k++) ctx.lineTo(P[i * 8 + k * 2], P[i * 8 + k * 2 + 1]);
+      ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+      continue;
+    }
+    if (BY_HEIGHT && D[i * 4 + 3] !== 2) {
+      const t = Math.max(0, Math.min(1, (D[i * 4 + 2] - rLo) / (rHi - rLo)));
       ctx.fillStyle = `rgb(${LOW.map((v, c) => Math.round(v + (HIGH[c] - v) * t)).join(',')})`;
     } else {
       // height cue: higher tiles a touch lighter, within the same hue
@@ -254,6 +313,16 @@ function draw() {
     ctx.closePath(); ctx.fill();
     ctx.strokeStyle = tileGap ? SURFACE : ctx.fillStyle;
     ctx.stroke();
+  }
+  const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const scale = Math.min(W, H) / (__RADIUS__ * 2.4) * zoom * fit;
+  for (let j = 0; j < MARKS.length; j += 3) {
+    const x = MARKS[j], y = MARKS[j + 1], z = MARKS[j + 2] - zMid;
+    const rx = x * cy - y * sy, ry = x * sy + y * cy;
+    const px = W / 2 + offX + rx * scale, py = H / 2 + offY - (ry * cp + z * sp) * scale;
+    ctx.beginPath(); ctx.arc(px, py, 5.5, 0, 2 * Math.PI);
+    ctx.fillStyle = MARK; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = SURFACE; ctx.stroke();
   }
 }
 function inQuad(i, mx, my) {
@@ -346,7 +415,9 @@ def main():
     ap.add_argument("--walkable", action="store_true", help="only walkable floors (no grey): a cleaner picture")
     ap.add_argument("--yaw", type=float, default=-0.6, help="opening camera turn, radians (default -0.6)")
     ap.add_argument("--by-height", action="store_true",
-                    help="colour by height (light = low) instead of by kind: reads better for one big structure")
+                    help="colour walkable floors by height (light = low) instead of by kind; not walkable stays grey")
+    ap.add_argument("--spawns", action="store_true", help="mark the regen points (the bake's anchors)")
+    ap.add_argument("--water", action="store_true", help="draw the zone's water surfaces over the floors")
     ap.add_argument("--pitch", type=float, default=0.75,
                     help="opening camera tilt, radians: 0 looks straight down, 1.55 from the side (default 0.75)")
     ap.add_argument("--data", default=os.path.join(ROOT, "data"))
@@ -364,6 +435,8 @@ def main():
         pts = [p for p in pts if p[2] <= a.zmax]
     if a.walkable:
         pts = [p for p in pts if p[3] != OTHER]
+    if a.water:
+        pts += water(folder, pts, a.x * 100, a.y * 100)
     if not pts:
         raise SystemExit("no floors there")
 
@@ -373,6 +446,11 @@ def main():
     sub = ("Every floor the server walks on, as a 1 m tile at its real height (scripts/nav-bake.py). "
            "Where floors are stacked (a bridge over the ground, a ramp over a lower turn) each one is "
            "its own tile: the server keeps a list of floors per metre, not one height.")
+    marks = []
+    if a.spawns:
+        for an in nav.anchors:
+            if (an.x - a.x * 100) ** 2 + (an.y - a.y * 100) ** 2 <= (a.radius * 100) ** 2:
+                marks += [round((an.x - a.x * 100) / 100, 1), round((an.y - a.y * 100) / 100, 1), round(an.z / 100, 2)]
     flat = []
     for x, y, z, k in pts:
         flat += [round(x, 1), round(y, 1), round(z, 2), k]
@@ -381,12 +459,13 @@ def main():
             .replace("__NAMES__", json.dumps(KIND_NAMES))
             .replace("__RADIUS__", str(a.radius)).replace("__CX__", str(a.x)).replace("__CY__", str(a.y))
             .replace("__BY_HEIGHT__", "true" if a.by_height else "false")
+            .replace("__MARKS__", json.dumps(marks))
             .replace("__YAW__", str(a.yaw)).replace("__PITCH__", str(max(0.05, min(1.55, a.pitch)))))
     with open(stem + ".html", "w", encoding="utf-8") as f:
         f.write(page)
-    counts = [sum(1 for p in pts if p[3] == k) for k in range(3)]
+    counts = [sum(1 for p in pts if p[3] == k) for k in range(len(KIND_NAMES))]
     print("%s: %d tiles (%s)" % (stem + ".html", len(pts),
-                                 ", ".join("%s %d" % (KIND_NAMES[k], counts[k]) for k in range(3))))
+                                 ", ".join("%s %d" % (KIND_NAMES[k], counts[k]) for k in range(len(KIND_NAMES)))))
     if a.png:
         write_png(stem + ".png", pts, title)
         print(stem + ".png")
