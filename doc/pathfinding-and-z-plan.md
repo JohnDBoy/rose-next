@@ -764,6 +764,24 @@ What changed:
           - Lion's Plains (zone 8) loses 98%. Its start plateau's only exits are slopes of 54 degrees or more, which the client walks down but never up. Links must work both ways, so the map is cut from its two seeds. It has no regen points.
           - Oro desert: spawn squares on steep canyon slopes shrink. The worst is ODRP01's point at (5479.4, 5039.0) m, with 76% of its square unreached.
         - `scripts/nav-view.py --zmax` leaves out floors above a height, for a deck that hides the spot.
+      - **Zant's fences (2026-10-30, tester report, approved):** monsters crossed the wooden fences beside the paved paths, for example at (5204, 5170) m. The grid had their tops as walkable floors.
+        - The fence (`etc002.zms`, object 209) has two rails, 60 cm and 1.2 m up, and post caps at 1.5–1.8 m. Each is a strip 10–25 cm wide.
+        - The rails and caps lie within 50 cm of each other in height, so they made one floor at their mean height, between the rails. Its edges passed for a ramp, and the lower rail alone is a 59 cm step from the ground.
+        - **Rule 3c (bars):** a floor's top is a bar when all of these hold:
+          - the solid under it is under 25 cm thick (its own underside that close below);
+          - its surface is under 40 cm wide;
+          - it is stacked over a gap of more than 30 cm in the floor's surface (most of it within 20 cm, in plan, over a lower surface of the floor), or is a lone flat strip (under 10 cm high).
+          A bar links to no terrain floor: a fence stands on the ground. Zant's rails are 19–24 cm thick.
+        - **Ramp continuity:** a ramp link up *from the ground* needs the higher floor to rise with no gap over 30 cm in its surface.
+        - Rejected on the way:
+          - an area threshold: a diagonal rail adds up to as much as a deck corner;
+          - splitting floors wherever an underside sits over an upward surface: it would chop sloped slabs;
+          - making bars unwalkable: it cut off the boarding steps onto Kenji Beach's ship (two boards down from the pier, 62 cm and 34 cm over the deck), which are as thin, narrow and stacked as a fence's rails;
+          - continuity for every ramp: it cut stairs with 35–60 cm risers between object floors, onto Forest of Wandering's platform (2,000 cells), the Starlight Lounge's upper floor and a Mana Snowfields deck;
+          - a 30 cm bar thickness: Junon Polis' stone stairs (slabs 28 cm thick, 44 cm risers, on a bottom step that fills the cell) were cut at the foot.
+        - The first full re-bake with the stricter versions (`build/nav/all7.log`) lost those areas. The final rules were checked in memory against the grids before (`build/nav/lnav-before-bars/`): all four are back, and Zant's fence stays shut.
+        - Zant alone was re-baked first; its grid from before is in `build/nav/lnav-before-fences/`. Then every zone was re-baked, twice.
+        - Final bake (`build/nav/all9.log`): no zone changed by more than 0.1% against `build/nav/lnav-before-bars/`, except the Starlight Lounge (−1.6%). The checked spots are in `build/nav/fence-rule-checks.png`. The user approved the changes from the views: the Polis fountain rim, a Breezy Hills boulder top and a Wasteland structure top are no longer walkable; the ship steps, Polis stairs and Forest of Wandering platform are kept.
     - Whether a player can really climb that 1 m ledge in game is unchecked. If so, the bake should link it.
 - **The first build crashed at startup:** freeing a `path_zones` string that `toml_get_str` never filled (no `[nav]` in `server.toml`) hits `FfiString`'s unchecked drop. It is now freed only when filled.
 

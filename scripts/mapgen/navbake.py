@@ -33,6 +33,18 @@ Rules (each one decided in the plan; the numbers are the client avatar's):
      samples never block it, except a down-facing one above its top: an overhang within 50 cm
      merges into the floor under it, and a rock's in Goblin Cave B1 let the grid out of the
      tunnels onto the whole rock mass round them (2026-10-29).
+     3c. A bar is not a floor (2026-10-30): when the solid under a floor's top is under 25 cm
+     thick (its own down-facing underside that close below the top), its upper surface under
+     40 cm wide, and it is stacked over a gap of more than 30 cm in the floor's surface (most of
+     it within 20 cm, in plan, over a lower surface of the floor) or is a lone flat strip (under
+     10 cm high), the top is a bar, and a bar links to no terrain floor:
+     a fence stands on the ground. A fence's lower rail lies 60 cm over the ground, one step:
+     Zant's fences were walked onto and along, and monsters crossed them. Between object floors
+     a bar stays a step: the two boards down from the pier onto Kenji Beach's ship (62 cm and
+     34 cm risers over the deck) are as thin, narrow and stacked as a fence's rails, and making
+     bars unwalkable cut the ship off. Zant's rails are 19-24 cm thick; Junon Polis' stone
+     stairs, slabs 28 cm thick with 44 cm risers, stacked on a full-cell bottom step, were cut at
+     the foot at 30 cm. Solid stairs, plank bridges and deck slabs never trip it.
      3b. A step, not a ceiling (2026-10-29): when everything above a floor in that band lies at
      most 75 cm up, and an up-facing floor (the next tread) lies 15-75 cm up in its cell or a
      neighbour, the floor is walkable. A terrain floor only below a floor of level treads (the
@@ -48,7 +60,11 @@ Rules (each one decided in the plan; the numbers are the client avatar's):
      steeper face only when it rises above about 0.7 of the avatar's centre of mass over its
      feet (UpdateFootHeight_Avatar), so a riser, not a cell's average rise, is the limit. A ramp
      or a fine flight rises through its cell: Muris' great stairs rise 78 cm a metre and were
-     cut into 1 m islands. Each floor stores how far its whole surface reaches below and above
+     cut into 1 m islands. Up from the ground, the higher floor must rise continuously, with no
+     gap over 30 cm in its surface: a fence's rails and caps, 50 cm apart or less, made one
+     floor whose edges passed for a ramp (Zant, 2026-10-30). Between object floors it need not:
+     stairs with 35-60 cm risers lead onto Forest of Wandering's platform, the Starlight
+     Lounge's upper floor and a Mana Snowfields deck. Each floor stores how far its whole surface reaches below and above
      its height (.lnav version 2), and the server applies the rule to those (Nav::StepLinks):
      looser than the edge test, but it walks only floors the bake reached, so it cannot leak.
      With 135 on average heights, Goblin Cave B1 leaked out of its tunnels over a 7 m rock
@@ -100,6 +116,11 @@ TREAD_SHARE = 0.8                        # a floor of treads: this share of its 
 STEEP_GRAD = math.tan(0.3 * math.pi)     # the client's terrain slope limit (54 degrees)
 ON_TERRAIN_CM = 15.0                     # ...applied while the feet are this close to the terrain
 EDGE_CM = 40.0                           # 4: a floor's surface along a cell edge, this deep
+RAMP_GAP_CM = 30.0                       # 4: a ramp's surface rises with no height gap over this
+BAR_CM = 25.0                            # 3c: a floor's top solid thinner than this...
+BAR_WIDTH_CM = 40.0                      # ...and its surface narrower than this...
+FLAT_BAR_CM = 10.0                       # ...stacked over a gap, or a lone strip this flat: a bar
+STACK_CM = 20.0                          # 3c: stacked = over a lower surface of its floor, this close
 SURFACE_NZ = math.cos(math.radians(54.0))
 CLUSTER_GAP = 50.0
 TERRAIN_MERGE = 50.0
@@ -286,6 +307,7 @@ def bake(data_dir, row, log=print):
     # flags: 1 heightonly, 2 visual (not "not moveable"), 4 level; 8/16/32/64 within EDGE_CM of
     # the cell's west/east/south/north edge
     cells, zs, kinds, flags = [], [], [], []
+    lxs, lys = [], []                             # where in its cell each sample lies (cm)
     nrec = {}
     for slot, parsed in chunks.items():
         for lump, key in LUMPS:
@@ -319,6 +341,8 @@ def bake(data_dir, row, log=print):
                 lx, ly = np.mod(p[:, 0], CELL), np.mod(p[:, 1], CELL)
                 fl |= (((lx < EDGE_CM).astype(np.uint8) << 3) | ((lx >= CELL - EDGE_CM).astype(np.uint8) << 4)
                        | ((ly < EDGE_CM).astype(np.uint8) << 5) | ((ly >= CELL - EDGE_CM).astype(np.uint8) << 6))
+                lxs.append(lx.astype(np.uint8))
+                lys.append(ly.astype(np.uint8))
                 cells.append(ci.astype(np.int32))
                 zs.append(p[:, 2].astype(np.float32))
                 kinds.append(k.astype(np.int8))
@@ -326,12 +350,15 @@ def bake(data_dir, row, log=print):
     if cells:
         cell = np.concatenate(cells); z = np.concatenate(zs).astype(np.float64)
         kind = np.concatenate(kinds); fl = np.concatenate(flags)
+        sxy = np.concatenate(lxs), np.concatenate(lys)
     else:
         cell = np.zeros(0, np.int32); z = np.zeros(0); kind = np.zeros(0, np.int8); fl = np.zeros(0, np.uint8)
+        sxy = np.zeros(0, np.uint8), np.zeros(0, np.uint8)
     log("  records with colliding parts %s; %d samples" % (nrec, len(cell)))
 
     order = np.lexsort((z, cell))
     cell, z, kind, fl = cell[order], z[order], kind[order], fl[order]
+    sxy = sxy[0][order], sxy[1][order]
     heightonly = (fl & 1) != 0
 
     # 7. visual top: the terrain or the highest hit on a part that is not "not moveable"
@@ -353,7 +380,7 @@ def bake(data_dir, row, log=print):
     t_z = tz[valid].copy()
     t_top = t_z.copy()             # the top of the surface merged into each terrain floor (3.)
     obj_cell, obj_z, obj_up, obj_ho = [], [], [], []
-    obj_tread, obj_lo, obj_hi = [], [], []
+    obj_tread, obj_lo, obj_hi, obj_ugap, obj_bar = [], [], [], [], []
     obj_blo, obj_bhi = np.zeros((4, 0)), np.zeros((4, 0))
     if len(s_idx):
         brk = np.r_[True, (sc[1:] != sc[:-1]) | (sz[1:] - sz[:-1] > CLUSTER_GAP)]
@@ -374,8 +401,47 @@ def bake(data_dir, row, log=print):
         n_flat = np.add.reduceat(isflat.astype(np.float64), starts)
         ctread = cup & (n_flat >= TREAD_SHARE * n_up)
         isupk = sk == KIND_UP
+        # the largest height gap in its up-facing surface (4: a ramp or a flight is continuous; a
+        # fence's two rails, 40 cm apart with nothing between, are not)
+        ui = np.nonzero(isupk)[0]
+        gaps = np.zeros(len(sz))
+        if len(ui) > 1:
+            same = cid[ui[1:]] == cid[ui[:-1]]
+            gaps[ui[1:][same]] = (sz[ui[1:]] - sz[ui[:-1]])[same]
+        cugap = np.maximum.reduceat(gaps, starts)
+        # 3c: is its top a bar? The solid under the top runs down to its own highest down-facing
+        # surface below it (the underside): thin, with a narrow upper surface (across its narrow
+        # axis; a uniform strip w wide spreads w^2 / 12) -- a fence's rail, a post's cap
+        ctop = np.maximum.reduceat(np.where(isupk, sz, -np.inf), starts)
+        dtop = np.maximum.reduceat(np.where((sk == KIND_DOWN) & (sz < ctop[cid]), sz, -np.inf), starts)
+        tw = (isupk & (sz > dtop[cid])).astype(np.float64)
+        px, py = sxy[0][s_idx].astype(np.float64), sxy[1][s_idx].astype(np.float64)
+        n_t = np.maximum(np.add.reduceat(tw, starts), 1.0)
+        mx, my = np.add.reduceat(tw * px, starts) / n_t, np.add.reduceat(tw * py, starts) / n_t
+        vxx = np.add.reduceat(tw * px * px, starts) / n_t - mx * mx
+        vyy = np.add.reduceat(tw * py * py, starts) / n_t - my * my
+        vxy = np.add.reduceat(tw * px * py, starts) / n_t - mx * my
+        lmin = (vxx + vyy) / 2 - np.sqrt(((vxx - vyy) / 2) ** 2 + vxy ** 2)
+        thick = np.where(np.isfinite(dtop) & (n_up > 0), ctop - np.where(np.isfinite(dtop), dtop, 0.0), np.inf)
+        # ...stacked over a gap in its surface (a fence's rails, 40 cm and more apart) or alone and
+        # flat (one rail): open steps rise continuously, a board every 15-30 cm, and stay floors
         clo = np.where(cup, np.minimum.reduceat(np.where(isupk, sz, np.inf), starts), cz)
         chi = np.where(cup, np.maximum.reduceat(np.where(isupk, sz, -np.inf), starts), cz)
+        thin = (thick < BAR_CM) & (np.sqrt(12.0 * np.maximum(lmin, 0.0)) < BAR_WIDTH_CM)
+        cbar = thin & (chi - clo < FLAT_BAR_CM)
+        # stacked: most of the bar's surface lies over a lower up-facing surface of the same floor
+        # (a fence's upper rail over its lower one); an open stair's treads lie beside each other
+        ends = np.r_[starts[1:], len(sz)]
+        for c in np.nonzero(thin & ~cbar & (cugap > RAMP_GAP_CM))[0]:
+            lo_, hi_ = starts[c], ends[c]
+            u = isupk[lo_:hi_]
+            zc, xc, yc = sz[lo_:hi_], px[lo_:hi_], py[lo_:hi_]
+            top_m, low_m = u & (zc > dtop[c]), u & (zc < dtop[c])
+            if not low_m.any():
+                continue
+            d2 = ((xc[top_m][:, None] - xc[low_m][None, :]) ** 2
+                  + (yc[top_m][:, None] - yc[low_m][None, :]) ** 2).min(axis=1)
+            cbar[c] = np.mean(d2 <= STACK_CM ** 2) >= 0.5
         # ...and along each edge of the cell (west, east, south, north): where a ramp meets the next
         # cell (inf / -inf where the surface does not reach that edge)
         blo, bhi = [], []
@@ -398,7 +464,8 @@ def bake(data_dir, row, log=print):
         else:
             cluster_owner = np.full(len(starts), -1, np.int64)
         obj_cell, obj_z, obj_up, obj_ho = ccell[above], cz[above], cup[above], cho[above]
-        obj_tread, obj_lo, obj_hi = ctread[above], clo[above], chi[above]
+        obj_tread, obj_lo, obj_hi, obj_ugap = ctread[above], clo[above], chi[above], cugap[above]
+        obj_bar = cbar[above]
         obj_blo, obj_bhi = blo[:, above], bhi[:, above]
         cluster_owner[above] = n_terrain + np.arange(int(above.sum()))
         owner[s_idx] = cluster_owner[cid]
@@ -416,6 +483,8 @@ def bake(data_dir, row, log=print):
     nbelow = np.r_[np.zeros(n_terrain), np.clip(np.round(zr[n_terrain:] - np.asarray(obj_lo, np.float64)), 0, 255)]
     nabove = np.r_[np.zeros(n_terrain), np.clip(np.round(np.asarray(obj_hi, np.float64) - zr[n_terrain:]), 0, 255)]
     nlo, nhi = zr - nbelow, zr + nabove
+    nugap = np.r_[np.zeros(n_terrain), np.asarray(obj_ugap, np.float64)]
+    nbar = np.r_[np.zeros(n_terrain, bool), np.asarray(obj_bar, bool)]
     # the surface along each cell edge (a terrain floor: its height)
     nblo = np.concatenate([np.tile(zr[:n_terrain], (4, 1)), obj_blo], axis=1)
     nbhi = np.concatenate([np.tile(zr[:n_terrain], (4, 1)), obj_bhi], axis=1)
@@ -499,6 +568,7 @@ def bake(data_dir, row, log=print):
                           & (~nterrain[ci] | (ntread[nbs] & ~nterrain[nbs])))
         walk[ci[tread]] = True
         log("  floors made walkable by the step rule (3b): %d" % int(tread.sum()))
+    log("  floors that are a bar, linked to no terrain floor (3c): %d" % int((walk & nbar).sum()))
 
     ea, eb = [], []
     for dy, dx in ((0, 1), (1, 0)):
@@ -521,6 +591,10 @@ def bake(data_dir, row, log=print):
                 ja, jb = (1, 0) if dx else (3, 2)          # a's east / north edge, b's west / south
                 gap = np.where(zr[na] <= zr[nb], nblo[jb, nb] - nbhi[ja, na], nblo[ja, na] - nbhi[jb, nb])
                 ramp = (gap <= OBJ_STEP_CM) & (dz <= STEP_CM) & (dz > OBJ_STEP_CM) & (step < STEP_CM)
+                # ...and from the ground, whose higher floor rises continuously (Zant's fences: two
+                # rails, a gap between; between object floors, stairs with 50 cm risers stay)
+                lower_t = np.where(zr[na] <= zr[nb], nterrain[na], nterrain[nb])
+                ramp &= ~lower_t | (np.where(zr[na] <= zr[nb], nugap[nb], nugap[na]) <= RAMP_GAP_CM)
                 if ramp.any():
                     # ...unless a higher floor in the cell stepped into is within reach: the
                     # client lands on the highest surface under its feet + 135 cm. A pyramid's
@@ -540,7 +614,9 @@ def bake(data_dir, row, log=print):
                 up_ab = nux[na] * dx + nuy[na] * dy
                 up_ba = -(nux[nb] * dx + nuy[nb] * dy)
                 slope_ok = (~nsteep[na] | (up_ab < 0)) & (~nsteep[nb] | (up_ba < 0))
-                m = walk[na] & walk[nb] & ((dz <= step) | ramp) & slope_ok
+                # 3c: a bar links to no terrain floor (a fence stands on the ground)
+                fence = (nbar[na] & nterrain[nb]) | (nbar[nb] & nterrain[na])
+                m = walk[na] & walk[nb] & ((dz <= step) | ramp) & slope_ok & ~fence
                 ea.append(na[m])
                 eb.append(nb[m])
     ea = np.concatenate(ea) if ea else np.zeros(0, np.int64)
@@ -663,7 +739,7 @@ def bake(data_dir, row, log=print):
     b.seeds, b.seed_node, b.regens = seeds, seed_node, regens
     b.nrec, b.samples = nrec, len(cell)
     b.ea, b.eb = ea, eb
-    b.ntread, b.nlo, b.nhi, b.nsteep = ntread, nlo, nhi, nsteep         # diagnostics
+    b.ntread, b.nlo, b.nhi, b.nsteep, b.nbar = ntread, nlo, nhi, nsteep, nbar      # diagnostics
     return b
 
 
