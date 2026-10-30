@@ -234,8 +234,10 @@ function draw() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = SURFACE; ctx.fillRect(0, 0, W, H);
   const span = Math.max(1, zMax - zMin);
+  // zoomed in: a thin gap between tiles shows the grid; zoomed out: the tile's own colour
+  // round its edge closes the hairline seams, which read as stripes on a big floor
   const tileGap = zoom > 1.6 ? 0.6 : 0;
-  ctx.lineWidth = tileGap; ctx.strokeStyle = SURFACE;
+  ctx.lineWidth = tileGap || 0.8;
   for (let n = 0; n < N; n++) {
     const i = order[n];
     if (BY_HEIGHT) {
@@ -250,7 +252,8 @@ function draw() {
     ctx.moveTo(P[i * 8], P[i * 8 + 1]);
     for (let k = 1; k < 4; k++) ctx.lineTo(P[i * 8 + k * 2], P[i * 8 + k * 2 + 1]);
     ctx.closePath(); ctx.fill();
-    if (tileGap) ctx.stroke();
+    ctx.strokeStyle = tileGap ? SURFACE : ctx.fillStyle;
+    ctx.stroke();
   }
 }
 function inQuad(i, mx, my) {
