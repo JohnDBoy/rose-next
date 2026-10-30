@@ -228,7 +228,8 @@ def selftest(root):
 
     check(".him", m_him, lambda h: float(h.heights[0, 0]), 1234.5)
     check(".til", m_til, lambda t: int(t.tiles["tile_id"][3, 4]), 77)
-    check(".mov", m_mov, lambda m: int(m.cells[5, 6]), 1)
+    if ".mov" in found:     # data/ ships none since 2026-10-30 (nothing reads them); dumps do
+        check(".mov", m_mov, lambda m: int(m.cells[5, 6]), 1)
     check(".zon", m_zon, lambda z: z.lump(zon.EVENTS)[-1].name, b"mapgen-selftest")
     check(".ifo", m_ifo, lambda f: (f.lump(ifo.OBJECT)[-1].obj_id, f.lump(ifo.OBJECT)[-1].pos),
           (42, (100.0, 200.0, 300.0)))

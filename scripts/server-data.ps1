@@ -10,7 +10,7 @@ xcopy "$in\3ddata\ai\*.aip" "$out\3ddata\ai\" /S /Y /D
 xcopy "$in\3ddata\ai\*.stb" "$out\3ddata\ai\" /S /Y /D
 xcopy "$in\3ddata\effect\*.zmo" "$out\3ddata\effect\" /S /Y /D
 xcopy "$in\3ddata\maps\*.him" "$out\3ddata\maps\" /S /Y /D
-xcopy "$in\3ddata\maps\*.mov" "$out\3ddata\maps\" /S /Y /D
+xcopy "$in\3ddata\maps\*.lnav" "$out\3ddata\maps\" /S /Y /D
 xcopy "$in\3ddata\maps\*.ifo" "$out\3ddata\maps\" /S /Y /D
 xcopy "$in\3ddata\maps\*.zon" "$out\3ddata\maps\" /S /Y /D
 xcopy "$in\3ddata\mdata\*.zmo" "$out\3ddata\mdata\" /S /Y /D

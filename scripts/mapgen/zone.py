@@ -128,10 +128,6 @@ def make_til(t):
     return chunk.Til(16, 16, tiles)
 
 
-def make_mov():
-    return chunk.Mov(32, 32, np.zeros((32, 32), dtype="u1"))   # 0 = AI may move
-
-
 def make_ifo(stem_x, stem_y, water_rects=(), objects=(), cnst=(), collision=()):
     """An empty chunk IFO laid out exactly as the editor's File > New writes it:
     all 13 lumps in enum order (editor/IFO.cs:1202-1500, New.xaml.cs:266-301)."""
@@ -193,7 +189,6 @@ def build_zone(p, template_zon):
     files = {p.folder + ext(".zon"): zon.build(make_zon(p, template_zon))}
     flat_him = chunk.build_him(make_him(p.ground_cm)) if p.field is None else None
     til = chunk.build_til(make_til(p.tile))
-    mov = chunk.build_mov(make_mov())
     empty_lit = lit.build_lit(lit.Lit(objects=[], dds_list=[]))
     for x, y in p.chunks():
         stem = chunk_stem(x, y)
@@ -208,7 +203,6 @@ def build_zone(p, template_zon):
             r0, c0 = (y - p.y0) * 16, (x - p.x0) * 16
             block = np.ascontiguousarray(p.tile_grid[r0:r0 + 16, c0:c0 + 16][::-1])   # TIL row 0 = north
             files[stem + ext(".til")] = chunk.build_til(chunk.Til(16, 16, block))
-        files[stem + ext(".mov")] = mov
         files[stem + ext(".ifo")] = ifo.build(make_ifo(x, 64 - y, (p.water or {}).get((x, y), ()),
                                                        (p.objects or {}).get((x, y), ()),
                                                        (p.cnst or {}).get((x, y), ()),

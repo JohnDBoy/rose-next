@@ -253,7 +253,7 @@ public:
     // Tolerant player-ordered move: unlike SetCMD_MOVE2D it does NOT reject
     // positions the server marks non-walkable. The player clicked valid terrain
     // and expects the summon to head there, matching the avatar's own
-    // click-to-move (which has no IsMovablePOS gate). Best-effort pathing.
+    // click-to-move (which has no walk check). Best-effort pathing.
     bool PlayerOrderMoveTo(float fXPos, float fYPos);
 
     // Suppress AIP auto-target acquisition while under a manual order so a

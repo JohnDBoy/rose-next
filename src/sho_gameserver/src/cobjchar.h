@@ -194,7 +194,7 @@ private:
 
 protected:
     // Protected so CObjSUMMON::PlayerOrderMoveTo can broadcast a tolerant
-    // (non-IsMovablePOS-gated) player-ordered move.
+    // (not walk-checked) player-ordered move.
     bool Send_gsv_MOVE();
 
     bool Send_gsv_TOGGLE(BYTE btTYPE, bool bUpdateSpeed);

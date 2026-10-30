@@ -159,7 +159,7 @@ file before working in that area.
   and terrain streaming), `interface/` (CNameBox, summon info, inspector, chat links, item
   preview, damage meter) and `event/` (NPC quest icons).
 - **Game server** -- `src/sho_gameserver/CLAUDE.md`: combat flow, AI guards, summons,
-  walkability (.MOV), relay warps (`Recv_cli_RELAY_REPLY` honours only the destination
+  walkability (the walk grid; .MOV is retired), relay warps (`Recv_cli_RELAY_REPLY` honours only the destination
   the server sent), party size.
 - **Game data scripts** -- `scripts/CLAUDE.md`: codecs (never write a new parser --
   `scripts/rosefmt`), importers, audits and repair tools, baking (`scripts/pack.ps1`;
@@ -264,7 +264,7 @@ sends the standing groups to every arrival; nothing per tick. The client
 so the avatar's body collision stops against them like any map wall -- fades a group
 down over 2 s (`setVisibilityRecursive`, still blocking) and deletes it;
 `CObjectMANAGER::Clear` forgets them on a zone change. **The server enforces nothing**
-(it never did for any wall: the `.MOV` grid gates a move's destination cell only), so
+(the walk grid is baked from map objects, and these walls are added at run time), so
 a client-only wall is as real as every existing one; monsters do not collide with
 them (tree cylinders only). First use: the Cerberus Lair's ice wall; meant for the
 Karkia catacombs maze. Walls through a map's open ground must be proven: the lair's

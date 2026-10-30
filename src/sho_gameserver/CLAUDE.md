@@ -54,7 +54,7 @@ main.cpp → lib_gsmain (init) → Zone Threads (gs_threadzone)
 - Each zone runs in its own thread (`gs_threadzone`)
 - Zones divided into sectors for spatial queries
 - `send_packet_nearby()` broadcasts to players in 9 adjacent sectors
-- Zones listed in `LIST_ZONE.STB`; each zone's map data comes from its `.ZON` and per-tile `x_y.IFO` / `x_y.MOV` under `data_dir` (`zonefile.cpp`)
+- Zones listed in `LIST_ZONE.STB`; each zone's map data comes from its `.ZON` and per-tile `x_y.IFO` under `data_dir` (`zonefile.cpp`), and its walk grid `<FOLDER>.lnav` (`nav/nav_grid.cpp`)
 
 ## Combat Flow
 
@@ -185,59 +185,32 @@ Players can directly command their summons (phantom swords, companions) with CTR
 
 An attack order also sets the summon's AI variable `CObjSUMMON::SUMMON_ORDER_AI_VAR` (3) to 1 and runs its ATTACK-MOVE pattern once on the spot (`Do_AttackMoveAI`; a summon already in reach never chases, so the pattern would not run otherwise). It lets an AI file answer the order: the Terror Knight's `sur_guard.aip` taunts the clicked monster and clears the variable (`scripts/terror-knight-taunt.py`). No summon AI used variable 3 before; files that never read it are unaffected.
 
-Move orders go through `CObjSUMMON::PlayerOrderMoveTo`, **not** `SetCMD_MOVE2D`. `CObjCHAR::SetCMD_MOVE2D` rejects destinations where `GetZONE()->IsMovablePOS()` is false (non-walkable cells) and silently keeps the old command — which made CTRL+click move orders "randomly" ignored depending on the exact terrain cell clicked. The avatar's own click-to-move has no such gate (it relies on client CANTMOVE collision feedback). `PlayerOrderMoveTo` replicates SetCMD_MOVE2D minus the IsMovablePOS check (calls `CObjAI::SetCMD_MOVE2D` + the now-`protected` `Send_gsv_MOVE`), so player orders are tolerant of non-walkable clicks like the avatar. Attack orders use the AI's `SetCMD_RUNnATTACK` (chase + attack). Keep the strict IsMovablePOS gate only for internal AI pathing.
+Move orders go through `CObjSUMMON::PlayerOrderMoveTo`, **not** `SetCMD_MOVE2D`. `CObjCHAR::SetCMD_MOVE2D` rejects destinations it cannot walk to (the walk grid; the `.MOV` cell before 2026-10-30) and silently keeps the old command — which made CTRL+click move orders "randomly" ignored depending on the exact terrain cell clicked. The avatar's own click-to-move has no such gate (it relies on client CANTMOVE collision feedback). `PlayerOrderMoveTo` replicates SetCMD_MOVE2D minus the walk check (calls `CObjAI::SetCMD_MOVE2D` + the now-`protected` `Send_gsv_MOVE`), so player orders are tolerant of non-walkable clicks like the avatar. Attack orders use the AI's `SetCMD_RUNnATTACK` (chase + attack). Keep the strict gate only for internal AI pathing.
 
-## Walkability, and why a missing .MOV killed every leash in Karkia
+## Walkability: the walk grid, not .MOV
 
-`CZoneFILE::LoadZONE` allocates the move-attribute grid and `FillAll()`s it — **1 =
-blocked** — then clears bits from each map tile's `*.MOV`. `LoadMOV` returns silently
-when the file does not exist. So a zone that ships **no `.MOV` at all** is blocked on
-every cell, and `IsMovablePOS()` returns false everywhere in it.
+The `*.MOV` walkability tiles are no longer read (2026-10-30). They bitmapped 5 m cells
+(2048 x 2048 a zone, 512 KB each), were painted in only 18 zones, and their last use was a
+fallback the walk grid (`.lnav`, the next section) had replaced. `IsMovablePOS`, `LoadMOV`
+and the open-everything workaround for zones that shipped none are gone; the files sit in
+`build/retired-mov/`.
 
-That gates exactly one thing that matters: `CObjCHAR::SetCMD_MOVE2D` rejects every
-destination. And `SetCMD_MOVE2D` is the move used by
+What the old trap teaches, still true:
 
-- the **leash** — `AIACT_16` → `CObjMOB::Run_AWAY()` → "flee to within N m of my
-  regen point",
-- idle wandering (`AIACT_03`/`AIACT_04`), and
-- fleeing on low HP.
-
-**Chase does not go through it.** `CObjAI::ProcCMD_ATTACK` uses
-`Goto_TARGET`/`Start_MOVE`, which has no walkability gate. The result in such a zone
-is a monster that chases perfectly and can never give up — and since `Run_AWAY`
-leaves the command as `CMD_ATTACK` when it fails, and nothing logs, it looks like
-missing AI data rather than a missing asset. It is not missing AI data: 347 of our
-534 `.aip` files declare a leash (an `AIACT_16` run-back in the attack-move pattern, recounted 2026-10-13), and every Karkia monster has one
-(typically "≥50-80 m from spawn → run back to within 1-5 m").
-
-Since 2026-09-12 `LoadZONE` counts the tiles that actually loaded and, if **none** did,
-opens the walkability grid and logs a warning. This is the server-side form of the engine's
-"Missing Assets Must Degrade, Not Kill" rule. Things to know:
-
-- **It opens only the cells under a map tile that actually loaded, not the whole grid.**
-  The first version cleared all 2048×2048 cells, which also opened the void *outside* the
-  map — and since `IsMovablePOS` gates nothing but `SetCMD_MOVE2D`, monsters promptly
-  wandered off the terrain. A position off the map is what feeds garbage into the client's
-  `CTERRAIN::GetPATCH`. `LoadMAP` records each tile in `m_bMapTileLOADED`; a tile is
-  `PATCH_COUNT_PER_MAP_AXIS * 2` grid cells per axis (`LoadMOV`'s own stride), and
-  `MAP_COUNT_PER_ZONE_AXIS` of those is exactly `MAP_MOVE_ATTR_GRID_CNT`.
+- `CObjCHAR::SetCMD_MOVE2D` is the move behind the **leash** (`AIACT_16` ->
+  `CObjMOB::Run_AWAY()`), idle wandering (`AIACT_03`/`AIACT_04`) and fleeing. It refuses
+  a destination the walk grid cannot reach in a straight line (`Nav_CanWalkTo`); with no
+  grid (a zone not baked yet) or `/nav set walls 0`, it does not check at all.
+- **Chase does not go through it.** `CObjAI::ProcCMD_ATTACK` uses
+  `Goto_TARGET`/`Start_MOVE`. When a gate refused every destination (a zone with no .MOV
+  used to), monsters chased perfectly and never gave up, and nothing logged it.
+- Aggro radius and leash distance are **`.aip` data, not code** -- metres in the file,
+  x100 at load (`cai_file.cpp`). There is no sight/aggro/chase column in `LIST_NPC.STB`
+  and no server.toml knob. 347 of our 534 `.aip` files declare a leash.
 - **Do not use `m_nMinMapX`/`m_nMaxMapX`/`m_nMinMapY`/`m_nMaxMapY`** (`zonefile.h`). They
-  are declared and never assigned anywhere, so they hold uninitialised garbage. A per-tile
-  flag is also correct for a non-rectangular zone, which a min/max box is not.
-
-- It fires for all 9 Karkia zones, Lunar LZ02, Oro's Golden Ring (83), Fossil Sanctuary (85) and Colosseum (14), Skaaj (89) and SHIBUYA / Live House SEVEN (126/127) — every zone we ship with zero `.MOV`. No zone has *partial* coverage, so the
-  "none loaded" test can never half-apply to a map that meant to block something.
-- Jrose never shipped Karkia's `.MOV` either, so there is nothing to import. Generating
-  them from terrain is the only way to get real per-cell walkability there.
-- The cost is that monsters in those zones can path into geometry a map author would
-  have blocked. That is the accepted trade against an unbounded chase.
-- `IsMovablePOS` has only two other callers and neither changes behaviour: a telemetry
-  flag in `gs_socketlsv.cpp` and a GM readout in `cheatcmd.cpp`.
-- Aggro radius and leash distance are **`.aip` data, not code** — metres in the file,
-  ×100 at load (`cai_file.cpp`). There is no sight/aggro/chase column in `LIST_NPC.STB`
-  and no server.toml knob. Karkia's idle-aggro radii are 13-22 m.
-- Same gate, same trap as `CObjSUMMON::PlayerOrderMoveTo` above, which exists because
-  player click-to-move must not be gated either.
+  are declared and never assigned anywhere, so they hold uninitialised garbage.
+- Player click-to-move and CTRL+click summon moves are not walk-checked
+  (`CObjSUMMON::PlayerOrderMoveTo`, above).
 
 ## Pathfinding and Z (`src/nav/`, in progress)
 
@@ -266,11 +239,6 @@ and its §6 decisions before touching movement, height or AoE shape. Phase 0 is 
     (`CObjCHAR::AI_CollectOBJs`): the three skill loops, GM `/damage` and quest
     REWD_028. Do the same in any new loop that damages, buffs or warps what it finds.
     Pure AI scans, which do not call out, still walk the iterator directly.
-- **`IsMovablePOS`** returns false off the grid. It used to read an out-of-range X as
-  walkable.
-- **`.MOV` rows are mirrored north-south as loaded** (data is north-first, `LoadMOV`
-  reads south-first; see `docs/mapgen/FORMATS.md`). This was left as is on purpose:
-  MOV is retired once the baked walk grid lands.
 
   It logs `nav: zone …` once a minute while the zone has players, and `nav: server: …`
   every 5 minutes. Baseline on 2026-10-28: 14,151 monsters; worst p99 3.4 ms (Sikuku);
@@ -313,9 +281,8 @@ and its §6 decisions before touching movement, height or AoE shape. Phase 0 is 
   where an object floor is involved (the bake's own link rule).
   - Every moving character keeps `m_nNavZ`. For a monster, `Nav_WalkZ()` is the floor it walks
     on, while `Nav_Z()` stays where it is drawn.
-  - `CObjCHAR::SetCMD_MOVE2D` checks the whole line (`Nav_CanWalkTo`) on a gridded zone instead
-    of the `.MOV` destination cell. Every zone has a grid, so the `.MOV` no longer gates
-    monster moves.
+  - `CObjCHAR::SetCMD_MOVE2D` checks the whole line (`Nav_CanWalkTo`) on a gridded zone. The
+    `.MOV` destination-cell check it replaced is gone with the files (2026-10-30).
   - **A move that must happen walks straight when blocked** (`Nav_MoveOrStraight`): the leash
     (`Run_AWAY`, after 6 points), summon follow, AIACT_29. Only optional moves (wander, flee)
     may give up, or a monster chases forever and a summon is stranded.

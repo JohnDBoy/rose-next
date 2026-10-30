@@ -3385,7 +3385,7 @@ def cmd_verify(s):
     check(on_disk == stems, "chunk set on disk = spec %s" % sorted(stems))
     used_tex, problems = set(), []
     for st in sorted(stems):
-        missing = [ext for ext in (".HIM", ".TIL", ".IFO", ".MOV")
+        missing = [ext for ext in (".HIM", ".TIL", ".IFO")
                    if not os.path.isfile(os.path.join(zdir, st + ext))]
         if missing:
             problems.append("%s missing %s" % (st, missing))

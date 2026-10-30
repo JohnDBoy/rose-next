@@ -706,7 +706,7 @@ CObjSUMMON::IsStationary() {
 
 bool
 CObjSUMMON::PlayerOrderMoveTo(float fXPos, float fYPos) {
-    // Same as CObjCHAR::SetCMD_MOVE2D but WITHOUT the IsMovablePOS rejection, so
+    // Same as CObjCHAR::SetCMD_MOVE2D but WITHOUT its walk check, so
     // the summon honors player CTRL+click moves onto cells the server marks
     // non-walkable. The player clicked valid-looking terrain and the avatar's own
     // click-to-move has no such gate, so the summon should behave the same.

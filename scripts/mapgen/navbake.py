@@ -103,7 +103,7 @@ import zlib
 import numpy as np
 
 from . import catalogue, objlight, prefab
-from rosefmt import chunk, ifo, lnav, zon as zonfmt
+from rosefmt import ifo, lnav, zon as zonfmt
 from rosefmt.stb import Stb
 
 ORIGIN = 520000.0
@@ -865,39 +865,11 @@ def report(b, data_dir):
             hzs.append(hz.reshape(b.NY, b.NX)[r0:r1 + 1, c0:c1 + 1].mean())
     if hzs:
         lines.append("regen points whose square touches a hazard cell: %d" % sum(1 for h in hzs if h > 0))
-    mov = mov_agreement(b)
-    if mov is not None:
-        lines.append("painted MOV cells (rows flipped) the bake also leaves unreached or blocked: %.1f%% of %d"
-                     % (100 * mov[0], mov[1]))
     size = len(lnav.build(b.nav))
     lines.append("lnav: %d tiles, %d anchors, %.2f MB on disk" % (len(b.nav.tiles), len(b.nav.anchors), size / 1e6))
     if unreached:
         lines.append("seeds on a floor nobody else links to (their own island): %d" % len(unreached))
     return "\n".join(lines)
-
-
-def mov_agreement(b):
-    """Share of painted-blocked MOV cells (read north-first) with no reached floor in most of their 5 x 5 cells."""
-    reached_cell = np.zeros(len(b.valid), bool)
-    reached_cell[b.ncell[b.reached]] = True
-    rc = reached_cell.reshape(b.NY, b.NX)
-    agree = total = 0
-    for f in os.listdir(b.zdir):
-        m = re.match(r"(\d+)_(\d+)\.mov$", f, re.I)
-        if not m:
-            continue
-        sx, sy = int(m.group(1)), 64 - int(m.group(2))
-        tx, ty = sx - b.x0, sy - b.y0
-        if not (0 <= tx < b.NX // TC and 0 <= ty < b.NY // TC):
-            continue
-        mv = chunk.parse_mov(open(os.path.join(b.zdir, f), "rb").read())
-        cells = mv.cells[::-1]                            # row 0 = south
-        for mr, mc in zip(*np.nonzero(cells)):
-            r0, c0 = ty * TC + mr * 5, tx * TC + mc * 5
-            block = rc[r0:r0 + 5, c0:c0 + 5]
-            total += 1
-            agree += block.mean() < 0.5
-    return (agree / total, total) if total else None
 
 
 def preview(b, path):

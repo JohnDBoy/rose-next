@@ -30,7 +30,6 @@ struct tagEVENTPOS {
 #define MAX_SECTOR_SIZE 12000
 #define BUF_SECTOR_SIZE(s) (s * 1 / 5)
 
-#define MAP_MOVE_ATTR_GRID_CNT (MAP_COUNT_PER_ZONE_AXIS * PATCH_COUNT_PER_MAP_AXIS * 2)
 
 class CRegenPOINT;
 
@@ -48,7 +47,6 @@ private:
     void ReadObjINFO(FILE* fp, long lOffset, int iLumpType, short nMapXIDX, short nMapYIDX);
     char* GetMapFILE(short nMapX, short nMapY);
     void LoadMAP(char* szFileName, short nMapXIDX, short nMapYIDX);
-    void LoadMOV(char* szFileName, short nMapXIDX, short nMapYIDX);
 
     void ReadZoneINFO(FILE* fp, long lOffset);
     void ReadEventObjINFO(FILE* fp, long lOffset);
@@ -89,20 +87,10 @@ protected:
     CStrVAR m_StrVAR;
 
     CZoneSECTOR** m_ppSECTOR;
-    C1BITARRAY* m_ppMoveATTR[MAP_MOVE_ATTR_GRID_CNT];
-
-    // How many *.MOV tiles actually loaded. The grid starts FillAll'd (every cell
-    // blocked) and LoadMOV only ever clears bits, so a zone that ships no .MOV at
-    // all would otherwise be blocked everywhere -- which silently kills every AI
-    // move that goes through SetCMD_MOVE2D (leash, wander, flee). See LoadZONE().
-    int m_iMovTilesLOADED;
-
-    // Which map tiles actually exist, set by LoadMAP. Used by LoadZONE to open the
-    // walkability grid over real terrain only when a zone ships no *.MOV at all.
-    // Note m_nMinMapX/m_nMaxMapX below are declared but never assigned anywhere --
-    // do not reach for them. A per-tile flag also handles a non-rectangular zone,
-    // which a min/max box would not.
-    bool m_bMapTileLOADED[MAP_COUNT_PER_ZONE_AXIS][MAP_COUNT_PER_ZONE_AXIS];
+    // The *.MOV walkability tiles are not read (2026-10-30): the walk grid (.lnav) replaced
+    // them, and they bitmapped 2048 x 2048 cells (512 KB) per zone for a fallback that no
+    // longer ran. Note m_nMinMapX/m_nMaxMapX below are declared but never assigned
+    // anywhere -- do not reach for them.
 
     short m_nSectorSIZE;
     int m_iSectorLIMIT;
@@ -137,18 +125,6 @@ public:
     tPOINTF Get_RevivePOS(tPOINTF PosCUR);
     tPOINTF Get_AgitPOS(DWORD dwClanID) { return this->m_pAgitPOS[dwClanID % this->m_iAgitCNT]; }
 
-#define nATTR_GRID_SIZE 500
-    bool IsMovablePOS(int iXPos, int iYPos) {
-        // Off the grid is off the map. X used to go unchecked, and GetBit reads 0
-        // (walkable) out of its range; -499..-1 also truncated into cell 0.
-        if (iXPos < 0 || iYPos < 0)
-            return false;
-        const int iX = iXPos / nATTR_GRID_SIZE;
-        const int iY = iYPos / nATTR_GRID_SIZE;
-        if (iX >= MAP_MOVE_ATTR_GRID_CNT || iY >= MAP_MOVE_ATTR_GRID_CNT)
-            return false;
-        return (0 == this->m_ppMoveATTR[iY]->GetBit(iX));
-    }
 
     BYTE Is_DAY();
     char* Get_NAME() { return ZONE_NAME(m_nZoneNO); }

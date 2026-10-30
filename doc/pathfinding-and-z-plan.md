@@ -797,6 +797,13 @@ What changed:
         - **Found with `/nav path`:** the route's last turn before the stage was (5159.5, 5221.5), the middle of the stairs' east column. The stairs end at x = 5159.09, so that 1 m cell holds 9 cm of them, yet the bake counted the whole cell as stairs. A monster cut through it beside the steps: the user saw it take "a small space beside the stairs". Going up, the client never found the steps and stayed at dance-floor height. The turn's floor (3.33 m) was within a step of the client's (2.37 m), so the resync did not fire.
         - **Bake rule 3d, Lounge only (`SLIVER_CM_BY_ZONE = {164: 20}`):** an object floor whose up-facing surface spans less than 20 cm across its cell is not walkable. 640 floors cut, all one component still. Views: `build/nav/view-bar-5160-5220-stairs-{before,after}.html`. `nav-view.py --mark x,y,z` draws a route's corners.
         - **Validated:** a GM-spawned monster left on the dance floor climbs the small stairs and walks home onto the tier.
+      - **MOV removed (2026-10-30, validated in game: the server starts clean and monsters wander, chase and leash as before):** the server no longer loads `*.MOV`.
+        - Its last use was `SetCMD_MOVE2D`'s fallback for a zone with no walk grid, or `/nav set walls 0`; every zone has a grid. Without one, AI walks now go unchecked, as Karkia's always did.
+        - Two GM readouts lost their MOV "ground" field.
+        - The 1,425 files are in `build/retired-mov/`, and about 34 MB of server RAM (a 512 KB bitmap per zone) is freed.
+        - The map generator no longer writes MOVs; the bake dropped its MOV comparison.
+        - `scripts/server-data.ps1` now copies the `.lnav` grids, which it never did, instead of the MOVs.
+        - The map editor opens a zone without them.
       - **Sliver audit (2026-10-30): the 20 cm rule stays per map.** Every zone was baked in memory with rule 3d on and compared with its live grid.
         - Slivers are everywhere: every deck, rock and stair edge leaves part-filled cells. 271,898 such floors are in use across the maps.
         - The audit's "slivers in a flight" count (8,731) is mostly the sides of wide structures, such as Union War's amphitheatre stairs and Forest of Wandering's high walkway, which monsters cross in the middle. The Lounge's case needs a narrow flight approached at an angle, and the audit found no clear second one.

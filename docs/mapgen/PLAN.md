@@ -920,7 +920,7 @@ combat spaces. Zones 12, 13, 30 and 38 uninstalled first.
 
 ### Phase 8 — polish (optional)
 
-Baked terrain lightmap, generated `.MOV`, minimap.
+Baked terrain lightmap, minimap. (A generated `.MOV` is moot: the server reads the walk grid, `scripts/nav-bake.py`, since 2026-10-30.)
 
 Lightmaps (user, 2026-10-02): either the user gets an existing baking
 script shared by someone, or we write our own later. Ask before starting.

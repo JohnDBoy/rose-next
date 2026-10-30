@@ -11,7 +11,7 @@ Each zone writes:
     of rose.vfs);
   * build/nav/<FOLDER>.png, a 1 px = 1 m picture (legend in mapgen.navbake.preview);
   * build/nav/<FOLDER>.txt, the numbers: reached area, layers, hazards, seeds, spawn
-    spill, agreement with the hand-painted MOV.
+    spill.
 
 The rules and why: scripts/mapgen/navbake.py and doc/pathfinding-and-z-plan.md (3.1).
 The written file is parsed back and must rebuild byte for byte.

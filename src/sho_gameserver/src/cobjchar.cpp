@@ -1443,11 +1443,11 @@ CObjCHAR::SetCMD_MOVE(tPOINTF& PosCUR, tPOINTF& PosTO, int iTargetObjIDX) {
 bool
 CObjCHAR::SetCMD_MOVE2D(float fPosX, float fPosY, BYTE btRunMODE) {
     // 인공지능에서 호출되는 이동함수 !!!
-    // With a walk grid, the whole straight walk must stay on walkable floors (Phase 4); without
-    // one, only the destination's MOV cell is checked, as before.
+    // With a walk grid, the whole straight walk must stay on walkable floors (Phase 4). Without
+    // one (a zone not baked yet, or /nav set walls 0) it is not checked: the *.MOV files that
+    // checked the destination cell are no longer read (2026-10-30).
     const bool bGrid = this->GetZONE()->NavGrid() && Nav::settings().ai_walls.load(std::memory_order_relaxed);
-    if (bGrid ? !this->Nav_CanWalkTo(fPosX, fPosY)
-              : !this->GetZONE()->IsMovablePOS((int)fPosX, (int)fPosY)) {
+    if (bGrid && !this->Nav_CanWalkTo(fPosX, fPosY)) {
         this->GetZONE()->m_NavMeter.CountMoveReject();
         return false;
     }

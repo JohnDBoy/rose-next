@@ -42,12 +42,6 @@ CZoneFILE::CZoneFILE(bool CreateSuspended): classTHREAD(CreateSuspended) {
     this->m_iAgitCNT = 0;
     this->m_pAgitPOS = NULL;
 
-    for (short nI = 0; nI < MAP_MOVE_ATTR_GRID_CNT; nI++)
-        m_ppMoveATTR[nI] = NULL;
-
-    m_iMovTilesLOADED = 0;
-    ::ZeroMemory(m_bMapTileLOADED, sizeof(m_bMapTileLOADED));
-
     m_iSectorXCnt = 0;
     m_iSectorYCnt = 0;
     m_pPosLIST = new classHASH<tagEVENTPOS*>(64);
@@ -288,47 +282,6 @@ CZoneFILE::ReadObjINFO(FILE* fp, long lOffset, int iLumpType, short nMapXIDX, sh
 
 //-------------------------------------------------------------------------------------------------
 void
-CZoneFILE::LoadMOV(char* szFileName, short nMapXIDX, short nMapYIDX) {
-    // *.MOV
-    char* szFullPath;
-    FILE* fp;
-
-    szFullPath =
-        this->m_StrVAR.Printf("%s.MOV", szFileName); // CStr::Printf( "%s.IFO", szFileName );
-
-    if (!CUtil::Is_FileExist(szFullPath)) {
-        return;
-    }
-    fp = fopen(szFullPath, "rb");
-    if (!fp)
-        return;
-
-    int iWidth, iHeight;
-
-    fread(&iWidth, sizeof(int), 1, fp);
-    fread(&iHeight, sizeof(int), 1, fp);
-
-    BYTE btATTR;
-    int iX, iY, iGridX, iGridY;
-    for (iY = 0; iY < iHeight; iY++) {
-        iGridY = nMapYIDX * PATCH_COUNT_PER_MAP_AXIS * 2 + iY;
-        for (iX = 0; iX < iWidth; iX++) {
-            fread(&btATTR, sizeof(BYTE), 1, fp);
-
-            iGridX = nMapXIDX * PATCH_COUNT_PER_MAP_AXIS * 2 + iX;
-
-            assert(iGridX < MAP_MOVE_ATTR_GRID_CNT && iGridY < MAP_MOVE_ATTR_GRID_CNT);
-            if (0 == btATTR)
-                this->m_ppMoveATTR[iGridY]->ClearBit(iGridX);
-        }
-    }
-
-    fclose(fp);
-    this->m_iMovTilesLOADED++;
-}
-
-//-------------------------------------------------------------------------------------------------
-void
 CZoneFILE::LoadMAP(char* szFileName, short nMapXIDX, short nMapYIDX) {
     char* szFullPath;
     FILE* fp;
@@ -347,13 +300,6 @@ CZoneFILE::LoadMAP(char* szFileName, short nMapXIDX, short nMapYIDX) {
     fp = fopen(szFullPath, "rb");
     if (!fp)
         return;
-
-    // This tile has real terrain under it. LoadZONE uses the set of loaded tiles to
-    // bound the walkable area when the zone ships no *.MOV at all.
-    if (nMapXIDX >= 0 && nMapXIDX < MAP_COUNT_PER_ZONE_AXIS && nMapYIDX >= 0
-        && nMapYIDX < MAP_COUNT_PER_ZONE_AXIS) {
-        m_bMapTileLOADED[nMapYIDX][nMapXIDX] = true;
-    }
 
     int iLumpCNT, iType;
     int iOffset;
@@ -576,10 +522,6 @@ CZoneFILE::LoadZONE(char* szBaseDIR, short nZoneNO) {
     this->pvp_state = pvp_state_from(ZONE_PVP_STATE(nZoneNO));
 
     short nX, nY;
-    for (nY = 0; nY < MAP_MOVE_ATTR_GRID_CNT; nY++) {
-        this->m_ppMoveATTR[nY] = new C1BITARRAY(MAP_MOVE_ATTR_GRID_CNT);
-        this->m_ppMoveATTR[nY]->FillAll();
-    }
 
     // if ( m_HashJoinTRIGGER | m_HashKillTRIGGER | m_HashDeadTRIGGER ) {
     //	int i = 0;
@@ -643,57 +585,7 @@ CZoneFILE::LoadZONE(char* szBaseDIR, short nZoneNO) {
         for (nX = 0; nX < MAP_COUNT_PER_ZONE_AXIS; nX++) {
             szMapFile = GetMapFILE(nX, nY);
             this->LoadMAP(szMapFile, nX, nY);
-            this->LoadMOV(szMapFile, nX, nY);
         }
-    }
-
-    // A missing *.MOV must degrade, not block. The grid above is FillAll'd (every
-    // cell blocked) and LoadMOV only clears bits, so a zone that ships no .MOV at
-    // all is blocked everywhere -- and IsMovablePOS() gates CObjCHAR::SetCMD_MOVE2D,
-    // which is the move every bit of monster AI uses for leashing (AIACT_16 ->
-    // CObjMOB::Run_AWAY), idle wandering and fleeing. Chase does NOT go through it
-    // (CObjAI::ProcCMD_ATTACK uses Goto_TARGET/Start_MOVE, ungated), so the result
-    // is a zone where monsters chase perfectly and never, ever give up.
-    //
-    // Karkia ships no .MOV at all (neither does the Jrose dump it came from), and
-    // nor does Lunar LZ02. Every other zone we ship has one per map tile -- none is
-    // partially covered -- so opening the grid only where *nothing* loaded cannot
-    // half-apply to a zone that meant to block something.
-    //
-    // Open only the cells that sit under a map tile that actually loaded, not the
-    // whole 2048x2048 grid. Opening everything also opens the void outside the map,
-    // and since SetCMD_MOVE2D is the only thing consulting this, monsters then
-    // wander off the terrain entirely -- which is what feeds a garbage position
-    // into the client's CTERRAIN::GetPATCH. Elsewhere .MOV bounds the walkable area
-    // to real ground by construction; this keeps that property.
-    //
-    // A *.MOV tile covers PATCH_COUNT_PER_MAP_AXIS * 2 grid cells per axis (the
-    // stride LoadMOV uses), and MAP_COUNT_PER_ZONE_AXIS of those is exactly
-    // MAP_MOVE_ATTR_GRID_CNT.
-    if (0 == this->m_iMovTilesLOADED) {
-        const int iCellsPerTile = PATCH_COUNT_PER_MAP_AXIS * 2;
-        int iTiles = 0;
-
-        for (int iTileY = 0; iTileY < MAP_COUNT_PER_ZONE_AXIS; iTileY++) {
-            for (int iTileX = 0; iTileX < MAP_COUNT_PER_ZONE_AXIS; iTileX++) {
-                if (!this->m_bMapTileLOADED[iTileY][iTileX])
-                    continue;
-
-                iTiles++;
-                for (int iC = 0; iC < iCellsPerTile; iC++) {
-                    const int iGridY = iTileY * iCellsPerTile + iC;
-                    C1BITARRAY* pRow = this->m_ppMoveATTR[iGridY];
-
-                    for (int iR = 0; iR < iCellsPerTile; iR++)
-                        pRow->ClearBit(iTileX * iCellsPerTile + iR);
-                }
-            }
-        }
-
-        LOG_WARN("Zone {}: no .MOV walkability tiles found; opening {} map tile(s) of "
-                 "terrain as walkable so monster leash/wander/flee still work",
-            (int)nZoneNO,
-            iTiles);
     }
 
     // The layered walk grid: real heights and floors (doc/pathfinding-and-z-plan.md).
@@ -765,10 +657,6 @@ CZoneFILE::FreeZONE(void) {
             SAFE_DELETE_ARRAY(m_ppSECTOR[nY]);
 
         SAFE_DELETE_ARRAY(m_ppSECTOR);
-    }
-
-    for (short nI = 0; nI < MAP_MOVE_ATTR_GRID_CNT; nI++) {
-        SAFE_DELETE(m_ppMoveATTR[nI]);
     }
 
     SAFE_DELETE(m_pNavGrid);

@@ -419,9 +419,9 @@ into mixed-species camps instead, which cannot.
 waited a full `interval` after a server boot, so a 30-minute lone boss was absent for
 the first half hour.
 
-Separately: **a zone that ships no `.MOV` file is blocked on every cell**, which
-silently disables monster leashing, wandering and fleeing while leaving chase intact.
-See the gameserver `CLAUDE.md`.
+Separately: the server no longer reads `*.MOV` (2026-10-30; the files are in
+`build/retired-mov/`). Monster walks use the walk grid (`scripts/nav-bake.py`), so a new or
+re-edited map needs a bake, not a MOV. See the gameserver `CLAUDE.md`.
 
 ### A Missing NPC Row Must Degrade, Not Kill (Client/Server)
 

@@ -764,10 +764,6 @@ classUSER::Cheat_get(CStrVAR* pStrVAR, char* pArg1, char* pArg2, char* szCode) {
             if (this->Get_RIGHT() >= pUSER->Get_RIGHT() && this->GetZONE()) {
                 short nMovSpeed = (short)pUSER->total_move_speed();
                 short nAtkSpeed = pUSER->total_attack_speed();
-                BYTE btGndATT = (pUSER->GetZONE())
-                    ? pUSER->GetZONE()->IsMovablePOS((int)(pUSER->m_PosCUR.x),
-                        (int)(pUSER->m_PosCUR.y))
-                    : 0;
 
                 if (pUSER->IsUSER()) {
                     std::ostringstream output;
@@ -795,7 +791,7 @@ classUSER::Cheat_get(CStrVAR* pStrVAR, char* pArg1, char* pArg2, char* szCode) {
                 } else {
                     pStrVAR->Printf(
                         "HP:%d/%d \nMP:%d/%d \nLEV:%d (EXP:%d), JOB:%d, SPD(M:%d,A:%d), Hit:%d, "
-                        "Crt:%d, AP:%d, DP:%d, AVD:%d, ATTR:%d, bCST:%d, SKL:%d, FLG:%x",
+                        "Crt:%d, AP:%d, DP:%d, AVD:%d, bCST:%d, SKL:%d, FLG:%x",
                         pUSER->Get_HP(),
                         pUSER->Get_MaxHP(),
                         pUSER->Get_MP(),
@@ -810,7 +806,6 @@ classUSER::Cheat_get(CStrVAR* pStrVAR, char* pArg1, char* pArg2, char* szCode) {
                         pUSER->total_attack_power(),
                         pUSER->Get_DEF(),
                         pUSER->Get_AVOID(),
-                        btGndATT,
                         pUSER->m_bCastingSTART,
                         pUSER->Get_ActiveSKILL(),
                         pUSER->m_IngSTATUS.GetFLAGs());

@@ -53,7 +53,7 @@ is identical to `bstr` for lengths < 128.
 | `x_y.HIM` | client | yes, per chunk | **Defines which chunks exist on the client:** `CMAP::Load` returns false if it is missing (`io_terrain.cpp:2493-2498`). |
 | `x_y.TIL` | client | yes if the HIM exists | Missing → error box (`io_terrain.cpp:2605-2609`). |
 | `x_y.IFO` | client, server | yes if the HIM exists | Client: error box (`:2660-2664`). **Defines which chunks exist on the server** (`zonefile.cpp:340-354`). |
-| `x_y.MOV` | server only | no | No MOV anywhere → server opens every loaded chunk (`zonefile.cpp:671-695`). |
+| `x_y.MOV` | nothing (retired 2026-10-30) | no | The server reads the walk grid (`<FOLDER>.lnav`, `scripts/nav-bake.py`) instead; the generator no longer writes MOVs, and ours are in `build/retired-mov/`. |
 | `x_y/x_y_PlaneLightingMap.dds` (`.tga` accepted) | client | no | Falls back to `3DDATA\TERRAIN\default_light.dds` (`io_terrain.cpp:2500-2513`). |
 | `x_y/LightMap/BuildingLightMapData.lit`, `ObjectLightMapData.lit` + atlases | client | no | Missing → objects load unlit, silently (`io_terrain.cpp:2403-2409`, `:2713-2718`). |
 | DECO / CNST ZSC (`LIST_ZONE` cols 11 / 12) | client | yes | Loaded per zone by `CBasicDATA::LoadZoneData` (`src/client/io_basic.cpp:155-163`). |
@@ -415,7 +415,10 @@ What retail files contain (phase 0 corpus scan, 1,538 IFOs):
 - **Generated water confirmed in game and editor** (user, 2026-10-02): same
   waterline in both, no plane showing through the ground.
 
-## MOV (one per chunk, server only)
+## MOV (one per chunk; retired 2026-10-30, kept for reference dumps)
+
+Nothing reads these any more: the game server uses the baked walk grid. The layout below is
+for reading other dumps.
 
 - `i32 width`, `i32 height` — 32 x 32, 5 m cells — then `width * height` bytes
   (`zonefile.cpp:289-326`).
