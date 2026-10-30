@@ -782,6 +782,11 @@ What changed:
         - The first full re-bake with the stricter versions (`build/nav/all7.log`) lost those areas. The final rules were checked in memory against the grids before (`build/nav/lnav-before-bars/`): all four are back, and Zant's fence stays shut.
         - Zant alone was re-baked first; its grid from before is in `build/nav/lnav-before-fences/`. Then every zone was re-baked, twice.
         - Final bake (`build/nav/all9.log`): no zone changed by more than 0.1% against `build/nav/lnav-before-bars/`, except the Starlight Lounge (−1.6%). The checked spots are in `build/nav/fence-rule-checks.png`. The user approved the changes from the views: the Polis fountain rim, a Breezy Hills boulder top and a Wasteland structure top are no longer walkable; the ship steps, Polis stairs and Forest of Wandering platform are kept.
+      - **Starlight Lounge leash (2026-10-30, tester report, left as is):** a monster that gave up a chase walked straight back through the hall's walls.
+        - Almost the whole hall is unreached: 90 of its 7,540 floors at 2.37 m. Its stairways from the entrance ring start with 61–64 cm risers, over the 60 cm object step, though players climb them.
+        - The monster's spawn point was in the hall, so every path home ended "no floor" (the zone's meter lines: 11 of 11 searches), and it walked straight.
+        - **Tried and reverted:** `OBJ_STEP_CM` 65 in the bake and the server. The hall was reached (3,412 → 12,797 cells), but the monster still went under the stage going home. The change also reopened the Breezy Hills boulder top and the Wasteland structure top, and opened Dolphin Island's bamboo fence top. Players must not stand on any of them. A few Gorge rock tops opened too, an accepted quirk: the original map leaves an opening in the terrain there.
+        - **The user's call:** no global rule change for one map. The Lounge is an imported map not meant to hold monsters. Grids restored from `build/nav/lnav-before-step65/`, server rebuilt at 60 cm.
     - Whether a player can really climb that 1 m ledge in game is unchecked. If so, the bake should link it.
 - **The first build crashed at startup:** freeing a `path_zones` string that `toml_get_str` never filled (no `[nav]` in `server.toml`) hits `FfiString`'s unchecked drop. It is now freed only when filled.
 
