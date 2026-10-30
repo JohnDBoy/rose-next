@@ -508,7 +508,7 @@ def bake(data_dir, row, log=print):
     nlo, nhi = zr - nbelow, zr + nabove
     nugap = np.r_[np.zeros(n_terrain), np.asarray(obj_ugap, np.float64)]
     nbar = np.r_[np.zeros(n_terrain, bool), np.asarray(obj_bar, bool)]
-    nspan = np.r_[np.full(n_terrain, float(CELL)), np.asarray(obj_span, np.float64)]
+    nwidth = np.r_[np.full(n_terrain, float(CELL)), np.asarray(obj_span, np.float64)]
     # the surface along each cell edge (a terrain floor: its height)
     nblo = np.concatenate([np.tile(zr[:n_terrain], (4, 1)), obj_blo], axis=1)
     nbhi = np.concatenate([np.tile(zr[:n_terrain], (4, 1)), obj_bhi], axis=1)
@@ -595,7 +595,7 @@ def bake(data_dir, row, log=print):
     log("  floors that are a bar, linked to no terrain floor (3c): %d" % int((walk & nbar).sum()))
     sliver = SLIVER_CM_BY_ZONE.get(row)
     if sliver:
-        cut = walk & nup & (nspan < sliver)
+        cut = walk & nup & (nwidth < sliver)
         log("  floors under %.0f cm across their cell, not walkable (3d, this map): %d" % (sliver, int(cut.sum())))
         walk &= ~cut
 
@@ -769,7 +769,7 @@ def bake(data_dir, row, log=print):
     b.seeds, b.seed_node, b.regens = seeds, seed_node, regens
     b.nrec, b.samples = nrec, len(cell)
     b.ea, b.eb = ea, eb
-    b.ntread, b.nlo, b.nhi, b.nsteep, b.nbar = ntread, nlo, nhi, nsteep, nbar      # diagnostics
+    b.ntread, b.nlo, b.nhi, b.nsteep, b.nbar, b.nwidth = ntread, nlo, nhi, nsteep, nbar, nwidth  # diagnostics
     return b
 
 

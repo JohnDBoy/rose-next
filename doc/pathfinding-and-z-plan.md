@@ -797,6 +797,12 @@ What changed:
         - **Found with `/nav path`:** the route's last turn before the stage was (5159.5, 5221.5), the middle of the stairs' east column. The stairs end at x = 5159.09, so that 1 m cell holds 9 cm of them, yet the bake counted the whole cell as stairs. A monster cut through it beside the steps: the user saw it take "a small space beside the stairs". Going up, the client never found the steps and stayed at dance-floor height. The turn's floor (3.33 m) was within a step of the client's (2.37 m), so the resync did not fire.
         - **Bake rule 3d, Lounge only (`SLIVER_CM_BY_ZONE = {164: 20}`):** an object floor whose up-facing surface spans less than 20 cm across its cell is not walkable. 640 floors cut, all one component still. Views: `build/nav/view-bar-5160-5220-stairs-{before,after}.html`. `nav-view.py --mark x,y,z` draws a route's corners.
         - **Validated:** a GM-spawned monster left on the dance floor climbs the small stairs and walks home onto the tier.
+      - **Sliver audit (2026-10-30): the 20 cm rule stays per map.** Every zone was baked in memory with rule 3d on and compared with its live grid.
+        - Slivers are everywhere: every deck, rock and stair edge leaves part-filled cells. 271,898 such floors are in use across the maps.
+        - The audit's "slivers in a flight" count (8,731) is mostly the sides of wide structures, such as Union War's amphitheatre stairs and Forest of Wandering's high walkway, which monsters cross in the middle. The Lounge's case needs a narrow flight approached at an angle, and the audit found no clear second one.
+        - **Globally the rule would cut off real areas:** Luna Clan Field's outside (361,811 cells), Muris' rim (71,697), 1,778 cells in Desert of the Dead and 1,313 in Arumic Valley.
+        - The client's 135 cm resync already limits the worst outcome on every map. A monster that loses a flight is put back at the next corner or stop.
+        - Further cases are fixed per map as reported: `/nav path`, `nav-view.py --mark`, then `SLIVER_CM_BY_ZONE` or `OBJ_STEP_BY_ZONE`.
     - Whether a player can really climb that 1 m ledge in game is unchecked. If so, the bake should link it.
 - **The first build crashed at startup:** freeing a `path_zones` string that `toml_get_str` never filled (no `[nav]` in `server.toml`) hits `FfiString`'s unchecked drop. It is now freed only when filled.
 
