@@ -5153,7 +5153,12 @@ CObjCHAR::SetServerZ(float fZ, bool bPlace) {
         return;
     }
     constexpr DWORD STALE_MS = 1000;
-    constexpr float RESYNC_CM = 300.f;
+    // More than a step (Nav::STEP_CM) off the server's floor is never right: the follow lost a
+    // flight of stairs. It was 300 cm, and a Starlight Lounge monster walking home stayed at the
+    // hall's height, 1.6-1.9 m under the stage and the tiers, until it was placed again
+    // (2026-10-30). Moves send their start floor and stops their floor, so the next corner or
+    // the stop puts it back.
+    constexpr float RESYNC_CM = 135.f;
     const DWORD dwNow = ::timeGetTime();
     if (bPlace || !this->HasNavRefZ() || dwNow - m_dwNavRefTIME > STALE_MS
         || fabsf(fZ - m_fNavRefZ) > RESYNC_CM) {

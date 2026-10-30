@@ -163,8 +163,8 @@ qpc_freq() {
 
 // The bake's own link rule (scripts/mapgen/navbake.py, rule 4; Grid::LineWalk).
 bool
-links(const CellSpans& a, int ka, const CellSpans& b, int kb) {
-    return StepLinks(a.At(ka), b.At(kb));
+links(const CellSpans& a, int ka, const CellSpans& b, int kb, float objStep) {
+    return StepLinks(a.At(ka), b.At(kb), objStep);
 }
 
 // A step a walker can take: the bake's link, or, toward a goal on a floor the bake never
@@ -175,8 +175,8 @@ links(const CellSpans& a, int ka, const CellSpans& b, int kb) {
 // platform's stairs link it to the cave floor, and a climb up its side looked cheaper than
 // walking round to them (2026-10-29).
 bool
-walks(const CellSpans& a, int ka, const CellSpans& b, int kb, bool bShortcuts) {
-    if (links(a, ka, b, kb))
+walks(const CellSpans& a, int ka, const CellSpans& b, int kb, bool bShortcuts, float objStep) {
+    if (links(a, ka, b, kb, objStep))
         return true;
     if (!bShortcuts)
         return false;
@@ -185,9 +185,9 @@ walks(const CellSpans& a, int ka, const CellSpans& b, int kb, bool bShortcuts) {
 }
 
 bool
-cell_links(const CellSpans& c, const CellSpans& from, int kf, bool bShortcuts) {
+cell_links(const CellSpans& c, const CellSpans& from, int kf, bool bShortcuts, float objStep) {
     for (int k = 0; k < c.n; ++k)
-        if (walks(from, kf, c, k, bShortcuts))
+        if (walks(from, kf, c, k, bShortcuts, objStep))
             return true;
     return false;
 }
@@ -380,11 +380,12 @@ FindPath(const Grid& grid, const PathQuery& q, TickBudget& budget, ZoneMeter& me
 
     int iMaxExp = (std::min)(settings().path_expansions.load(std::memory_order_relaxed), budget.ExpansionsLeft());
     if (bOtherArea) {
-        const bool bAbove = S.Cell(grid, gx, gy).z[gk] > startZ + OBJ_STEP_CM;
+        const bool bAbove = S.Cell(grid, gx, gy).z[gk] > startZ + grid.ObjStepCm();
         iMaxExp = (std::min)(iMaxExp, bAbove ? CLIMB_EXPANSIONS : OTHER_AREA_EXPANSIONS);
     }
     const int iPref = q.iPrefClass < 1 ? 1 : (q.iPrefClass > 3 ? 3 : q.iPrefClass);
     const bool bShortcuts = bOtherArea;
+    const float fObjStep = grid.ObjStepCm();
 
     const int startId = node_id(sx, sy, sk);
     {
@@ -434,17 +435,17 @@ FindPath(const Grid& grid, const PathQuery& q, TickBudget& budget, ZoneMeter& me
             const bool bDiag = d >= 4;
             // no corner cutting: both cells beside a diagonal step must be walkable from here
             if (bDiag
-                && (!cell_links(S.Cell(grid, nx, cy), cc, ck, bShortcuts)
-                    || !cell_links(S.Cell(grid, cx, ny), cc, ck, bShortcuts)))
+                && (!cell_links(S.Cell(grid, nx, cy), cc, ck, bShortcuts, fObjStep)
+                    || !cell_links(S.Cell(grid, cx, ny), cc, ck, bShortcuts, fObjStep)))
                 continue;
             const CellSpans& nc = S.Cell(grid, nx, ny);
             for (int k = 0; k < nc.n; ++k) {
-                if (!walks(cc, ck, nc, k, bShortcuts))
+                if (!walks(cc, ck, nc, k, bShortcuts, fObjStep))
                     continue;
                 uint32_t cost = bDiag ? COST_DIAGONAL : COST_STRAIGHT;
                 if (nc.clearance[k] < iPref)
                     cost *= NARROW_FACTOR;
-                if (nc.z[k] > cz && !links(cc, ck, nc, k))
+                if (nc.z[k] > cz && !links(cc, ck, nc, k, fObjStep))
                     cost *= CLIMB_FACTOR;
                 const int nid = node_id(nx, ny, k);
                 NodeRec& nr = S.Node(nid);

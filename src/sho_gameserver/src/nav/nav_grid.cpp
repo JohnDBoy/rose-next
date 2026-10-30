@@ -170,12 +170,13 @@ Grid::Load(const std::string& zoneDir, const std::string& baseDir, std::string& 
     }
     const unsigned short version = c.get<unsigned short>();
     const unsigned short cellCm = c.get<unsigned short>();
-    if ((version != 1 && version != 2) || cellCm != (unsigned short)CELL_CM) {
+    if ((version < 1 || version > 3) || cellCm != (unsigned short)CELL_CM) {
         err = path + ": unsupported version or cell size (re-bake with scripts/nav-bake.py)";
         return nullptr;
     }
     for (int i = 0; i < 4; ++i)
         c.get<short>(); // the bake's rules, for the record
+    const short objStep = version >= 3 ? c.get<short>() : (short)OBJ_STEP_CM; // version 3: the map's own
 
     // the bake's inputs: a changed map file means the grid no longer matches the map
     const unsigned short nInputs = c.get<unsigned short>();
@@ -207,6 +208,7 @@ Grid::Load(const std::string& zoneDir, const std::string& baseDir, std::string& 
     }
     const uint32_t nAnchors = c.get<uint32_t>();
     std::unique_ptr<Grid> grid(new Grid());
+    grid->m_fObjStep = objStep > 0 ? (float)objStep : OBJ_STEP_CM;
     grid->m_Anchors.resize(c.ok ? nAnchors : 0);
     for (Anchor& a: grid->m_Anchors) {
         a.x = c.get<float>();
@@ -503,7 +505,7 @@ Grid::LineWalk(float x0, float y0, float z0, float x1, float y1, float* pLastX, 
             if ((spans[k].flags & WALKABLE) != WALKABLE)
                 continue;
             const float d = fabsf(spans[k].z - cur.z);
-            if (d < bestD && StepLinks(cur, spans[k])) {
+            if (d < bestD && StepLinks(cur, spans[k], m_fObjStep)) {
                 best = k;
                 bestD = d;
             }

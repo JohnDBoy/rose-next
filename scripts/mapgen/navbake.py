@@ -45,6 +45,9 @@ Rules (each one decided in the plan; the numbers are the client avatar's):
      bars unwalkable cut the ship off. Zant's rails are 19-24 cm thick; Junon Polis' stone
      stairs, slabs 28 cm thick with 44 cm risers, stacked on a full-cell bottom step, were cut at
      the foot at 30 cm. Solid stairs, plank bridges and deck slabs never trip it.
+     3d. A sliver is not a floor, on maps listed in SLIVER_CM_BY_ZONE (2026-10-30): an object
+     floor whose up-facing surface spans less than that across its cell, in x or y, is not
+     walkable. The Starlight Lounge's stage stairs end 9 cm into a cell.
      3b. A step, not a ceiling (2026-10-29): when everything above a floor in that band lies at
      most 75 cm up, and an up-facing floor (the next tread) lies 15-75 cm up in its cell or a
      neighbour, the floor is walkable. A terrain floor only below a floor of level treads (the
@@ -69,7 +72,8 @@ Rules (each one decided in the plan; the numbers are the client avatar's):
      looser than the edge test, but it walks only floors the bake reached, so it cannot leak.
      With 135 on average heights, Goblin Cave B1 leaked out of its tunnels over a 7 m rock
      (2026-10-28): steep faces between a rock's facets leave a gap.
-     The object step was 45 cm until 2026-10-29; the B3 stairs' risers are up to 53 cm.
+     The object step was 45 cm until 2026-10-29; the B3 stairs' risers are up to 53 cm. A map
+     may have its own (OBJ_STEP_BY_ZONE, written into its grid): the Starlight Lounge's 65.
      Terrain: the client refuses every move but downhill on a 2.5 m quad of 54 degrees or more
      (its slope from the south-west corner along both edges, CMAP::GetNormal), so a link out of
      such a quad must head downhill, both ways. Bilinear heights 1 m apart hid it: the Gorge of
@@ -108,6 +112,16 @@ CELL = 100                               # cm per cell
 TC = lnav.TILE_CELLS                     # cells per chunk side
 STEP_CM = 135.0
 OBJ_STEP_CM = 60.0
+# A map's own object step, by LIST_ZONE row, written into its grid (lnav version 3) for the server.
+# The Starlight Lounge (an import from China ROSE) has stairways onto its hall that start with
+# 61-64 cm risers, which players climb; 65 for every map reopened boulder and wall tops elsewhere
+# (2026-10-30).
+OBJ_STEP_BY_ZONE = {164: 65.0}
+# A map's own minimum floor width, by LIST_ZONE row (3d): an object floor whose up-facing surface
+# spans less than this across its cell, in x or in y, is not walkable. The Starlight Lounge's
+# small stage stairs end 9 cm into a cell, which the bake took as a whole stair cell: paths
+# turned there, 41 cm past the last step, and the client lost the stairs (2026-10-30).
+SLIVER_CM_BY_ZONE = {164: 20.0}
 BODY_LO, BODY_HI = 30.0, 180.0
 STEP_LOW_MAX = 75.0                      # 3b: what lies at most this high is a step...
 TREAD_MIN = 15.0                         # ...when a tread lies this much (to STEP_LOW_MAX) higher
@@ -274,6 +288,9 @@ class Bake:
 
 def bake(data_dir, row, log=print):
     name, zon_path, zdir, deco_rel, cnst_rel = zone_row(data_dir, row)
+    obj_step = OBJ_STEP_BY_ZONE.get(row, OBJ_STEP_CM)
+    if obj_step != OBJ_STEP_CM:
+        log("  this map's object step: %.0f cm (OBJ_STEP_BY_ZONE)" % obj_step)
     folder = os.path.basename(zdir)
     field, (x0, y0) = prefab._zone_field(zdir)
     nty, ntx = (field.shape[0] - 1) // 64, (field.shape[1] - 1) // 64
@@ -380,7 +397,7 @@ def bake(data_dir, row, log=print):
     t_z = tz[valid].copy()
     t_top = t_z.copy()             # the top of the surface merged into each terrain floor (3.)
     obj_cell, obj_z, obj_up, obj_ho = [], [], [], []
-    obj_tread, obj_lo, obj_hi, obj_ugap, obj_bar = [], [], [], [], []
+    obj_tread, obj_lo, obj_hi, obj_ugap, obj_bar, obj_span = [], [], [], [], [], []
     obj_blo, obj_bhi = np.zeros((4, 0)), np.zeros((4, 0))
     if len(s_idx):
         brk = np.r_[True, (sc[1:] != sc[:-1]) | (sz[1:] - sz[:-1] > CLUSTER_GAP)]
@@ -466,6 +483,12 @@ def bake(data_dir, row, log=print):
         obj_cell, obj_z, obj_up, obj_ho = ccell[above], cz[above], cup[above], cho[above]
         obj_tread, obj_lo, obj_hi, obj_ugap = ctread[above], clo[above], chi[above], cugap[above]
         obj_bar = cbar[above]
+        # 3d: how far its up-facing surface spans across the cell, the narrower of x and y (cm)
+        upx = np.where(isupk, px, np.nan)
+        upy = np.where(isupk, py, np.nan)
+        cspan = np.minimum(np.fmax.reduceat(upx, starts) - np.fmin.reduceat(upx, starts),
+                           np.fmax.reduceat(upy, starts) - np.fmin.reduceat(upy, starts))
+        obj_span = np.nan_to_num(cspan, nan=0.0)[above]
         obj_blo, obj_bhi = blo[:, above], bhi[:, above]
         cluster_owner[above] = n_terrain + np.arange(int(above.sum()))
         owner[s_idx] = cluster_owner[cid]
@@ -485,6 +508,7 @@ def bake(data_dir, row, log=print):
     nlo, nhi = zr - nbelow, zr + nabove
     nugap = np.r_[np.zeros(n_terrain), np.asarray(obj_ugap, np.float64)]
     nbar = np.r_[np.zeros(n_terrain, bool), np.asarray(obj_bar, bool)]
+    nspan = np.r_[np.full(n_terrain, float(CELL)), np.asarray(obj_span, np.float64)]
     # the surface along each cell edge (a terrain floor: its height)
     nblo = np.concatenate([np.tile(zr[:n_terrain], (4, 1)), obj_blo], axis=1)
     nbhi = np.concatenate([np.tile(zr[:n_terrain], (4, 1)), obj_bhi], axis=1)
@@ -510,7 +534,7 @@ def bake(data_dir, row, log=print):
     obst = ~heightonly
     okey = cell[obst] * KEYM + (z[obst] + ZOFF)                     # sorted: cell, then z
     top = np.r_[t_top, nhi[n_terrain:]]
-    body_lo = nz + np.minimum(np.maximum(top - nz, 0.0), OBJ_STEP_CM) + BODY_LO
+    body_lo = nz + np.minimum(np.maximum(top - nz, 0.0), obj_step) + BODY_LO
     nkey_lo = ncell * KEYM + (body_lo + ZOFF)
     nkey_hi = ncell * KEYM + (nz + BODY_HI + ZOFF)
     total = np.searchsorted(okey, nkey_hi, "right") - np.searchsorted(okey, nkey_lo, "right")
@@ -569,6 +593,11 @@ def bake(data_dir, row, log=print):
         walk[ci[tread]] = True
         log("  floors made walkable by the step rule (3b): %d" % int(tread.sum()))
     log("  floors that are a bar, linked to no terrain floor (3c): %d" % int((walk & nbar).sum()))
+    sliver = SLIVER_CM_BY_ZONE.get(row)
+    if sliver:
+        cut = walk & nup & (nspan < sliver)
+        log("  floors under %.0f cm across their cell, not walkable (3d, this map): %d" % (sliver, int(cut.sum())))
+        walk &= ~cut
 
     ea, eb = [], []
     for dy, dx in ((0, 1), (1, 0)):
@@ -582,7 +611,7 @@ def bake(data_dir, row, log=print):
                 na, nb = table[aa, k1], table[bb, k2]
                 m = (na >= 0) & (nb >= 0)
                 na, nb = na[m], nb[m]
-                step = np.where((nterrain[na] | nho[na]) & (nterrain[nb] | nho[nb]), STEP_CM, OBJ_STEP_CM)
+                step = np.where((nterrain[na] | nho[na]) & (nterrain[nb] | nho[nb]), STEP_CM, obj_step)
                 dz = np.abs(zr[na] - zr[nb])            # as stored: the server sees these
                 # a ramp or a flight steeper than the object step (Muris' great stairs, 78 cm a
                 # metre): along the edge the two cells share, the higher floor's surface starts
@@ -590,7 +619,7 @@ def bake(data_dir, row, log=print):
                 # with a steep face between them, and Goblin Cave B1 leaked out of its tunnels
                 ja, jb = (1, 0) if dx else (3, 2)          # a's east / north edge, b's west / south
                 gap = np.where(zr[na] <= zr[nb], nblo[jb, nb] - nbhi[ja, na], nblo[ja, na] - nbhi[jb, nb])
-                ramp = (gap <= OBJ_STEP_CM) & (dz <= STEP_CM) & (dz > OBJ_STEP_CM) & (step < STEP_CM)
+                ramp = (gap <= obj_step) & (dz <= STEP_CM) & (dz > obj_step) & (step < STEP_CM)
                 # ...and from the ground, whose higher floor rises continuously (Zant's fences: two
                 # rails, a gap between; between object floors, stairs with 50 cm risers stay)
                 lower_t = np.where(zr[na] <= zr[nb], nterrain[na], nterrain[nb])
@@ -670,7 +699,8 @@ def bake(data_dir, row, log=print):
     complex_cell[ncell[hazard]] = True
 
     nav = lnav.Lnav(cell_cm=CELL, step_cm=int(STEP_CM), body_lo_cm=int(BODY_LO),
-                    body_hi_cm=int(BODY_HI), hazard_cm=int(HAZARD_CM), inputs=inputs)
+                    body_hi_cm=int(BODY_HI), hazard_cm=int(HAZARD_CM), obj_step_cm=int(obj_step),
+                    inputs=inputs)
     tile_of = (ncell // NX) // TC * ntx + (ncell % NX) // TC
     korder = np.nonzero(keep)[0]
     korder = korder[np.lexsort((nz[korder], ncell[korder], tile_of[korder]))]

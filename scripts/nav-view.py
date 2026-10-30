@@ -132,6 +132,7 @@ PAGE = r"""<!DOCTYPE html>
   --height-high: #123e8a;
   --mark: #d9480f;
   --water: #3d8fd6;
+  --mark2: #6b2fb3;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) .viz-root {
@@ -147,6 +148,7 @@ PAGE = r"""<!DOCTYPE html>
     --height-high: #a8cbf7;
     --mark: #ff8a4c;
     --water: #4aa3ef;
+    --mark2: #b48cf2;
   }
 }
 html, body { margin: 0; height: 100%; }
@@ -189,6 +191,7 @@ const D = __DATA__;            // flat: x, y, z (m), kind
 const NAMES = __NAMES__;
 const BY_HEIGHT = __BY_HEIGHT__;   // colour walkable floors by height (one hue, light = low)
 const MARKS = __MARKS__;           // regen points: x, y, z (m), drawn on top
+const MARKS2 = __MARKS2__;         // --mark spots (a path's corners): x, y, z (m), joined in order
 const N = D.length / 4;
 const root = document.querySelector('.viz-root');
 const css = n => getComputedStyle(root).getPropertyValue(n).trim();
@@ -231,6 +234,9 @@ if (BY_HEIGHT)   // walkable floors on the height scale; not walkable stays grey
 if (MARKS.length)
   document.getElementById('legend').insertAdjacentHTML('beforeend',
     `<span><i class="dot"></i>regen point (${MARKS.length / 3})</span>`);
+if (MARKS2.length)
+  document.getElementById('legend').insertAdjacentHTML('beforeend',
+    `<span><i class="dot" style="background:var(--mark2)"></i>marked spots, in order (${MARKS2.length / 3})</span>`);
 
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 let yaw = __YAW__, pitch = __PITCH__, zoom = 1, W = 0, H = 0, dpr = 1;
@@ -323,6 +329,22 @@ function draw() {
     ctx.beginPath(); ctx.arc(px, py, 5.5, 0, 2 * Math.PI);
     ctx.fillStyle = MARK; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = SURFACE; ctx.stroke();
+  }
+  // marked spots: a line through them in order, then the dots
+  const m2 = css('--mark2'), pts2 = [];
+  for (let j = 0; j < MARKS2.length; j += 3) {
+    const x = MARKS2[j], y = MARKS2[j + 1], z = MARKS2[j + 2] - zMid;
+    const rx = x * cy - y * sy, ry = x * sy + y * cy;
+    pts2.push([W / 2 + offX + rx * scale, H / 2 + offY - (ry * cp + z * sp) * scale]);
+  }
+  if (pts2.length > 1) {
+    ctx.beginPath(); ctx.moveTo(pts2[0][0], pts2[0][1]);
+    for (const q of pts2.slice(1)) ctx.lineTo(q[0], q[1]);
+    ctx.lineWidth = 2; ctx.strokeStyle = m2; ctx.stroke();
+  }
+  for (const q of pts2) {
+    ctx.beginPath(); ctx.arc(q[0], q[1], 5.5, 0, 2 * Math.PI);
+    ctx.fillStyle = m2; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = SURFACE; ctx.stroke();
   }
 }
 function inQuad(i, mx, my) {
@@ -418,6 +440,8 @@ def main():
                     help="colour walkable floors by height (light = low) instead of by kind; not walkable stays grey")
     ap.add_argument("--spawns", action="store_true", help="mark the regen points (the bake's anchors)")
     ap.add_argument("--water", action="store_true", help="draw the zone's water surfaces over the floors")
+    ap.add_argument("--mark", action="append", default=[], metavar="X,Y,Z",
+                    help="mark a spot, world metres (repeatable): the corners /nav path whispers")
     ap.add_argument("--pitch", type=float, default=0.75,
                     help="opening camera tilt, radians: 0 looks straight down, 1.55 from the side (default 0.75)")
     ap.add_argument("--data", default=os.path.join(ROOT, "data"))
@@ -451,6 +475,10 @@ def main():
         for an in nav.anchors:
             if (an.x - a.x * 100) ** 2 + (an.y - a.y * 100) ** 2 <= (a.radius * 100) ** 2:
                 marks += [round((an.x - a.x * 100) / 100, 1), round((an.y - a.y * 100) / 100, 1), round(an.z / 100, 2)]
+    marks2 = []
+    for m in a.mark:
+        v = [float(t) for t in m.split(",")]
+        marks2 += [round(v[0] - a.x, 1), round(v[1] - a.y, 1), round(v[2] if len(v) > 2 else 0.0, 2)]
     flat = []
     for x, y, z, k in pts:
         flat += [round(x, 1), round(y, 1), round(z, 2), k]
@@ -460,6 +488,7 @@ def main():
             .replace("__RADIUS__", str(a.radius)).replace("__CX__", str(a.x)).replace("__CY__", str(a.y))
             .replace("__BY_HEIGHT__", "true" if a.by_height else "false")
             .replace("__MARKS__", json.dumps(marks))
+            .replace("__MARKS2__", json.dumps(marks2))
             .replace("__YAW__", str(a.yaw)).replace("__PITCH__", str(max(0.05, min(1.55, a.pitch)))))
     with open(stem + ".html", "w", encoding="utf-8") as f:
         f.write(page)

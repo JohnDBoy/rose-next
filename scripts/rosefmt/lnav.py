@@ -17,6 +17,7 @@ Layout, little endian:
 
     "LNAV"  u16 version  u16 cell_cm
     i16 step_cm  i16 body_lo_cm  i16 body_hi_cm  i16 hazard_cm   (bake rules, for the record)
+    i16 obj_step_cm                                          (version 3: the map's object step)
     u16 n_inputs   { u8 len, name bytes, u32 crc32 } * n     (files the bake read)
     u16 n_tiles    { i16 sx, i16 sy, u32 offset, u32 size } * n
     u32 n_anchors  { f32 x, f32 y, i16 z, u16 flags } * n     (regen points, resolved floor)
@@ -45,6 +46,11 @@ its cell (0 on the terrain). A ramp or a flight of steps rises through its cell,
 its floors can be 78 cm apart (Muris' great stairs) yet joined: the server links object
 floors within 60 cm, or within 135 when the higher one starts within 60 of the lower one's
 top (Nav::StepLinks).
+
+obj_step_cm (version 3, 2026-10-30): that 60 cm, per map. The server links this map's floors
+with it (Grid::ObjStepCm); older versions read as 60. The bake sets it from OBJ_STEP_BY_ZONE:
+the Starlight Lounge's stairways start with 61-64 cm risers, and raising it for every map
+reopened boulder and wall tops elsewhere.
 """
 
 from dataclasses import dataclass, field
@@ -55,7 +61,8 @@ import numpy as np
 from .binio import FormatError, Reader, Writer
 
 MAGIC = b"LNAV"
-VERSION = 2
+VERSION = 3
+OBJ_STEP_DEFAULT = 60
 TILE_CELLS = 160
 TILE_VERTS = 65
 NO_HEIGHT = -32768
@@ -96,6 +103,7 @@ class Lnav:
     body_lo_cm: int = 30
     body_hi_cm: int = 180
     hazard_cm: int = 300
+    obj_step_cm: int = OBJ_STEP_DEFAULT
     inputs: List[Tuple[bytes, int]] = field(default_factory=list)
     tiles: Dict[Tuple[int, int], Tile] = field(default_factory=dict)
     anchors: List[Anchor] = field(default_factory=list)
@@ -171,7 +179,7 @@ def build(nav):
     w.raw(MAGIC)
     w.u16(VERSION)
     w.u16(nav.cell_cm)
-    for v in (nav.step_cm, nav.body_lo_cm, nav.body_hi_cm, nav.hazard_cm):
+    for v in (nav.step_cm, nav.body_lo_cm, nav.body_hi_cm, nav.hazard_cm, nav.obj_step_cm):
         w.i16(v)
     w.u16(len(nav.inputs))
     for name, crc in nav.inputs:
@@ -207,10 +215,11 @@ def parse(data):
     if r.raw(4) != MAGIC:
         raise FormatError("not an LNAV file")
     version = r.u16()
-    if version not in (1, VERSION):
-        raise FormatError("LNAV version %d, expected 1 or %d" % (version, VERSION))
+    if version not in (1, 2, VERSION):
+        raise FormatError("LNAV version %d, expected 1 to %d" % (version, VERSION))
     nav = Lnav(cell_cm=r.u16())
     nav.step_cm, nav.body_lo_cm, nav.body_hi_cm, nav.hazard_cm = r.i16(), r.i16(), r.i16(), r.i16()
+    nav.obj_step_cm = r.i16() if version >= 3 else OBJ_STEP_DEFAULT
     for _ in range(r.u16()):
         name = r.bstr()
         nav.inputs.append((name, r.u32()))

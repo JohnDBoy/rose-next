@@ -14,7 +14,8 @@ constexpr float STEP_CM = 135.f;
 /// The riser an object floor allows between neighbouring cells: the client stops the avatar on a
 /// mesh face steeper than 54 degrees that rises above about 0.7 of its centre of mass over the
 /// feet (scripts/mapgen/navbake.py, rule 4). 45 cm until 2026-10-29; 60 lets ordinary-mesh stairs
-/// (risers up to 53 cm) link. Keep it equal to the bake's.
+/// (risers up to 53 cm) link. Keep it equal to the bake's. A map's grid may carry its own (lnav
+/// version 3, the bake's OBJ_STEP_BY_ZONE): Grid::ObjStepCm.
 constexpr float OBJ_STEP_CM = 60.f;
 
 enum SpanFlag : unsigned char {
@@ -42,15 +43,15 @@ struct Span {
 /// ramp or a flight steeper than that (Muris' great stairs: 78 cm a metre), within STEP_CM when
 /// the higher floor starts within a riser of the lower one's top.
 inline bool
-StepLinks(const Span& a, const Span& b) {
+StepLinks(const Span& a, const Span& b, float objStep = OBJ_STEP_CM) {
     constexpr unsigned char GENTLE = SPAN_TERRAIN | SPAN_STAIRS;
     const float dz = a.z > b.z ? a.z - b.z : b.z - a.z;
     if ((a.flags & GENTLE) && (b.flags & GENTLE))
         return dz <= STEP_CM;
-    if (dz <= OBJ_STEP_CM)
+    if (dz <= objStep)
         return true;
     const float gap = a.z <= b.z ? b.lo - a.hi : a.lo - b.hi;
-    return dz <= STEP_CM && gap <= OBJ_STEP_CM;
+    return dz <= STEP_CM && gap <= objStep;
 }
 
 /// A zone's layered walk grid, <ZONE FOLDER>.lnav, baked by scripts/nav-bake.py (format:
@@ -103,6 +104,10 @@ public:
     /// not a baked regen point.
     float AnchorZ(float x, float y) const;
 
+    /// This map's object step (OBJ_STEP_CM unless its grid says otherwise: the Starlight Lounge's
+    /// stairways start with 61-64 cm risers).
+    float ObjStepCm() const { return m_fObjStep; }
+
     size_t Bytes() const { return m_Bytes; }
     int TileCount() const { return m_iTiles; }
 
@@ -123,6 +128,7 @@ private:
     Tile* m_pTiles[64][64];
     int m_iTiles = 0;
     size_t m_Bytes = 0;
+    float m_fObjStep = OBJ_STEP_CM;
 };
 
 } // namespace Nav
