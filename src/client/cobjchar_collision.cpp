@@ -667,14 +667,16 @@ CObjCHAR_Collision::CollisionCallback_Avatar(HNODE hNodeIn)
 }
 
 //--------------------------------------------------------------------------------
+/// Keeps "not moveable" parts, as the avatar's own foot collision does. This used to drop them,
+/// but CollectContact asks only of nodes with user data, and a map object carries it on its root
+/// part alone: the test dropped a root and kept its flagged children. The Shady Jungle stump
+/// (LIST_DECO_EJ 161, every part level 12) has its ramp in child parts and its top in the root,
+/// so another player walked the ramp on everyone's screen and fell through the top to the ground
+/// (2026-10-31); the rope bridges (98, one root part) did the same.
 bool
 CObjCHAR_Collision::CollisionCallback_Other(HNODE hNodeIn)
 //--------------------------------------------------------------------------------
 {
-    int collisionLevel = ::getCollisionLevel(hNodeIn);
-    if (ZZ_IS_NOTMOVEABLE(collisionLevel)) {
-        return false;
-    }
     return true;
 }
 

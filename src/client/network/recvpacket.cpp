@@ -1606,6 +1606,17 @@ CRecvPACKET::Recv_gsv_AVT_CHAR() {
     PosCUR.z = 0.0f;
 
     if (g_pObjMGR->Add_AvtCHAR(pNewAVT, PosCUR, m_pRecvPacket->m_gsv_AVT_CHAR.m_btCharRACE)) {
+        // Create puts the player on GetHeightTop, which skips "not moveable" parts: someone
+        // standing on the Shady Jungle stump or a rope bridge came into view on the ground under
+        // it. The server sends the floor it walks the player on (-32768: none); set before
+        // Recv_tag_ADD_CHAR, which builds a rider's cart from the rider's position, and hinted
+        // to the first height update, which follows the floor from there.
+        if (-32768 != m_pRecvPacket->m_gsv_AVT_CHAR.m_nPosZ) {
+            D3DXVECTOR3 vPos = pNewAVT->Get_CurPOS();
+            vPos.z = (float)m_pRecvPacket->m_gsv_AVT_CHAR.m_nPosZ;
+            pNewAVT->ResetCUR_POS(vPos);
+            pNewAVT->SetResetPosZ(true, vPos.z);
+        }
         if (this->Recv_tag_ADD_CHAR(pNewAVT->Get_INDEX(), &(m_pRecvPacket->m_gsv_AVT_CHAR))) {
             this->Recv_tag_ADJ_STATUS(nOffset, &(m_pRecvPacket->m_gsv_AVT_CHAR));
         }

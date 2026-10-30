@@ -103,6 +103,10 @@ CObjAVT::Make_gsv_ADD_OBJECT(classPACKET* pCPacket) {
     pCPacket->m_gsv_AVT_CHAR.m_btLEVEL = this->GetCur_LEVEL();
 
     pCPacket->m_gsv_AVT_CHAR.pvp_state = this->pvp_state;
+    // The floor the server walks this player on (cm), -32768 without a grid: someone who comes
+    // into view standing on a deck is drawn on it, not on the ground under it. The field was
+    // never filled before, so the client read nothing from it; both ship together.
+    pCPacket->m_gsv_AVT_CHAR.m_nPosZ = (short)this->Nav_Z();
 
     /*
     if ( this->m_btRideMODE )

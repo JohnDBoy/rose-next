@@ -402,7 +402,13 @@ A monster, a summon or an NPC the server gave a floor (`gsv_MOB_CHAR` / `gsv_NPC
 - `SetServerZ` re-seeds it on a spawn, and on a move or stop when none is held, when it is
   stale (1 s unfollowed) or more than 3 m off.
 - No floor (a client-only puppet, `[nav] send_z = 0`): exactly the old behaviour. Avatars are
-  untouched.
+  untouched: they follow their own collision.
+- **Other players** use `AdjustHeight_Other`, the avatar's foot test without the front spheres.
+  Its contact filter (`CollisionCallback_Other`) keeps "not moveable" parts since 2026-10-31: it
+  used to drop them, but only a map object's root part carries user data, so it dropped roots
+  only, and a player on the Shady stump top (root) or a rope bridge fell to the ground on
+  everyone else's screen while the ramp (children) looked fine. A player coming into view is
+  placed on `gsv_AVT_CHAR.m_nPosZ`, the server's walked floor (-32768 = GetHeightTop as before).
 - **Client and server ship together:** the spawn packet gained a field.
 - The move target's z stays the 0 it always was. The floor rides in the slot only to be read
   by `SetServerZ`.
