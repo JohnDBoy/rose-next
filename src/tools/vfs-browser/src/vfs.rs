@@ -154,7 +154,8 @@ impl Vfs {
                         out.push(VfsEntry {
                             vfs_index: i,
                             path: f.filepath.to_string_lossy().replace('\\', "/"),
-                            offset: f.offset as u64,
+                            //offset: f.offset as u64,
+                            offset: (f.offset as u32) as u64, //JDoeBoy Fix for negative offsets in some files
                             size: f.size as u64,
                             block_size: f.block_size as u64,
                             is_deleted: f.is_deleted,
