@@ -2,14 +2,12 @@
 #define _ROSE_RML_STORAGE_H_
 
 /**
- * UI2 storage: replaces CBankDlg ( DLG_TYPE_BANK ) and, for zuly,
- * CBankWindowDlg ( DLG_TYPE_BANKWINDOW, the amount box ).
+ * UI2 storage: presents character-owned and account-owned banks through the
+ * existing DLG_TYPE_BANK view and replaces CBankWindowDlg for zuly input.
  *
- * A VIEW over the hidden CBankDlg, which observes CBank: its slots hold the
- * icons, its drag item takes a stored item to the bag ( asking how many ),
- * and its current tab is kept in step with this window's -- the deposit
- * command ( CTCmdMoveItemInv2Bank ) asks CBankDlg::GetCurrentTab() whether
- * the item goes to the Platinum tab.
+ * The personal bank remains a view over the hidden CBankDlg, which observes
+ * CBank. The active storage type is server-selected and the server owns the
+ * account bank state. This UI intentionally has no slot-rearrangement action.
  *
  * - an item dragged from the bag onto the window is stored ( the window is
  *   drop-target DLG_TYPE_BANK ); the bag's tooltips show the storage fee;
@@ -90,6 +88,7 @@ private:
 
     void SetVisible(bool bVisible);
     void SetTab(int iTab);
+    void SetStorageType(int iType);
     void Sample();
     void OnPress(int iIndex);
     void OnUse(int iIndex);
@@ -120,6 +119,7 @@ private:
     int m_iDropType; ///< DLG_TYPE_BANK
     Rml::String m_strTitle;
     int m_iTab;
+    int m_iStorageType;
     std::vector<TabVM> m_Tabs;
     std::vector<CellVM> m_Cells;
     Rml::String m_strMoney;

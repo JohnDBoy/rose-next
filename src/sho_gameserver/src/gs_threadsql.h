@@ -2,6 +2,8 @@
 
 #include "CSqlTHREAD.h"
 
+#include <set>
+
 #pragma pack(push, 1)
 struct tagBasicETC {
     tPOINTF m_PosSTART;
@@ -49,6 +51,7 @@ private:
     CCriticalSection m_csUserLIST;
     classDLLIST<tagSqlUSER> m_AddUserLIST;
     classDLLIST<tagSqlUSER> m_RunUserLIST;
+    std::set<int32_t> m_AccountStorageLocks;
 
     DWORD m_dwCurTIME;
 
@@ -57,6 +60,7 @@ private:
 
     bool Proc_cli_SELECT_CHAR(tagQueryDATA* pSqlPACKET);
     bool Proc_cli_BANK_LIST_REQ(tagQueryDATA* pSqlPACKET);
+    bool ReleaseAccountStorageLock(classUSER* user);
 
     void Execute();
 

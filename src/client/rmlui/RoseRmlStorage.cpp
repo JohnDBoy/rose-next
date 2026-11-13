@@ -62,7 +62,8 @@ public:
         if (m_iNumber <= 0 || g_pAVATAR == NULL || g_pNet == NULL)
             return true;
         if (m_iNumber <= g_pAVATAR->Get_MONEY())
-            g_pNet->Send_cli_MOVE_ZULY_INV2BANK(m_iNumber);
+            g_pNet->Send_cli_MOVE_ZULY_INV2BANK(
+                m_iNumber, CBank::GetInstance().IsAccountStorage());
         else
             g_itMGR.OpenMsgBox(STR_BANK_SAVE_FAIL);
         return true;
@@ -75,7 +76,8 @@ public:
         if (m_iNumber <= 0 || g_pNet == NULL)
             return true;
         if (m_iNumber <= CBank::GetInstance().GetMoney())
-            g_pNet->Send_cli_MOVE_ZULY_BANK2INV(m_iNumber);
+            g_pNet->Send_cli_MOVE_ZULY_BANK2INV(
+                m_iNumber, CBank::GetInstance().IsAccountStorage());
         else
             g_itMGR.OpenMsgBox(STR_BANK_WITHDRAW_FAIL);
         return true;
@@ -136,6 +138,7 @@ RoseRmlStorage::RoseRmlStorage():
     m_iPressY(0),
     m_iDropType(DLG_TYPE_BANK),
     m_iTab(0),
+    m_iStorageType(0),
     m_strMoney("0"),
     m_bPlatinumLocked(false) {
     m_pCmdOpenWithdrawItem->SetCommand(m_pCmdWithdrawItem);
@@ -186,6 +189,7 @@ RoseRmlStorage::Initialise(Rml::Context* pContext, const std::string& strAssetDi
     constructor.Bind("drop_type", &m_iDropType);
     constructor.Bind("title", &m_strTitle);
     constructor.Bind("tab", &m_iTab);
+    constructor.Bind("storage_type", &m_iStorageType);
     constructor.Bind("tabs", &m_Tabs);
     constructor.Bind("cells", &m_Cells);
     constructor.Bind("money", &m_strMoney);
@@ -198,6 +202,11 @@ RoseRmlStorage::Initialise(Rml::Context* pContext, const std::string& strAssetDi
         [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
             if (!args.empty())
                 SetTab(args[0].Get<int>());
+        });
+    constructor.BindEventCallback("set_storage_type",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args) {
+            if (!args.empty())
+                SetStorageType(args[0].Get<int>());
         });
     /// press(index)
     constructor.BindEventCallback("press",
@@ -272,8 +281,12 @@ void
 RoseRmlStorage::SetOpen(bool bOpen) {
     if (bOpen != m_bOpen)
         RoseUi2::PlayWindowSound(DLG_TYPE_BANK, bOpen);
-    if (bOpen && !m_bOpen)
+    if (bOpen && !m_bOpen) {
+        m_iStorageType = 0;
+        CBank::GetInstance().SetAccountStorage(false);
+        m_Model.DirtyVariable("storage_type");
         SetTab(0); /// as CBankDlg::Show
+    }
     m_bOpen = bOpen;
     m_iPressIndex = -1;
     if (bOpen)
@@ -310,6 +323,23 @@ RoseRmlStorage::SetTab(int iTab) {
     Sample();
 }
 
+void
+RoseRmlStorage::SetStorageType(int iType) {
+    if ((iType != 0 && iType != 1) || g_pNet == NULL)
+        return;
+
+    m_iStorageType = iType;
+    m_iPressIndex = -1;
+    CBank::GetInstance().SetAccountStorage(iType == 1);
+    CBank::GetInstance().ClearItems();
+    m_Model.DirtyVariable("storage_type");
+    SetTab(0);
+    if (g_itMGR.IsDlgOpened(DLG_TYPE_N_INPUT))
+        g_itMGR.CloseDialog(DLG_TYPE_N_INPUT);
+    g_pNet->Send_cli_BANK_LIST_REQ(
+        iType == 1 ? BANK_REQ_ACCOUNT_OPEN : BANK_REQ_OPEN, NULL);
+}
+
 /// --- sampling -------------------------------------------------------------------
 
 void
@@ -318,10 +348,11 @@ RoseRmlStorage::Sample() {
     if (pDlg == NULL)
         return;
 
-    /// Title and labels in the game's words ( F_STR_BANK_TITLE: "%s's Storage",
-    /// the account's ).
+    /// Personal storage is titled with the character; account storage with the account.
+    const char* owner = m_iStorageType == 1 ? g_GameDATA.username.c_str()
+                                            : (g_pAVATAR ? g_pAVATAR->Get_NAME() : "");
     const Rml::String strTitle =
-        RoseRmlText::FromGame(CStr::Printf(F_STR_BANK_TITLE, g_GameDATA.username.c_str()));
+        RoseRmlText::FromGame(CStr::Printf(F_STR_BANK_TITLE, owner));
     if (strTitle != m_strTitle) {
         m_strTitle = strTitle;
         m_Model.DirtyVariable("title");
@@ -341,8 +372,9 @@ RoseRmlStorage::Sample() {
     for (int t = 0; t < g_iPageCount; ++t) {
         TabVM vm;
         vm.index = t;
-        vm.name = (t == kPlatinumTab) ? RoseRmlText::FromGame(STR_PLATINUM)
-                                      : RoseRmlText::FromGame(CStr::Printf("%s%d", STR_BANK, t + 1));
+        vm.name = (m_iStorageType == 0 && t == kPlatinumTab)
+            ? RoseRmlText::FromGame(STR_PLATINUM)
+            : RoseRmlText::FromGame(CStr::Printf("%s%d", STR_BANK, t + 1));
         vm.count = 0;
         for (int i = 0; i < g_iSlotCountPerPage; ++i) {
             CSlot* pSlot = pDlg->GetSlot(t, i);
@@ -376,7 +408,7 @@ RoseRmlStorage::Sample() {
 
     /// Only Platinum members can store on the Platinum tab
     /// ( CTCmdMoveItemInv2Bank refuses the rest ); say so on the tab.
-    const bool bLocked = m_iTab == kPlatinumTab
+    const bool bLocked = m_iStorageType == 0 && m_iTab == kPlatinumTab
         && CGame::GetInstance().GetPayType() != CGame::PAY_PLATINUM;
     if (bLocked != m_bPlatinumLocked) {
         m_bPlatinumLocked = bLocked;

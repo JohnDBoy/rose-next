@@ -1344,6 +1344,7 @@ struct cli_MOVE_ITEM: public t_PACKETHEADER {
 #ifdef __INC_PLATINUM
     BYTE m_btUseSpecialTAB; // 값이 1이면 .. 프레티넘 서비스로 추가된 탭에 아이템 넣기..
 #endif
+    BYTE m_btStorageTYPE; // 0 personal storage, 1 account storage
 };
 
 #define MOVE_ITEM_TYPE_INV2BANK 0x00 // ITEM :: Inventory --> Bank
@@ -1362,6 +1363,8 @@ struct gsv_MOVE_ITEM: public t_PACKETHEADER {
 
 #define MOVE_ZULY_TYPE_INV2BANK 0x10 // ZULY :: Inventory --> Bank
 #define MOVE_ZULY_TYPE_BANK2INV 0x11 // ZULY :: Bank --> Inventory
+#define MOVE_ZULY_TYPE_INV2ACCOUNT_BANK 0x12
+#define MOVE_ZULY_TYPE_ACCOUNT_BANK2INV 0x13
 struct cli_MOVE_ZULY: public t_PACKETHEADER {
     BYTE m_btMoveTYPE;
     __int64 m_i64MoveZuly; // 이동 할 줄리량
@@ -1373,6 +1376,7 @@ struct gsv_MOVE_ZULY: public t_PACKETHEADER {
 
 #define BANK_REQ_OPEN 0x00 // 창고 열때..
 #define BANK_REQ_CHANGE_PASSWORD 0x01 // 창고 비번 바꿀때...반드시 창고가 열려 있는 상태에서...
+#define BANK_REQ_ACCOUNT_OPEN 0x02
 struct cli_BANK_LIST_REQ: public t_PACKETHEADER {
     BYTE m_btREQ;
     char m_szPassword[0];
@@ -1385,6 +1389,9 @@ struct cli_BANK_LIST_REQ: public t_PACKETHEADER {
 #define BANK_REPLY_INVALID_PASSWORD 0x04 // 창고 비번이 틀림
 #define BANK_REPLY_CLEARED_PASSWORD 0x05 // 창고 비번 삭제됨
 #define BANK_REPLY_PLATINUM 0x06 // 플레티넘 창고 내용( BANK_REPLY_INIT_DATA뒤에 이어서 전송됨 )
+#define BANK_REPLY_ACCOUNT_INIT_DATA 0x07
+#define BANK_REPLY_ACCOUNT_ERROR 0x08
+#define BANK_REPLY_ACCOUNT_APPEND_DATA 0x09
 struct gsv_BANK_LIST_REPLY: public t_PACKETHEADER {
     BYTE m_btREPLY;
     BYTE m_btItemCNT;

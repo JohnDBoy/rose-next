@@ -220,7 +220,13 @@ to 12 ms, a tab switch from 12-25 ms to nothing measurable):
 (`SetCurrentTab`) -- the same shape as the trade's movement lock: classic code that asks a hidden
 dialog for its state must get UI2's answer. The walk-away close ran only while the classic dialog
 was visible and is UI2's now. Zuly goes through the UI2 quantity popup; `CBankWindowDlg` is never
-shown. Double-click takes an item out (the classic icon had no command).
+shown. double-click takes an item out (the classic icon had no command). The storage selector is available
+in UI2 and the classic bank (as the trailing mode label on its tab strip); it distinguishes personal
+storage (character-owned, including its existing Platinum tab) from
+account storage (account-owned, 160 slots for all accounts, independent Zuly). Account storage
+uses the same 40-slot pages but does not apply the personal Platinum restriction. The server
+loads and saves account storage separately; the client packet never identifies the owning
+account. No slot sorting, swaps, or transfers between the two storages are exposed.
 
 **Personal shops** (2026-09-26): visiting one (`RoseRmlAvatarStore`, `DLG_TYPE_AVATARSTORE`) and
 your own (`RoseRmlPrivateStore`, `DLG_TYPE_PRIVATESTORE`, with the price form `RoseRmlGoodsForm`,

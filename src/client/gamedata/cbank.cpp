@@ -10,6 +10,7 @@
 
 CBank::CBank(void) {
     m_Money = 0;
+    m_bAccountStorage = false;
 }
 
 CBank::~CBank(void) {}

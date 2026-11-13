@@ -204,6 +204,7 @@ CTCmdMoveItemInv2Bank::Exec(CTObject* pObj) {
         return true;
     }
 
+    const bool bAccountStorage = CBank::GetInstance().IsAccountStorage();
     bool bPlatinum = false;
     int iSlotNum = 0;
     BOOL bFullFirstTab = FALSE;
@@ -215,7 +216,7 @@ CTCmdMoveItemInv2Bank::Exec(CTObject* pObj) {
 
         bFullFirstTab = p->IsFullFirstTab();
 
-        if (iSlotNum == 3) {
+        if (!bAccountStorage && iSlotNum == 3) {
             bPlatinum = true;
         }
     }
@@ -249,7 +250,8 @@ CTCmdMoveItemInv2Bank::Exec(CTObject* pObj) {
         return true;
     }
 
-    g_pNet->Send_cli_MOVE_ITEM(MOVE_ITEM_TYPE_INV2BANK, pItem->GetIndex(), Item, bPlatinum);
+    g_pNet->Send_cli_MOVE_ITEM(
+        MOVE_ITEM_TYPE_INV2BANK, pItem->GetIndex(), Item, bPlatinum, bAccountStorage);
     return true;
 }
 
@@ -288,7 +290,11 @@ CTCmdMoveItemBank2Inv::Exec(CTObject* pObj) {
 
     std::list<tagITEM> appendItems;
     appendItems.push_back(Item);
-    g_pNet->Send_cli_MOVE_ITEM(MOVE_ITEM_TYPE_BANK2INV, pItem->GetIndex(), Item, true);
+    g_pNet->Send_cli_MOVE_ITEM(MOVE_ITEM_TYPE_BANK2INV,
+        pItem->GetIndex(),
+        Item,
+        true,
+        CBank::GetInstance().IsAccountStorage());
     return true;
 }
 ///*-----------------------------------------------------------------------------------------------*/

@@ -23,6 +23,7 @@
 CBankDlg::CBankDlg(int iType) {
     SetDialogType(iType);
 
+    m_bStorageTogglePressed = false;
     POINT ptOffset;
 
     m_pDragItem = new CDragItem;
@@ -82,6 +83,8 @@ void
 CBankDlg::Show() {
     CTDialog::Show();
 
+    CBank::GetInstance().SetAccountStorage(false);
+    CBank::GetInstance().ClearItems();
     m_iCurrBankPage = 0;
 
     CWinCtrl* pCtrl = Find(IID_RADIOBOX);
@@ -89,6 +92,7 @@ CBankDlg::Show() {
         CTRadioBox* pRadioBox = (CTRadioBox*)pCtrl;
         pRadioBox->SetPressedButton(IID_BTN_TAB1);
     }
+    m_bStorageTogglePressed = false;
 }
 
 void
@@ -112,13 +116,16 @@ CBankDlg::Draw() {
     D3DXMatrixTranslation(&mat, (float)m_sPosition.x, (float)m_sPosition.y, 0.0f);
     ::setTransformSprite(mat);
 
+    const char* owner = CBank::GetInstance().IsAccountStorage()
+        ? g_GameDATA.username.c_str()
+        : (g_pAVATAR ? g_pAVATAR->Get_NAME() : "");
     ::drawFontf(g_GameDATA.m_hFONT[FONT_NORMAL_BOLD],
         true,
         35,
         5,
         g_dwBLACK,
         F_STR_BANK_TITLE,
-        (char*)g_GameDATA.username.c_str());
+        owner);
 
     const int money_buffer_size = 64;
     char money_buffer[money_buffer_size];
@@ -127,6 +134,13 @@ CBankDlg::Draw() {
         money_buffer_size);
 
     ::drawFont(g_GameDATA.m_hFONT[FONT_NORMAL], true, 40, 270, g_dwWHITE, money_buffer);
+
+    ::drawFont(g_GameDATA.m_hFONT[FONT_NORMAL],
+        true,
+        290,
+        31,
+        g_dwWHITE,
+        CBank::GetInstance().IsAccountStorage() ? "Character" : "Account");
 }
 
 /**
@@ -153,6 +167,23 @@ unsigned int
 CBankDlg::Process(UINT uiMsg, WPARAM wParam, LPARAM lParam) {
     if (!IsVision())
         return 0;
+
+    if (uiMsg == WM_LBUTTONDOWN || uiMsg == WM_LBUTTONUP) {
+        const int x = (short)LOWORD(lParam) - m_sPosition.x;
+        const int y = (short)HIWORD(lParam) - m_sPosition.y;
+        const bool hit_storage_toggle = x >= 287 && x < 349 && y >= 25 && y < 50;
+        if (uiMsg == WM_LBUTTONDOWN) {
+            m_bStorageTogglePressed = hit_storage_toggle;
+            if (hit_storage_toggle)
+                return uiMsg;
+        } else if (m_bStorageTogglePressed) {
+            m_bStorageTogglePressed = false;
+            if (hit_storage_toggle)
+                SetStorageMode(!CBank::GetInstance().IsAccountStorage());
+            return uiMsg;
+        }
+    }
+
     unsigned iProcID = 0;
     if (iProcID = CTDialog::Process(uiMsg, wParam, lParam)) {
         for (int iSlot = 0; iSlot < g_iSlotCountPerPage; ++iSlot) {
@@ -217,6 +248,19 @@ CBankDlg::OnLButtonUp(unsigned iProcID, WPARAM wParam, LPARAM lParam) {
         default:
             break;
     }
+}
+
+void
+CBankDlg::SetStorageMode(bool bAccountStorage) {
+    CBank& bank = CBank::GetInstance();
+    if (bank.IsAccountStorage() == bAccountStorage || !g_pAVATAR || !g_pNet)
+        return;
+
+    bank.SetAccountStorage(bAccountStorage);
+    g_pAVATAR->InitBank();
+    m_iCurrBankPage = 0;
+    g_pNet->Send_cli_BANK_LIST_REQ(
+        bAccountStorage ? BANK_REQ_ACCOUNT_OPEN : BANK_REQ_OPEN, NULL);
 }
 
 void

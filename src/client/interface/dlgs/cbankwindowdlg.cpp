@@ -92,13 +92,15 @@ CBankWindowDlg::OnLButtonUp(unsigned proc_id) {
                         switch (m_Type) {
                             case TYPE_SAVE:
                                 if (zuly <= g_pAVATAR->Get_MONEY())
-                                    g_pNet->Send_cli_MOVE_ZULY_INV2BANK(zuly);
+                                    g_pNet->Send_cli_MOVE_ZULY_INV2BANK(
+                                        zuly, CBank::GetInstance().IsAccountStorage());
                                 else
                                     g_itMGR.OpenMsgBox(STR_BANK_SAVE_FAIL);
                                 break;
                             case TYPE_WITHDRAW:
                                 if (zuly <= CBank::GetInstance().GetMoney())
-                                    g_pNet->Send_cli_MOVE_ZULY_BANK2INV(zuly);
+                                    g_pNet->Send_cli_MOVE_ZULY_BANK2INV(
+                                        zuly, CBank::GetInstance().IsAccountStorage());
                                 else
                                     g_itMGR.OpenMsgBox(STR_BANK_WITHDRAW_FAIL);
                                 break;

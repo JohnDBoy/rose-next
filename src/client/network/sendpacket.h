@@ -129,7 +129,8 @@ public:
     void Send_cli_ITEM_RESULT_REPORT(BYTE btREPORT, BYTE btItemType, short nItemNo);
 
     ///창고 관련
-    void Send_cli_MOVE_ITEM(BYTE btMoveTYPE, BYTE btFromIDX, tagITEM& MoveITEM, bool bPlatinum);
+    void Send_cli_MOVE_ITEM(
+        BYTE btMoveTYPE, BYTE btFromIDX, tagITEM& MoveITEM, bool bPlatinum, bool bAccountStorage);
     void Send_cli_BANK_LIST_REQ(BYTE btREQ, char* pszPassword);
     ///소모탄 관련
     void Send_cli_SET_BULLET(BYTE btShotType, short nInvenIdx);
@@ -193,8 +194,8 @@ public:
 
     void Send_cli_CLANMARK_REG_TIME();
 
-    void Send_cli_MOVE_ZULY_INV2BANK(__int64 i64MoveZuly);
-    void Send_cli_MOVE_ZULY_BANK2INV(__int64 i64MoveZuly);
+    void Send_cli_MOVE_ZULY_INV2BANK(__int64 i64MoveZuly, bool bAccountStorage);
+    void Send_cli_MOVE_ZULY_BANK2INV(__int64 i64MoveZuly, bool bAccountStorage);
 
     void Send_cli_CART_RIDE(BYTE bType, WORD wOwnerObjIDX_, WORD wGuestObjIDX_);
 

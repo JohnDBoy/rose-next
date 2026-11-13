@@ -4382,6 +4382,7 @@ CRecvPACKET::Recv_gsv_BANK_LIST_REPLY() {
 
     switch (m_pRecvPacket->m_gsv_BANK_LIST_REPLY.m_btREPLY) {
         case BANK_REPLY_INIT_DATA: {
+            CBank::GetInstance().SetAccountStorage(false);
             g_pAVATAR->InitBank(); ///
             for (BYTE bt = 0; bt < m_pRecvPacket->m_gsv_BANK_LIST_REPLY.m_btItemCNT; ++bt)
                 g_pAVATAR->SetBankItem(
@@ -4398,6 +4399,36 @@ CRecvPACKET::Recv_gsv_BANK_LIST_REPLY() {
                     sizeof(__int64));
                 CBank::GetInstance().SetMoney(*money);
             }
+            g_itMGR.OpenDialog(DLG_TYPE_ITEM, false);
+            g_itMGR.OpenDialog(DLG_TYPE_BANK, false);
+            break;
+        }
+        case BANK_REPLY_ACCOUNT_INIT_DATA: {
+            CBank::GetInstance().SetAccountStorage(true);
+            g_pAVATAR->InitBank();
+            for (BYTE bt = 0; bt < m_pRecvPacket->m_gsv_BANK_LIST_REPLY.m_btItemCNT; ++bt)
+                g_pAVATAR->SetBankItem(
+                    m_pRecvPacket->m_gsv_BANK_LIST_REPLY.m_sInvITEM[bt].m_btInvIDX,
+                    m_pRecvPacket->m_gsv_BANK_LIST_REPLY.m_sInvITEM[bt].m_ITEM);
+
+            short item_packet_size = sizeof(gsv_BANK_LIST_REPLY)
+                + sizeof(tag_SET_INVITEM) * m_pRecvPacket->m_gsv_BANK_LIST_REPLY.m_btItemCNT;
+            if (m_pRecvPacket->m_HEADER.m_nSize == item_packet_size + sizeof(__int64)) {
+                __int64* money = (__int64*)Packet_GetDataPtr(
+                    m_pRecvPacket, item_packet_size, sizeof(__int64));
+                CBank::GetInstance().SetMoney(*money);
+            }
+            g_itMGR.OpenDialog(DLG_TYPE_ITEM, false);
+            g_itMGR.OpenDialog(DLG_TYPE_BANK, false);
+            break;
+        }
+        case BANK_REPLY_ACCOUNT_APPEND_DATA: {
+            CBank::GetInstance().SetAccountStorage(true);
+            for (BYTE bt = 0; bt < m_pRecvPacket->m_gsv_BANK_LIST_REPLY.m_btItemCNT; ++bt)
+                g_pAVATAR->SetBankItem(
+                    m_pRecvPacket->m_gsv_BANK_LIST_REPLY.m_sInvITEM[bt].m_btInvIDX,
+                    m_pRecvPacket->m_gsv_BANK_LIST_REPLY.m_sInvITEM[bt].m_ITEM);
+            break;
         }
         case BANK_REPLY_SHOW_DATA:
             g_itMGR.OpenDialog(DLG_TYPE_ITEM, false);
@@ -4421,6 +4452,11 @@ CRecvPACKET::Recv_gsv_BANK_LIST_REPLY() {
             break;
         case BANK_REPLY_CLEARED_PASSWORD: // 창고 비번 삭제됨
             g_itMGR.OpenMsgBox(STR_BANK_REPLY_CLEARED_PASSWORD);
+            break;
+        case BANK_REPLY_ACCOUNT_ERROR:
+            g_itMGR.AppendChatMsg(
+                "Account storage could not be loaded. Please try again later.",
+                IT_MGR::CHAT_TYPE_SYSTEM);
             break;
         default:
             break;

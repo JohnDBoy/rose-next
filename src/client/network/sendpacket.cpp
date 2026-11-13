@@ -1355,7 +1355,8 @@ void
 CSendPACKET::Send_cli_MOVE_ITEM(BYTE btMoveTYPE,
     BYTE btFromIDX,
     tagITEM& MoveITEM,
-    bool bPlatinum) {
+    bool bPlatinum,
+    bool bAccountStorage) {
     m_pSendPacket->m_HEADER.m_wType = CLI_MOVE_ITEM;
     m_pSendPacket->m_HEADER.m_nSize = sizeof(cli_MOVE_ITEM);
     m_pSendPacket->m_cli_MOVE_ITEM.m_btMoveTYPE = btMoveTYPE;
@@ -1366,6 +1367,7 @@ CSendPACKET::Send_cli_MOVE_ITEM(BYTE btMoveTYPE,
         m_pSendPacket->m_cli_MOVE_ITEM.m_btUseSpecialTAB = 1;
     else
         m_pSendPacket->m_cli_MOVE_ITEM.m_btUseSpecialTAB = 0;
+    m_pSendPacket->m_cli_MOVE_ITEM.m_btStorageTYPE = bAccountStorage ? 1 : 0;
 
     this->Send_PACKET(m_pSendPacket);
 }
@@ -1817,19 +1819,21 @@ CSendPACKET::Send_cli_CLANMARK_REG_TIME() {
 }
 
 void
-CSendPACKET::Send_cli_MOVE_ZULY_INV2BANK(__int64 i64MoveZuly) {
+CSendPACKET::Send_cli_MOVE_ZULY_INV2BANK(__int64 i64MoveZuly, bool bAccountStorage) {
     m_pSendPacket->m_HEADER.m_wType = CLI_MOVE_ZULY;
     m_pSendPacket->m_HEADER.m_nSize = sizeof(cli_MOVE_ZULY);
-    m_pSendPacket->m_cli_MOVE_ZULY.m_btMoveTYPE = MOVE_ZULY_TYPE_INV2BANK;
+    m_pSendPacket->m_cli_MOVE_ZULY.m_btMoveTYPE =
+        bAccountStorage ? MOVE_ZULY_TYPE_INV2ACCOUNT_BANK : MOVE_ZULY_TYPE_INV2BANK;
     m_pSendPacket->m_cli_MOVE_ZULY.m_i64MoveZuly = i64MoveZuly;
     Send_PACKET(m_pSendPacket);
 }
 
 void
-CSendPACKET::Send_cli_MOVE_ZULY_BANK2INV(__int64 i64MoveZuly) {
+CSendPACKET::Send_cli_MOVE_ZULY_BANK2INV(__int64 i64MoveZuly, bool bAccountStorage) {
     m_pSendPacket->m_HEADER.m_wType = CLI_MOVE_ZULY;
     m_pSendPacket->m_HEADER.m_nSize = sizeof(cli_MOVE_ZULY);
-    m_pSendPacket->m_cli_MOVE_ZULY.m_btMoveTYPE = MOVE_ZULY_TYPE_BANK2INV;
+    m_pSendPacket->m_cli_MOVE_ZULY.m_btMoveTYPE =
+        bAccountStorage ? MOVE_ZULY_TYPE_ACCOUNT_BANK2INV : MOVE_ZULY_TYPE_BANK2INV;
     m_pSendPacket->m_cli_MOVE_ZULY.m_i64MoveZuly = i64MoveZuly;
     Send_PACKET(m_pSendPacket);
 }

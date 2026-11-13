@@ -382,7 +382,7 @@ and its §6 decisions before touching movement, height or AoE shape. Phase 0 is 
 
 ## Storage And Item Rows (2026-11-07)
 
-Storage (the bank) is per character (`storage.owner_id` = `character.id`) and **loaded lazily**:
+Personal storage (the bank) is per character (`storage.owner_id` = `character.id`) and **loaded lazily**:
 `Proc_cli_SELECT_CHAR` loads only its zuly and marks it `BANK_UNLOADED`; the items are read on
 the first open of the session (`Proc_cli_BANK_LIST_REQ` -> `BANK_LOADED`). `UpdateUserRECORD`
 (every 5 minutes, logout, char select) used to write the empty in-memory bank back anyway, so
@@ -399,6 +399,20 @@ keeps a row another character's slot still points at (a giver saved after the re
 delete the traded item from the receiver), and, while the storage is unloaded, any row a storage
 slot points at. Any new save path must follow the same rule: delete slot rows, never item rows
 someone else still holds.
+
+Account storage is separate (`account_storage.owner_id` = `account.id`) with an independent
+`account.storage_money` balance and `account.storage_slots` capacity (160 initially for every
+account). The account request resolves the authenticated account name to its database id on the
+SQL thread; owner ids are never accepted from the client. The world server already rejects a
+second live login for the same account within that world. A PostgreSQL session advisory lock also
+protects the account bank while it is loaded, preventing concurrent snapshots from different
+server processes; it is released after the final save at logout. Account storage is written in
+the user-save transaction only after it has been loaded. A process-local account guard is also
+required because the SQL thread shares one PostgreSQL session, where advisory locks are reentrant.
+Item cleanup must preserve any item referenced by `account_storage`. Existing character storage
+rows and balances are not migrated or merged. The initial account capacity uses the current fixed
+160-slot runtime array; increasing it requires coordinated server/client/protocol capacity work.
+No slot rearrangement or cross-storage moves are implemented.
 
 ## Warp And Party Rules
 

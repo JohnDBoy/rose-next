@@ -61,12 +61,14 @@ public:
     };
 
 private:
+    void SetStorageMode(bool bAccountStorage);
     void OnLButtonUp(unsigned iProcID, WPARAM wParam, LPARAM lParam);
     void OnLButtonDown(unsigned iProcID, WPARAM wParam, LPARAM lParam);
     void SetTabButtonText(int iID, char* szText);
 
 private:
     int m_iCurrBankPage; /// 현재 탭
+    bool m_bStorageTogglePressed;
 
     CSlot m_Slots[g_iPageCount][g_iSlotCountPerPage];
     CDragItem* m_pDragItem;

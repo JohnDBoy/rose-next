@@ -26,6 +26,26 @@ using json = nlohmann::json;
 GS_CThreadSQL::GS_CThreadSQL(): CSqlTHREAD(true), m_csUserLIST(4000), m_bWaiting(false) {}
 
 bool
+GS_CThreadSQL::ReleaseAccountStorageLock(classUSER* user) {
+    if (!user || !user->m_bAccountStorageLockHeld)
+        return true;
+
+    QueryResult unlock_res = this->db.query(
+        "SELECT pg_advisory_unlock($1::bigint)",
+        {std::to_string(user->m_dwAccountDBID)});
+    if (!unlock_res.is_ok() || unlock_res.row_count != 1 || !unlock_res.get_bool(0, 0)) {
+        LOG_ERROR("Failed to release account storage lock for account {}: {}",
+            user->m_dwAccountDBID,
+            unlock_res.error_message());
+        return false;
+    }
+
+    m_AccountStorageLocks.erase(user->m_dwAccountDBID);
+    user->m_bAccountStorageLockHeld = false;
+    return true;
+}
+
+bool
 GS_CThreadSQL::Add_SqlPacketWithACCOUNT(classUSER* pUSER, t_PACKET* pPacket) {
     return CSqlTHREAD::Add_SqlPACKET((int)pUSER->m_iSocketIDX,
         pUSER->Get_ACCOUNT(),
@@ -65,6 +85,11 @@ GS_CThreadSQL::Add_BackUpUSER(classUSER* pUSER, BYTE btLogOutMODE) {
 bool
 GS_CThreadSQL::UpdateUserRECORD(classUSER* user) {
     const char* char_name = user->Get_NAME();
+    if (user->m_btAccountBankData != BANK_UNLOADED
+        && (!user->m_bAccountStorageLockHeld || user->m_dwAccountDBID == 0)) {
+        LOG_ERROR("Refusing to save account storage for '{}' without its account lock", char_name);
+        return false;
+    }
 
     // Begin the database transaction
     QueryResult trans_res = this->db.query("BEGIN", {});
@@ -316,6 +341,69 @@ GS_CThreadSQL::UpdateUserRECORD(classUSER* user) {
             item.uuid.to_string());
     }
 
+    const bool account_storage_loaded = user->m_btAccountBankData != BANK_UNLOADED;
+    std::vector<int> account_storage_delete_list;
+    std::string account_storage_query;
+    if (account_storage_loaded) {
+        for (int i = 0; i < user->m_nAccountBankSlots; ++i) {
+            tagITEM& item = user->m_AccountBank.m_ItemLIST[i];
+            if (item.GetTYPE() == 0 || item.IsEmpty() || !item.IsValidITEM()) {
+                account_storage_delete_list.push_back(i);
+                continue;
+            }
+
+            valid_items.push_back(item.uuid.to_string());
+
+            uint16_t gem_id = 0;
+            uint16_t grade = 0;
+            uint16_t durability = 0;
+            uint16_t lifespan = 0;
+            bool is_appraisal = false;
+            bool has_socket = false;
+            bool is_crafted = false;
+            uint16_t quantity = 1;
+            if (item.IsEnableDupCNT()) {
+                quantity = item.GetQuantity();
+            } else {
+                gem_id = item.GetGemNO();
+                grade = item.GetGrade();
+                durability = item.GetDurability();
+                lifespan = item.GetLife();
+                is_appraisal = item.IsAppraisal();
+                has_socket = item.HasSocket();
+                is_crafted = item.IsCreated();
+            }
+
+            account_storage_query += fmt::format(
+                "INSERT INTO item (uuid, game_data_id, type_id, stat_id, grade, durability, "
+                "lifespan, appraisal, socket, crafted) "
+                "VALUES ('{0}', {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}) "
+                "ON CONFLICT (uuid) "
+                "DO UPDATE SET uuid='{0}', game_data_id={1}, type_id={2}, stat_id={3}, grade={4}, "
+                "durability={5}, lifespan={6}, appraisal={7}, socket={8}, crafted={9};",
+                item.uuid.to_string(),
+                std::to_string(item.GetItemNO()),
+                std::to_string(item.GetTYPE()),
+                std::to_string(gem_id),
+                std::to_string(grade),
+                std::to_string(durability),
+                std::to_string(lifespan),
+                PG_BOOL(is_appraisal),
+                PG_BOOL(has_socket),
+                PG_BOOL(is_crafted));
+
+            account_storage_query += fmt::format(
+                "INSERT INTO account_storage (owner_id, slot, quantity, item_id) "
+                "VALUES ({0}, {1}, {2}, (SELECT id FROM item WHERE uuid='{3}')) "
+                "ON CONFLICT (owner_id, slot) "
+                "DO UPDATE SET quantity={2}, item_id=(SELECT id FROM item WHERE uuid='{3}');",
+                user->m_dwAccountDBID,
+                i,
+                quantity,
+                item.uuid.to_string());
+        }
+    }
+
     // Item rows this character's slots pointed at and it no longer holds. Deleting one cascades
     // into every inventory/storage slot that points at it, and a row can back several slots: a
     // trade or a dropped item picked up keeps its uuid, and so does a partial stack moved between
@@ -332,7 +420,8 @@ GS_CThreadSQL::UpdateUserRECORD(classUSER* user) {
             "uuid NOT IN ({1}) AND "
             "NOT EXISTS (SELECT 1 FROM inventory o WHERE o.item_id=item.id AND o.owner_id<>{0})"
             " AND "
-            "NOT EXISTS (SELECT 1 FROM storage o WHERE o.item_id=item.id AND o.owner_id<>{0});",
+            "NOT EXISTS (SELECT 1 FROM storage o WHERE o.item_id=item.id AND o.owner_id<>{0}) AND "
+            "NOT EXISTS (SELECT 1 FROM account_storage o WHERE o.item_id=item.id);",
             user->m_dwDBID,
             value_list(valid_items, true));
     } else {
@@ -342,7 +431,8 @@ GS_CThreadSQL::UpdateUserRECORD(classUSER* user) {
             "uuid NOT IN ({1}) AND "
             "NOT EXISTS (SELECT 1 FROM inventory o WHERE o.item_id=item.id AND o.owner_id<>{0})"
             " AND "
-            "NOT EXISTS (SELECT 1 FROM storage o WHERE o.item_id=item.id);",
+            "NOT EXISTS (SELECT 1 FROM storage o WHERE o.item_id=item.id) AND "
+            "NOT EXISTS (SELECT 1 FROM account_storage o WHERE o.item_id=item.id);",
             user->m_dwDBID,
             value_list(valid_items, true));
     }
@@ -357,11 +447,22 @@ GS_CThreadSQL::UpdateUserRECORD(classUSER* user) {
         user->m_dwDBID,
         value_list(storage_delete_list));
 
+    std::string delete_account_storage_query;
+    if (account_storage_loaded) {
+        delete_account_storage_query = fmt::format(
+            "UPDATE account SET storage_money={0} WHERE id={1};"
+            "DELETE FROM account_storage WHERE owner_id={1} AND slot IN ({2});",
+            user->m_AccountBank.m_i64ZULY,
+            user->m_dwAccountDBID,
+            value_list(account_storage_delete_list));
+    }
+
     std::string bulk = delete_invalid_query;
     bulk += delete_inventory_query + inventory_query;
     if (storage_loaded) {
         bulk += delete_storage_query + storage_query;
     }
+    bulk += delete_account_storage_query + account_storage_query;
 
     QueryResult bulk_res = this->db.batch(bulk);
     if (!bulk_res.is_ok()) {
@@ -447,6 +548,8 @@ GS_CThreadSQL::Execute() {
             }
 
             if (pUsrNODE->DATA.m_btLogOutMODE) {
+                classUSER* user = pUsrNODE->DATA.m_pUSER;
+                this->ReleaseAccountStorageLock(user);
                 if (pUsrNODE->DATA.m_pUSER->Get_ACCOUNT()) {
                     switch (pUsrNODE->DATA.m_btLogOutMODE) {
                         case LOGOUT_MODE_CHARLIST:
@@ -917,11 +1020,123 @@ GS_CThreadSQL::Proc_cli_BANK_LIST_REQ(tagQueryDATA* pSqlPACKET) {
     if (!user || !user->Get_ACCOUNT())
         return false;
 
+    if (pPacket->m_cli_BANK_LIST_REQ.m_btREQ == BANK_REQ_ACCOUNT_OPEN) {
+        if (user->m_btAccountBankData != BANK_UNLOADED && user->m_bAccountStorageLockHeld)
+            return user->Send_gsv_ACCOUNT_BANK_ITEM_LIST();
+        if (user->m_btAccountBankData != BANK_UNLOADED) {
+            LOG_ERROR("Account {} has loaded storage without its advisory lock",
+                user->m_dwAccountDBID);
+            user->Send_gsv_BANK_LIST_REPLY(BANK_REPLY_ACCOUNT_ERROR);
+            return false;
+        }
+
+        QueryResult account_id_res = this->db.query(
+            "SELECT id FROM account WHERE email = $1",
+            {user->Get_ACCOUNT()});
+        if (!account_id_res.is_ok() || account_id_res.row_count != 1) {
+            LOG_ERROR("Failed to resolve account storage owner for '{}': {}",
+                user->Get_ACCOUNT(),
+                account_id_res.error_message());
+            user->Send_gsv_BANK_LIST_REPLY(BANK_REPLY_ACCOUNT_ERROR);
+            return false;
+        }
+
+        user->m_dwAccountDBID = account_id_res.get_int32(0, 0);
+        if (!m_AccountStorageLocks.insert(user->m_dwAccountDBID).second) {
+            LOG_WARN("Account storage is already open for account '{}'", user->Get_ACCOUNT());
+            user->Send_gsv_BANK_LIST_REPLY(BANK_REPLY_ACCOUNT_ERROR);
+            return false;
+        }
+
+        QueryResult lock_res = this->db.query(
+            "SELECT pg_try_advisory_lock($1::bigint)",
+            {std::to_string(user->m_dwAccountDBID)});
+        if (!lock_res.is_ok() || lock_res.row_count != 1 || !lock_res.get_bool(0, 0)) {
+            m_AccountStorageLocks.erase(user->m_dwAccountDBID);
+            LOG_WARN("Account storage is already open for account '{}'", user->Get_ACCOUNT());
+            user->Send_gsv_BANK_LIST_REPLY(BANK_REPLY_ACCOUNT_ERROR);
+            return false;
+        }
+        user->m_bAccountStorageLockHeld = true;
+
+        QueryResult account_res = this->db.query(
+            "SELECT storage_money, storage_slots FROM account WHERE id = $1",
+            {std::to_string(user->m_dwAccountDBID)});
+        if (!account_res.is_ok() || account_res.row_count != 1) {
+            LOG_ERROR("Failed to read account storage metadata for '{}': {}",
+                user->Get_ACCOUNT(),
+                account_res.error_message());
+            this->ReleaseAccountStorageLock(user);
+            user->Send_gsv_BANK_LIST_REPLY(BANK_REPLY_ACCOUNT_ERROR);
+            return false;
+        }
+
+        user->m_AccountBank.Init();
+        user->m_AccountBank.m_i64ZULY = account_res.get_int64(0, 0);
+        user->m_nAccountBankSlots = account_res.get_int32(0, 1);
+        if (user->m_nAccountBankSlots != BANKSLOT_TOTAL) {
+            LOG_ERROR("Account {} has unsupported storage capacity {} (maximum {})",
+                user->m_dwAccountDBID,
+                user->m_nAccountBankSlots,
+                BANKSLOT_TOTAL);
+            this->ReleaseAccountStorageLock(user);
+            user->Send_gsv_BANK_LIST_REPLY(BANK_REPLY_ACCOUNT_ERROR);
+            return false;
+        }
+
+        QueryResult account_storage_res = this->db.query(
+            "SELECT account_storage.slot, account_storage.quantity, item.uuid, "
+            "item.game_data_id, item.type_id, item.stat_id, item.grade, "
+            "item.durability, item.lifespan, item.appraisal, item.socket, item.crafted "
+            "FROM account_storage INNER JOIN item ON account_storage.item_id = item.id "
+            "WHERE account_storage.owner_id = $1 ORDER BY account_storage.slot",
+            {std::to_string(user->m_dwAccountDBID)});
+        if (!account_storage_res.is_ok()) {
+            LOG_ERROR("Account storage query failed for account '{}': {}",
+                user->Get_ACCOUNT(),
+                account_storage_res.error_message());
+            this->ReleaseAccountStorageLock(user);
+            user->Send_gsv_BANK_LIST_REPLY(BANK_REPLY_ACCOUNT_ERROR);
+            return false;
+        }
+
+        for (size_t row_idx = 0; row_idx < account_storage_res.row_count; ++row_idx) {
+            const int slot = account_storage_res.get_int32(row_idx, 0);
+            if (slot < 0 || slot >= user->m_nAccountBankSlots) {
+                LOG_ERROR("Account {} has account storage item in invalid slot {}",
+                    user->m_dwAccountDBID,
+                    slot);
+                this->ReleaseAccountStorageLock(user);
+                user->Send_gsv_BANK_LIST_REPLY(BANK_REPLY_ACCOUNT_ERROR);
+                return false;
+            }
+
+            tagITEM& item = user->m_AccountBank.m_ItemLIST[slot];
+            item.uuid = Rose::Util::UUID::from_string(account_storage_res.get_string(row_idx, 2));
+            item.m_nItemNo = account_storage_res.get_int32(row_idx, 3);
+            item.m_cType = account_storage_res.get_int32(row_idx, 4);
+            if (item.IsEnableDupCNT()) {
+                item.m_uiQuantity = account_storage_res.get_int32(row_idx, 1);
+            } else {
+                item.m_bCreated = account_storage_res.get_bool(row_idx, 11);
+                item.m_bHasSocket = account_storage_res.get_bool(row_idx, 10);
+                item.m_bIsAppraisal = account_storage_res.get_bool(row_idx, 9);
+                item.m_cDurability = account_storage_res.get_int32(row_idx, 7);
+                item.m_cGrade = account_storage_res.get_int32(row_idx, 6);
+                item.m_nLife = account_storage_res.get_int32(row_idx, 8);
+                item.m_nGEM_OP = account_storage_res.get_int32(row_idx, 5);
+            }
+        }
+
+        user->m_btAccountBankData = BANK_LOADED;
+        return user->Send_gsv_ACCOUNT_BANK_ITEM_LIST();
+    }
+
     // Only the first open of a session reads the database. A second open request queued before
     // the first was answered would read the rows back over a storage the player may already have
     // changed, and an item just taken out would be in the storage and the inventory both.
     if (user->m_btBankData != BANK_UNLOADED)
-        return true;
+        return user->Send_gsv_BANK_ITEM_LIST();
 
     QueryResult storage_res = this->db.query(
         "SELECT storage.slot, storage.quantity, item.uuid, "

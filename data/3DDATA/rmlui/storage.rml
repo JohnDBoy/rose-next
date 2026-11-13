@@ -11,10 +11,13 @@
         Opens beside the bag the first time; drag the title bar to move it,
         the spot is saved.
 
-        Four tabs of 8x5 ( the fourth is Platinum: only Platinum members can
-        store there ). Drag an item from the bag onto the window to store it
-        ( the bag's tooltip shows the fee ); drag a stored item to the bag, or
-        double-click it, to take it out. Deposit / Withdraw move zuly.
+        Character and account storage are separate. The account bank is
+        available to every account and has its own balance. Each view has four
+        tabs of 8x5. Personal storage retains its Platinum tab.
+
+        Drag an item from the bag onto the window to store it; drag a stored
+        item to the bag, or double-click it, to take it out. Deposit /
+        Withdraw move zuly. Rearrangement between storage slots is not offered.
 
         The whole window is a drop target for items ( DLG_TYPE_BANK ).
     -->
@@ -23,6 +26,13 @@
             <span class="ui-title">{{title}}</span>
             <span class="ui-close" data-event-click="close()">X</span>
         </handle>
+
+        <div class="storage-modes">
+            <span class="ui-btn mode" data-class-on="storage_type == 0"
+                  data-event-click="set_storage_type(0)">Character</span>
+            <span class="ui-btn mode" data-class-on="storage_type == 1"
+                  data-event-click="set_storage_type(1)">Account</span>
+        </div>
 
         <div class="tabs">
             <span class="ui-btn tab" data-for="t : tabs" data-class-on="tab == t.index"

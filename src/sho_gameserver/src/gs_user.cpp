@@ -2143,6 +2143,76 @@ classUSER::Send_gsv_BANK_ITEM_LIST(bool bNewBank) {
     return true;
 }
 
+bool
+classUSER::Send_gsv_ACCOUNT_BANK_ITEM_LIST() {
+    classPACKET* first_packet = Packet_AllocNLock();
+    if (!first_packet)
+        return false;
+
+    m_btAccountBankData = BANK_LOADED;
+    first_packet->m_gsv_BANK_LIST_REPLY.m_btREPLY = BANK_REPLY_ACCOUNT_INIT_DATA;
+    first_packet->m_gsv_BANK_LIST_REPLY.m_btItemCNT = 0;
+    const int first_packet_slots =
+        m_nAccountBankSlots < BANKSLOT_PLATINUM_0 ? m_nAccountBankSlots : BANKSLOT_PLATINUM_0;
+    for (int slot = 0; slot < first_packet_slots; ++slot) {
+        if (m_AccountBank.m_ItemLIST[slot].IsEmpty())
+            continue;
+        const BYTE index = first_packet->m_gsv_BANK_LIST_REPLY.m_btItemCNT++;
+        first_packet->m_gsv_BANK_LIST_REPLY.m_sInvITEM[index].m_btInvIDX = (BYTE)slot;
+        first_packet->m_gsv_BANK_LIST_REPLY.m_sInvITEM[index].m_ITEM =
+            m_AccountBank.m_ItemLIST[slot];
+    }
+
+    bool has_second_packet_items = false;
+    for (int slot = BANKSLOT_PLATINUM_0; slot < m_nAccountBankSlots; ++slot) {
+        if (!m_AccountBank.m_ItemLIST[slot].IsEmpty()) {
+            has_second_packet_items = true;
+            break;
+        }
+    }
+
+    classPACKET* second_packet = NULL;
+    if (has_second_packet_items) {
+        second_packet = Packet_AllocNLock();
+        if (!second_packet) {
+            Packet_ReleaseNUnlock(first_packet);
+            Send_gsv_BANK_LIST_REPLY(BANK_REPLY_ACCOUNT_ERROR);
+            return false;
+        }
+        second_packet->m_gsv_BANK_LIST_REPLY.m_btREPLY = BANK_REPLY_ACCOUNT_APPEND_DATA;
+        second_packet->m_gsv_BANK_LIST_REPLY.m_btItemCNT = 0;
+        for (int slot = BANKSLOT_PLATINUM_0; slot < m_nAccountBankSlots; ++slot) {
+            if (m_AccountBank.m_ItemLIST[slot].IsEmpty())
+                continue;
+            const BYTE index = second_packet->m_gsv_BANK_LIST_REPLY.m_btItemCNT++;
+            second_packet->m_gsv_BANK_LIST_REPLY.m_sInvITEM[index].m_btInvIDX = (BYTE)slot;
+            second_packet->m_gsv_BANK_LIST_REPLY.m_sInvITEM[index].m_ITEM =
+                m_AccountBank.m_ItemLIST[slot];
+        }
+
+        second_packet->m_HEADER.m_wType = GSV_BANK_LIST_REPLY;
+        second_packet->m_HEADER.m_nSize = sizeof(gsv_BANK_LIST_REPLY)
+            + sizeof(tag_SET_INVITEM) * second_packet->m_gsv_BANK_LIST_REPLY.m_btItemCNT;
+    }
+
+    first_packet->m_HEADER.m_wType = GSV_BANK_LIST_REPLY;
+    first_packet->m_HEADER.m_nSize = sizeof(gsv_BANK_LIST_REPLY)
+        + sizeof(tag_SET_INVITEM) * first_packet->m_gsv_BANK_LIST_REPLY.m_btItemCNT;
+    first_packet->AppendData(&m_AccountBank.m_i64ZULY, sizeof(__int64));
+    bool sent = SendPacket(first_packet);
+    Packet_ReleaseNUnlock(first_packet);
+    if (!sent) {
+        if (second_packet)
+            Packet_ReleaseNUnlock(second_packet);
+        return false;
+    }
+    if (!second_packet)
+        return true;
+    sent = SendPacket(second_packet);
+    Packet_ReleaseNUnlock(second_packet);
+    return sent;
+}
+
 /// 창고 리스트에 대한 결과 패킷 전송
 bool
 classUSER::Send_gsv_BANK_LIST_REPLY(BYTE btReply) {
@@ -4493,14 +4563,21 @@ classUSER::Recv_cli_GET_FIELDITEM_REQ(t_PACKET* pPacket) {
 /// 줄리를 창고<->인벤 간에 이동
 bool
 classUSER::Recv_cli_MOVE_ZULY(t_PACKET* pPacket) {
-    if (!(this->m_dwPayFLAG & PLAY_FLAG_STOCK_SPACE)) {
+    const BYTE move_type = pPacket->m_cli_MOVE_ZULY.m_btMoveTYPE;
+    const bool account_storage = move_type == MOVE_ZULY_TYPE_INV2ACCOUNT_BANK
+        || move_type == MOVE_ZULY_TYPE_ACCOUNT_BANK2INV;
+    if (!account_storage && !(this->m_dwPayFLAG & PLAY_FLAG_STOCK_SPACE)) {
         return true;
     }
-    if (BANK_UNLOADED == this->m_btBankData)
+    if (account_storage
+        ? (this->m_btAccountBankData == BANK_UNLOADED || this->m_dwAccountDBID == 0
+              || !this->m_bAccountStorageLockHeld)
+        : (this->m_btBankData == BANK_UNLOADED))
         return false;
     if (pPacket->m_cli_MOVE_ZULY.m_i64MoveZuly < 0)
         return false;
 
+    tagBankData& bank = account_storage ? this->m_AccountBank : this->m_Bank;
     classPACKET* pCPacket = Packet_AllocNLock();
     if (!pCPacket)
         return false;
@@ -4510,19 +4587,21 @@ classUSER::Recv_cli_MOVE_ZULY(t_PACKET* pPacket) {
     pCPacket->m_HEADER.m_nSize = sizeof(gsv_MOVE_ZULY);
 
     switch (pPacket->m_cli_MOVE_ZULY.m_btMoveTYPE) {
-        case MOVE_ZULY_TYPE_INV2BANK: // 보관
+        case MOVE_ZULY_TYPE_INV2BANK:
+        case MOVE_ZULY_TYPE_INV2ACCOUNT_BANK:
             if (pPacket->m_cli_MOVE_ZULY.m_i64MoveZuly > this->GetCur_MONEY()) {
                 goto _RETURN;
             }
             this->m_Inventory.m_i64Money -= pPacket->m_cli_MOVE_ZULY.m_i64MoveZuly;
-            this->m_Bank.m_i64ZULY += pPacket->m_cli_MOVE_ZULY.m_i64MoveZuly;
+            bank.m_i64ZULY += pPacket->m_cli_MOVE_ZULY.m_i64MoveZuly;
 
             break;
-        case MOVE_ZULY_TYPE_BANK2INV: // 꺼냄
-            if (pPacket->m_cli_MOVE_ZULY.m_i64MoveZuly > this->m_Bank.m_i64ZULY) {
+        case MOVE_ZULY_TYPE_BANK2INV:
+        case MOVE_ZULY_TYPE_ACCOUNT_BANK2INV:
+            if (pPacket->m_cli_MOVE_ZULY.m_i64MoveZuly > bank.m_i64ZULY) {
                 goto _RETURN;
             }
-            this->m_Bank.m_i64ZULY -= pPacket->m_cli_MOVE_ZULY.m_i64MoveZuly;
+            bank.m_i64ZULY -= pPacket->m_cli_MOVE_ZULY.m_i64MoveZuly;
             this->m_Inventory.m_i64Money += pPacket->m_cli_MOVE_ZULY.m_i64MoveZuly;
             break;
 
@@ -4532,11 +4611,14 @@ classUSER::Recv_cli_MOVE_ZULY(t_PACKET* pPacket) {
 
     if (bResult) {
         pCPacket->m_gsv_MOVE_ZULY.m_i64InvZuly = this->GetCur_MONEY();
-        pCPacket->m_gsv_MOVE_ZULY.m_i64BankZuly = this->m_Bank.m_i64ZULY;
+        pCPacket->m_gsv_MOVE_ZULY.m_i64BankZuly = bank.m_i64ZULY;
 
         this->SendPacket(pCPacket);
 
-        this->m_btBankData = BANK_CHANGED;
+        if (account_storage)
+            this->m_btAccountBankData = BANK_CHANGED;
+        else
+            this->m_btBankData = BANK_CHANGED;
     }
 
 _RETURN:
@@ -4547,12 +4629,18 @@ _RETURN:
 /// 아이템을 창고<->인벤 간에 이동
 bool
 classUSER::Recv_cli_MOVE_ITEM(t_PACKET* pPacket) {
-    if (!(this->m_dwPayFLAG & PLAY_FLAG_STOCK_SPACE)) {
+    const bool account_storage = pPacket->m_HEADER.m_nSize >= sizeof(cli_MOVE_ITEM)
+        && pPacket->m_cli_MOVE_ITEM.m_btStorageTYPE == 1;
+    if (!account_storage && !(this->m_dwPayFLAG & PLAY_FLAG_STOCK_SPACE)) {
         return true;
     }
-    if (BANK_UNLOADED == this->m_btBankData)
+    if (account_storage
+        ? (this->m_btAccountBankData == BANK_UNLOADED || this->m_dwAccountDBID == 0
+              || !this->m_bAccountStorageLockHeld)
+        : (this->m_btBankData == BANK_UNLOADED))
         return false;
 
+    tagBankData& bank = account_storage ? this->m_AccountBank : this->m_Bank;
     classPACKET* pCPacket = Packet_AllocNLock();
     if (!pCPacket)
         return false;
@@ -4610,7 +4698,7 @@ classUSER::Recv_cli_MOVE_ITEM(t_PACKET* pPacket) {
                     goto _RETURN; // bResult = true기때문에 짤리진 않는다.;
                 }
 #ifdef __INC_PLATINUM
-                if (this->m_GrowAbility.IsBankFREE(this->GetCurAbsSEC()))
+                if (!account_storage && this->m_GrowAbility.IsBankFREE(this->GetCurAbsSEC()))
                     iFee = 0;
                 else
 #endif
@@ -4622,7 +4710,7 @@ classUSER::Recv_cli_MOVE_ITEM(t_PACKET* pPacket) {
                 sMoveITEM.m_dwBody =
                     pSourITEM->m_dwBody; // 메모리 조작으로 옵션이 바뀌는거 차단 !!!
 #ifdef __INC_PLATINUM
-                if (this->m_GrowAbility.IsBankFREE(this->GetCurAbsSEC()))
+                if (!account_storage && this->m_GrowAbility.IsBankFREE(this->GetCurAbsSEC()))
                     iFee = 0;
                 else
 #endif
@@ -4641,17 +4729,19 @@ classUSER::Recv_cli_MOVE_ITEM(t_PACKET* pPacket) {
             sOriITEM = *pSourITEM;
             this->Sub_ITEM(pPacket->m_cli_MOVE_ITEM.m_btFromIDX, sMoveITEM);
 
-            if ((this->m_dwPayFLAG & PLAY_FLAG_EXTRA_STOCK)
+            if (account_storage) {
+                nToSlotIDX = bank.Add_ITEM(sMoveITEM, 0, (short)this->m_nAccountBankSlots);
+            } else if ((this->m_dwPayFLAG & PLAY_FLAG_EXTRA_STOCK)
                 && pPacket->m_cli_MOVE_ITEM.m_btUseSpecialTAB == 1) {
-                nToSlotIDX = this->m_Bank.Add_ITEM(sMoveITEM,
+                nToSlotIDX = bank.Add_ITEM(sMoveITEM,
                     BANKSLOT_PLATINUM_0,
                     BANKSLOT_PLATINUM_0 + BANKSLOT_PLATINUM);
             } else if (this->m_GrowAbility.IsBankAddON(this->GetCurAbsSEC())) {
                 // 창고 확장슬롯 가능......
-                nToSlotIDX = this->m_Bank.Add_ITEM(sMoveITEM, 0, BANKSLOT_DEFAULT + BANKSLOT_ADDON);
+                nToSlotIDX = bank.Add_ITEM(sMoveITEM, 0, BANKSLOT_DEFAULT + BANKSLOT_ADDON);
             } else {
                 // 일반 창고....
-                nToSlotIDX = this->m_Bank.Add_ITEM(sMoveITEM, 0, BANKSLOT_DEFAULT);
+                nToSlotIDX = bank.Add_ITEM(sMoveITEM, 0, BANKSLOT_DEFAULT);
             }
 
             if (nToSlotIDX < 0) {
@@ -4682,7 +4772,14 @@ classUSER::Recv_cli_MOVE_ITEM(t_PACKET* pPacket) {
                 goto _RETURN;
             }
 
-            pSourITEM = &this->m_Bank.m_ItemLIST[pPacket->m_cli_MOVE_ITEM.m_btFromIDX];
+            if (pPacket->m_cli_MOVE_ITEM.m_btFromIDX >= (account_storage
+                        ? this->m_nAccountBankSlots
+                        : BANKSLOT_TOTAL)) {
+                bResult = false;
+                goto _RETURN;
+            }
+
+            pSourITEM = &bank.m_ItemLIST[pPacket->m_cli_MOVE_ITEM.m_btFromIDX];
             if (pSourITEM->IsEmpty()) {
                 goto _RETURN;
             }
@@ -4718,7 +4815,7 @@ classUSER::Recv_cli_MOVE_ITEM(t_PACKET* pPacket) {
             sMoveITEM.uuid = pSourITEM->uuid;
             sLogITEM = sMoveITEM;
 
-            this->m_Bank.Sub_ITEM(pPacket->m_cli_MOVE_ITEM.m_btFromIDX, sMoveITEM);
+            bank.Sub_ITEM(pPacket->m_cli_MOVE_ITEM.m_btFromIDX, sMoveITEM);
             nToSlotIDX = this->Add_ITEM(sMoveITEM);
             if (nToSlotIDX < 0) {
                 *pSourITEM = sOriITEM;
@@ -4742,11 +4839,14 @@ classUSER::Recv_cli_MOVE_ITEM(t_PACKET* pPacket) {
 
         if (pCPacket->m_gsv_MOVE_ITEM.m_nBankIDX >= 0)
             pCPacket->m_gsv_MOVE_ITEM.m_BankITEM =
-                this->m_Bank.m_ItemLIST[pCPacket->m_gsv_MOVE_ITEM.m_nBankIDX];
+                bank.m_ItemLIST[pCPacket->m_gsv_MOVE_ITEM.m_nBankIDX];
 
         this->SendPacket(pCPacket);
 
-        this->m_btBankData = BANK_CHANGED;
+        if (account_storage)
+            this->m_btAccountBankData = BANK_CHANGED;
+        else
+            this->m_btBankData = BANK_CHANGED;
     }
 
 _RETURN:
@@ -4761,6 +4861,18 @@ bool
 classUSER::Recv_cli_BANK_LIST_REQ(t_PACKET* pPacket) {
     if (this->m_IngSTATUS.IsIgnoreSTATUS())
         return true;
+
+    if (pPacket->m_cli_BANK_LIST_REQ.m_btREQ == BANK_REQ_ACCOUNT_OPEN) {
+        if (this->m_btAccountBankData == BANK_UNLOADED)
+            return g_pThreadSQL->Add_SqlPacketWithACCOUNT(this, pPacket);
+        if (!this->m_bAccountStorageLockHeld) {
+            LOG_ERROR("Account {} has loaded storage without its advisory lock",
+                this->m_dwAccountDBID);
+            return this->Send_gsv_BANK_LIST_REPLY(BANK_REPLY_ACCOUNT_ERROR);
+        }
+        return this->Send_gsv_ACCOUNT_BANK_ITEM_LIST();
+    }
+
     if (BANK_UNLOADED == this->m_btBankData) {
         // DB에 은행 아이템 요청...
         if (BANK_REQ_OPEN == pPacket->m_cli_BANK_LIST_REQ.m_btREQ)
@@ -4787,7 +4899,7 @@ classUSER::Recv_cli_BANK_LIST_REQ(t_PACKET* pPacket) {
         }
     }
 
-    return this->Send_gsv_BANK_LIST_REPLY(BANK_REPLY_SHOW_DATA);
+    return this->Send_gsv_BANK_ITEM_LIST();
 }
 
 //-------------------------------------------------------------------------------------------------

@@ -117,6 +117,11 @@ public:
     } m_STORE;
 
     BYTE m_btBankData;
+    tagBankData m_AccountBank;
+    BYTE m_btAccountBankData;
+    DWORD m_dwAccountDBID;
+    int m_nAccountBankSlots;
+    bool m_bAccountStorageLockHeld;
 
     BYTE m_btShotTYPE;
     tagITEM* m_pShotITEM;
@@ -458,6 +463,7 @@ public:
     bool Send_gsv_TRADE_P2P_ITEM(char cTradeSLOT, tagITEM& sITEM);
 
     bool Send_gsv_BANK_ITEM_LIST(bool bNewBank = false);
+    bool Send_gsv_ACCOUNT_BANK_ITEM_LIST();
     bool Send_gsv_BANK_LIST_REPLY(BYTE btReply);
     bool Send_gsv_PARTY_REQ(int iObjectIDX, BYTE btResult);
     bool Send_gsv_PARTY_REPLY(int iObjectIDX, BYTE btResult);
@@ -780,6 +786,11 @@ public:
         m_dwBackUpTIME = 0;
 
         m_btBankData = BANK_UNLOADED;
+        m_AccountBank.Init();
+        m_btAccountBankData = BANK_UNLOADED;
+        m_dwAccountDBID = 0;
+        m_nAccountBankSlots = BANKSLOT_TOTAL;
+        m_bAccountStorageLockHeld = false;
         m_pShotITEM = NULL;
 
         m_iLastEventNpcIDX = 0;

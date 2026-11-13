@@ -31,12 +31,15 @@ public:
     bool HasEmptySlot(bool bPlatinum);
     void SetMoney(__int64 money);
     __int64 GetMoney();
+    void SetAccountStorage(bool bAccountStorage) { m_bAccountStorage = bAccountStorage; }
+    bool IsAccountStorage() const { return m_bAccountStorage; }
 
 private:
     std::map<int, CItem*> m_Items;
 
     int m_iNpcClientIndex;
     __int64 m_Money;
+    bool m_bAccountStorage;
 
     // CItem* CreateItem( tagITEM& Item );
 };
