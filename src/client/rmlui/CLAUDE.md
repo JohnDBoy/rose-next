@@ -143,6 +143,14 @@ and labels need
 **CSS `transform` works now**: `RoseRmlRenderer::SetTransform` (world = translation x transform;
 Rml's column-major data read as-is is the D3D row-vector matrix).
 
+**The minimap in a Karkia crypt** (2026-11-13): no image (the maze changes daily), so the
+view draws the maze as it is walked -- `CMazeMap` (`zoneobjects.*`) turns the wall objects
+the server sends into a 10 x 10 grid and keeps the cells seen; the panel asks for floor runs
+and wall segments and places them as `div`s inside one layer (`.maze`) that moves like the
+map image. The pieces are rebuilt only when a cell is seen or the zoom changes (`Version`),
+the layer's offset every frame. `WorldPerPixel()` answers for both kinds of map, so the
+arrow, the player marks, the drag and the zoom are shared. Classic interface: nothing.
+
 **Conversation** (2026-09-26, `RoseRmlConversation`): one window for the three conversation
 dialogs (`DLG_TYPE_DIALOG` / `SELECTEVENT` / `EVENTDIALOG`, three looks). **Not a view over the
 classic dialogs**: their `Hide()` wipes text and answers (callbacks included). The engine
@@ -411,6 +419,15 @@ for both UI2 and classic), drawn with the classic normal/blink/over sprites and 
 text itself was already UI2 (`SC_ShowNotifyMessage`). Not converted: the GM announcement banner
 (`SYSTEMMSG`) -- unused on this server; the logout countdown (`MSGBOX_SPECIAL`) was already UI2.
 `CTargetMenu` / `CTargetObjectDLG` are dead code (never constructed).
+
+**Zone timers** (2026-11-10, `RoseRmlZoneTimers`, `timers.rml`): new in UI2, no classic twin. The
+countdowns the server shows the players of a zone (`GSV_ZONE_TIMER` -> `CZoneTimers` in
+`zoneobjects.*`; first use the Karkia catacombs' "The crypt seals in 1:42:10"). One row per
+timer, counted down on the client from the seconds the server sent; shown only while one runs;
+the whole panel is its drag handle, placed under the minimap the first time (it looks the
+minimap element up across the context's documents). A zone change forgets every timer
+(`CObjectMANAGER::Clear`) and the new zone sends its own after the join reply. The classic
+interface shows nothing and relies on the zone's announcements.
 
 Linear gradients are implemented in the D3D9 backend without a shader, and `border-radius` needs no
 renderer support, so skins need no image files at all. Radial/conic gradients, blurred `box-shadow`

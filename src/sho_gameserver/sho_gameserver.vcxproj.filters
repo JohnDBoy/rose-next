@@ -37,6 +37,12 @@
     <ClInclude Include="src\cobjevent.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\catacombs.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\catacomb_maze.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
     <ClInclude Include="src\cerberus_lair.h">
       <Filter>Source Files</Filter>
     </ClInclude>
@@ -193,6 +199,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\cgameobj.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\catacombs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\catacomb_maze.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\cerberus_lair.cpp">

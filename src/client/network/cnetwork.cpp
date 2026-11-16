@@ -187,6 +187,22 @@ CNetwork::Proc_ZonePacket() {
             Recv_gsv_ZONE_OBJECTS();
             break;
 
+        case GSV_ZONE_TIMER:
+            Recv_gsv_ZONE_TIMER();
+            break;
+
+        case GSV_ZONE_WARN:
+            Recv_gsv_ZONE_WARN();
+            break;
+
+        case GSV_MOB_BLINK:
+            Recv_gsv_MOB_BLINK();
+            break;
+
+        case GSV_ZONE_ALERT:
+            Recv_gsv_ZONE_ALERT();
+            break;
+
         case GSV_GM_COMMAND:
             Recv_gsv_GM_COMMAND();
             break;

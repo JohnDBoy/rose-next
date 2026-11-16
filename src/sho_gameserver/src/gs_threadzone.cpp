@@ -2,6 +2,7 @@
 
 #include "LIB_gsMAIN.h"
 
+#include "catacombs.h"
 #include "cerberus_lair.h"
 #include "GS_USER.h"
 #include "GS_ListUSER.h"
@@ -239,6 +240,8 @@ CZoneTHREAD::Execute() {
         CCerberusLair::Instance().ProcZone(this);
         // the Wisdom Tree escort: acts in the Forest of Wisdom only
         CWisdomEscort::Instance().ProcZone(this);
+        // the Karkia catacombs: acts in the two crypts and the Desolate Cemetery only
+        CCatacombs::Instance().ProcZone(this);
 
         m_NavMeter.EndProc(*this, iTickMOBs);
 
@@ -492,6 +495,27 @@ CZoneTHREAD::SetZoneObjects(BYTE btGroup, const tagZONE_OBJECT* pObjs, int iCoun
 }
 
 void
+CZoneTHREAD::SendZoneWarn(const tagZONE_WARN* pShapes, int iCount, WORD wWarnMS, short nEffect, short nWarnSound,
+    short nFireSound, BYTE btStyle) {
+    if (iCount <= 0 || iCount > 64)
+        return;
+    classPACKET* pCPacket = Packet_AllocNLock();
+    if (!pCPacket)
+        return;
+    pCPacket->m_HEADER.m_wType = GSV_ZONE_WARN;
+    pCPacket->m_HEADER.m_nSize = sizeof(gsv_ZONE_WARN);
+    pCPacket->m_gsv_ZONE_WARN.m_wWarnMS = wWarnMS;
+    pCPacket->m_gsv_ZONE_WARN.m_nEffect = nEffect;
+    pCPacket->m_gsv_ZONE_WARN.m_nWarnSound = nWarnSound;
+    pCPacket->m_gsv_ZONE_WARN.m_nFireSound = nFireSound;
+    pCPacket->m_gsv_ZONE_WARN.m_btCount = (BYTE)iCount;
+    pCPacket->m_gsv_ZONE_WARN.m_btStyle = btStyle;
+    pCPacket->AppendData((void*)pShapes, (short)(iCount * sizeof(tagZONE_WARN)));
+    this->SendPacketToZONE(pCPacket);
+    Packet_ReleaseNUnlock(pCPacket);
+}
+
+void
 CZoneTHREAD::SendZoneObjects(classUSER* pUSER) {
     std::lock_guard<std::mutex> lock(m_ZoneObjectsMutex);
     for (const auto& it: m_ZoneObjects) {
@@ -512,6 +536,66 @@ CZoneTHREAD::IsZoneObjectsOn(BYTE btGroup) {
     std::lock_guard<std::mutex> lock(m_ZoneObjectsMutex);
     auto it = m_ZoneObjects.find(btGroup);
     return it != m_ZoneObjects.end() && it->second.bOn;
+}
+
+//-------------------------------------------------------------------------------------------------
+/// Zone timers (GSV_ZONE_TIMER): one packet per timer, its label after the header.
+static void
+FillZoneTimerPacket(classPACKET* pCPacket, BYTE btID, const char* szLabel, int iSeconds) {
+    pCPacket->m_HEADER.m_wType = GSV_ZONE_TIMER;
+    pCPacket->m_HEADER.m_nSize = sizeof(gsv_ZONE_TIMER);
+    pCPacket->m_gsv_ZONE_TIMER.m_btID = btID;
+    pCPacket->m_gsv_ZONE_TIMER.m_iSeconds = iSeconds;
+    pCPacket->AppendString((char*)szLabel);
+}
+
+void
+CZoneTHREAD::SetZoneTimer(BYTE btID, const char* szLabel, int iSeconds) {
+    if (!szLabel || strlen(szLabel) > 120)
+        szLabel = "";
+    {
+        std::lock_guard<std::mutex> lock(m_ZoneTimersMutex);
+        if (iSeconds > 0) {
+            ZoneTimer& timer = m_ZoneTimers[btID];
+            timer.label = szLabel;
+            timer.dwEndTick = ::GetTickCount() + (DWORD)iSeconds * 1000;
+        } else {
+            m_ZoneTimers.erase(btID);
+        }
+    }
+    classPACKET* pCPacket = Packet_AllocNLock();
+    if (!pCPacket)
+        return;
+    FillZoneTimerPacket(pCPacket, btID, szLabel, iSeconds > 0 ? iSeconds : 0);
+    this->SendPacketToZONE(pCPacket);
+    Packet_ReleaseNUnlock(pCPacket);
+}
+
+void
+CZoneTHREAD::SendZoneTimers(classUSER* pUSER) {
+    std::lock_guard<std::mutex> lock(m_ZoneTimersMutex);
+    const DWORD dwNow = ::GetTickCount();
+    for (const auto& it: m_ZoneTimers) {
+        const int iLeft = (int)((long)(it.second.dwEndTick - dwNow) / 1000);
+        if (iLeft <= 0)
+            continue;
+        classPACKET* pCPacket = Packet_AllocNLock();
+        if (!pCPacket)
+            return;
+        FillZoneTimerPacket(pCPacket, it.first, it.second.label.c_str(), iLeft);
+        pUSER->SendPacket(pCPacket);
+        Packet_ReleaseNUnlock(pCPacket);
+    }
+}
+
+int
+CZoneTHREAD::ZoneTimerLeft(BYTE btID) {
+    std::lock_guard<std::mutex> lock(m_ZoneTimersMutex);
+    auto it = m_ZoneTimers.find(btID);
+    if (it == m_ZoneTimers.end())
+        return -1;
+    const long lLeft = (long)(it->second.dwEndTick - ::GetTickCount()) / 1000;
+    return lLeft > 0 ? (int)lLeft : 0;
 }
 
 void
@@ -975,6 +1059,7 @@ CObjCHAR*
 CZoneTHREAD::FindFirstCHAR(tPOINTF& PosCENTER, int iDistance, CGameOBJ* pObjFINDER, float fBandZ) {
     ++m_dwFindGEN;
     m_fFindBandZ = fBandZ;
+    m_pFindSight = nullptr;
     m_iFindSecIDX = 0;
     m_iFindDistance = iDistance;
     m_pFindObjNODE = NULL;
@@ -988,9 +1073,14 @@ CZoneTHREAD::FindFirstCHAR(tPOINTF& PosCENTER, int iDistance, CGameOBJ* pObjFIND
 }
 //-------------------------------------------------------------------------------------------------
 CObjCHAR*
-CZoneTHREAD::FindFirstCHAR(CObjCHAR* pCenterCHAR, int iDistance, CGameOBJ* pObjFINDER, float fBandZ) {
+CZoneTHREAD::FindFirstCHAR(CObjCHAR* pCenterCHAR,
+    int iDistance,
+    CGameOBJ* pObjFINDER,
+    float fBandZ,
+    CObjCHAR* pSight) {
     ++m_dwFindGEN;
     m_fFindBandZ = fBandZ;
+    m_pFindSight = pSight;
     m_iFindSecIDX = 0;
     m_iFindDistance = iDistance;
     m_pFindObjNODE = NULL;
@@ -1039,8 +1129,15 @@ CZoneTHREAD::FindNextCHAR() {
 // A monster scan (aggro, help calls) sees only characters within the vertical rule of its
 // own height: nothing through a bridge deck, a cliff or a cave floor
 // (doc/pathfinding-and-z-plan.md, section 3.4). Every other scan is 2D.
+//
+// In a zone whose walls block sight (m_pFindSight, the Karkia crypts), a monster scan
+// also needs a straight walkable line to what it finds: the walk grid's walls are the
+// only walls the server knows (CCatacombs::WallBetween).
 bool
 CZoneTHREAD::FindInBand(CObjCHAR* pChar) {
+    if (m_pFindSight && CCatacombs::WallBetween(m_pFindSight, pChar)) {
+        return false;
+    }
     if (Nav::NO_Z == m_fFindBandZ) {
         return true;
     }
