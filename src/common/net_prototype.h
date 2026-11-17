@@ -404,6 +404,37 @@ using namespace Rose::Common;
 // client builds them as ordinary collidable map objects; the server enforces nothing.
 #define GSV_ZONE_OBJECTS 0x07f1
 
+// Zone timers (2026-11-10): a labelled countdown the server shows the players of a
+// zone (the Karkia catacombs: "the crypt seals in"; later a boss's return). One
+// packet per timer: its id, the seconds left (0 removes it) and its label, a
+// NUL-terminated string after the header. Sent to the zone when a timer is set and
+// to a player on every zone entry (Send_gsv_JOIN_ZONE). The client counts down by
+// itself (UI2: RoseRmlZoneTimers) and forgets every timer on a zone change.
+#define GSV_ZONE_TIMER 0x07f2
+
+// Zone warnings (2026-11-12): shapes the server draws on the ground by itself, for a
+// boss mechanic that is not one monster's cast (the Karkia catacombs' Argentia: floor
+// tiles, rings, arms). One packet: how long the shapes are shown before they fire,
+// the effect each plays when it does, and m_btCount x tagZONE_WARN. The client only
+// draws (CGroundTelegraphs::AddWarning): who is hit is the server's business, when the
+// time is up. Not re-sent to a player who arrives while one runs.
+#define GSV_ZONE_WARN 0x07f3
+
+// A monster that is somewhere else at once (2026-11-12): no walk, no stop. The server has
+// already moved it (CObjCHAR::Blink_POSITION); the client puts its copy there and leaves
+// its command and its animation alone, so a boss can step through the room in the middle
+// of a skill clip (the Karkia catacombs' Ferdinando). Sent to the whole zone.
+#define GSV_MOB_BLINK 0x07f4
+
+// A boss alert (2026-11-13): a few words in the middle of the screen telling the players
+// what to do about a mechanic ("SOAK THE BLACK SUN"), with a bar that runs down for the
+// time they have -- what a boss-mod addon does in other games, here the server's own
+// word. The text follows the header, NUL-terminated. Sent to whoever it concerns (the
+// Karkia catacombs: the players in the boss room); the client only shows it
+// (CZoneAlerts). m_btStyle is a zone warning's (ZONE_WARN_DANGER / ZONE_WARN_SOAK), so
+// an alert wears the colour of the shape it is about.
+#define GSV_ZONE_ALERT 0x07f5
+
 struct cli_CHECK_AUTH: public t_PACKETHEADER {};
 
 struct srv_CHECK_AUTH: public t_PACKETHEADER {
@@ -1152,6 +1183,52 @@ struct gsv_ZONE_OBJECTS: public t_PACKETHEADER {
     BYTE m_btGroup;
     BYTE m_btState; // 1 = present, 0 = gone (the client fades it out)
     BYTE m_btCount; // tagZONE_OBJECT records that follow
+};
+
+// What a zone warning's shapes ask of the players (gsv_ZONE_WARN::m_btStyle): drawing only.
+#define ZONE_WARN_DANGER 0
+#define ZONE_WARN_SOAK 1
+
+// One shape of a zone warning (GSV_ZONE_WARN).
+#define ZONE_WARN_CIRCLE 0 // a disc round m_fX, m_fY, or a ring when m_wInner is set
+#define ZONE_WARN_STRIP 1 // from m_fX, m_fY along m_nDirDeg: m_wLength long, m_wWidth wide
+#define ZONE_WARN_CONE 2 // from m_fX, m_fY along m_nDirDeg: m_wLength long, m_wWidth degrees wide
+struct tagZONE_WARN {
+    BYTE m_btShape;
+    float m_fX, m_fY; // world cm
+    short m_nDirDeg; // strip, cone: heading, degrees from +X towards +Y
+    WORD m_wLength; // cm: the radius, or the length
+    WORD m_wInner; // circle: the ring's inner radius, cm (0 = a disc)
+    WORD m_wWidth; // strip: full width, cm; cone: full angle, degrees
+};
+struct gsv_ZONE_WARN: public t_PACKETHEADER {
+    WORD m_wWarnMS; // shown this long, then it fires
+    short m_nEffect; // FILE_EFFECT row played on each shape as it fires (0 = none)
+    short m_nWarnSound; // FILE_SOUND row played once as the shapes appear (0 = none)
+    short m_nFireSound; // FILE_SOUND row played once as they fire (0 = none)
+    BYTE m_btCount; // tagZONE_WARN records that follow
+    BYTE m_btStyle; // ZONE_WARN_DANGER (red: get out) or ZONE_WARN_SOAK (green: someone must stand in it)
+};
+
+struct gsv_MOB_BLINK: public t_PACKETHEADER {
+    WORD m_wObjectIDX;
+    float m_fX, m_fY; // world cm
+    short m_nPosZ; // its floor, as gsv_STOP's (-32768 = none)
+    short m_nDirDeg; // the way it faces now, degrees from +X towards +Y (-1 = as it was)
+};
+
+struct gsv_ZONE_ALERT: public t_PACKETHEADER {
+    WORD m_wMS; // shown this long: the time left to do it
+    BYTE m_btStyle; // ZONE_WARN_DANGER (amber) or ZONE_WARN_SOAK (green)
+    short m_nSound; // FILE_SOUND row played as it appears (0 = none)
+    // char szText[]
+};
+
+// One zone timer (GSV_ZONE_TIMER).
+struct gsv_ZONE_TIMER: public t_PACKETHEADER {
+    BYTE m_btID;
+    int m_iSeconds; // left to run; 0 removes the timer
+    // char szLabel[] follows, NUL-terminated
 };
 
 // 자신의 현재 경험치를 갱신한다.
@@ -2963,6 +3040,10 @@ struct t_PACKET {
         cli_SUMMON_CMD m_cli_SUMMON_CMD;
         cli_SUMMON_CONTROL m_cli_SUMMON_CONTROL;
         gsv_ZONE_OBJECTS m_gsv_ZONE_OBJECTS;
+        gsv_ZONE_TIMER m_gsv_ZONE_TIMER;
+        gsv_ZONE_WARN m_gsv_ZONE_WARN;
+        gsv_MOB_BLINK m_gsv_MOB_BLINK;
+        gsv_ZONE_ALERT m_gsv_ZONE_ALERT;
         // gsv_SUMMON_CMD			m_gsv_SUMMON_CMD;
         gsv_PATSTATE_CHANGE m_gsv_PATSTATE_CHANGE;
 

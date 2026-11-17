@@ -37,6 +37,8 @@ main.cpp → lib_gsmain (init) → Zone Threads (gs_threadzone)
 | `src/cobjitem.cpp/h` | Dropped item objects |
 | `src/status_effects.cpp/h` | Buff/debuff system |
 | `src/srv_common/` | Chat rooms (`cchatroom`), `cobjvar.h` |
+| `src/cerberus_lair.cpp/h` | The Cerberus Lair's controller (`doc/zones/cerberus-lair.md`) |
+| `src/catacombs.cpp/h`, `src/catacomb_maze.cpp/h` | The Karkia catacombs' controller (openings, registration, the daily maze, the five boss fights on the floor layer) and its maze generator, the twin of `scripts/catacomb_maze.py`; GM `/catacomb`. `doc/zones/karkia-catacombs.md` |
 | `../common/calculation.cpp` | Combat math (server-only `#ifdef __SERVER`), compiled directly into this project. Skills can crit only for a Hawker/Raider holding a katar (`Is_KatarSkillCRITICAL`, x1.5, 2026-10-16), or when their row sets a critical burst (LIST_SKILL cols 49/50, `SKILL_CRITICAL_ROLL` / `SKILL_CRITICAL_RATE`, which replaces the katar rule for that skill; Shun'ei-zan, 2026-10-18). A skill that requires a shield (need weapon 261, matched against the off-hand) deals +2% per point of the shield's own Defense, item + refine grade, capped at +250% (`Is_ShieldSKILL` / `Get_ShieldDEF`; Shield Bash, 2026-10-18); `scripts/combatsim/formulas.py` mirrors every formula here -- change both |
 | `src/ai_lib/` | Server-side AI behavior |
 | `src/common/` | Server copies of `CObjAI`, regen areas, user data and the AI/motion/skill table readers (the client has its own) |
@@ -55,6 +57,7 @@ main.cpp → lib_gsmain (init) → Zone Threads (gs_threadzone)
 - Zones divided into sectors for spatial queries
 - `send_packet_nearby()` broadcasts to players in 9 adjacent sectors
 - Zones listed in `LIST_ZONE.STB`; each zone's map data comes from its `.ZON` and per-tile `x_y.IFO` under `data_dir` (`zonefile.cpp`), and its walk grid `<FOLDER>.lnav` (`nav/nav_grid.cpp`)
+- **A monster's target list holds its attackers' own nodes** (`CObjAVT::m_pTargetNODE` in `CObjMOB::m_TargetLIST`; an avatar joins it through `Set_TargetIDX` when it attacks or casts on the monster). `CObjMOB::DetachTargeters()` unlinks them. `Dead()` calls it, and since 2026-11-08 so does `CZoneTHREAD::Sub_DIRECT` for `OBJ_MOB`/`OBJ_NPC`. Before that, removing a live monster (GM `npc DEL`, the Cerberus sleeper swap, the escort's end) or re-indexing it (GM `npc CALL`, `/regen CALL`, which `Sub_DIRECT` + `Add_OBJECT` a live object) left the nodes linked. After a re-index, the attacker's next attack re-appended a node already in the list, a self-loop, and the zone thread hung in the unlink loop when the monster died. Any new removal must go through `Sub_DIRECT`; never unlink a monster from the zone another way.
 
 ## Combat Flow
 
@@ -296,6 +299,12 @@ and its §6 decisions before touching movement, height or AoE shape. Phase 0 is 
     `GetHeightTop`), `FollowZ` (the avatar's 135 cm step rule, cell by cell) and `NearestSpan`.
   - It loads at the end of `LoadZONE` and warns when map files changed since the bake.
     **Re-bake a zone after any map edit.**
+  - **A block mask for walls put up at run time** (`Grid::SetBlockMask`, 2026-11-10): 1 m
+    cells that `SpansAt` reports without `SPAN_WALK`. Everything reads the grid through
+    `SpansAt`, so walks, searches, spawn re-rolls and sight lines see the wall at once.
+    The Karkia crypts stamp their daily maze with it (`CCatacombs::BuildMaze`); the
+    Cerberus ice wall could. One writer, the zone's thread; old masks are kept, since a
+    reader on another thread may still hold one.
   - About 120 MB for all 66 zones.
 - **The vertical rule (Phase 3): `nav/nav_settings`.** `InVerticalReach`, defaulting to a
   band of |dz| <= 5 m + 70% of the horizontal distance.
@@ -308,6 +317,10 @@ and its §6 decisions before touching movement, height or AoE shape. Phase 0 is 
     - monster scans, through `FindFirstCHAR(..., fBandZ)` from `AI_FindFirstOBJ(int)` of an
       `OBJ_MOB`.
   - Skill collects (`AI_CollectOBJs`) scan in 2D and apply the rule themselves.
+  - **In the Karkia crypts a monster scan also needs a walkable straight line** to what it
+    finds (`FindFirstCHAR(..., pSight)` -> `FindInBand`, 2026-11-10): no aggro or help call
+    through a maze wall. The walk grid's walls are the only walls the server knows; a zone
+    opts in at `CObjCHAR::AI_FindFirstOBJ(int)`.
   - Regen spawns re-roll spots the client would draw on a roof (`NavPickSpawn`, against the
     point's baked anchor).
   - **Stage A:** a monster's height is where the client draws it (`VisualTopZ`), so under a
@@ -341,10 +354,19 @@ and its §6 decisions before touching movement, height or AoE shape. Phase 0 is 
     to its last leg (`Nav_ResumeChase`, `RealProc`'s drop).
   - The hook is `CObjAI::Nav_Chase`, called from `Goto_TARGET` and `ProcCMD_ATTACK`'s
     out-of-range branch. It acts only in `CMD_ATTACK`; skill chases still go straight.
+    **So a monster whose AI casts "at the target" from any distance walks through
+    walls to do it** (the crypts' Tomb Murilos, 2026-11-10). The crypts refuse a cast
+    with a wall between (`CCatacombs::WallBetween` in `CObjMOB::SetCMD_Skill2OBJ`) and
+    turn a skill run that loses its line into a plain attack (top of `Nav_Chase`);
+    elsewhere it is still open.
   - Walks (leash, summon follow, CTRL+click) are target-less agents. The agent owns
     `CMD_MOVE` and `CMD_RUNAWAY`, and re-issuing a walk toward a goal within 4 m keeps it.
   - Search arrays are per thread (`thread_local`, about 2 MB each). Searches run only on
     zone threads, apart from the GM probe.
+  - **A zone may have its own router** (`Nav::Router`, `CZoneTHREAD::m_pNavRouter`), asked
+    before `FindPath` in `Nav_Chase` and `Nav_PathTo`: the crypts' maze walks doorway to
+    doorway (`CatacombMaze::Route`), because a way across it is longer than the search's
+    128 m window and its budget. It returns false for anything it does not route.
   - Switches: `[nav] pathing`, `path_zones`, `path_*` budgets; `/nav set path|zones|lead|cells`.
     Readout: `/nav path [go]`.
 - **Vertical attack range (Phase 7, `[nav] vertical_range`, `/nav set range|giveup`).**

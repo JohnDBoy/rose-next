@@ -5,6 +5,7 @@
 #include "GS_ThreadZONE.h"
 #include "GS_USER.h"
 #include "ZoneLIST.h"
+#include "catacombs.h"
 
 #include "network.h"
 #include "nav/nav_agent.h"
@@ -133,7 +134,11 @@ CObjCHAR::AI_FindFirstOBJ(int iDistance) {
     // nobody through a deck, a cliff or a cave floor (nav/nav_settings.h).
     if (this->GetZONE()) {
         const bool bBand = this->IsA(OBJ_MOB) && Nav::settings().mob_layer_aggro.load(std::memory_order_relaxed);
-        return this->GetZONE()->FindFirstCHAR(this, iDistance, this, bBand ? this->Nav_Z() : Nav::NO_Z);
+        // In a crypt's maze it also sees nobody through a wall (2026-11-10: packs pulled from
+        // the next corridor read as monsters coming out of the walls).
+        const bool bSight = this->IsA(OBJ_MOB) && CCatacombs::IsCrypt(this->GetZONE()->Get_ZoneNO());
+        return this->GetZONE()->FindFirstCHAR(
+            this, iDistance, this, bBand ? this->Nav_Z() : Nav::NO_Z, bSight ? this : nullptr);
     }
 
     return NULL;
@@ -555,6 +560,30 @@ CObjCHAR::Nav_ResumeChase(CObjCHAR* pTarget) {
 
 bool
 CObjCHAR::Nav_Chase(CObjCHAR* pTarget) {
+    // A monster that cannot walk (walk and run speed 0: Argentia) does not chase: it lets go
+    // of a target that left its reach and stands. Chasing, every client ran it on the spot.
+    if (pTarget && this->IsA(OBJ_MOB) && this->total_move_speed() == 0) {
+        if (CMD_ATTACK == this->Get_COMMAND() || CMD_SKILL2OBJ == this->Get_COMMAND()) {
+            CObjAI::SetCMD_STOP();
+            this->Send_gsv_STOP();
+        }
+        return true;
+    }
+    // A monster running to cast a skill goes straight at its target (below: only an attack
+    // chase is put on a path). In a crypt's maze that run ends when a wall comes between
+    // them: the cast is given up for a plain attack, which walks round. The Tomb Murilos,
+    // which order their bite whenever they are hit, came through the walls (2026-11-10).
+    if (pTarget && CMD_SKILL2OBJ == this->Get_COMMAND() && this->IsA(OBJ_MOB) && !m_bCastingSTART
+        && CCatacombs::WallBetween(this, pTarget)) {
+        this->SetCMD_RUNnATTACK(pTarget->Get_INDEX());
+        if (CMD_SKILL2OBJ == this->Get_COMMAND()) {
+            // it may not attack that target (taunted onto another): it stops, and its AI
+            // picks again
+            CObjAI::SetCMD_STOP();
+            this->Send_gsv_STOP();
+        }
+        return true;
+    }
     // an attack chase only: Goto_TARGET also walks players and monsters up to an NPC
     if (!pTarget || CMD_ATTACK != this->Get_COMMAND() || !this->Nav_Pathing()) {
         return false;
@@ -605,8 +634,11 @@ CObjCHAR::Nav_Chase(CObjCHAR* pTarget) {
     q.z1 = pTarget->Nav_WalkZ();
     q.iPrefClass = this->Nav_PrefClass();
     std::vector<tPOINTF> points;
+    // a zone with a router of its own (the Karkia crypts' maze) is asked first
     const Nav::PathResult r =
-        Nav::FindPath(*pZone->NavGrid(), q, pZone->m_NavBudget, pZone->m_NavMeter, points);
+        pZone->m_pNavRouter && pZone->m_pNavRouter->Route(q.x0, q.y0, q.x1, q.y1, points)
+            ? Nav::PathResult::Found
+            : Nav::FindPath(*pZone->NavGrid(), q, pZone->m_NavBudget, pZone->m_NavMeter, points);
     if (Nav::PathResult::Found == r || Nav::PathResult::Partial == r) {
         const DWORD dwLead = (DWORD)Nav::settings().path_lead_ms.load(std::memory_order_relaxed);
         if (this->Nav_Start(new Nav::Agent(std::move(points), true, dwLead, pTarget->Get_INDEX(), true,
@@ -706,8 +738,11 @@ CObjCHAR::Nav_PathTo(float fX, float fY, float fZ, BYTE btRunMODE, int iGoalSnap
     q.iPrefClass = this->Nav_PrefClass();
     q.iGoalSnapCells = iGoalSnap;
     std::vector<tPOINTF> points;
+    // a zone with a router of its own (the Karkia crypts' maze) is asked first
     const Nav::PathResult r =
-        Nav::FindPath(*pZone->NavGrid(), q, pZone->m_NavBudget, pZone->m_NavMeter, points);
+        pZone->m_pNavRouter && pZone->m_pNavRouter->Route(q.x0, q.y0, q.x1, q.y1, points)
+            ? Nav::PathResult::Found
+            : Nav::FindPath(*pZone->NavGrid(), q, pZone->m_NavBudget, pZone->m_NavMeter, points);
     if (Nav::PathResult::Found != r && Nav::PathResult::Partial != r) {
         return false;
     }
@@ -1509,6 +1544,12 @@ CObjCHAR::SetCMD_RUNnATTACK(int target_id) {
     if (!this->can_attack(target_id)) {
         return;
     }
+    // ... and it takes only a target already in its reach (see Nav_Chase)
+    if (this->IsA(OBJ_MOB) && this->total_move_speed() == 0) {
+        CObjCHAR* pTarget = g_pObjMGR->Get_CharOBJ((WORD)target_id, true);
+        if (!pTarget || !this->IsInRANGE(pTarget, this->Get_AttackRange(0)))
+            return;
+    }
 
     this->m_bRunMODE = true;
 
@@ -1825,6 +1866,51 @@ CObjCHAR::IsProjectilePresentedSkill(short nSkillIDX) {
 }
 
 //-------------------------------------------------------------------------------------------------
+int
+CObjCHAR::Hit_WithSKILL(CObjCHAR* pTarget, short nSkillIDX, float fScale) {
+    uniDAMAGE sDamage;
+    sDamage.m_wDamage = CCal::Get_SkillDAMAGE(this, pTarget, nSkillIDX, 1);
+    if (fScale != 1.f && sDamage.m_wVALUE > 0) {
+        const float fShare = sDamage.m_wVALUE * fScale;
+        sDamage.m_wVALUE = fShare < 1.f ? 1u : (fShare > 4000000.f ? 4000000u : (unsigned int)fShare);
+    }
+    CObjITEM* pOutITEM = NULL;
+    this->Apply_DAMAGE(pTarget, sDamage, &pOutITEM, false);
+    pTarget->Send_gsv_DAMAGE_OF_SKILL(this->Get_INDEX(), nSkillIDX, sDamage.m_wDamage, 0, 0, pOutITEM);
+    return (int)sDamage.m_wVALUE;
+}
+
+void
+CObjCHAR::Blink_POSITION(float fX, float fY, short nDirDeg) {
+    CZoneTHREAD* pZone = this->GetZONE();
+    if (!pZone || this->IsUSER())
+        return;
+    if (m_pNav)
+        this->Nav_Stop(); // a path's next leg would start from where it was
+    m_PosCUR.x = fX;
+    m_PosCUR.y = fY;
+    m_PosGOTO = m_PosCUR;
+    m_PosMoveSTART = m_PosCUR;
+    // a sector step per call: a blink may cross more than one
+    for (int i = 0; i < 8; i++) {
+        const POINTS was = m_PosSECTOR;
+        if (!pZone->UpdateSECTOR(this) || (was.x == m_PosSECTOR.x && was.y == m_PosSECTOR.y))
+            break;
+    }
+    classPACKET* pCPacket = Packet_AllocNLock();
+    if (!pCPacket)
+        return;
+    pCPacket->m_HEADER.m_wType = GSV_MOB_BLINK;
+    pCPacket->m_HEADER.m_nSize = sizeof(gsv_MOB_BLINK);
+    pCPacket->m_gsv_MOB_BLINK.m_wObjectIDX = this->Get_INDEX();
+    pCPacket->m_gsv_MOB_BLINK.m_fX = fX;
+    pCPacket->m_gsv_MOB_BLINK.m_fY = fY;
+    pCPacket->m_gsv_MOB_BLINK.m_nPosZ = (short)this->Nav_SendZ();
+    pCPacket->m_gsv_MOB_BLINK.m_nDirDeg = nDirDeg;
+    pZone->SendPacketToZONE(pCPacket);
+    Packet_ReleaseNUnlock(pCPacket);
+}
+
 void
 CObjCHAR::Give_DAMAGE(CObjCHAR* pTarget,
     uniDAMAGE sDamage,

@@ -87,6 +87,7 @@ private:
     CGameOBJ* m_pObjFINDER;
     DWORD m_dwFindGEN = 0; // +1 per FindFirstCHAR: tells a scan it was taken over
     float m_fFindBandZ = Nav::NO_Z; // a monster scan's height, for the vertical rule
+    CObjCHAR* m_pFindSight = nullptr; // a monster scan that walls block: the monster
     bool FindInBand(CObjCHAR* pChar);
     float NavPickSpawn(CRegenPOINT* pRegen, float& fX, float& fY);
 
@@ -108,6 +109,15 @@ private:
     static void FillZoneObjectsPacket(classPACKET* pCPacket, BYTE btGroup, bool bOn,
         const tagZONE_OBJECT* pObjs, int iCount);
 
+    /// Zone timers (GSV_ZONE_TIMER): per id, its label and the tick it ends at. Empty
+    /// in every zone that never sets one. Same threads as the zone objects.
+    struct ZoneTimer {
+        std::string label;
+        DWORD dwEndTick = 0;
+    };
+    std::mutex m_ZoneTimersMutex;
+    std::map<BYTE, ZoneTimer> m_ZoneTimers;
+
 protected:
     CZoneTHREAD* GetZonePTR() { return this; }
 
@@ -121,6 +131,7 @@ public:
     void* m_pListITEM;
     Nav::ZoneMeter m_NavMeter; // tick timing and movement/scan counters (nav/nav_stats.h)
     Nav::TickBudget m_NavBudget; // this tick's path searches (nav/nav_path.h), zone thread only
+    Nav::Router* m_pNavRouter = nullptr; // this zone's own router, if it has one (the crypts' maze)
 
     CZoneTHREAD(bool CreateSuspended);
     ~CZoneTHREAD();
@@ -210,7 +221,24 @@ public:
     void SetZoneObjects(BYTE btGroup, const tagZONE_OBJECT* pObjs, int iCount, bool bOn);
     /// The groups that stand, to a player who just joined (Send_gsv_JOIN_ZONE).
     void SendZoneObjects(classUSER* pUSER);
+    /// Shapes drawn on the ground of every client in the zone for wWarnMS, each playing
+    /// FILE_EFFECT row nEffect when the time is up (GSV_ZONE_WARN). Drawing only: the
+    /// caller decides who is hit, and when. At most 64 shapes.
+    /// nWarnSound / nFireSound: FILE_SOUND rows played once as the shapes appear and as they
+    /// fire, from the middle of the batch.
+    /// btStyle: ZONE_WARN_DANGER (red) or ZONE_WARN_SOAK (green: a shape to stand in).
+    void SendZoneWarn(const tagZONE_WARN* pShapes, int iCount, WORD wWarnMS, short nEffect, short nWarnSound = 0,
+        short nFireSound = 0, BYTE btStyle = 0);
     bool IsZoneObjectsOn(BYTE btGroup);
+
+    /// Show the zone a countdown (iSeconds > 0) or remove it (0), remember it, and tell
+    /// the zone. Any thread. The clients count down by themselves: set it again only
+    /// when the end moves.
+    void SetZoneTimer(BYTE btID, const char* szLabel, int iSeconds);
+    /// The timers still running, to a player who just joined (Send_gsv_JOIN_ZONE).
+    void SendZoneTimers(classUSER* pUSER);
+    /// Seconds a standing timer has left, 0 once it ran out, -1 when there is none.
+    int ZoneTimerLeft(BYTE btID);
 
     void Send_EconomyDATA();
     void Send_GLOBAL_FLAG();
@@ -219,10 +247,12 @@ public:
 
     /// fBandZ: the scan's height, to apply the vertical rule (monster aggro and help calls,
     /// nav/nav_settings.h); NO_Z scans in 2D.
+    /// pSight: the scanning monster in a zone whose walls block its sight (the Karkia
+    /// crypts): it finds only characters it could walk straight to (FindInBand).
     CObjCHAR* FindFirstCHAR(tPOINTF& PosCENTER, int iDistance, CGameOBJ* pObjFINDER,
         float fBandZ = Nav::NO_Z);
     CObjCHAR* FindFirstCHAR(CObjCHAR* pCenterCHAR, int iDistance, CGameOBJ* pObjFINDER,
-        float fBandZ = Nav::NO_Z);
+        float fBandZ = Nav::NO_Z, CObjCHAR* pSight = nullptr);
     CObjCHAR* FindNextCHAR();
     DWORD GetFindGEN() { return m_dwFindGEN; }
 

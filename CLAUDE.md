@@ -197,7 +197,11 @@ file before working in that area.
   mark passes; use `fix-oro-spawn-density.py`), `skaaj.md`, `shibuya.md` (`--stage 3`
   rebuilds the band's `.CON`s and drops their quest options, so always follow it with
   `--stage 7`), `ulverick.md`, `hebarn.md`, `cerberus-lair.md` (constants live in both
-  the importer and `cerberus_lair.cpp`).
+  the importer and `cerberus_lair.cpp`), `karkia-catacombs.md` (zones 90 / 91: how the
+  daily maze, its openings and its five bosses stand, the `/catacomb` GM commands, what
+  ships together, the numbers kept in both `catacombs.cpp` and the `catacomb_*.py`
+  scripts; decided: no PvP there; design history in
+  `doc/karkia-catacombs-implementation-brief.md`).
 
 ## Important Patterns
 
@@ -298,9 +302,53 @@ down over 2 s (`setVisibilityRecursive`, still blocking) and deletes it;
 `CObjectMANAGER::Clear` forgets them on a zone change. **The server enforces nothing**
 (the walk grid is baked from map objects, and these walls are added at run time), so
 a client-only wall is as real as every existing one; monsters do not collide with
-them (tree cylinders only). First use: the Cerberus Lair's ice wall; meant for the
-Karkia catacombs maze. Walls through a map's open ground must be proven: the lair's
+them (tree cylinders only). First use: the Cerberus Lair's ice wall. The Karkia
+catacombs' daily maze is the second (groups 10-13, `CCatacombs::BuildMaze`), and
+there the server does know the walls: it blocks the same cells on the walk grid
+(`Nav::Grid::SetBlockMask`). Walls through a map's open ground must be proven: the lair's
 "rock ring" was a walkable ridge (`scripts/cerberus-wall.py`'s flood fill).
+
+### Zone Timers (2026-11-10)
+
+A labelled countdown the server shows the players of a zone: `GSV_ZONE_TIMER` (0x07f2,
+`common/net_prototype.h`), one packet per timer with its id, the seconds left (0 removes
+it) and its label after the header. `CZoneTHREAD::SetZoneTimer(id, label, seconds)` stores
+it and broadcasts; `Send_gsv_JOIN_ZONE` sends what is left of each to every arrival;
+`ZoneTimerLeft(id)` reads one back. Nothing per tick: the client counts down by itself
+(`CZoneTimers` in `src/client/zoneobjects.*`, drawn by UI2's `RoseRmlZoneTimers`), so set a
+timer again only when its end moves. A zone change forgets them. The classic interface has
+no panel. First use: the Karkia catacombs' "The crypt seals in" (`catacombs.cpp`); meant
+for any server-run event with a deadline. Client and server ship together.
+
+### Zone Warnings (2026-11-12)
+
+Shapes the server draws on the ground by itself, for a boss mechanic that is not one
+monster's cast: `GSV_ZONE_WARN` (0x07f3, `common/net_prototype.h`), one packet with a
+warning time, a FILE_EFFECT row and `tagZONE_WARN` shapes (a circle or a ring, a strip, a
+cone; world cm). `CZoneTHREAD::SendZoneWarn` broadcasts it; the client
+(`CGroundTelegraphs::AddWarning`) fills each shape over the time, flashes it and plays the
+effect on it. **Drawing only**: who is hit, and when, is the sender's business (the Karkia
+catacombs' `CCatacombs::ProcFloor`, `doc/making-events.md` section 2). Not re-sent to a
+late arrival. First use: Argentia's floor fight. Client and server ship together. A warning
+may be a **soak** (`m_btStyle` = `ZONE_WARN_SOAK`, drawn green): a shape somebody must stand
+in, where red means leave (the Assassin's Black Sun and Execution). A strip's
+or a cone's effect is turned along it (the effect's +X; Ferdinando's lines of cuts).
+**`GSV_MOB_BLINK`** (0x07f4, `CObjCHAR::Blink_POSITION`) is its companion: a monster the
+server has put somewhere else at once, command and animation untouched (Ferdinando's
+dashes), optionally with a facing (Gladiomurus turning to each player she thrusts at). **A monster has 24 animation slots** (`MAX_MOB_ANI`; 12-23 are six more cast /
+release pairs): a change to `CCharMODEL`'s layout, so that build was a clean one.
+
+### Boss Alerts (2026-11-13)
+
+A few words above the middle of the screen telling the players what to do about a boss
+mechanic, with a bar that runs down for the time they have -- what a boss-mod addon does in
+other games (the user's ask: "akin to Deadly Boss Mods"), here the server's own word:
+`GSV_ZONE_ALERT` (0x07f5, `common/net_prototype.h`: time, style, a sound, the text). The
+client shows it (`CZoneAlerts` in `src/client/zoneobjects.*`, drawn beside the STUNNED alert
+with its font, classic interface and UI2 alike; newest on top, three at most; green for a
+shape to stand in, amber otherwise). The sender picks who is told: the Karkia catacombs
+(`Alert()` in `catacombs.cpp`) tell the players in the boss room, for the soaks and the
+moves with one safe place. Short and imperative, in capitals. Client and server ship together.
 
 ### NPC Dialog Quest Options (.CON QEX1 Appendix)
 NPC conversations are `.CON` files (`data/3DDATA/EVENT/`) whose logic is compiled Lua 4 **bytecode** — new functions can't be merged into the blob (Lua 4.0.1 rejects multi-chunk buffers). Our extension: an optional appendix after the Lua tail (`b"QEX1"; i32 len; XOR'd Lua source`) that the client (`cevent.cpp`, `QEX_APPENDIX_MAGIC`) executes into the same `lua_State` via a second `Do_Buffer`. The quest editor uses it to append quest options to an NPC's existing dialog without replacing it (`quest-editor con-append`, or the wizard's append radio). Codec + gotchas (main-blob XOR key depends on file size; menu-0 append ordering) live in `src/tools/quest-editor/src/convo.rs` and the tool's `PROGRESS.md`. `.CON` files are client-only — the server never reads them; quest authority stays in QSD triggers. Appended `.CON`s require the QEX1-aware client: ship client + data together.

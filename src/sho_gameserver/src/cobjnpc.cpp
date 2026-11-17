@@ -5,6 +5,7 @@
 #include "GS_ThreadZONE.h"
 #include "IO_Quest.h"
 #include "ZoneLIST.h"
+#include "catacombs.h"
 
 #include "rose/common/store_item_code.h"
 
@@ -175,6 +176,13 @@ CObjMOB::SetCMD_Skill2OBJ(int iTargetObjIDX, short nSkillIDX, short nMotion) {
     if (this->m_IngSTATUS.IsIgnoreSTATUS() || this->m_IngSTATUS.IsSET(FLAG_ING_DUMB))
         return true;
 
+    // In a crypt's maze a monster casts only at what it has a clear line to. A cast ordered
+    // across a wall sent it running straight at its target, through the wall: a run to cast
+    // is not put on a path (CObjCHAR::Nav_Chase). Dropped like a stunned monster's order;
+    // it keeps attacking, and that chase walks round.
+    if (CCatacombs::WallBetween(this, g_pObjMGR->Get_CharOBJ(iTargetObjIDX, true)))
+        return true;
+
     if (CObjAI::SetCMD_Skill2OBJ(iTargetObjIDX, nSkillIDX)) {
         m_cSkillMotionIDX = (char)nMotion;
         return this->Send_gsv_TARGET_SKILL(nSkillIDX, nMotion);
@@ -224,11 +232,32 @@ CObjMOB::Sub_FromTargetLIST(CObjAVT* pAVTChar) {
     this->UnlockTargetLIST();
 }
 
+// The list holds the targeters' own nodes, so a monster that leaves the zone alive
+// (GM npc DEL, the Cerberus sleeper swap, the escort's end) left them linked to a
+// freed list, and one that is re-indexed (GM npc CALL, regen CALL) kept them under
+// its new index. The player's next attack on it then appended a node already in
+// the list: a self-loop that hung the zone thread in this loop when it died.
+void
+CObjMOB::DetachTargeters() {
+    classDLLNODE<CObjAVT*>* pTargetNODE;
+
+    this->LockTargetLIST();
+    {
+        pTargetNODE = this->m_TargetLIST.GetHeadNode();
+        while (pTargetNODE) {
+            assert(this->Get_INDEX() == pTargetNODE->DATA->Get_TargetIDX());
+
+            this->m_TargetLIST.DeleteNode(pTargetNODE);
+            pTargetNODE->DATA->CObjTARGET::Set_TargetIDX(0);
+            pTargetNODE = this->m_TargetLIST.GetHeadNode();
+        }
+    }
+    this->UnlockTargetLIST();
+}
+
 bool
 CObjMOB::Dead(CObjCHAR* pKiller) {
     if (CObjCHAR::Dead(NULL)) {
-        classDLLNODE<CObjAVT*>* pTargetNODE;
-
         if (this->GetCallerUsrIDX()) {
             // 소환수가 있으면 갯수 감소
             CObjCHAR* pOwner = g_pObjMGR->Get_CharOBJ(this->GetCallerUsrIDX(), true);
@@ -241,18 +270,7 @@ CObjMOB::Dead(CObjCHAR* pKiller) {
             }
         }
 
-        this->LockTargetLIST();
-        {
-            pTargetNODE = this->m_TargetLIST.GetHeadNode();
-            while (pTargetNODE) {
-                assert(this->Get_INDEX() == pTargetNODE->DATA->Get_TargetIDX());
-
-                this->m_TargetLIST.DeleteNode(pTargetNODE);
-                pTargetNODE->DATA->CObjTARGET::Set_TargetIDX(0);
-                pTargetNODE = this->m_TargetLIST.GetHeadNode();
-            }
-        }
-        this->UnlockTargetLIST();
+        this->DetachTargeters();
 
         return true;
     }

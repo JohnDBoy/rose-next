@@ -227,6 +227,8 @@ CObjectMANAGER::Set_EmptySlot(short nSlotNO, WORD wServerObjectIndex, CGameOBJ* 
 void
 CObjectMANAGER::Clear(short nExceptObjIndex) {
     CZoneObjects::Instance().Forget(); // every object goes: drop the dynamic ones' bookkeeping
+    CZoneTimers::Instance().Forget(); // and the zone's timers: the next zone sends its own
+    CZoneAlerts::Instance().Forget();
     CGroundTelegraphs::Instance().Forget(); // and the casts they were drawing
     CSkillAim::Instance().Cancel(); // and an area skill being aimed
     if (g_pNet) {

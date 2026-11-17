@@ -242,6 +242,21 @@ public:
     // nSkillIDX is display metadata for the client damage meter (skill
     // attribution in the DamageEvent packet); it does not affect damage or
     // presentation behavior. 0 = normal attack / unknown.
+    /// One of this character's skills landing on pTarget outside any cast (a controller's
+    /// floor hazard, catacombs.cpp): the damage of the row as a cast would compute it, one
+    /// hit, sent as that skill's result -- so the client shows the digit with the row's hit
+    /// effect and plays its hit sound, and a miss shows as one. Returns the damage.
+    /// fScale shares it out (a blow split between those who stand together): the damage
+    /// is the row's, times that.
+    int Hit_WithSKILL(CObjCHAR* pTarget, short nSkillIDX, float fScale = 1.f);
+    /// This character is at (fX, fY) of its zone at once: no walk, no stop, its command and
+    /// its motion left as they are (a boss stepping through its room in the middle of a
+    /// skill clip). Every client is told (GSV_MOB_BLINK). Not for players: their own client
+    /// walks them. The caller answers for the spot being open floor on the same level.
+    /// nDirDeg turns it as well (degrees from +X towards +Y; -1 = as it was): the server
+    /// keeps no facing, so this is for the clients' eyes only. The same spot with a
+    /// facing is a turn on the spot.
+    void Blink_POSITION(float fX, float fY, short nDirDeg = -1);
     void Give_DAMAGE(CObjCHAR* pTarget, uniDAMAGE sDamage, bool bDropItem = true,
         Rose::Network::Packets::DamagePresentationKind kind
         = Rose::Network::Packets::DamagePresentationKind::Immediate,
