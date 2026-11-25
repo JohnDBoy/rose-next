@@ -274,7 +274,7 @@ The client reads its content from a packed **VFS**: `data.idx` plus `rose.vfs`
 balanced against are available here (the link is updated with each release):
 
 ```
-https://mega.nz/file/0JsC0apa#C0-MvWztpOXoMpupjEanjg9IbZu8RcMMOlk2lstFTXA
+https://mega.nz/file/dR9m1AyQ#ai1Cs6hBZZBswVz_Y1KFMqhtfTzYwBY0V13g10hcmxs
 ```
 
 Place the raw files in [`data/`](data/) (layout in

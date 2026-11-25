@@ -50,7 +50,10 @@ F_AIACT02(stActHead* pActDATA, t_AIPARAM* pEVENT) {
     */
     //	AIACT02 *pAct = (AIACT02*)pActDATA;
     AIACT02_STR* pAct = (AIACT02_STR*)pActDATA;
-    pEVENT->m_pSourCHAR->Say_MESSAGE(pAct->szCon);
+    // Nothing here: the server sends the line as local chat from the monster, as it
+    // does AIACT28's (2026-11-25; see F_AIACT28 for why this copy of the AI must not
+    // speak by itself).
+    (void)pAct;
 }
 //-------------------------------------------------------------------------------------------------
 void

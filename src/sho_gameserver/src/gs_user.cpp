@@ -1000,12 +1000,11 @@ classUSER::Send_gsv_LOGOUT_REPLY(WORD wWaitSec) {
 /// 사용자에게 npc에서 발동할수 있는 이벤트를 수행하라고 통보
 bool
 classUSER::Send_gsv_CHECK_NPC_EVENT(short nNpcIDX) {
-    if (NPC_QUEST_TYPE(nNpcIDX)) {
-        // 파티 전용 퀘스트다...
-        if (this->GetPARTY()) {
-            return this->m_pPartyBUFF->Send_gsv_CHECK_NPC_EVENT(this, nNpcIDX);
-        }
-        return true;
+    // LIST_NPC col 38 shares the kill's death event with the party members in range.
+    // A killer outside a party used to get nothing at all ("party-only quest"); now
+    // the event falls through to them alone (2026-11-25, the Woopie King's Crystal Key).
+    if (NPC_QUEST_TYPE(nNpcIDX) && this->GetPARTY()) {
+        return this->m_pPartyBUFF->Send_gsv_CHECK_NPC_EVENT(this, nNpcIDX);
     }
 
     m_iLastEventNpcIDX = nNpcIDX;

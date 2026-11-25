@@ -958,6 +958,13 @@ bool
 CObjNPC::Get_SellITEM(short nSellTAB, short nSellCOL, tagITEM& OutITEM) {
     short nListSellROW;
 
+    // An NPC has four shop tabs, LIST_NPC columns 21-24 (NPC_SELL_TAB0-3). The tab
+    // comes straight from the buy packet: -1 would read column 20 and 4+ columns 25..
+    // as a LIST_SELL row, letting a modified client buy any shop's goods from any NPC.
+    // The client only ever sends 0-3 (CStore: slot index / c_iSlotCountPerTab).
+    if (nSellTAB < 0 || nSellTAB > 3)
+        return false;
+
     nListSellROW = NPC_SELL_TAB(this->Get_CharNO(), nSellTAB);
     if (0 == nListSellROW || nListSellROW >= g_TblStore.row_count)
         return false;
