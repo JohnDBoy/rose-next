@@ -181,6 +181,18 @@ Our `data/` is a translated iROSE dump with gaps; the reference dumps in `C:\Use
   character with the row's per-level HP value (259, not 259 x level) under a recomputed max, so the
   bar read near zero on a full-health monster until the next hit (trace: `visible 259 -> hp 47915`).
   The swap itself is abrupt (model deleted and recreated, no effect); cosmetic, left as is.
+- `scripts/fix-ai-say-lines.py` (2026-11-25) — **AI lines that say placeholder text**. A "say"
+  (AIACT02, record type 0x03) or "shout" (AIACT28, 0x1d) names a row of `3DDATA/AI/AI_S.STB`
+  (iStrID = row + 1), unchecked; rows 86-88 are the AI editor's own shout-kind labels, so the
+  Woopie King "shouted" "Shout within the current field." (tester report). Re-points it, drops
+  Huey/Pony's borrowed and developer lines and the Leprechaun's lines past the table; `--audit`
+  lists any say/shout on a blank, placeholder or missing row -- run it after importing AI files.
+  **AIACT02 is server-sent since the same day** (`F_AIACT02` -> `Send_gsv_CHAT`; the server's
+  `Say_MESSAGE` is an empty virtual, so only the client's dice-rolling AI copy used to speak).
+- `scripts/share-quest-kills.py` (2026-11-25) — **LIST_NPC col 38 shares a quest monster's death
+  event with the party** in EXP range (`NPC_QUEST_TYPE`; each client checks its own quests).
+  Woopie King 205 (quest 113's Crystal Key, which only the killer got). The server used to send
+  a col-38 monster's event to nobody when the killer had no party; it now goes to them alone.
 - `scripts/fix-temple-rewarp-radius.py` (2026-11-17) — **the Forgotten Temple's endless reload
   loop** (91-130 bands). The temple's arrival trigger `2051-10` (QP201.QSD) rewarps a 2052/2053
   player near B1's entrance (COND_006, "20 m") to the band's start, and the server reads every

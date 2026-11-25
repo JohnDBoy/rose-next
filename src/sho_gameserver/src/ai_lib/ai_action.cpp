@@ -65,7 +65,15 @@ F_AIACT02(stActHead* pActDATA, t_AIPARAM* pEVENT) {
     */
     //	AIACT02 *pAct = (AIACT02*)pActDATA;
     AIACT02_STR* pAct = (AIACT02_STR*)pActDATA;
+#ifndef __SERVER
     pEVENT->m_pSourCHAR->Say_MESSAGE(pAct->szCon);
+#else
+    // The line is this local chat, as AIACT28's bubble is (2026-11-25). Say_MESSAGE
+    // is an empty virtual here, so only the client's own copy of the AI spoke --
+    // on its own dice, on hits the server never acted on (the Woopie King's "flee"
+    // line popped while the king stood and fought).
+    pEVENT->m_pSourCHAR->Send_gsv_CHAT(pAct->szCon);
+#endif
 }
 //-------------------------------------------------------------------------------------------------
 void
