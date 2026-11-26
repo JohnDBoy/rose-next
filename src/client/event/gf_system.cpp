@@ -203,20 +203,17 @@ GF_openStore(int iNPCNO, int bSpecialTab) {
 //=========================================================================
 void
 CF_addMsgToChatWND(char* pStr, ...) {
-    va_list vlist;
-    char* pBuff = NULL;
-
-    pBuff = new char[strlen(pStr) + 255];
-    if (!pBuff) {
+    // Was sprintf(pBuff, pStr, vlist) -- the argument list handed over as one argument --
+    // into a buffer of a guessed size, freed with the wrong delete (2026-11-26, after
+    // EVO-REFORGED 039552c6).
+    if (!pStr)
         return;
-    }
 
+    char szBuff[1024];
+    va_list vlist;
     va_start(vlist, pStr);
-    sprintf(pBuff, pStr, vlist);
+    _vsnprintf_s(szBuff, sizeof(szBuff), _TRUNCATE, pStr, vlist);
     va_end(vlist);
 
-    g_itMGR.AppendChatMsg(pBuff, IT_MGR::CHAT_TYPE_SYSTEM);
-    if (pBuff) {
-        delete pBuff;
-    }
+    g_itMGR.AppendChatMsg(szBuff, IT_MGR::CHAT_TYPE_SYSTEM);
 }

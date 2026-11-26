@@ -81,7 +81,7 @@ CManufacture::GetSuccessRate() {
 
 int
 CManufacture::GetSuccessPoint(int iIndex) {
-    if (iIndex < 0 && iIndex >= g_iMaxCountMaterial) {
+    if (iIndex < 0 || iIndex >= g_iMaxCountMaterial) { // was &&: never true
         assert(0 && "Invalid RequireMaterial Index @CManufacture::GetRequireMaterial");
         return m_iSuccessPoints[0];
     }
@@ -97,7 +97,7 @@ CManufacture::SetSuccessPoint(int iIndex, int iValue) {
 
 CRequireMaterial&
 CManufacture::GetRequireMaterial(int iIndex) {
-    if (iIndex < 0 && iIndex >= g_iMaxCountMaterial) {
+    if (iIndex < 0 || iIndex >= g_iMaxCountMaterial) { // was &&: never true
         assert(0 && "Invalid RequireMaterial Index @CManufacture::GetRequireMaterial");
         return m_RequireMaterials[0];
     }

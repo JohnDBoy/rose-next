@@ -7,12 +7,12 @@
 #include "tgamectrl/tcombobox.h"
 CExternalUIManager::CExternalUIManager() {
     for (int i = 0; i < EUI_MAX; ++i)
-        m_ExternalUI[EUI_MAX] = NULL;
+        m_ExternalUI[i] = NULL; // was [EUI_MAX]: one past the array
 }
 
 CExternalUIManager::~CExternalUIManager() {
     for (int i = 0; i < EUI_MAX; ++i) {
-        if (m_ExternalUI[EUI_MAX]) {
+        if (m_ExternalUI[i]) {
             delete m_ExternalUI[i];
             m_ExternalUI[i] = NULL;
         }
@@ -29,8 +29,8 @@ CExternalUIManager::AddEUI(unsigned int iType, CTDialog* pEUI) {
         return false;
     }
 
-    if (iType > EUI_MAX) {
-        assert(iType > EUI_MAX && " AddEUI(): iType > EUI_MAX");
+    if (iType >= EUI_MAX) {
+        assert(iType >= EUI_MAX && " AddEUI(): iType >= EUI_MAX");
         return false;
     }
 
@@ -49,9 +49,9 @@ CExternalUIManager::AddEUI(unsigned int iType, CTDialog* pEUI) {
 ///
 CTDialog*
 CExternalUIManager::GetEUI(int iType) {
-    if (iType > EUI_MAX) {
-        assert(iType > EUI_MAX && " GetEUI() : iType > EUI_MAX");
-        return false;
+    if (iType < 0 || iType >= EUI_MAX) {
+        assert(iType >= EUI_MAX && " GetEUI() : iType >= EUI_MAX");
+        return NULL;
     }
 
     return m_ExternalUI[iType];

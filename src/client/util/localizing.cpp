@@ -155,7 +155,7 @@ CLocalizing::UTF8ToMBCS(LPSTR inBuf, int iInBufSize) {
 
     } else {
         pOutBuf = outBuf;
-        iOutBufSize = sizeof(outBuf);
+        iOutBufSize = sizeof(outBuf) / sizeof(outBuf[0]) - 1; // characters, one kept for the end
     }
 
     /// UTF8 -> Unicode
@@ -165,6 +165,12 @@ CLocalizing::UTF8ToMBCS(LPSTR inBuf, int iInBufSize) {
         iInBufSize,
         pOutBuf,
         iOutBufSize);
+
+    // Zero-terminated, as the conversion below reads it (2026-11-26, after EVO-REFORGED
+    // 7f15676c); both buffers are longer than iOutBufSize.
+    if (iWideCharCnt < 0)
+        iWideCharCnt = 0;
+    pOutBuf[iWideCharCnt < iOutBufSize ? iWideCharCnt : iOutBufSize] = 0;
 
     /// Unicode -> MBCS
     return WideCharToMultiByte(CP_ACP, 0, pOutBuf, -1, inBuf, iInBufSize, 0, 0);
@@ -201,7 +207,7 @@ CLocalizing::MBCSToUTF8(LPSTR inBuf, int iInBufSize) {
 
     } else {
         pOutBuf = outBuf;
-        iOutBufSize = sizeof(outBuf);
+        iOutBufSize = sizeof(outBuf) / sizeof(outBuf[0]) - 1; // characters, one kept for the end
     }
 
     /// MBCS -> Unicode
@@ -211,6 +217,11 @@ CLocalizing::MBCSToUTF8(LPSTR inBuf, int iInBufSize) {
         iInBufSize,
         pOutBuf,
         iOutBufSize);
+
+    // Zero-terminated, as the conversion below reads it (see UTF8ToMBCS).
+    if (iWideCharCnt < 0)
+        iWideCharCnt = 0;
+    pOutBuf[iWideCharCnt < iOutBufSize ? iWideCharCnt : iOutBufSize] = 0;
 
     /// Unicode -> UTF8
     return WideCharToMultiByte(CP_UTF8, 0, pOutBuf, -1, inBuf, iInBufSize, 0, 0);
