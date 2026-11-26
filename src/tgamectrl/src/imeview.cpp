@@ -154,7 +154,7 @@ CImeView::GetResultString() {
             ImmGetCompositionString(m_hIMC, GCS_RESULTSTR, str, len);
             str[len] = 0;
             ProcessResultString(str);
-            delete str;
+            delete[] str;
         }
         Leave();
     }
@@ -186,9 +186,9 @@ CImeView::GetCompString(LONG flag) {
         ProcessCompString(str, strAttr);
         m_nCompLen = (UINT)len;
         if (strAttr)
-            delete strAttr;
+            delete[] strAttr;
         if (str)
-            delete str;
+            delete[] str;
     }
     Leave();
     return TRUE;

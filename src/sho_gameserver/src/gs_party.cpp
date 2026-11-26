@@ -828,7 +828,7 @@ bool
 CParty::Send_gsv_PARTY_REPLY2Members(BYTE btReply, DWORD dwFromIDXorTAG) {
     classPACKET* pCPacket = Packet_AllocNLock();
     if (!pCPacket)
-        false;
+        return false; // the return was missing: a null write followed
 
     pCPacket->m_HEADER.m_wType = GSV_PARTY_REPLY;
     pCPacket->m_HEADER.m_nSize = sizeof(gsv_PARTY_REPLY);
