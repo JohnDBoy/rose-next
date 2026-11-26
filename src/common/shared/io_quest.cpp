@@ -3190,6 +3190,17 @@ CQuestTRIGGER::Init_REWD(uniQstENTITY* pREWD) {
 }
 
 //-------------------------------------------------------------------------------------------------
+// A record is read at its own size, but Init_REWD writes REWD_013 / REWD_019's hash at the
+// struct's fixed offset, after a name of any length, and the checks read the union's fields:
+// a record shorter than the struct (a trigger name under ~6 bytes) was written past its
+// block. At least the union's size, plus the terminating 0 (2026-11-26, after EVO-REFORGED
+// 7f15676c, where a sanitizer found it; none of our quests is that short today).
+static unsigned int
+QstEntityAllocSize(unsigned int uiSize) {
+    return (uiSize > sizeof(uniQstENTITY) ? uiSize : (unsigned int)sizeof(uniQstENTITY)) + 1;
+}
+
+//-------------------------------------------------------------------------------------------------
 #ifndef __SERVER
 bool
 CQuestTRIGGER::Client_Load(CFileSystem* pFileSystem) {
@@ -3213,7 +3224,7 @@ CQuestTRIGGER::Client_Load(CFileSystem* pFileSystem) {
         pFileSystem->ReadUInt32(&Header.uiSize);
         pFileSystem->ReadInt32(&Header.iType);
 
-        m_ppCondition[uiC] = (uniQstENTITY*)new BYTE[Header.uiSize + 1];
+        m_ppCondition[uiC] = (uniQstENTITY*)new BYTE[QstEntityAllocSize(Header.uiSize)];
         m_ppCondition[uiC]->uiSize = Header.uiSize;
         m_ppCondition[uiC]->iType = Header.iType & 0x0ffff;
         m_ppCondition[uiC]->m_pDATA[Header.uiSize] = 0;
@@ -3229,7 +3240,7 @@ CQuestTRIGGER::Client_Load(CFileSystem* pFileSystem) {
         pFileSystem->ReadUInt32(&Header.uiSize);
         pFileSystem->ReadInt32(&Header.iType);
 
-        m_ppReward[uiC] = (uniQstENTITY*)new BYTE[Header.uiSize + 1];
+        m_ppReward[uiC] = (uniQstENTITY*)new BYTE[QstEntityAllocSize(Header.uiSize)];
         m_ppReward[uiC]->uiSize = Header.uiSize;
         m_ppReward[uiC]->iType = Header.iType & 0x0ffff;
         m_ppReward[uiC]->m_pDATA[Header.uiSize] = 0;
@@ -3265,7 +3276,7 @@ CQuestTRIGGER::Load(FILE* fpIN, STBDATA* pSTB, int iLangCol) {
         fread(&Header.uiSize, 1, sizeof(UINT), fpIN);
         fread(&Header.iType, 1, sizeof(int), fpIN);
 
-        m_ppCondition[uiC] = (uniQstENTITY*)new BYTE[Header.uiSize + 1];
+        m_ppCondition[uiC] = (uniQstENTITY*)new BYTE[QstEntityAllocSize(Header.uiSize)];
         m_ppCondition[uiC]->uiSize = Header.uiSize;
         m_ppCondition[uiC]->iType = Header.iType & 0x0ffff;
         m_ppCondition[uiC]->m_pDATA[Header.uiSize] = 0;
@@ -3283,7 +3294,7 @@ CQuestTRIGGER::Load(FILE* fpIN, STBDATA* pSTB, int iLangCol) {
         fread(&Header.uiSize, 1, sizeof(UINT), fpIN);
         fread(&Header.iType, 1, sizeof(int), fpIN);
 
-        m_ppReward[uiC] = (uniQstENTITY*)new BYTE[Header.uiSize + 1];
+        m_ppReward[uiC] = (uniQstENTITY*)new BYTE[QstEntityAllocSize(Header.uiSize)];
         m_ppReward[uiC]->uiSize = Header.uiSize;
         m_ppReward[uiC]->iType = Header.iType & 0x0ffff;
         m_ppReward[uiC]->m_pDATA[Header.uiSize] = 0;

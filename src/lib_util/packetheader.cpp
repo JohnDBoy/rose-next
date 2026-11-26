@@ -6,39 +6,43 @@
 struct t_PACKET;
 
 //---------------------------------------------------------------------------
-char*
-Packet_GetStringPtr(t_PACKET* pPacket, short& nOffset, short& nOutStrLEN) {
-    if (nOffset >= ((t_PACKETHEADER*)pPacket)->m_nSize) {
-        // iCARUS_LogString (LOG_DEBUG_, "Packet_GetStringPtr return NULL !!! Type: [0x%x], Size:
-        // [%d], Offset: [%d]", pPacket->cType, pPacket->m_nSize, *pOffset);
+// A text inside a packet, bounded by the packet's own size (2026-11-26, after EVO-REFORGED
+// 967a7c5e). The two-argument reader ran strlen with no bound, so a text without its end
+// inside the packet -- a malformed client packet, on the server -- was read on into the
+// receive buffer behind it. Such a text is now cut at the packet's last byte (written as
+// the end) rather than refused: not every caller checks for NULL.
+static char*
+Packet_StrAt(t_PACKET* pPacket, short& nOffset, short& nOutStrLEN) {
+    t_PACKETHEADER* pHeader = (t_PACKETHEADER*)pPacket;
+    const int iSize = pHeader->m_nSize;
+    if (nOffset < 0 || nOffset >= iSize || iSize > (int)MAX_PACKET_SIZE) {
         return NULL;
     }
 
-    char* pStr = (char*)((t_PACKETHEADER*)pPacket)->m_pDATA + nOffset;
-    short nMaxStrLEN = ((t_PACKETHEADER*)pPacket)->m_nSize - nOffset;
+    char* pStr = (char*)pHeader->m_pDATA + nOffset;
+    const char* pEnd = (const char*)memchr(pStr, 0, (size_t)(iSize - nOffset));
+    if (!pEnd) {
+        OutputDebugString("Error !! Packet_GetStringPtr.. a text without its end inside the packet\n");
+        pHeader->m_pDATA[iSize - 1] = '\0';
+        pEnd = (const char*)pHeader->m_pDATA + iSize - 1;
+    }
 
-    nOutStrLEN = CStr::StrLen(pStr, nMaxStrLEN);
-    if (nOutStrLEN > nMaxStrLEN)
-        return NULL;
-
-    nOffset += (nOutStrLEN + 1);
+    nOutStrLEN = (short)(pEnd - pStr);
+    nOffset = (short)(nOffset + nOutStrLEN + 1);
     return pStr;
 }
 
 //---------------------------------------------------------------------------
 char*
+Packet_GetStringPtr(t_PACKET* pPacket, short& nOffset, short& nOutStrLEN) {
+    return Packet_StrAt(pPacket, nOffset, nOutStrLEN);
+}
+
+//---------------------------------------------------------------------------
+char*
 Packet_GetStringPtr(t_PACKET* pPacket, short& nOffset) {
-    if (nOffset >= ((t_PACKETHEADER*)pPacket)->m_nSize) {
-        // iCARUS_LogString (LOG_DEBUG_, "Packet_GetStringPtr return NULL !!! Type: [0x%x], Size:
-        // [%d], Offset: [%d]", pPacket->cType, pPacket->m_nSize, *pOffset);
-        return NULL;
-    }
-
-    char* pStr;
-    pStr = (char*)((t_PACKETHEADER*)pPacket)->m_pDATA + nOffset;
-    nOffset += (static_cast<short>(strlen(pStr)) + 1);
-
-    return pStr;
+    short nStrLEN;
+    return Packet_StrAt(pPacket, nOffset, nStrLEN);
 }
 
 //---------------------------------------------------------------------------

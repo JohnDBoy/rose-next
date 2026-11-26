@@ -109,8 +109,8 @@ CWarningDlg::Show() {
 
                 pListBox->AppendText(szTemp, g_dwWHITE);
             }
+            fclose(fp); // inside the check: fclose(NULL) ends the program
         }
-        fclose(fp);
 
         // 리스트 박스 처음으로 이동.
         pListBox->SetValue(0);
