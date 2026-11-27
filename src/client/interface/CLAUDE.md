@@ -28,6 +28,16 @@ replace the measured height outright, so 26 rows drew their name and bar inside 
 bind-pose mesh on purpose -- bees, bats, gargoyles and other flyers hover through animation, which
 `getModelHeight` cannot see -- and are unchanged. A new import needs no col 42 unless it flies.
 
+## Cursor Labels (`CCursor`, 2026-11-27)
+
+A ground item's name under the mouse is the cursor's own label: `CGameStateMain::UpdateCheckFrame`
+re-picks every 2-5 frames and calls `SetCursorType(CURSOR_ITEM_PICK, &info)`, and `IT_MGR::DrawDLGs`
+draws `GetMouseInfo()`. `SetCursorType` clears the label first. `WM_SETCURSOR`, which Windows
+sends on every mouse move, calls `RefreshCursor`, and that used to go through `SetCursorType`
+without info, so the name blinked off between picks whenever the mouse moved. `RefreshCursor` now
+re-applies the cursor state only. Anything that only re-applies the cursor must not clear the
+label; only a real cursor change replaces it.
+
 ## Summon Info Panel
 
 `CSummonInfoPanel` (`interface/csummoninfopanel.cpp/h`, owned by `CUIMediator` as `m_SummonPanel`) is a draggable overlay listing the player's active summons (name, ATK/DEF/LV/RES, HP bar). It is **not** a tgamectrl dialog — it draws directly with `g_DrawImpl.DrawFit` (`ID_BLACK_PANEL` background, `UI00_GUAGE_*` HP bar) + `drawFont`, like the monster-HP namebox feature, so it needs **no XML resource**. Drawn inside the HUD sprite block via `CUIMediator::Draw()`. **Under UI2 it is replaced** (`RoseUi2::PIECE_SUMMON_PANEL`: `Draw` and the drag hit-test return early) by `RoseRmlSummons`, which reads the same `SummonMobInfo` and adds abilities, status effects and click-to-target -- see `rmlui/CLAUDE.md` "Summon cards".

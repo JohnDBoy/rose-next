@@ -144,8 +144,15 @@ CObjITEM::Get_NAME() {
     if (ITEM_TYPE_MONEY == m_ITEM.GetTYPE())
         return CStr::Printf("%d%s", m_ITEM.m_uiQuantity, STR_MONEY);
 
-    if (m_ITEM.GetTYPE() >= 1 && m_ITEM.GetTYPE() < ITEM_TYPE_MONEY)
+    if (m_ITEM.GetTYPE() >= 1 && m_ITEM.GetTYPE() < ITEM_TYPE_MONEY) {
+        // A refined item reads "Name (3)" on the ground, as in its tooltip
+        // (CItem::AddItemName): gear can drop pre-refined since 2026-11-27.
+        if (m_ITEM.GetGrade())
+            return CStr::Printf("%s (%d)",
+                ITEM_NAME(m_ITEM.GetTYPE(), m_ITEM.GetItemNO()),
+                m_ITEM.GetGrade());
         return (char*)ITEM_NAME(m_ITEM.GetTYPE(), m_ITEM.GetItemNO());
+    }
 
     return CStr::Printf("%s", "알수 없는 아이템");
 }

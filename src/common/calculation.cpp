@@ -136,7 +136,8 @@ CCal::Get_DropITEM(int level_difference,
     int iZoneNO,
     int iDropRate,
     int iCharm,
-    DropRoll eRoll) {
+    DropRoll eRoll,
+    int iRefineBase) {
 
     int iDrop_VAR = 0;
 
@@ -272,6 +273,37 @@ CCal::Get_DropITEM(int level_difference,
 
         item.m_nLife = iTEMP;
         item.m_cGrade = 0;
+
+        // Pre-refined drops (2026-11-27): gear can drop at +1 to +3, more often the more
+        // Charm the killer has. This is iROSE's own roll, switched off in retail on
+        // 2005-05-25 ("no refining after the Taiwan OBT"; EVO-REFORGED and China Rose still
+        // carry it), with one change. The original numerator was
+        // (DROP_ITEM - 5) * 3 + 150 - MOB_LV * 1.5 - T + CHA, and the level term meant it
+        // stopped happening above level ~150: 0.2% of gear drops at 151-200 with Charm 10,
+        // none at 201-240. Here the first three terms are one constant, server.toml
+        // [game] drop_refine (0 = off), so the odds are the same at every level. Default
+        // 200: 10% of gear drops refined at Charm 10, 16% at 50, 25% at 100, 41% at 200.
+        // +2 needs Charm 34 or more and +3 111 or more (on the luckiest roll).
+        if (iRefineBase > 0) {
+            switch (item.GetTYPE()) {
+                case ITEM_TYPE_WEAPON:
+                case ITEM_TYPE_SUBWPN:
+                case ITEM_TYPE_HELMET:
+                case ITEM_TYPE_ARMOR:
+                case ITEM_TYPE_GAUNTLET:
+                case ITEM_TYPE_BOOTS: {
+                    const int iRoll = 1 + RANDOM(100);
+                    const int iGrade =
+                        static_cast<int>((iRefineBase - iRoll + iCharm) * 0.4f / (iRoll + 30)) - 1;
+                    if (iGrade >= 1) {
+                        item.m_cGrade = static_cast<BYTE>(iGrade >= 3 ? 3 : iGrade);
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
     }
     return true;
 }
