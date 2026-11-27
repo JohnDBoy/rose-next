@@ -1774,6 +1774,9 @@ CObjCHAR::Apply_DAMAGE(CObjCHAR* pTarget,
                             // the zone's map table, two independent rolls. server.toml
                             // [game] map_drop = 0 restores the retail single roll.
                             const bool bMapDrop = server_config().game.map_drop != 0;
+                            // Pre-refined gear drops, by the killer's Charm (CCal::Get_DropITEM).
+                            const int iRefineBase =
+                                static_cast<int>(server_config().game.drop_refine);
 
                             tagITEM sITEM;
                             sITEM.init();
@@ -1783,7 +1786,8 @@ CObjCHAR::Apply_DAMAGE(CObjCHAR* pTarget,
                                     this->GetZONE()->Get_ZoneNO(),
                                     pMobOWNER->GetCur_DropRATE(),
                                     pMobOWNER->Get_CHARM(),
-                                    bMapDrop ? CCal::DropRoll::Monster : CCal::DropRoll::Legacy))
+                                    bMapDrop ? CCal::DropRoll::Monster : CCal::DropRoll::Legacy,
+                                    iRefineBase))
                             {
                                 // The caller may also hand this one to a skill's
                                 // GSV_DAMAGE_OF_SKILL, which carries one drop inline.
@@ -1799,7 +1803,8 @@ CObjCHAR::Apply_DAMAGE(CObjCHAR* pTarget,
                                         this->GetZONE()->Get_ZoneNO(),
                                         pMobOWNER->GetCur_DropRATE(),
                                         pMobOWNER->Get_CHARM(),
-                                        CCal::DropRoll::Map))
+                                        CCal::DropRoll::Map,
+                                        iRefineBase))
                                 {
                                     // Announced by the sector broadcast alone, never
                                     // through ppOutITEM: the skill packet holds one item,

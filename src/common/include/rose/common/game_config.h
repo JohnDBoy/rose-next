@@ -47,6 +47,10 @@ struct GameConfig {
     /// then, separately, its zone's row (the map table). 0 restores the retail single roll,
     /// which reads the zone row instead of the own table (100 - col 20)% of the time.
     uint32_t map_drop;
+    /// Pre-refined gear drops (2026-11-27, CCal::Get_DropITEM): the constant of iROSE's
+    /// grade roll in place of its monster-level term. 200 = 10% of gear drops at +1..+3
+    /// with Charm 10, 25% with Charm 100. 0 = off (every drop at +0, as before).
+    uint32_t drop_refine;
 
     GameConfig():
         base_attack_power(0),
@@ -55,7 +59,8 @@ struct GameConfig {
         base_hit_rate(0),
         base_crit(0),
         stun_immunity_ms(10000),
-        map_drop(1) {}
+        map_drop(1),
+        drop_refine(200) {}
 };
 
 } // namespace Common

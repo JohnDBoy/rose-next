@@ -58,7 +58,8 @@ public:
         int iZoneNO,
         int iDropRate,
         int iCharm,
-        DropRoll eRoll = DropRoll::Legacy);
+        DropRoll eRoll = DropRoll::Legacy,
+        int iRefineBase = 0);
     static __int64 Get_EXP(CObjCHAR* pAtkCHAR, CObjCHAR* pDefCHAR, int iGiveDamage);
 
 #ifdef __SERVER
