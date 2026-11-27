@@ -89,6 +89,16 @@ Everything here is **32-bit (x86) Windows**: a C++/Rust build, Visual Studio
   casts resume the fight afterwards, heals sync HP to the party, Nagle is off
   on every socket, and a client can no longer warp itself anywhere through the
   relay packet.
+- **Weapons carry their own identity.** Attack power, accuracy and attack speed
+  come from the weapon rather than flat server-wide bonuses (the `server.toml`
+  bonuses are 0).
+- **Every kill rolls two drops**: the monster's own table, then its zone's map
+  table (`server.toml [game] map_drop`, 0 = the retail single roll).
+- **Gear can drop pre-refined.** A weapon or armour drop sometimes comes at +1
+  to +3, more often the more Charm the killer has: 10% of gear drops at Charm
+  10, 25% at 100, 41% at 200, at every level. This restores iROSE's own grade
+  roll, which retail switched off in 2005, with its level term removed so it
+  still happens at the cap (`server.toml [game] drop_refine`, 0 = off).
 - **Boss fights you read on the ground.** A monster's big attack draws its area
   while it winds up (circle, strip or cone, one cell in `LIST_SKILL`), and a
   server-run fight can draw shapes of its own: red ones to leave, green ones
@@ -102,7 +112,7 @@ Everything here is **32-bit (x86) Windows**: a C++/Rust build, Visual Studio
 ### New regions
 
 Imported from other ROSE lineages with their models, dialogs, AI, spawns, drops
-and balance adapted to this server. Some are still being validated in game.
+and balance adapted to this server. All of them have been tested in game.
 
 | Region | Zones | Origin |
 | --- | --- | --- |
@@ -126,7 +136,8 @@ wrong attack frames, unlit lamps).
 - **`rosefmt`** (`scripts/rosefmt/`): one Python reader and writer for every
   ROSE file format: the STB/STL tables, ZSC model tables, CHR, LTB, AIP monster
   AI, TSI atlases, QSD quests, `.CON` dialogs, the map files (ZON, HIM, TIL, MOV,
-  IFO, LIT), ZMS meshes, DDS headers and the VFS index. Every codec reproduces
+  IFO, LIT), the server's walk grids (LNAV), ZMS meshes, ZMO motions, EFT and
+  PTL effects, DDS headers and the VFS index. Every codec reproduces
   every shipped file byte for byte (`scripts/rosefmt-roundtrip.py` checks all of
   them, and five other clients' dumps), and each module's docstring carries the
   format layout and its traps. Import it from any script; never write a parser
@@ -138,6 +149,12 @@ wrong attack frames, unlit lamps).
   screenshots, a minimap maker, a cross-zone object browser and placement tools.
 - **Quest editor** (CLI + wizard), **NPC shop editor** and a GM item browser,
   and a **VFS browser** in [src/tools/](src/tools/).
+- **Rose Dev Studio** ([src/tools/dev-studio/](src/tools/dev-studio/), Python +
+  PyQt6, `just studio`): a desktop editor over `rosefmt` for STB and STL tables,
+  with the combat simulator in its Tools menu.
+- **Combat simulator** (`scripts/combat-sim.py`, `scripts/combatsim/`): fights
+  any class build against any monster with the server's own formulas, monster
+  AI and summons included, for balance passes.
 - **Over 200 Python scripts** in [scripts/](scripts/), built on `rosefmt`: region
   importers, balance passes, data audits and repairs, item/skill/icon importers,
   VFS verification. Each is idempotent with `--dry-run`, `--verify` and
@@ -164,7 +181,7 @@ Client (C++/D3D9Ex) ←→ LoginServer  ←→  WorldServer  ←→  GameServer
 | `src/engine/` | The 3D engine (znzin) |
 | `src/tgamectrl/` | The classic UI control framework |
 | `src/pipeline/` | Rust asset packer (`pipeline.exe`) |
-| `src/tools/` | VFS browser, NPC shop editor, quest editor (Rust) |
+| `src/tools/` | VFS browser, NPC shop editor + GM item browser, quest editor (Rust); Rose Dev Studio (Python) |
 | `scripts/` | Build/dev scripts and the Python data tooling |
 | `scripts/rosefmt/` | The file-format codecs, one module per format |
 | `scripts/mapgen/` | The map generator and lightmap bakers |
@@ -193,7 +210,7 @@ place to start reading before changing anything.
 - **PostgreSQL 12+**.
 - **PowerShell 7+** for the scripts.
 - **Python 3** for the data tooling (Pillow for the icon scripts, `pymeshlab`
-  only for mesh decimation).
+  only for mesh decimation); Rose Dev Studio needs Python 3.12 and PyQt6.
 - Optional: [`just`](https://github.com/casey/just) for the recipes below.
 
 ---
@@ -230,6 +247,7 @@ loginserver / ls        worldserver / ws        gameserver / gs
 
 create-account email password [access]   access 2048 = full GM rights
 purge-cache             Drop the OS file cache (for cold-cache measurements)
+studio [files]          Open Rose Dev Studio (optionally on the given STB/STL files)
 ```
 
 ---
@@ -328,7 +346,10 @@ does nothing looks exactly like one that works.
 | `[VIDEO] EXCLUSIVE_FULLSCREEN` | `0` (default) = borderless, `1` = legacy exclusive. Borderless ignores `[RESOLUTION]` and renders at the monitor's size. |
 | `[VIDEO] VSYNC` | `1` (default, **recommended** for play). `0` uncaps the framerate; use it only while measuring. |
 | `[VIDEO] MAX_FPS` | Frame cap independent of vsync (`0` = none, 20–1000), for the cases where vsync is off. |
-| `[VIDEO] D3D9EX` / `DEPTH24` / `TRANSPARENCY_AA` | `0` forces plain D3D9 / a 16-bit depth buffer / no transparency supersampling. For A/B tests. |
+| `[VIDEO] D3D9EX` / `DEPTH24` | `0` forces plain D3D9 / a 16-bit depth buffer. For A/B tests. |
+| `[VIDEO] TRANSPARENCY_AA` | `1` (default) = transparency supersampling, `2` = alpha-to-coverage (kept for comparison), `0` = off. NVIDIA only, needs MSAA; also in Options. |
+| `[VIDEO] FOLIAGE_TWO_PASS` | `1` (default) draws alpha-tested parts in two passes, which removes the pale outline round mis-sorted leaves. `0` = the old single draw; `/alphasplit` flips it live. |
+| `[VIDEO] BONE_FX_BUDGET` | `1` (default) caps passive aura particles at 8,000 on screen; `0` lifts the cap, for testing only. |
 | `[VIDEO] Camera` | View distance from Options: `0` Near, `1` Normal (default), `2` Far. The terrain fades out at 320 m on Normal, 450 m on Far (with the data from `scripts/set-camera-fog.py`). |
 | `[VIDEO] TERRAIN_RADIUS` | Default `2` = a 5x5 square of 160 m map chunks kept loaded; `1` = the original 3x3. |
 | `[VIDEO] TERRAIN_BATCH` | Default `1` = each chunk's terrain drawn as one batch (a few dozen draws instead of 256). `0` = the original one draw per 10 m tile. Read at startup. |
@@ -338,6 +359,7 @@ does nothing looks exactly like one that works.
 | `[VIDEO] LOAD_BUDGET_US` | Default `2000`. Microseconds per frame for pre-loading resources. |
 | `[VIDEO] CACHE_WARM_MB` | Default `300`. Archive megabytes pulled into the file cache during each loading screen (3.7x faster texture reads measured). |
 | `[VIDEO] FRAME_SPIKE_LOG_MS` / `STREAM_SPIKE_LOG_MS` | `0` (off). Log every frame over N ms total / N ms of resource loading, with the phase breakdown. The frame log also writes one `Frame dip:` line for a run of slow frames. |
+| `[LOG] LEVEL` | `client.log` verbosity: `trace` / `debug` / `info` (default) / `warn` / `error` / `off`. `debug` adds the combat traces and is loud; keep repros short. |
 | `[LOG] CRASHDUMP` | `normal` / `full` / `off` minidumps on a crash. |
 
 Environment variables override the ini for one-off runs: `ROSE_NO_D3D9EX`,
@@ -378,7 +400,8 @@ insert into `account` with `email`, `password` (SHA256 + salt) and `salt`;
 
 ### Configuration (`server.toml`)
 
-Read from the executable's directory; a full example is
+Read from the executable's directory, or from the path given by
+`--config <path>`; a full example is
 [doc/server.toml.example](doc/server.toml.example). Log levels run from `0`
 (trace) to `5` (off).
 
@@ -417,11 +440,18 @@ log_path = "C:\\rose-next\\server\\logs\\gameserver.log"
 # Optional gameplay tuning
 [game]
 base_move_speed = 200
-base_attack_power = 70
-base_attack_speed = 35
-base_hit = 80
+base_attack_power = 0       # 0 since the weapon identity pass: the weapons carry these
+base_attack_speed = 0
+base_hit = 0
 base_crit = 0
+stun_immunity_ms = 10000    # after a monster's stun ends, no monster can stun that player for this long (0 = off)
+map_drop = 1                # every kill also rolls its zone's map table (0 = the retail single roll)
+drop_refine = 200           # gear drops at +1..+3, more with the killer's Charm (0 = off)
 ```
+
+The example file also documents `[nav]`, the server's height and pathfinding
+rules (every key optional; the defaults need the walk grids baked by
+`scripts/nav-bake.py`).
 
 ---
 
@@ -433,8 +463,8 @@ base_crit = 0
 - `scripts/debug-client-crash.ps1` runs the client under cdb and writes a full
   dump with all thread stacks on a crash; `client.log` flushes per record and
   survives a crash, `error.txt` (the engine log) is buffered and does not.
-- `/dps`, `/uistats`, `/perfreset` and the GM debug HUD (`D`) are the in-game
-  measurement tools.
+- `/dps`, `/uistats`, `/perfreset`, `/alphasplit` and the GM debug HUD (`D`)
+  are the in-game measurement tools.
 - Data under `data/` is not in git, so **a script is the only committed record
   of a data change**: every balance pass, importer and repair carries its
   reasoning in its docstring and is reversible.

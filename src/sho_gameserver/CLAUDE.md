@@ -449,6 +449,17 @@ ground-item bug (root CLAUDE.md). Zone rows are therefore real map tables with n
 (doc/project-drops.md section 7; `scripts/economy-audit.py drops --roll monster|map`). The
 redirect buckets are read at index 25 + 5g + k since the same day (`Rose::Drop::kRedirectBaseColumn`).
 
+**Pre-refined drops (2026-11-27).** A weapon, sub-weapon, helmet, armour, glove or boot drop
+can come at +1 to +3, more often with more Charm on the killer (`pMobOWNER->Get_CHARM()`, so a
+summon's kill uses its owner's). It is iROSE's grade roll, which retail switched off on
+2005-05-25 and our copy had cut down to `m_cGrade = 0`; EVO-REFORGED and China Rose still carry
+the original. The original subtracted 1.5 x monster level, which made it die out above level
+~150. Here that term and the drop-rate term are one constant, `server.toml [game] drop_refine`
+(default 200, 0 = off): 10% of gear drops refined at Charm 10, 16% at 50, 25% at 100, 41% at
+200, the same at every level. +2 needs Charm 34+, +3 needs 111+. A grade adds only (40 + g) / 40
+to the NPC sell price. The client labels a refined item on the ground "Name (3)", as its tooltip
+does (`CObjITEM::Get_NAME`); the drop packet's `tagBaseITEM` already carries the grade.
+
 ## Warp And Party Rules
 
 - **`Recv_cli_RELAY_REPLY` now honours only the destination the server last

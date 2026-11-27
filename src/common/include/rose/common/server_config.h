@@ -153,6 +153,10 @@ public:
         if (this->get_uint32("game", "map_drop", map_drop)) {
             this->game.map_drop = map_drop;
         }
+        uint32_t drop_refine = 0;
+        if (this->get_uint32("game", "drop_refine", drop_refine)) {
+            this->game.drop_refine = drop_refine;
+        }
 
         return true;
     }
