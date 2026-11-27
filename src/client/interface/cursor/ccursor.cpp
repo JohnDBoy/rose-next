@@ -84,12 +84,17 @@ CCursor::GetMouseInfo() {
     return m_MouseInfo;
 }
 
+/// Re-applies the current cursor and keeps its label. WM_SETCURSOR calls this on every
+/// mouse move (CApplication::MessageProc), and going through SetCursorType cleared
+/// m_MouseInfo each time: a ground item's name blinked off while the mouse moved along
+/// it, until the next pick (2-5 frames later) set it again. Only SetCursorType itself,
+/// a real change of cursor, replaces the label.
 int
 CCursor::RefreshCursor() {
     assert(m_pCurrState);
 
     if (m_pCurrState)
-        return SetCursorType(m_iType);
+        return m_pCurrState->SetCursorType(m_iType);
 
     return 0;
 }
